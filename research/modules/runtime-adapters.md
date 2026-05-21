@@ -105,7 +105,20 @@ type RuntimeEvent =
 
 ---
 
-## 6. 待用户确认
+## 6. 参考项目校准
+
+参考 `research/modules/reference-projects.md`：
+
+- LobeHub `apps/desktop/src/main/controllers/HeterogeneousAgentCtr.ts` 已用 Electron 主进程管理外部 Agent CLI 子进程。
+- 其 session 模型包含 `agentType`、`command`、`cwd`、`env`、`resumeSessionId`、`agentSessionId`。
+- LobeHub 对 CLI not found、auth required、resume not found、cwd mismatch 等错误做了显式识别。
+- LobeHub Gateway 的 `agent_run_request` 直接包含 `agentType: 'claude-code' | 'codex'`、`prompt`、`cwd`、`resumeSessionId`。
+
+这些参考强化 AgentHub 的结论：P0 不应把 Claude Code/Codex 做成普通 API provider，而应做 CLI 子进程 Runtime Adapter，并把 native session id/resume 作为一等字段。
+
+---
+
+## 7. 待用户确认
 
 **推荐确认项：**
 
@@ -117,7 +130,7 @@ C. P0 只做 Claude Code，不做 Codex。
 
 ---
 
-## 7. 参考资料
+## 8. 参考资料
 
 - Claude Code CLI 文档：https://docs.anthropic.com/en/docs/claude-code/cli-reference
 - OpenAI Codex CLI Reference：https://developers.openai.com/codex/cli/reference

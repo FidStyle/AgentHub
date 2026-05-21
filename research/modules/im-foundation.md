@@ -88,7 +88,18 @@ P0 推荐：
 
 ---
 
-## 5. 待用户确认
+## 5. 参考项目校准
+
+参考 `research/modules/reference-projects.md`：
+
+- codeg `Transport` 和 `EventStream` 设计强调 reconnect、ready handshake、snapshot/replay，说明实时消息不能只依赖“连接在线时收到事件”。
+- Poco-Claw 通过 Backend 持久化 session/message/artifact/callback，Frontend 查询状态，说明消息和执行状态必须以数据库为真相源。
+
+这些参考支持当前结论：Supabase Realtime 可以作为 P0 同步通道，但 Message、Artifact、Action、PendingApproval 必须持久化，断线后通过查询补齐状态。
+
+---
+
+## 6. 待用户确认
 
 **推荐确认项：**
 
@@ -100,7 +111,7 @@ C. P0 先轮询，降低初期复杂度但牺牲体验。
 
 ---
 
-## 6. 参考资料
+## 7. 参考资料
 
 - Supabase Realtime 文档：https://supabase.com/docs/guides/realtime
 - Socket.IO 文档：https://socket.io/docs/v4/

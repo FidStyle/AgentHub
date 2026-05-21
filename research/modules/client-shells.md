@@ -125,7 +125,19 @@ P0 推荐：
 
 ---
 
-## 5. 待用户确认
+## 5. 参考项目校准
+
+参考 `research/modules/reference-projects.md`：
+
+- LobeHub 使用 Next.js/React，同时区分 `entry.web.tsx`、`entry.mobile.tsx`、`entry.desktop.tsx` 和 route segments，证明 Web/Mobile/Desktop 可以共享技术栈但分入口组织。
+- Cherry Studio 使用 Electron main/renderer/preload，并用 `packages/shared` 管理跨进程 types、constants、IPC channel definitions。
+- codeg 通过 `lib/transport` 抽象 Tauri invoke、Web fetch/WebSocket、remote desktop transport，证明 shared transport/API client 层是必要的。
+
+这些参考支持当前结论：P0 应 all in React/TypeScript 生态，但 UI 按端分化，复杂领域模型和 transport/API client 进入 `packages/shared`。
+
+---
+
+## 6. 待用户确认
 
 **推荐确认项：**
 
@@ -137,7 +149,7 @@ C. 希望 Mobile 从 P0 就做 React Native/Expo 独立 App。
 
 ---
 
-## 6. 参考资料
+## 7. 参考资料
 
 - Electron 官方文档：https://www.electronjs.org/docs/latest/
 - Tauri 2 官方文档：https://v2.tauri.app/

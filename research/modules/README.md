@@ -9,6 +9,7 @@
 
 | 文档 | 覆盖范围 | 主要 FR-ID |
 | --- | --- | --- |
+| `reference-projects.md` | `refer_proj/*` 参考项目架构依据 | `FR-DEVICE-001`, `FR-DESK-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-ORCH-001` |
 | `client-shells.md` | Web/Desktop/Mobile 壳与代码共享 | `FR-DEVICE-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001` |
 | `auth-workspace.md` | GitHub OAuth、Workspace、执行域 | `FR-AUTH-001`, `FR-WS-001`, `FR-PERM-001` |
 | `im-foundation.md` | IM 底座、实时通信、富消息 | `FR-CHAT-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-NOTIFY-001` |
@@ -57,7 +58,19 @@ future apps/mobile-native
 
 ---
 
-## 4. 当前待确认问题
+## 4. 参考项目校准
+
+本轮调研已补充 `refer_proj/*` 依据，详见 `reference-projects.md`。关键校准：
+
+- LobeHub 已有 `device-gateway-client`，证明 Desktop 主动 WebSocket + auth + heartbeat + reconnect + tool/agent request 是可行路线。
+- LobeHub `HeterogeneousAgentCtr` 已用 Electron 主进程托管 Claude Code/Codex CLI 子进程，支持 `resumeSessionId`，强化 AgentHub 的 CLI Adapter 方向。
+- codeg 的 `Transport` 抽象证明 Web/Tauri/remote desktop 可以共享 call/subscribe/eventStream 心智，AgentHub 应建立 shared transport/API client。
+- AionUi ACP rewrite 证明 Orchestrator/Agent session 必须集中状态机和单队列，避免隐式状态。
+- Poco-Claw 证明多服务 executor/callback 架构完整但偏重，AgentHub P0 暂不拆成独立 executor-manager。
+
+---
+
+## 5. 当前待确认问题
 
 建议一次性确认以下路线：
 

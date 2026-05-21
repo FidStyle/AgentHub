@@ -95,7 +95,19 @@ interface ContextPackage {
 
 ---
 
-## 5. 待用户确认
+## 5. 参考项目校准
+
+参考 `research/modules/reference-projects.md`：
+
+- AionUi `agent-team-guide-flow.md` 展示了普通 Agent 判断复杂任务后，向用户建议开启 Team Mode，再通过工具创建团队和跳转页面的流程。
+- AionUi ACP rewrite 明确提出“状态机集中”“单队列不变”“只在真实变化轴上抽象”，这直接支持 AgentHub Orchestrator 使用后端状态机托管。
+- LobeHub `GraphAgent` 使用 graph-driven execution，把流程转换交给程序判断，不完全交给 LLM 自由漂移。
+
+这些参考支持当前结论：Orchestrator 应是 PM 型 Role Agent，但计划/审批/分派的状态推进必须由系统状态机掌控。
+
+---
+
+## 6. 待用户确认
 
 **推荐确认项：**
 
@@ -107,7 +119,7 @@ C. P0 暂不实现 Direct Flow 升级，只做默认 Orchestrator。
 
 ---
 
-## 6. 参考资料
+## 7. 参考资料
 
 - OpenAI Agents SDK 概念文档：https://openai.github.io/openai-agents-python/
 - LangGraph 文档：https://langchain-ai.github.io/langgraph/

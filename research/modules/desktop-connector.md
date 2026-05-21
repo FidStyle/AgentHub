@@ -98,7 +98,20 @@ P0 推荐：
 
 ---
 
-## 6. 待用户确认
+## 6. 参考项目校准
+
+参考 `research/modules/reference-projects.md`：
+
+- LobeHub `packages/device-gateway-client/src/client.ts` 使用 WebSocket 主动连接云端，包含 auth、heartbeat、reconnect、missed heartbeat。
+- LobeHub `packages/device-gateway-client/src/types.ts` 已定义 `tool_call_request`、`system_info_request`、`agent_run_request` 等协议消息。
+- LobeHub `apps/desktop/src/main/controllers/GatewayConnectionCtr.ts` 把远程请求路由到本地文件、Shell command、Claude/Codex agent run。
+- codeg `src/lib/transport/types.ts` 证明 transport 层需要 `call`、`subscribe`、`onReconnect`、`waitForReady`、`eventStream` 这类恢复能力，而不是裸 WebSocket 调用。
+
+这些参考支持当前结论：AgentHub P0 应直接使用 WebSocket 实现 Desktop 设备通道，但用 `DeviceChannel` 封装连接生命周期和消息协议。
+
+---
+
+## 7. 待用户确认
 
 **推荐确认项：**
 
@@ -110,7 +123,7 @@ C. P0 只做本地 CLI，不做桌面壳。
 
 ---
 
-## 7. 参考资料
+## 8. 参考资料
 
 - Electron 官方文档：https://www.electronjs.org/docs/latest/
 - Node.js child_process 文档：https://nodejs.org/api/child_process.html

@@ -91,7 +91,19 @@ P0 推荐：
 
 ---
 
-## 6. 待用户确认
+## 6. 参考项目校准
+
+参考 `research/modules/reference-projects.md`：
+
+- LobeHub `ShellCommandCtr` 将 shell command 执行封装在 Electron 主进程，并提供 run/get output/kill 能力。
+- LobeHub `LocalFileCtr` 把本地文件读写、搜索、移动等能力集中在主进程 controller，而不是散落在 UI。
+- Poco-Claw 将 tool execution、artifact、callback、session status 做成后端可测试对象，说明 Action 执行事件应持久化。
+
+这些参考支持当前结论：AgentHub Action/CLI Adapter 应是结构化请求和事件模型，不应让前端直接拼命令或把执行状态只存在内存里。
+
+---
+
+## 7. 待用户确认
 
 **推荐确认项：**
 
@@ -103,7 +115,7 @@ C. P0 只做 preview，不做 test/build/shell。
 
 ---
 
-## 7. 参考资料
+## 8. 参考资料
 
 - Node.js child_process 文档：https://nodejs.org/api/child_process.html
 - Electron 官方文档：https://www.electronjs.org/docs/latest/
