@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [Product Planning Thinking Guide](./product-planning-guide.md) | Keep AgentHub work bound to PRD FR-IDs and product design | Before implementing AgentHub product slices |
 
 ---
 
@@ -46,6 +47,15 @@ These guides help you **ask the right questions before coding**.
 - [ ] **You're creating a new utility/helper function** ← Search first!
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
+
+### When to Think About Product Traceability
+
+- [ ] You're implementing an AgentHub product feature
+- [ ] The task touches Web, Desktop, Mobile, Runtime Adapter, Workspace, Session, or Role Agent behavior
+- [ ] You're unsure which `FR-ID` owns the behavior
+- [ ] A UI decision could change the PRD or product-design contract
+
+→ Read [Product Planning Thinking Guide](./product-planning-guide.md)
 
 ---
 
