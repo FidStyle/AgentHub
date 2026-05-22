@@ -267,32 +267,9 @@ erDiagram
 | Pending Approval | 来源、风险等级、审批状态、决策时间 | 审批绑定计划、Action、权限升级、重试 | `FR-PERM-001`, `FR-NOTIFY-001` |
 | Task Result | 执行角色、状态、摘要、变更文件、关联 Diff/Preview/Action | 聊天流中的任务结果卡片数据源 | `FR-RESULT-001` |
 
-### 7.3 Orchestrator Plan DAG 引用模型
+### 7.3 编排计划相关实体
 
-Plan DAG 的详细论证和校验规则集中在 `research/modules/orchestrator-plan-dag.md`，技术设计只保留实现视角：计划版本、计划节点、依赖边、计算状态和结果回写。
-
-```mermaid
-flowchart LR
-  Plan[编排计划\n计划版本与摘要]
-  NodeA[计划节点 A\n上游分析/设计]
-  NodeB[计划节点 B\n角色任务 1]
-  NodeC[计划节点 C\n角色任务 2]
-  NodeD[计划节点 D\n汇总或验收]
-  RoleB[角色 Agent X\n如前端/后端/文档等]
-  RoleC[角色 Agent Y\n如测试/审查/PM 等]
-  ResultB[任务结果 B\n产物或变更摘要]
-  ResultC[任务结果 C\n产物或验证结论]
-
-  Plan --> NodeA
-  NodeA -->|blocks / handoff| NodeB
-  NodeA -->|blocks / handoff| NodeC
-  NodeB -->|blocks| NodeD
-  NodeC -->|blocks| NodeD
-  RoleB --> NodeB
-  RoleC --> NodeC
-  NodeB --> ResultB
-  NodeC --> ResultC
-```
+本节只说明 Orchestrator 编排会用到哪些实体，不单独画调度流程。完整编排行为统一放在第 11 章；Plan DAG 的详细论证和校验规则集中在 `research/modules/orchestrator-plan-dag.md`。
 
 | 计划对象 | 中文含义 | P0 必须记录 |
 | --- | --- | --- |
@@ -470,9 +447,17 @@ Codex：
 
 ---
 
-## 11. Orchestrator 状态机
+## 11. Orchestrator 编排模型
 
-Orchestrator 是 PM 型 Role Agent，但状态推进由后端状态机控制。复杂任务内部的依赖和并行调度引用第 7.3 节的 Plan DAG 模型。
+Orchestrator 编排模型是一套机制的两个层次，不是两个独立功能：
+
+- Run 状态机负责“一次 Orchestrator 编排运行处于哪个阶段”。
+- Plan DAG 负责“该运行中的计划节点如何依赖、并行、阻塞和汇总”。
+- 状态机是外层生命周期，Plan DAG 是 `planning` 阶段产出的内层计划结构。
+
+Orchestrator 是 PM 型 Role Agent，但状态推进由后端控制。LLM 负责生成澄清问题、候选计划和总结；系统负责计划校验、权限判断、ready 节点调度和失败分支。
+
+### 11.1 Run 状态机
 
 ```mermaid
 stateDiagram-v2
@@ -495,17 +480,77 @@ stateDiagram-v2
   完成 --> [*]
 ```
 
-### 11.1 路由规则
+Run 状态机的核心阶段：
 
-| 输入 | 路由 |
+| 阶段 | 说明 | 进入条件 |
+| --- | --- | --- |
+| 空闲 | 没有运行中的编排 | Session 未触发 Orchestrator |
+| 澄清需求 | Orchestrator 补齐目标、约束、验收口径 | 用户输入不足以直接规划 |
+| 生成计划 | 生成候选 Plan DAG 并做后端校验 | 信息足够，或用户要求修改计划 |
+| 等待计划确认 | 展示计划卡，等待用户确认或自动推进策略 | Plan DAG 校验通过 |
+| 分派任务 | 调度 ready 节点给对应 Role Agent | 计划已确认，且权限满足 |
+| 等待角色结果 | 等待节点执行结果并重新计算 DAG 状态 | 已有节点派发 |
+| 汇总结果 | 汇总节点结果，生成结论和下一步 | 必需节点完成 |
+| 等待下一步确认 | 需要用户决定继续、重试、停止或执行高风险动作 | 结果需要后续决策 |
+| 完成/失败 | Run 结束 | 全部完成、用户停止或不可恢复失败 |
+
+### 11.2 Plan DAG
+
+Plan DAG 是 Run 内部的结构化计划真相源。计划卡、审批、Role Agent 分派、失败展示都从 Plan DAG 渲染或计算，不从一段 Markdown 计划反推。
+
+```mermaid
+flowchart TD
+  Plan[Orchestrator Plan\n版本化结构计划]
+  Node1[Plan Node 1\n需求/上下文整理]
+  Node2[Plan Node 2\n角色子任务 A]
+  Node3[Plan Node 3\n角色子任务 B]
+  Node4[Plan Node 4\n汇总/验收]
+  Ready[Computed State\nready / waiting / blocked / waves]
+  Result[Task Result\n节点结果回写]
+
+  Plan --> Node1
+  Node1 -->|dependsOn / handoff| Node2
+  Node1 -->|dependsOn / handoff| Node3
+  Node2 -->|blocks| Node4
+  Node3 -->|blocks| Node4
+  Plan --> Ready
+  Node2 --> Result
+  Node3 --> Result
+  Result --> Ready
+```
+
+| 规则 | 处理 |
 | --- | --- |
-| 未 @ Role Agent | Orchestrated Flow |
-| @ Orchestrator | Orchestrated Flow |
-| @ 单个非 Orchestrator Role Agent | Direct Role Flow |
-| @ 多个 Role Agent | Orchestrated Flow |
-| Direct Role 判断需多角色 | 请求用户升级到 Orchestrated Flow |
+| DAG 有环 | 计划不能确认，要求 Orchestrator 重新规划 |
+| 节点 Role Agent 不属于当前 Workspace | 计划不能执行 |
+| Role Agent Runtime 与 Workspace 执行域不一致 | 计划不能执行 |
+| 依赖节点不存在或仍在执行 | 下游节点进入 blocked/waiting，不得派发 |
+| 节点风险等级超过自动推进策略 | 生成 Pending Approval |
+| 同一 wave 存在明显文件冲突 | P0 默认串行化或要求用户确认 |
 
-### 11.2 Orchestrated Flow
+P0 scheduler 使用拓扑层思想：只有 `dependsOn` 全部 completed/skipped 且权限已满足的节点可以进入 `ready`。同一 `wave` 的 ready 节点可并行派发；P1/P2 再扩展 quorum、优先级、取消传播和更复杂的失败恢复。
+
+### 11.3 状态机如何驱动 DAG
+
+```mermaid
+flowchart TD
+  Start[收到 Orchestrator 入口消息] --> Clarify[Run: 澄清需求]
+  Clarify --> Planning[Run: 生成计划]
+  Planning --> Validate[校验 Plan DAG\n计算 ready/waiting/blocked/waves]
+  Validate --> Confirm[Run: 等待计划确认]
+  Confirm --> Dispatch[Run: 分派任务]
+  Dispatch --> Ready[读取 ready 节点]
+  Ready --> Role[派发给 Role Agent]
+  Role --> Waiting[Run: 等待角色结果]
+  Waiting --> Result[节点结果回写]
+  Result --> Recompute[重新计算 Plan DAG 状态]
+  Recompute --> HasReady{是否有新 ready 节点}
+  HasReady -- 是 --> Dispatch
+  HasReady -- 否 --> Complete{必需节点是否完成}
+  Complete -- 否 --> Waiting
+  Complete -- 是 --> Summary[Run: 汇总结果]
+  Summary --> Done[完成或等待下一步确认]
+```
 
 1. 后端创建 `orchestrator_run`。
 2. 需求不足时进入 `clarifying` 并生成澄清问题。
@@ -518,20 +563,17 @@ stateDiagram-v2
 9. 节点完成后重新计算 ready/waiting/blocked；所有必需节点完成后进入 `summarizing`。
 10. Orchestrator 汇总结果，进入 `completed` 或 `requires_next_step_confirmation`。
 
-### 11.3 Plan DAG 校验与调度
+### 11.4 路由规则
 
-| 规则 | 处理 |
+| 输入 | 路由 |
 | --- | --- |
-| DAG 有环 | 计划不能确认，要求 Orchestrator 重新规划 |
-| 节点 Role Agent 不属于当前 Workspace | 计划不能执行 |
-| Role Agent Runtime 与 Workspace 执行域不一致 | 计划不能执行 |
-| 依赖节点不存在或仍在执行 | 下游节点进入 blocked/waiting，不得派发 |
-| 节点风险等级超过自动推进策略 | 生成 Pending Approval |
-| 同一 wave 存在明显文件冲突 | P0 默认串行化或要求用户确认 |
+| 未 @ Role Agent | Orchestrated Flow |
+| @ Orchestrator | Orchestrated Flow |
+| @ 单个非 Orchestrator Role Agent | Direct Role Flow |
+| @ 多个 Role Agent | Orchestrated Flow |
+| Direct Role 判断需多角色 | 请求用户升级到 Orchestrated Flow |
 
-P0 scheduler 使用拓扑层思想：只有 `dependsOn` 全部 completed/skipped 且权限已满足的节点可以进入 `ready`。同一 `wave` 的 ready 节点可并行派发；P1/P2 再扩展 quorum、优先级和复杂取消传播。
-
-### 11.4 自动推进
+### 11.5 自动推进
 
 - 用户必须显式开启 Session `autoProceedEnabled`。
 - 自动推进只跳过低风险计划确认和普通下一步确认。
