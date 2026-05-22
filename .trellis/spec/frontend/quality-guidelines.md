@@ -30,9 +30,9 @@ Questions to answer:
 
 ## Required Patterns
 
-<!-- Patterns that must always be used -->
-
-(To be filled by the team)
+- All user-visible frontend copy must use Simplified Chinese across Web, Desktop, and Mobile/PWA.
+- Terminology for shared concepts must stay consistent across the three surfaces: 工作区、会话、审批、产物、预览、智能体、桌面连接器。
+- Technical product names may remain in English only when they identify a specific technology or command, such as Vite, Electron, PWA, Codex, Claude Code, Node, or `corepack pnpm`.
 
 ---
 

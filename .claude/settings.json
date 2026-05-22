@@ -1,0 +1,98 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run spec-injector"
+          }
+        ],
+        "matcher": "Agent"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run preflight-guard"
+          }
+        ],
+        "matcher": "Bash|Write|Edit|Agent"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run spec-validator"
+          }
+        ],
+        "matcher": "Write|Edit"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run delegate-monitor"
+          }
+        ],
+        "matcher": "Bash|Agent"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run team-monitor"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run telemetry"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run coordinator-tracker"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run session-context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run skill-context"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro hooks run keyword-spec-injector"
+          }
+        ]
+      }
+    ]
+  }
+}

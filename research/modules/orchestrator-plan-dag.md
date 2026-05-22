@@ -90,24 +90,31 @@
 - AgentHub 应把 OrchestratorPlan 和 PlanNode 作为数据库真相源，而不是只把计划写成 Markdown 消息。
 - 计划卡片应从结构化 Plan DAG 渲染，审批也应绑定 plan/version，而不是绑定一段自然语言。
 
-### 2.4 maestro-flow Wave DAG
+### 2.4 `maestro-flow` ChainGraph 与 Wave DAG
 
 相关文件：
 
-- `refer_proj/catlog22__maestro-flow/workflows/roadmap-common.md`
-- `refer_proj/catlog22__maestro-flow/.agy/skills/team-coordinate/roles/coordinator/commands/analyze-task.md`
-- `refer_proj/catlog22__maestro-flow/dashboard/src/client/components/teams/TeamStatusOverlay.tsx`
+- `refer_e2e_proj/maestro-flow/src/coordinator/graph-types.ts`
+- `refer_e2e_proj/maestro-flow/src/coordinator/graph-walker.ts`
+- `refer_e2e_proj/maestro-flow/chains/quality-loop.json`
+- `refer_e2e_proj/maestro-flow/dashboard/src/__tests__/e2e/workflow-coordinate.e2e.test.ts`
+- `refer_e2e_proj/maestro-flow/dashboard/src/__tests__/e2e/issue-execute.e2e.test.ts`
 
 关键发现：
 
-- 「Phase = synchronization barrier」，不要把每个依赖都拆成阶段；阶段内使用 wave DAG 处理任务顺序和并行。
-- 分解时使用能力层级：研究/计划、设计、开发/写作、验证。
-- UI 侧可用 mini DAG 或 wave columns 展示计划，不需要一开始做复杂图编辑器。
+- `ChainGraph` 明确区分 `command`、`decision`、`gate`、`fork`、`join`、`eval`、`terminal` 七类节点，说明 workflow 生命周期和任务依赖应结构化表达。
+- `GraphWalker` 对每个节点维护 visit count，并通过 `max_visits` 防止 debug/fix/retry 循环无限运行。
+- decision node 先走表达式判断，必要时才走 LLM fallback；这支持 AgentHub 的原则：LLM 可以辅助判断，但系统必须保留可解释、可验证的默认路径。
+- gate node 可以进入 `waiting_gate`，这与 AgentHub 高风险 Action、计划确认、权限确认的暂停点一致。
+- fork/join 支持并行分支和 `all/any/majority` 聚合；AgentHub P0 只需要 `wait-all`，但数据模型不应阻断 P1 扩展。
+- `quality-loop.json` 把 `verify -> business_test -> review -> test -> debug -> plan_gaps -> re_execute` 做成 decision gate 循环，证明质量闭环应是状态机，而不是执行完一次就结束。
 
 对 AgentHub 的影响：
 
 - P0 计划卡片宜展示「并行组/波次」，而不是复杂可拖拽 DAG。
 - Orchestrator 不应把每一步都串行化。只要依赖已满足，同一 wave 的节点可以并行派发。
+- Plan DAG validator 必须覆盖 retry 上限、等待确认节点、并行分支聚合、失败后 blocked 传播。
+- Maestro Plan 进入 `execute` 前必须声明首个 Test Anchor；`FR-ORCH-001` 的首个锚点应是 DAG validator 和 ready wave 调度测试。
 
 ### 2.5 claude_codex_bridge Mailbox Kernel
 
