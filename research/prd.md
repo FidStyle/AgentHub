@@ -293,12 +293,14 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。接入它
 - [ ] 未指定 Role Agent 的用户消息默认由 Orchestrator 接收并判断是否需要追问、计划或分派。
 - [ ] 单 Role Agent Direct Role Flow 中，目标 Role Agent 可以提示用户将任务升级给 Orchestrator 重新规划。
 - [ ] Direct Role Flow 升级为 Orchestrated Flow 前必须得到用户确认，除非用户已经在 Session 中授权自动推进。
-- [ ] Orchestrator 可以生成包含步骤、分派 Role Agent、预期产物、权限敏感动作的计划。
+- [ ] Orchestrator 可以生成结构化计划，包含步骤、依赖关系、可并行节点、分派 Role Agent、预期产物、权限敏感动作。
+- [ ] Orchestrator 计划必须支持后端校验：无环、Role Agent 属于当前 Workspace、Runtime 与 Workspace 执行域一致、未知依赖不得执行。
+- [ ] Orchestrator 可以按计划依赖分派 ready 节点；无依赖冲突的节点可以并行派发。
 - [ ] 默认情况下，执行前必须请求用户确认。
 - [ ] 用户可以明确授权某个 Session 自动推进。
 - [ ] 即使在自动模式下，高风险或超过策略的动作仍需权限确认。
-- [ ] Orchestrator 可以分派任务给 Role Agent，并汇总结果。
-- [ ] Orchestrator 可以在失败时询问用户选择重试、调整计划或停止。
+- [ ] Orchestrator 可以分派任务给 Role Agent，并按节点汇总结果。
+- [ ] Orchestrator 可以在节点失败时识别受影响的后续节点，并询问用户选择重试、跳过、调整计划或停止。
 
 **依赖：** FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001。
 

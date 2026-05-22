@@ -20,6 +20,7 @@ Then verify:
 - [ ] No code path mixes Cloud Runtime and Local Desktop Runtime inside one Workspace or Session.
 - [ ] Web/Mobile are described and implemented as control surfaces for both Cloud and Local Desktop Workspaces; local file writes, shell commands, and Runtime calls for Local Desktop Workspaces land only in Desktop Connector.
 - [ ] User-facing chat targets are Role Agents, not Claude Code/Codex tool names.
+- [ ] Orchestrator plans that involve multiple Role Agents use a structured Plan DAG contract: nodes, dependsOn, ready/waiting/blocked states, and FR-ID-linked validation.
 - [ ] Confirmation UX is tied to plans, next steps, permissions, retries, or publish/deploy actions; Diff remains display material.
 - [ ] Mobile and Desktop are not treated as full Web clones.
 
@@ -69,6 +70,12 @@ If a behavior cannot be mapped to an existing `FR-ID`, pause and update the PRD 
 **Symptom**: A Git diff card asks for approval by itself.
 
 **Fix**: Approval belongs to the task plan, permission escalation, next step, retry, or publish/deploy action. Diff is supporting context.
+
+### Mistake: Treating Orchestrator Plans as Markdown Only
+
+**Symptom**: Orchestrator produces a nice-looking plan message, but there is no structured node/dependency model for dispatch, blocking, retry, or result aggregation.
+
+**Fix**: Multi-role Orchestrator plans must have a Plan DAG data contract. The plan card is a rendering of `PlanNode`, `dependsOn`, and computed ready/waiting/blocked state, not the source of truth.
 
 ### Mistake: Letting Reference Repo Popularity Decide Architecture
 

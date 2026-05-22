@@ -17,6 +17,7 @@
 | `runtime-adapters.md` | Claude Code/Codex Runtime Adapter | `FR-RUNTIME-001`, `FR-AGENT-001`, `FR-CTX-001` |
 | `action-cli-adapter.md` | Action/CLI、预览、权限确认 | `FR-ACTION-001`, `FR-PERM-001`, `FR-RESULT-001` |
 | `orchestrator.md` | Orchestrator 状态机、计划分派、handoff | `FR-ORCH-001`, `FR-CTX-001`, `FR-PERM-001` |
+| `orchestrator-plan-dag.md` | Orchestrator Plan DAG、依赖、并行 wave、失败影响范围 | `FR-ORCH-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-PERM-001`, `FR-RESULT-001` |
 
 ---
 
@@ -30,7 +31,7 @@
 | Desktop Connector | Electron + DeviceChannel 接口 + WebSocket 主实现 | Node 主进程适合本地 CLI、文件、进程能力；WebSocket 适合远程控制和状态回传 |
 | Runtime Adapter | Claude Code/Codex 均走 CLI 子进程 Adapter | 满足 native session resume/continue 的核心产品差异 |
 | Action/CLI | preview/test/build/shell 统一 ActionRequest | 覆盖 Demo，同时给未来部署发布留扩展点 |
-| Orchestrator | 后端状态机托管，LLM 生成计划和总结 | 保证可解释、可审批、可测试 |
+| Orchestrator | 后端状态机托管 + Plan DAG，LLM 生成候选计划和总结，系统校验依赖并调度 ready nodes | 保证可解释、可审批、可测试，并满足并行调度、失败降级和 handoff |
 
 ---
 
@@ -68,6 +69,8 @@ future apps/mobile-native
 - ClawWork 证明 Task/Session/Artifact/Approval、Gateway req/res/event 协议、PWA + Desktop 分层可以用 shared 协议包统一。
 - codeg 的 `Transport` 抽象证明 Web/Tauri/remote desktop 可以共享 call/subscribe/eventStream 心智，AgentHub 应建立 shared transport/API client。
 - AionUi ACP rewrite 证明 Orchestrator/Agent session 必须集中状态机和单队列，避免隐式状态。
+- LobeHub `GraphAgent`、`taskGraph` 和 codeApe orchestration schema 证明 Orchestrator 计划应使用结构化 DAG、dependsOn、ready/waiting/blocked buckets，而不是仅保存自然语言步骤。
+- maestro-flow 的 wave DAG 证明 P0 可用并行组/波次表达依赖，不必先做复杂 DAG 编辑器。
 - Poco-Claw 证明多服务 executor/callback 架构完整但偏重，AgentHub P0 暂不拆成独立 executor-manager。
 
 ---

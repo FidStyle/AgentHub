@@ -1,0 +1,249 @@
+# 模块调研：Orchestrator Plan DAG
+
+**日期：** 2026-05-22
+**状态：** Draft
+**覆盖 FR-ID：** `FR-ORCH-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-PERM-001`, `FR-RESULT-001`
+**相关产品设计：** `research/product-design.md` 第 7、8 章
+**上游依据：** `bytedance_init_prd.md`, `bytedance_init_video_txt.txt`, `research/modules/orchestrator.md`
+
+---
+
+## 1. 为什么需要 Plan DAG
+
+原始素材对 Orchestrator 的要求不是普通线性待办列表：
+
+- `bytedance_init_prd.md` 明确要求群聊模式下由 Orchestrator 自动协调分工，支持复杂任务拆解、子 Agent 分派、聚合产出、并行调度、失败降级和代码冲突处理。
+- `bytedance_init_video_txt.txt` 把主 Agent 类比为 PM/PMO，强调逐步追问、理清需求、拆解任务、分派子 Agent、拿到结果后汇报给用户，并处理并行调度、失败降级和代码冲突。
+- 上下文 handoff 是评审关注点：A Agent 的上下文需要平滑迁移到 B Agent。
+
+如果 P0 只保存线性步骤列表，会缺少四个关键能力：
+
+1. 判断哪些 Role Agent 节点可以并行执行。
+2. 判断失败节点会阻塞哪些后续节点。
+3. 判断多个节点是否会修改同一文件或依赖同一产物。
+4. 为每个 Role Agent 明确输入上下文、预期产物和 handoff 来源。
+
+因此 AgentHub P0 应把 Orchestrator 的计划内部建模为 **Plan DAG**。用户看到的仍是 IM 中的计划卡片；DAG 是后端编排和验收的结构化骨架。
+
+---
+
+## 2. 参考项目证据
+
+### 2.1 LobeHub GraphAgent
+
+相关文件：
+
+- `refer_proj/lobehub/packages/agent-runtime/src/agents/GraphAgent.ts`
+- `refer_proj/lobehub/packages/agent-runtime/src/types/graph.ts`
+
+关键发现：
+
+- `GraphAgent` 使用声明式 `ReasoningGraph` 驱动执行，而不是让 LLM 自由决定下一步。
+- 图节点分为 `agent` 和 `llm` 两类；`agent` 节点允许工具循环，结束后再抽取结构化输出。
+- graph transition 由程序根据结构化输出判断，避免状态漂移。
+- graph context 保存在 agent state 中，包含当前节点、结构化 store、访问次数和 backtrack 次数。
+
+对 AgentHub 的影响：
+
+- Orchestrator 可以让 LLM 生成计划内容，但计划推进必须由后端程序判断。
+- 每个 PlanNode 的输出应结构化持久化，供后续节点通过 Context Package 引用。
+- P0 不需要完整 LangGraph 引擎，但需要自己的轻量 Plan DAG validator 和 scheduler。
+
+### 2.2 LobeHub TaskGraph
+
+相关文件：
+
+- `refer_proj/lobehub/src/server/services/taskGraph/index.ts`
+- `refer_proj/lobehub/src/server/services/taskGraph/index.test.ts`
+- `refer_proj/lobehub/packages/database/src/schemas/task.ts`
+
+关键发现：
+
+- `planSubtaskLayers` 使用 Kahn 拓扑排序把可运行任务分成 `layers`。
+- 已完成或取消的上游任务被视为依赖已满足。
+- running/scheduled/unknown/out-of-scope 上游任务会阻塞下游任务，不会被静默丢弃。
+- 支持检测 cycle、blockedByCycle、blockedExternally、ineligible。
+- 测试覆盖独立并行、线性链、菱形依赖、已完成上游、失败重跑、环、外部阻塞、阻塞传递。
+
+对 AgentHub 的影响：
+
+- P0 scheduler 应按 topological layers 派发 ready nodes。
+- 任何未知依赖或执行中依赖都必须阻塞下游节点，不能乐观启动。
+- cycle 和 external blocker 必须成为计划校验错误或计划卡片中的阻塞原因。
+
+### 2.3 codeApe ai-agent-workflowGroup
+
+相关文件：
+
+- `refer_proj/codeApe-7__ai-agent-workflowGroup/schemas/orchestration/plan.schema.json`
+- `refer_proj/codeApe-7__ai-agent-workflowGroup/scripts/orchestration/lib/orchestrator.cjs`
+
+关键发现：
+
+- `plan.schema.json` 把 worker、state、dependsOn、objective 和 buckets 持久化为机器可读计划。
+- buckets 包含 `ready`、`running`、`blocked`、`completed`、`failed`、`waiting`。
+- ready 的定义是 `not_started + all dependencies completed`。
+- 计划 JSON 是唯一真相源，人类可读视图可由 JSON 渲染。
+
+对 AgentHub 的影响：
+
+- AgentHub 应把 OrchestratorPlan 和 PlanNode 作为数据库真相源，而不是只把计划写成 Markdown 消息。
+- 计划卡片应从结构化 Plan DAG 渲染，审批也应绑定 plan/version，而不是绑定一段自然语言。
+
+### 2.4 maestro-flow Wave DAG
+
+相关文件：
+
+- `refer_proj/catlog22__maestro-flow/workflows/roadmap-common.md`
+- `refer_proj/catlog22__maestro-flow/.agy/skills/team-coordinate/roles/coordinator/commands/analyze-task.md`
+- `refer_proj/catlog22__maestro-flow/dashboard/src/client/components/teams/TeamStatusOverlay.tsx`
+
+关键发现：
+
+- “Phase = synchronization barrier”，不要把每个依赖都拆成阶段；阶段内使用 wave DAG 处理任务顺序和并行。
+- 分解时使用能力层级：研究/计划、设计、开发/写作、验证。
+- UI 侧可用 mini DAG 或 wave columns 展示计划，不需要一开始做复杂图编辑器。
+
+对 AgentHub 的影响：
+
+- P0 计划卡片宜展示“并行组/波次”，而不是复杂可拖拽 DAG。
+- Orchestrator 不应把每一步都串行化。只要依赖已满足，同一 wave 的节点可以并行派发。
+
+### 2.5 claude_codex_bridge Mailbox Kernel
+
+相关文件：
+
+- `refer_proj/SeemSeam__claude_codex_bridge/docs/agent-mailbox-kernel-design.md`
+
+关键发现：
+
+- 多 Agent 通信需要区分 message、attempt 和 execution。
+- 成熟编排需要 fan-out/fan-in、wait-any、wait-all、quorum、retry、resubmit、dead-letter、lineage。
+- 每个 agent 的入站消费应串行，投递不等于消费。
+
+对 AgentHub 的影响：
+
+- P0 可以只做 `wait-all` 风格 fan-in：一个 wave 内所有必需节点完成后汇总。
+- quorum、dead-letter、复杂 retry lineage 可进入 P1/P2，但数据模型不要阻碍后续扩展。
+
+---
+
+## 3. 推荐 P0 模型
+
+### 3.1 核心原则
+
+1. **状态机包 DAG。** `OrchestratorRunStatus` 管 run 生命周期；`OrchestratorPlanDAG` 管计划内部依赖和并行。
+2. **LLM 生成候选计划，系统校验和执行。** LLM 不直接决定可执行性。
+3. **Plan DAG 是真相源。** 计划卡片、审批、Role Agent 分派、失败展示都从结构化计划渲染。
+4. **P0 不做可视化编辑器。** 用户看到结构化计划卡片、并行组、阻塞原因和修改计划入口即可。
+
+### 3.2 数据结构草案
+
+```typescript
+type PlanNodeStatus =
+  | 'pending'
+  | 'ready'
+  | 'running'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'canceled';
+
+type PlanEdgeKind = 'blocks' | 'handoff' | 'reviews' | 'conflicts_with';
+
+interface OrchestratorPlan {
+  id: string;
+  orchestratorRunId: string;
+  workspaceId: string;
+  sessionId: string;
+  version: number;
+  status: 'draft' | 'requires_confirmation' | 'approved' | 'running' | 'completed' | 'failed' | 'canceled';
+  summary: string;
+  nodes: PlanNode[];
+  edges: PlanEdge[];
+  computed: PlanDAGComputedState;
+}
+
+interface PlanNode {
+  id: string;
+  roleAgentId: string;
+  title: string;
+  objective: string;
+  dependsOn: string[];
+  expectedArtifacts: string[];
+  contextPackageId?: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  status: PlanNodeStatus;
+  resultId?: string;
+}
+
+interface PlanEdge {
+  fromNodeId: string;
+  toNodeId: string;
+  kind: PlanEdgeKind;
+  reason: string;
+}
+
+interface PlanDAGComputedState {
+  ready: string[];
+  running: string[];
+  waiting: string[];
+  blocked: Array<{ nodeId: string; reason: string; blockedBy: string[] }>;
+  completed: string[];
+  failed: string[];
+  cycles: string[][];
+  waves: string[][];
+}
+```
+
+### 3.3 P0 校验规则
+
+| 校验 | 失败处理 | 绑定需求 |
+| --- | --- | --- |
+| DAG 无环 | 计划不能进入确认，要求 Orchestrator 重新规划 | `FR-ORCH-001` |
+| node.roleAgentId 属于当前 Workspace | 计划不能执行 | `FR-AGENT-001` |
+| Role Agent Runtime 与 Workspace 执行域一致 | 计划不能执行 | `FR-RUNTIME-001` |
+| 所有 dependsOn 指向同计划内节点或已完成节点 | 未知依赖进入 blocked，不得执行 | `FR-ORCH-001` |
+| 高风险节点或 Action 存在权限确认 | 自动推进也必须停下 | `FR-PERM-001` |
+| 同一 wave 内高概率文件冲突 | P0 展示风险并默认串行或要求确认 | `FR-RESULT-001` |
+
+### 3.4 P0 调度规则
+
+1. `planning` 阶段生成 draft plan。
+2. 后端运行 Plan DAG validator，计算 `waves`、`ready`、`waiting`、`blocked`。
+3. 计划卡片展示步骤、Role Agent、依赖、并行组、风险动作。
+4. 用户确认后，计划进入 `approved`。
+5. scheduler 派发当前 `ready` 节点；同 wave 内可并行。
+6. 每个节点执行前构造独立 Context Package。
+7. 节点完成后写入 TaskResult，重新计算 ready/waiting/blocked。
+8. 所有必需节点 completed 后进入 `summarizing`。
+9. 节点 failed 时，Orchestrator 进入失败处理：重试节点、跳过节点、重规划、停止。
+
+---
+
+## 4. P0 / P1 / P2 边界
+
+| 能力 | P0 | P1/P2 |
+| --- | --- | --- |
+| 结构化 Plan DAG | 必做 | 持续增强 |
+| 无环校验、ready/waiting/blocked 计算 | 必做 | 增加更丰富 blocker 类型 |
+| 并行 wave 派发 | P0 支持最小并行 | 增加资源配额、优先级、取消传播 |
+| 计划卡片展示依赖 | 必做，文本/分组即可 | Mini DAG 可视化 |
+| 手动拖拽编辑 DAG | 不做 | P2 |
+| wait-all fan-in | 必做 | wait-any/quorum |
+| 失败降级 | 节点级重试/停止/重规划 | dead-letter、lineage、自动补偿 |
+| 代码冲突处理 | 展示风险、必要时串行化 | 自动合并策略、workspace branch 隔离 |
+
+---
+
+## 5. 推荐结论
+
+AgentHub 应将 Orchestrator 设计升级为 **后端状态机 + Orchestrator Plan DAG**：
+
+- 状态机负责聊天流程、审批、自动推进和失败分支。
+- Plan DAG 负责计划节点、依赖、并行、阻塞、结果汇总。
+- LLM 负责提出候选计划和总结，系统负责校验、调度和权限控制。
+- P0 不做复杂 DAG 编辑器，但必须把 DAG 作为内部数据契约实现。
+
+这条路线最符合 bytedance 原始要求中的“复杂任务拆解、并行调度、失败降级、代码冲突处理”和 IM 产品形态，不会把 P0 过度扩展为工作流编排平台。

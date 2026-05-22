@@ -342,12 +342,22 @@ Mobile 必须隐藏或降级以下复杂操作：
 1. Orchestrator 接收用户需求。
 2. 如果需求不清，Orchestrator 先提出澄清问题。
 3. 信息足够后，Orchestrator 生成计划卡。
-4. 计划卡展示步骤、分派 Role Agent、预期产物、可能触发的权限敏感动作。
+4. 计划卡从结构化 Plan DAG 渲染，展示步骤、依赖关系、可并行分组、分派 Role Agent、预期产物、可能触发的权限敏感动作。
 5. 默认等待用户确认。
 6. 用户可批准计划、要求修改计划、停止，或明确授权本 Session 自动推进。
-7. Orchestrator 构造 Context Package 并分派给 Role Agent。
-8. Role Agent 执行并回传状态。
-9. Orchestrator 汇总结果并给出下一步建议。
+7. 后端校验 Plan DAG：无环、Role Agent 合法、Runtime 执行域一致、未知依赖不可执行。
+8. Orchestrator 为 ready 节点构造 Context Package 并分派给 Role Agent；同一并行组内无冲突节点可以同时执行。
+9. Role Agent 执行并回传节点状态。
+10. Orchestrator 在节点完成后重新计算 ready、waiting、blocked、failed。
+11. Orchestrator 汇总结果并给出下一步建议。
+
+计划卡 P0 展示规则：
+
+- 以列表或分组形式展示 Plan DAG，不做复杂拖拽式 DAG 编辑器。
+- 每个节点展示 Role Agent、目标、依赖、状态、预期产物和风险等级。
+- 并行节点用同一分组或“可并行”标识展示。
+- 节点失败时展示受影响的等待节点，并提供重试、跳过、调整计划、停止。
+- 用户要求修改计划时，系统生成新的 plan version，并重新进入确认。
 
 自动推进规则：
 
@@ -355,7 +365,7 @@ Mobile 必须隐藏或降级以下复杂操作：
 - 自动推进只跳过普通计划确认或低风险下一步确认。
 - 高风险动作仍必须确认。
 
-对应需求：`FR-ORCH-001`, `FR-CTX-001`, `FR-PERM-001`, `FR-NOTIFY-001`。
+对应需求：`FR-ORCH-001`, `FR-CTX-001`, `FR-PERM-001`, `FR-NOTIFY-001`, `FR-RESULT-001`。
 
 ### 7.7 上下文 Pin 与 Handoff
 
@@ -431,10 +441,13 @@ Mobile 必须隐藏或降级以下复杂操作：
 
 - 计划标题。
 - 任务理解摘要。
-- 步骤列表。
+- 步骤列表，由 Plan DAG 节点渲染。
+- 依赖关系和可并行分组。
 - 每步分派 Role Agent。
 - 预期产物。
 - 可能触发的权限敏感动作。
+- 节点状态：pending、ready、running、blocked、completed、failed。
+- 阻塞原因：等待依赖、Connector 离线、权限待确认、Runtime 不可用、计划校验失败。
 - 执行模式：确认后执行 / 本 Session 自动推进。
 
 操作：
@@ -443,6 +456,7 @@ Mobile 必须隐藏或降级以下复杂操作：
 - 要求修改。
 - 停止。
 - 授权本 Session 自动推进。
+- 节点失败后选择重试、跳过、调整计划或停止。
 
 状态：
 
@@ -451,10 +465,11 @@ Mobile 必须隐藏或降级以下复杂操作：
 - `approved`
 - `rejected`
 - `running`
+- `blocked`
 - `completed`
 - `failed`
 
-对应需求：`FR-ORCH-001`, `FR-PERM-001`, `FR-NOTIFY-001`。
+对应需求：`FR-ORCH-001`, `FR-CTX-001`, `FR-PERM-001`, `FR-NOTIFY-001`, `FR-RESULT-001`。
 
 ### 8.4 Permission Confirmation Card
 
