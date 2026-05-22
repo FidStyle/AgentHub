@@ -26,7 +26,9 @@ AgentHub P0 已确定使用 GitHub OAuth，不做独立用户名密码。Workspa
 | Supabase Auth + GitHub OAuth | 快速获得 Auth、Session、DB、Realtime 组合能力 | 平台绑定更强；本地 Demo 依赖外部服务 | 高 |
 | 自建 GitHub OAuth | 控制最强 | 安全、回调、token 管理重复造轮子 | 低 |
 
-**推荐：** 若 P0 追求最快端到端 Demo，选 Supabase Auth；若追求代码可控和可迁移，选 Auth.js。考虑 AgentHub 还需要 Realtime、审批队列和三端同步，P0 推荐 **Supabase Auth + GitHub OAuth**。
+**推荐：** 若 P0 追求最快端到端 Demo，选 Supabase Auth；若追求代码可控和可迁移，选 Auth.js。
+
+考虑 AgentHub 还需要 Realtime、审批队列和三端同步，P0 推荐 **Supabase Auth + GitHub OAuth**。
 
 ---
 
@@ -58,7 +60,7 @@ type WorkspaceExecutionDomain = 'cloud' | 'local_desktop';
 
 | 方案 | 优点 | 风险 | 推荐 |
 | --- | --- | --- | --- |
-| Desktop 内嵌浏览器 OAuth | 用户心智直接 | OAuth 回调和桌面深链处理较繁琐 | 可选 |
+| Desktop 内嵌浏览器 OAuth | 用户理解成本低 | OAuth 回调和桌面深链处理较繁琐 | 可选 |
 | Device Code Flow / 一次性绑定码 | 适合 CLI/Desktop；避免复杂回调 | 需要后端实现设备绑定票据 | 推荐 |
 | 用户复制 token | 实现快 | 安全和体验差 | 不推荐 |
 

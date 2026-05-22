@@ -67,7 +67,7 @@ future apps/mobile-native
 - LobeHub `HeterogeneousAgentCtr` 已用 Electron 主进程托管 Claude Code/Codex CLI 子进程，支持 `resumeSessionId`，强化 AgentHub 的 CLI Adapter 方向。
 - cc-pane 的 `cc-cli-adapters` 证明 Claude/Codex 能力声明、PTY、resume、per-session MCP/config 隔离需要进入 Runtime Adapter 设计。
 - ClawWork 证明 Task/Session/Artifact/Approval、Gateway req/res/event 协议、PWA + Desktop 分层可以用 shared 协议包统一。
-- codeg 的 `Transport` 抽象证明 Web/Tauri/remote desktop 可以共享 call/subscribe/eventStream 心智，AgentHub 应建立 shared transport/API client。
+- codeg 的 `Transport` 抽象证明 Web/Tauri/remote desktop 可以共享 call/subscribe/eventStream 使用模型，AgentHub 应建立 shared transport/API client。
 - AionUi ACP rewrite 证明 Orchestrator/Agent session 必须集中状态机和单队列，避免隐式状态。
 - LobeHub `GraphAgent`、`taskGraph` 和 codeApe orchestration schema 证明 Orchestrator 计划应使用结构化 DAG、dependsOn、ready/waiting/blocked buckets，而不是仅保存自然语言步骤。
 - maestro-flow 的 wave DAG 证明 P0 可用并行组/波次表达依赖，不必先做复杂 DAG 编辑器。
@@ -85,4 +85,4 @@ future apps/mobile-native
 4. Runtime Adapter 是否接受：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟？
 5. Orchestrator 是否接受：后端状态机托管，LLM 只负责内容生成？
 
-我的整体建议是全部选推荐路线。这样最符合当前 PRD 的 P0 目标：三端闭环、真实本地 Runtime 接入、IM 体验、审批和产物展示。
+我的整体建议是全部选推荐路线。这样最符合当前 PRD 的 P0 目标：三端主流程、真实本地 Runtime 接入、IM 体验、审批和产物展示。

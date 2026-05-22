@@ -15,13 +15,14 @@
 
 P0 技术目标：
 
-1. 跑通 Web、Desktop、Mobile 三端联动的 AgentHub 开发闭环。
+1. 跑通 Web、Desktop、Mobile 三端配合完成的 AgentHub 开发流程。
 2. 用统一数据模型约束 Cloud Workspace 和 Local Desktop Workspace，确保执行域不可混用。
 3. 用统一 Runtime/Adapter 模型接入平台托管 Runtime、本地 Claude Code、本地 Codex。
 4. 保证 Claude Code/Codex 接入是 native session continuity，而不是普通 API 文本调用。
 5. 以 IM、消息、Artifact、Action、Approval、Runtime Event 的持久化数据作为真相源，Realtime 只作为投递层。
 
-对应需求：`FR-AUTH-001`, `FR-WS-001`, `FR-DEVICE-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001`, `FR-CHAT-001`, `FR-RUNTIME-001`, `FR-ORCH-001`, `FR-CTX-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-ACTION-001`, `FR-PERM-001`, `FR-NOTIFY-001`, `NFR-SEC-001`, `NFR-OBS-001`。
+对应需求：`FR-AUTH-001`, `FR-WS-001`, `FR-DEVICE-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001`, `FR-CHAT-001`, `FR-RUNTIME-001`, `FR-ORCH-001`,
+`FR-CTX-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-ACTION-001`, `FR-PERM-001`, `FR-NOTIFY-001`, `NFR-SEC-001`, `NFR-OBS-001`。
 
 ---
 
@@ -269,7 +270,9 @@ erDiagram
 
 ### 7.3 编排计划相关实体
 
-本节只说明 Orchestrator 编排会用到哪些实体，不单独画调度流程。完整编排行为统一放在第 11 章；Plan DAG 的详细论证和校验规则集中在 `research/modules/orchestrator-plan-dag.md`。
+本节只说明 Orchestrator 编排会用到哪些实体，不单独画调度流程。
+
+完整编排行为统一放在第 11 章；Plan DAG 的详细论证和校验规则集中在 `research/modules/orchestrator-plan-dag.md`。
 
 | 计划对象 | 中文含义 | P0 必须记录 |
 | --- | --- | --- |
@@ -528,7 +531,9 @@ flowchart TD
 | 节点风险等级超过自动推进策略 | 生成 Pending Approval |
 | 同一 wave 存在明显文件冲突 | P0 默认串行化或要求用户确认 |
 
-P0 scheduler 使用拓扑层思想：只有 `dependsOn` 全部 completed/skipped 且权限已满足的节点可以进入 `ready`。同一 `wave` 的 ready 节点可并行派发；P1/P2 再扩展 quorum、优先级、取消传播和更复杂的失败恢复。
+P0 scheduler 使用拓扑层思想：只有 `dependsOn` 全部 completed/skipped 且权限已满足的节点可以进入 `ready`。
+
+同一 `wave` 的 ready 节点可并行派发；P1/P2 再扩展 quorum、优先级、取消传播和更复杂的失败恢复。
 
 ### 11.3 状态机如何驱动 DAG
 
@@ -849,7 +854,7 @@ P0 页面：
 
 ## 18. 测试策略
 
-P0 必须优先覆盖会导致安全边界或核心闭环失败的测试。
+P0 必须优先覆盖会导致安全边界或核心开发流程失败的测试。
 
 | 测试范围 | 必测点 | 绑定需求 |
 | --- | --- | --- |

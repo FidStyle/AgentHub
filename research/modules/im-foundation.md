@@ -26,7 +26,9 @@ AgentHub 的核心体验是 IM 式 Session。P0 需要消息流、Role Agent 流
 | SSE | 简单，适合服务端到客户端流式事件 | 不适合 Desktop 双向控制；移动和断线恢复需补逻辑 | 中 |
 | 轮询 | 实现最简单 | IM 体验差，流式和审批延迟明显 | 低 |
 
-**推荐：** P0 使用 Supabase Realtime 承载消息/审批/状态同步；Runtime 流式输出可以先聚合为 message chunks 或事件表更新。若后续发现 Desktop 控制通道需要更强双向能力，再引入专门 WebSocket gateway。
+**推荐：** P0 使用 Supabase Realtime 承载消息/审批/状态同步；Runtime 流式输出可以先聚合为 message chunks 或事件表更新。
+
+若后续发现 Desktop 控制通道需要更强双向能力，再引入专门 WebSocket gateway。
 
 ---
 
