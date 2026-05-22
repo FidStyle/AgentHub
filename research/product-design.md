@@ -683,16 +683,18 @@ Diff 要求：
 
 ---
 
-## 12. 进入技术设计前的问题
+## 12. 与技术设计的交接关系
 
-以下问题不阻塞产品设计，但必须在 Phase 2 技术设计中收敛：
+产品设计中的待定技术问题已在 `research/technical-design.md` 和 `research/modules/*.md` 中收敛。本节保留为产品设计到技术设计的交接索引。
 
-1. Desktop Connector 使用 Electron 还是 Tauri？
-2. Mobile P0 是响应式 Web/PWA，还是独立移动壳？
-3. Claude Code 与 Codex 的 native session identity、resume/continue 能力如何验证？
-4. Cloud Workspace 的 P0 存储和 Runtime 是否只做最小 Demo 能力？
-5. Action/CLI Adapter 的请求结构、权限等级和执行回传事件如何定义？
-6. Pending Approval 是轮询、WebSocket 还是事件流？
-7. Web、Desktop、Mobile 是否共享同一前端组件包，哪些组件必须分端实现？
+| 产品问题 | 技术设计结论 | 主章节 |
+| --- | --- | --- |
+| Desktop Connector 使用 Electron 还是 Tauri | P0 使用 Electron；Tauri 作为 P2 评估项 | `technical-design.md` 第 2、15.2 章 |
+| Mobile P0 是响应式 Web/PWA 还是独立移动壳 | P0 使用响应式 Web/PWA；Android App 预留 Capacitor | `technical-design.md` 第 2、15.3 章 |
+| Claude Code/Codex 如何保持原生会话连续 | Desktop Connector 调 CLI 子进程，记录 native session ID，优先 resume/continue | `technical-design.md` 第 10、12 章 |
+| Cloud Workspace 与 Local Desktop Workspace 如何隔离 | Workspace 创建后执行域不可变，Runtime/Action 必须匹配执行域 | `technical-design.md` 第 5 章 |
+| Action/CLI Adapter 如何请求、确认和回传 | 使用统一 `ActionRequest`、权限矩阵和 Runtime/Action 事件 | `technical-design.md` 第 13、16 章 |
+| Pending Approval 通过什么通道同步 | 数据库为真相源，Supabase Realtime 同步状态；Desktop 执行请求走 DeviceChannel | `technical-design.md` 第 8、9、13 章 |
+| 三端代码如何共享 | `packages/shared` 承载领域模型、协议和状态机；不承诺 Web UI 组件迁移到 React Native | `technical-design.md` 第 3、15 章 |
 
 对应需求：`FR-DEVICE-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-NOTIFY-001`。

@@ -1,7 +1,7 @@
 # AgentHub Phase 2 模块调研索引
 
 **日期：** 2026-05-21  
-**状态：** Draft，等待用户确认后进入 `research/technical-design.md`
+**状态：** Phase 2 已收敛，结论已进入 `research/technical-design.md`
 
 ---
 
@@ -75,14 +75,14 @@ future apps/mobile-native
 
 ---
 
-## 5. 当前待确认问题
+## 5. 已确认结论
 
-建议一次性确认以下路线：
+以下路线已进入 `research/technical-design.md`，模块文档只保留研究依据：
 
-1. 三端壳是否接受：Next.js + Electron + PWA，后续 Android App 用 Capacitor 包装？
-2. Auth/DB/Realtime 是否接受：Supabase 作为 P0 后端基础设施？
-3. Desktop 通道是否接受：DeviceChannel 作为接口，P0 直接使用 WebSocket 实现？
-4. Runtime Adapter 是否接受：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟？
-5. Orchestrator 是否接受：后端状态机托管，LLM 只负责内容生成？
+1. 三端壳：Next.js + Electron + PWA；后续 Android App 用 Capacitor 包装。
+2. Auth/DB/Realtime：P0 使用 Supabase 作为基础设施。
+3. Desktop 通道：`DeviceChannel` 作为接口，P0 直接使用 WebSocket 实现。
+4. Runtime Adapter：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟。
+5. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。
 
-我的整体建议是全部选推荐路线。这样最符合当前 PRD 的 P0 目标：三端主流程、真实本地 Runtime 接入、IM 体验、审批和产物展示。
+如果后续实现发现技术设计与模块研究冲突，以 `research/technical-design.md` 为准，再反向修正对应模块文档。
