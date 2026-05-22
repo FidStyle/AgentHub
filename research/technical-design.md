@@ -262,7 +262,7 @@ erDiagram
 | Artifact | Markdown、代码块、图片、文件引用、网页预览、Diff、Action 状态 | Diff 是展示材料，不是审批对象 | `FR-ARTIFACT-001`, `FR-RESULT-001` |
 | Role Agent | 名称、角色类型、System Prompt、能力标签、是否允许 Orchestrator 分派 | 用户面对的是角色，不是 Runtime 名称 | `FR-AGENT-001` |
 | Runtime Binding | Runtime 类型、执行域、配置引用 | 绑定必须匹配 Workspace 执行域 | `FR-RUNTIME-001` |
-| Runtime Session | native session id、cwd、能力快照、调用状态 | 维持 Claude Code/Codex 原生上下文连续 | `FR-RUNTIME-001`, `FR-CTX-001` |
+| Runtime Session | native session ID、cwd、能力快照、调用状态 | 维持 Claude Code/Codex 原生上下文连续 | `FR-RUNTIME-001`, `FR-CTX-001` |
 | Action Request | 类型、执行域、工作目录、风险等级、执行状态 | preview/test/build/shell/deploy 的统一请求 | `FR-ACTION-001` |
 | Pending Approval | 来源、风险等级、审批状态、决策时间 | 审批绑定计划、Action、权限升级、重试 | `FR-PERM-001`, `FR-NOTIFY-001` |
 | Task Result | 执行角色、状态、摘要、变更文件、关联 Diff/Preview/Action | 聊天流中的任务结果卡片数据源 | `FR-RESULT-001` |
@@ -405,14 +405,14 @@ flowchart LR
 | 恢复/继续会话 | 保持 native session continuity | 优先使用 CLI 官方 resume/continue 能力 |
 | 事件流 | 将文本、工具调用、审批、Artifact、完成/失败统一回传 | 原始输出只作诊断摘要，不直接暴露敏感内容 |
 | 取消/重启 | 支持用户停止或失败重试 | 先优雅中断，必要时升级 kill |
-| 原生会话发现 | 辅助校准 native session id | 只读发现，不编辑 `~/.claude` 或 `~/.codex` 文件 |
+| 原生会话发现 | 辅助校准 native session ID | 只读发现，不编辑 `~/.claude` 或 `~/.codex` 文件 |
 
 ### 10.3 Runtime 事件分类
 
 | 事件类别 | 说明 | 消费方 |
 | --- | --- | --- |
 | started | Runtime invocation 已启动，可记录 invocation 和 native session | Backend、消息流 |
-| session_discovered | 从 stdout/jsonl/filesystem 发现 native session id | Runtime Session Store |
+| session_discovered | 从 stdout/jsonl/filesystem 发现 native session ID | Runtime Session Store |
 | text_delta | Agent 回复文本或思考片段 | Message 聚合 |
 | tool_started / tool_delta / tool_completed | 工具或命令执行过程 | Action 状态卡、诊断面板 |
 | approval_requested | Runtime 或权限策略要求用户确认 | Pending Approval |
@@ -451,8 +451,8 @@ Codex：
 
 Orchestrator 编排模型是一套机制的两个层次，不是两个独立功能：
 
-- Run 状态机负责“一次 Orchestrator 编排运行处于哪个阶段”。
-- Plan DAG 负责“该运行中的计划节点如何依赖、并行、阻塞和汇总”。
+- Run 状态机负责「一次 Orchestrator 编排运行处于哪个阶段」。
+- Plan DAG 负责「该运行中的计划节点如何依赖、并行、阻塞和汇总」。
 - 状态机是外层生命周期，Plan DAG 是 `planning` 阶段产出的内层计划结构。
 
 Orchestrator 是 PM 型 Role Agent，但状态推进由后端控制。LLM 负责生成澄清问题、候选计划和总结；系统负责计划校验、权限判断、ready 节点调度和失败分支。

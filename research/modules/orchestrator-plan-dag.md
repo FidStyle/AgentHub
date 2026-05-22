@@ -71,7 +71,7 @@
 - 任何未知依赖或执行中依赖都必须阻塞下游节点，不能乐观启动。
 - cycle 和 external blocker 必须成为计划校验错误或计划卡片中的阻塞原因。
 
-### 2.3 codeApe ai-agent-workflowGroup
+### 2.3 `codeApe ai-agent-workflowGroup`
 
 相关文件：
 
@@ -100,13 +100,13 @@
 
 关键发现：
 
-- “Phase = synchronization barrier”，不要把每个依赖都拆成阶段；阶段内使用 wave DAG 处理任务顺序和并行。
+- 「Phase = synchronization barrier」，不要把每个依赖都拆成阶段；阶段内使用 wave DAG 处理任务顺序和并行。
 - 分解时使用能力层级：研究/计划、设计、开发/写作、验证。
 - UI 侧可用 mini DAG 或 wave columns 展示计划，不需要一开始做复杂图编辑器。
 
 对 AgentHub 的影响：
 
-- P0 计划卡片宜展示“并行组/波次”，而不是复杂可拖拽 DAG。
+- P0 计划卡片宜展示「并行组/波次」，而不是复杂可拖拽 DAG。
 - Orchestrator 不应把每一步都串行化。只要依赖已满足，同一 wave 的节点可以并行派发。
 
 ### 2.5 claude_codex_bridge Mailbox Kernel
@@ -197,4 +197,4 @@ AgentHub 应将 Orchestrator 设计升级为 **后端状态机 + Orchestrator Pl
 - LLM 负责提出候选计划和总结，系统负责校验、调度和权限控制。
 - P0 不做复杂 DAG 编辑器，但必须把 DAG 作为内部数据契约实现。
 
-这条路线最符合 bytedance 原始要求中的“复杂任务拆解、并行调度、失败降级、代码冲突处理”和 IM 产品形态，不会把 P0 过度扩展为工作流编排平台。
+这条路线最符合 bytedance 原始要求中的「复杂任务拆解、并行调度、失败降级、代码冲突处理」和 IM 产品形态，不会把 P0 过度扩展为工作流编排平台。

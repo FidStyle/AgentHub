@@ -64,7 +64,7 @@ type WorkspaceExecutionDomain = 'cloud' | 'local_desktop';
 
 **推荐：** P0 支持 Web 登录后生成一次性设备绑定码，Desktop 输入或扫码绑定；后续可补 Desktop 直接 GitHub OAuth。
 
-注意：PRD 写的是“Desktop 支持 GitHub 登录或绑定同一 AgentHub 账号”，所以设备绑定码不违背 `FR-AUTH-001`。
+注意：PRD 写的是「Desktop 支持 GitHub 登录或绑定同一 AgentHub 账号」，所以设备绑定码不违背 `FR-AUTH-001`。
 
 ---
 

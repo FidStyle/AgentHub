@@ -11,7 +11,7 @@
 
 ## 1. 设计目标
 
-AgentHub 的产品体验必须围绕“像 IM 一样与 Role Agent 协作”展开。Web 承担完整工作台，Desktop 承担本地 Connector，Mobile 承担轻量 IM、审批和预览。三端共享账号、Workspace、Session、Role Agent、权限和消息数据，但不复制彼此的全部功能。
+AgentHub 的产品体验必须围绕「像 IM 一样与 Role Agent 协作」展开。Web 承担完整工作台，Desktop 承担本地 Connector，Mobile 承担轻量 IM、审批和预览。三端共享账号、Workspace、Session、Role Agent、权限和消息数据，但不复制彼此的全部功能。
 
 本设计文档只定义产品信息架构、页面逻辑、核心用户流、组件状态和交互边界。技术框架、Runtime 接入方式、云端转发协议和持久化方案在 `research/technical-design.md` 中确定。
 
@@ -244,7 +244,7 @@ Mobile 必须隐藏或降级以下复杂操作：
 - Diff 只提供摘要和只读展开，不提供复杂合并。
 - 不提供本地 Claude Code/Codex Runtime 绑定。
 - 不允许选择本地文件夹。
-- 对 Local Desktop Workspace，所有执行都必须提示“需要 Desktop Connector 在线”。
+- 对 Local Desktop Workspace，所有执行都必须提示「需要 Desktop Connector 在线」。
 - 大型执行输出默认折叠，只展示状态、摘要和关键错误。
 
 对应需求：`FR-MOB-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-DESK-001`。
@@ -270,7 +270,7 @@ Mobile 必须隐藏或降级以下复杂操作：
 
 ### 7.2 创建 Cloud Workspace
 
-1. 用户在 Web 选择“新建 Workspace”。
+1. 用户在 Web 选择「新建 Workspace」。
 2. 输入 Workspace 名称和云端文件夹名。
 3. 选择执行域 `Cloud`。
 4. 系统创建云端项目目录。
@@ -279,14 +279,14 @@ Mobile 必须隐藏或降级以下复杂操作：
 
 禁止行为：
 
-- Cloud Workspace 不显示“绑定本地 Claude Code/Codex”作为可选 Runtime。
+- Cloud Workspace 不显示「绑定本地 Claude Code/Codex」作为可选 Runtime。
 - Cloud Workspace 的执行只落在云端项目目录，不能影响用户本地文件。
 
 对应需求：`FR-WS-001`, `FR-RUNTIME-001`。
 
 ### 7.3 创建 Local Desktop Workspace
 
-1. 用户在 Web 或 Desktop 选择“新建 Local Desktop Workspace”。
+1. 用户在 Web 或 Desktop 选择「新建 Local Desktop Workspace」。
 2. 用户输入 Workspace 名称。
 3. Desktop Connector 引导用户选择本地文件夹，或按用户输入的文件夹名创建文件夹。
 4. Desktop 记录授权目录并展示在线状态。
@@ -355,7 +355,7 @@ Mobile 必须隐藏或降级以下复杂操作：
 
 - 以列表或分组形式展示 Plan DAG，不做复杂拖拽式 DAG 编辑器。
 - 每个节点展示 Role Agent、目标、依赖、状态、预期产物和风险等级。
-- 并行节点用同一分组或“可并行”标识展示。
+- 并行节点用同一分组或「可并行」标识展示。
 - 节点失败时展示受影响的等待节点，并提供重试、跳过、调整计划、停止。
 - 用户要求修改计划时，系统生成新的 plan version，并重新进入确认。
 
@@ -369,9 +369,9 @@ Mobile 必须隐藏或降级以下复杂操作：
 
 ### 7.7 上下文 Pin 与 Handoff
 
-1. 用户在消息、文件引用、Diff 卡片或结果卡片上点击“Pin”。
+1. 用户在消息、文件引用、Diff 卡片或结果卡片上点击「Pin」。
 2. 被 pin 对象进入右栏 Context。
-3. 用户选择“交给 Role Agent”。
+3. 用户选择「交给 Role Agent」。
 4. 系统生成 Context Package，包含任务摘要、pin 消息、相关文件、前序结论和目标。
 5. 如果目标 Role Agent 绑定 Claude Code/Codex，Adapter 在能力允许时继续对应 native session。
 
