@@ -267,19 +267,21 @@ erDiagram
 | Pending Approval | 来源、风险等级、审批状态、决策时间 | 审批绑定计划、Action、权限升级、重试 | `FR-PERM-001`, `FR-NOTIFY-001` |
 | Task Result | 执行角色、状态、摘要、变更文件、关联 Diff/Preview/Action | 聊天流中的任务结果卡片数据源 | `FR-RESULT-001` |
 
-### 7.3 Orchestrator Plan DAG
+### 7.3 Orchestrator Plan DAG 引用模型
+
+Plan DAG 的详细论证和校验规则集中在 `research/modules/orchestrator-plan-dag.md`，技术设计只保留实现视角：计划版本、计划节点、依赖边、计算状态和结果回写。
 
 ```mermaid
 flowchart LR
   Plan[编排计划\n计划版本与摘要]
-  NodeA[计划节点 A\n需求澄清/设计]
-  NodeB[计划节点 B\n前端实现]
-  NodeC[计划节点 C\n测试验证]
-  NodeD[计划节点 D\n汇总结果]
-  RoleB[角色 Agent\n前端工程师]
-  RoleC[角色 Agent\n测试]
-  ResultB[任务结果\n变更摘要]
-  ResultC[任务结果\n测试结果]
+  NodeA[计划节点 A\n上游分析/设计]
+  NodeB[计划节点 B\n角色任务 1]
+  NodeC[计划节点 C\n角色任务 2]
+  NodeD[计划节点 D\n汇总或验收]
+  RoleB[角色 Agent X\n如前端/后端/文档等]
+  RoleC[角色 Agent Y\n如测试/审查/PM 等]
+  ResultB[任务结果 B\n产物或变更摘要]
+  ResultC[任务结果 C\n产物或验证结论]
 
   Plan --> NodeA
   NodeA -->|blocks / handoff| NodeB
@@ -296,8 +298,8 @@ flowchart LR
 | --- | --- | --- |
 | Orchestrator Run | 一次 Orchestrator 编排运行 | 所属 Workspace/Session、当前状态、当前计划版本、自动推进快照 |
 | Orchestrator Plan | 某一版结构化计划 | 版本号、状态、摘要、节点列表、依赖边、计算状态 |
-| Plan Node | 一个 Role Agent 子任务 | 角色、目标、依赖、预期产物、上下文包、风险等级、节点状态、结果引用 |
-| Plan Edge | 节点之间的关系 | blocks、handoff、reviews、conflicts_with、关系原因 |
+| Plan Node | 一个角色子任务 | 角色 Agent、目标、依赖、预期产物、上下文包、风险等级、节点状态、结果引用 |
+| Plan Edge | 节点之间的关系 | 阻塞、handoff、审查、潜在冲突、关系原因 |
 | Computed State | 后端计算结果 | ready、running、waiting、blocked、completed、failed、cycles、waves |
 
 对应需求：`FR-ORCH-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-PERM-001`, `FR-RESULT-001`。
@@ -468,9 +470,9 @@ Codex：
 
 ---
 
-## 11. Orchestrator 状态机与 Plan DAG
+## 11. Orchestrator 状态机
 
-Orchestrator 是 PM 型 Role Agent，但状态推进由后端状态机控制。复杂任务内部使用 Plan DAG 表达节点、依赖、并行、阻塞和失败影响范围。
+Orchestrator 是 PM 型 Role Agent，但状态推进由后端状态机控制。复杂任务内部的依赖和并行调度引用第 7.3 节的 Plan DAG 模型。
 
 ```mermaid
 stateDiagram-v2

@@ -132,70 +132,21 @@
 
 ### 3.1 核心原则
 
-1. **状态机包 DAG。** `OrchestratorRunStatus` 管 run 生命周期；`OrchestratorPlanDAG` 管计划内部依赖和并行。
+1. **状态机包 DAG。** Orchestrator Run 状态机管生命周期；Plan DAG 管计划内部依赖和并行。
 2. **LLM 生成候选计划，系统校验和执行。** LLM 不直接决定可执行性。
 3. **Plan DAG 是真相源。** 计划卡片、审批、Role Agent 分派、失败展示都从结构化计划渲染。
 4. **P0 不做可视化编辑器。** 用户看到结构化计划卡片、并行组、阻塞原因和修改计划入口即可。
 
-### 3.2 数据结构草案
+### 3.2 数据契约草案
 
-```typescript
-type PlanNodeStatus =
-  | 'pending'
-  | 'ready'
-  | 'running'
-  | 'blocked'
-  | 'completed'
-  | 'failed'
-  | 'skipped'
-  | 'canceled';
+| 对象 | 必要信息 | 说明 |
+| --- | --- | --- |
+| Orchestrator Plan | run、workspace、session、版本号、状态、摘要 | 一次 Orchestrator run 可以有多个 plan version |
+| Plan Node | 节点 ID、角色 Agent、标题、目标、依赖、预期产物、上下文包、风险等级、节点状态、结果引用 | 一个节点代表一个可分派给角色 Agent 的子任务 |
+| Plan Edge | 起点、终点、关系类型、原因 | 关系类型包括阻塞、handoff、审查、潜在冲突 |
+| Computed State | ready、running、waiting、blocked、completed、failed、cycles、waves | 由后端根据节点和依赖计算，不由 LLM 直接填写 |
 
-type PlanEdgeKind = 'blocks' | 'handoff' | 'reviews' | 'conflicts_with';
-
-interface OrchestratorPlan {
-  id: string;
-  orchestratorRunId: string;
-  workspaceId: string;
-  sessionId: string;
-  version: number;
-  status: 'draft' | 'requires_confirmation' | 'approved' | 'running' | 'completed' | 'failed' | 'canceled';
-  summary: string;
-  nodes: PlanNode[];
-  edges: PlanEdge[];
-  computed: PlanDAGComputedState;
-}
-
-interface PlanNode {
-  id: string;
-  roleAgentId: string;
-  title: string;
-  objective: string;
-  dependsOn: string[];
-  expectedArtifacts: string[];
-  contextPackageId?: string;
-  riskLevel: 'low' | 'medium' | 'high';
-  status: PlanNodeStatus;
-  resultId?: string;
-}
-
-interface PlanEdge {
-  fromNodeId: string;
-  toNodeId: string;
-  kind: PlanEdgeKind;
-  reason: string;
-}
-
-interface PlanDAGComputedState {
-  ready: string[];
-  running: string[];
-  waiting: string[];
-  blocked: Array<{ nodeId: string; reason: string; blockedBy: string[] }>;
-  completed: string[];
-  failed: string[];
-  cycles: string[][];
-  waves: string[][];
-}
-```
+Plan DAG 的实现细节放到 Phase 3 任务或代码规范中定义。模块研究只固定产品和架构契约：它必须能支持依赖、并行、阻塞、失败影响范围和结果汇总。
 
 ### 3.3 P0 校验规则
 

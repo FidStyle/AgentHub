@@ -58,63 +58,17 @@ Direct Role Flow 中，目标 Role Agent 判断任务超出单角色能力时：
 
 ---
 
-## 3. Plan DAG 建议
+## 3. Plan DAG 边界
 
-Plan DAG 是 Orchestrator 内部计划的结构化真相源。用户看到的是计划卡片；后端看到的是可校验、可调度的 DAG。
+Plan DAG 是独立研究模块，详细契约集中在 `research/modules/orchestrator-plan-dag.md`。本文件只说明它与 Orchestrator 状态机的关系，避免把 DAG 结构散落到多个模块。
 
-```typescript
-type PlanNodeStatus =
-  | 'pending'
-  | 'ready'
-  | 'running'
-  | 'blocked'
-  | 'completed'
-  | 'failed'
-  | 'skipped'
-  | 'canceled';
+| 层次 | 归属文档 | 负责内容 |
+| --- | --- | --- |
+| Orchestrator Run 状态机 | `research/modules/orchestrator.md` | 澄清、计划、确认、分派、等待、汇总、失败处理 |
+| Plan DAG 契约 | `research/modules/orchestrator-plan-dag.md` | 节点、依赖、并行 wave、阻塞、失败影响范围、结果汇总 |
+| 技术设计引用 | `research/technical-design.md` | 只展示实现视角的引用模型，不重复定义完整契约 |
 
-interface PlanNode {
-  id: string;
-  roleAgentId: string;
-  title: string;
-  objective: string;
-  dependsOn: string[];
-  expectedArtifacts: string[];
-  contextPackageId?: string;
-  riskLevel: 'low' | 'medium' | 'high';
-  status: PlanNodeStatus;
-  resultId?: string;
-}
-
-interface OrchestratorPlan {
-  id: string;
-  orchestratorRunId: string;
-  version: number;
-  status: 'draft' | 'requires_confirmation' | 'approved' | 'running' | 'completed' | 'failed' | 'canceled';
-  summary: string;
-  nodes: PlanNode[];
-  edges: Array<{ fromNodeId: string; toNodeId: string; kind: 'blocks' | 'handoff' | 'reviews' | 'conflicts_with'; reason: string }>;
-  computed: {
-    ready: string[];
-    running: string[];
-    waiting: string[];
-    blocked: Array<{ nodeId: string; reason: string; blockedBy: string[] }>;
-    completed: string[];
-    failed: string[];
-    cycles: string[][];
-    waves: string[][];
-  };
-}
-```
-
-P0 校验规则：
-
-- DAG 必须无环。
-- `roleAgentId` 必须属于当前 Workspace。
-- Role Agent Runtime 必须与 Workspace 执行域一致。
-- 未知依赖、执行中依赖或外部依赖必须阻塞下游节点，不能静默忽略。
-- 高风险节点和 Action 即使在自动推进模式下也必须进入权限确认。
-- 同一 wave 存在明显文件冲突风险时，P0 应展示风险并默认串行或要求用户确认。
+P0 结论：Orchestrator 状态机负责推进阶段；Plan DAG 负责计划内部的依赖与并行。用户看到的是计划卡片；后端看到的是可校验、可调度的结构化计划。
 
 对应需求：`FR-ORCH-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-PERM-001`, `FR-RESULT-001`。
 
