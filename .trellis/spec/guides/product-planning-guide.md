@@ -22,6 +22,13 @@ Then verify:
 - [ ] Confirmation UX is tied to plans, next steps, permissions, retries, or publish/deploy actions; Diff remains display material.
 - [ ] Mobile and Desktop are not treated as full Web clones.
 
+For Phase 2 technical selection:
+
+- [ ] Module research documents under `research/modules/` cite the owning `FR-ID`.
+- [ ] Reference repository evidence is recorded under `research/reference-repos/` and summarized in `research/modules/reference-projects.md`.
+- [ ] Popularity and relevance are kept separate; low-star CLI/session/PTY/resume/runtime-adapter repositories are manually reviewed before being dismissed.
+- [ ] Generated scores are treated as first-pass signals, not final architecture decisions.
+
 ---
 
 ## FR-ID Traceability Rule
@@ -55,3 +62,9 @@ If a behavior cannot be mapped to an existing `FR-ID`, pause and update the PRD 
 **Symptom**: A Git diff card asks for approval by itself.
 
 **Fix**: Approval belongs to the task plan, permission escalation, next step, retry, or publish/deploy action. Diff is supporting context.
+
+### Mistake: Letting Reference Repo Popularity Decide Architecture
+
+**Symptom**: A high-star generic chat or client project becomes the default reference for Runtime Adapter, Desktop Connector, or Device Gateway decisions.
+
+**Fix**: Use `research/reference-repos/repo-catalog.json` and `research/modules/reference-projects.md` together. Favor repositories with direct evidence for the module risk being evaluated, such as CLI subprocess control, native session resume, PTY handling, WebSocket gateway behavior, approval events, and artifact persistence.

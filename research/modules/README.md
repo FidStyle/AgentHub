@@ -64,6 +64,8 @@ future apps/mobile-native
 
 - LobeHub 已有 `device-gateway-client`，证明 Desktop 主动 WebSocket + auth + heartbeat + reconnect + tool/agent request 是可行路线。
 - LobeHub `HeterogeneousAgentCtr` 已用 Electron 主进程托管 Claude Code/Codex CLI 子进程，支持 `resumeSessionId`，强化 AgentHub 的 CLI Adapter 方向。
+- cc-pane 的 `cc-cli-adapters` 证明 Claude/Codex 能力声明、PTY、resume、per-session MCP/config 隔离需要进入 Runtime Adapter 设计。
+- ClawWork 证明 Task/Session/Artifact/Approval、Gateway req/res/event 协议、PWA + Desktop 分层可以用 shared 协议包统一。
 - codeg 的 `Transport` 抽象证明 Web/Tauri/remote desktop 可以共享 call/subscribe/eventStream 心智，AgentHub 应建立 shared transport/API client。
 - AionUi ACP rewrite 证明 Orchestrator/Agent session 必须集中状态机和单队列，避免隐式状态。
 - Poco-Claw 证明多服务 executor/callback 架构完整但偏重，AgentHub P0 暂不拆成独立 executor-manager。
