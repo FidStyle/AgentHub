@@ -2,16 +2,71 @@
   "version": "3.1",
   "project_name": "AgentHub",
   "status": "idle",
-  "current_milestone": null,
+  "current_milestone": "M1",
   "current_task_id": null,
-  "milestones": [],
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Engineering Foundation",
+      "type": "standard",
+      "status": "planned",
+      "phases": ["Phase 1: Monorepo + Shared Infrastructure"],
+      "phase_slugs": { "1": "01-monorepo-shared" },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T05:12:00Z"
+    },
+    {
+      "id": "M2",
+      "name": "Auth + IM Core",
+      "type": "standard",
+      "status": "planned",
+      "phases": ["Phase 1: Auth + Web IM Shell + Chat Core"],
+      "phase_slugs": { "1": "01-auth-im-core" },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T05:12:00Z"
+    },
+    {
+      "id": "M3",
+      "name": "Runtime + Orchestrator + Desktop",
+      "type": "standard",
+      "status": "planned",
+      "phases": ["Phase 1: Runtime Adapters + Orchestrator + Desktop Connector"],
+      "phase_slugs": { "1": "01-runtime-orch-desktop" },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T05:12:00Z"
+    },
+    {
+      "id": "M4",
+      "name": "Multi-Platform Integration + Demo",
+      "type": "standard",
+      "status": "planned",
+      "phases": ["Phase 1: Mobile + E2E Integration + Demo Hardening"],
+      "phase_slugs": { "1": "01-mobile-e2e-demo" },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T05:12:00Z"
+    }
+  ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
-  "artifacts": [],
-  "last_updated": "2026-05-23T05:11:00Z",
+  "artifacts": [
+    {
+      "type": "roadmap",
+      "id": "RMAP-agenthub-20260523",
+      "path": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T05:12:00Z"
+    }
+  ],
+  "last_updated": "2026-05-23T05:12:00Z",
   "accumulated_context": {
-    "key_decisions": [],
+    "key_decisions": [
+      "Progressive delivery: M1→M2→M3→M4",
+      "Tech: Next.js + Supabase + Electron + pnpm monorepo",
+      "Minimum-phase: 1 phase per milestone"
+    ],
     "blockers": [],
-    "deferred": []
+    "deferred": [
+      "P1: FR-IM-101, FR-AGENT-101, FR-WORKSPACE-101, FR-NOTIFY-101",
+      "P2/P3: FR-COLLAB-201, FR-MARKET-201, FR-VERSION-201, FR-RUNTIME-201, FR-PUBLISH-201"
+    ]
   },
   "transition_history": [],
   "milestone_history": []
