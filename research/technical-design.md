@@ -97,18 +97,18 @@ future/
 
 ```mermaid
 flowchart LR
-  User[User]
-  Web[apps/web\nWeb Workbench + Mobile PWA]
-  DesktopUI[apps/desktop\nConnector Console]
-  Supabase[Supabase\nAuth + Postgres + Realtime]
-  Backend[Next.js Server/API\nBFF + Orchestrator + Policy]
-  DeviceGateway[Device Gateway\nWebSocket endpoint]
-  DesktopMain[Electron Main\nDeviceChannel + RuntimeHost + LocalExecutor]
-  Hosted[Hosted Runtime\nCloud Role Agents]
-  Claude[Claude Code CLI]
-  Codex[Codex CLI]
-  CloudFS[Cloud Workspace Directory]
-  LocalFS[Local Workspace Root]
+  User[用户]
+  Web[Web 工作台 / Mobile PWA\nIM + Artifact + Approval]
+  DesktopUI[Desktop Connector Console\n本地连接与状态]
+  Supabase[Supabase\n身份 + 数据库 + 实时订阅]
+  Backend[Next.js 后端/BFF\nOrchestrator + Policy]
+  DeviceGateway[设备网关\nWebSocket]
+  DesktopMain[Electron Main\n设备通道 + 运行时宿主 + 本地执行器]
+  Hosted[云端托管 Runtime]
+  Claude[本地 Claude Code CLI]
+  Codex[本地 Codex CLI]
+  CloudFS[云端项目目录]
+  LocalFS[授权本地目录]
 
   User --> Web
   User --> DesktopUI
@@ -140,12 +140,16 @@ flowchart LR
 
 ## 5. 执行域模型
 
-### 5.1 核心枚举
+### 5.1 核心分类
 
-```typescript
-type ExecutionDomain = 'cloud' | 'local_desktop';
-type RuntimeKind = 'hosted' | 'claude_code' | 'codex' | 'opencode';
-```
+| 分类 | 取值 | 说明 |
+| --- | --- | --- |
+| 执行域 | Cloud Workspace | 平台云端项目目录 + Hosted Runtime |
+| 执行域 | Local Desktop Workspace | Desktop Connector 授权的本地目录 + 本地 Claude Code/Codex |
+| Runtime | Hosted Runtime | 平台托管角色 Runtime |
+| Runtime | Claude Code | Desktop Connector 调用本机 Claude Code CLI |
+| Runtime | Codex | Desktop Connector 调用本机 Codex CLI |
+| Runtime | OpenCode | P1/P2 预留，不进入 P0 |
 
 ### 5.2 强约束
 
@@ -160,16 +164,15 @@ type RuntimeKind = 'hosted' | 'claude_code' | 'codex' | 'opencode';
 
 ### 5.3 运行时路由
 
-```typescript
-function resolveExecutor(workspace: Workspace, request: RuntimeRequest | ActionRequest) {
-  assert(request.executionDomain === workspace.executionDomain);
-
-  if (workspace.executionDomain === 'cloud') {
-    return 'cloud_executor';
-  }
-
-  return 'desktop_connector';
-}
+```mermaid
+flowchart TD
+  A[Runtime 或 Action 请求] --> B{请求执行域是否等于 Workspace 执行域}
+  B -- 否 --> X[阻断: EXECUTION_DOMAIN_MISMATCH]
+  B -- 是 --> C{Workspace 类型}
+  C -- Cloud Workspace --> D[Cloud Executor / Hosted Runtime]
+  C -- Local Desktop Workspace --> E{Desktop Connector 是否在线}
+  E -- 否 --> Y[阻断: DEVICE_OFFLINE]
+  E -- 是 --> F[Desktop Connector 执行本地 Runtime 或 Action]
 ```
 
 阻断规则：
@@ -223,284 +226,81 @@ Local Desktop Workspace：
 
 ## 7. 核心数据模型
 
-以下是 P0 逻辑模型，落库时可按 Supabase/Postgres 命名转换。
+本节只定义逻辑实体和关系，不直接约束数据库字段命名。实现时可在 Supabase/Postgres 中拆表，并在 `packages/shared` 中维护对应类型。
 
-### 7.1 Workspace 与设备
+### 7.1 核心实体关系
 
-```typescript
-interface Workspace {
-  id: string;
-  ownerUserId: string;
-  name: string;
-  executionDomain: ExecutionDomain;
-  cloudProjectRef?: string;
-  desktopDeviceId?: string;
-  localRootRef?: string;
-  defaultPermissionPolicyId: string;
-  createdAt: string;
-}
-
-interface Device {
-  id: string;
-  userId: string;
-  kind: 'desktop';
-  name: string;
-  status: 'offline' | 'online' | 'reconnecting';
-  lastSeenAt?: string;
-}
+```mermaid
+erDiagram
+  USER ||--o{ WORKSPACE : 拥有
+  USER ||--o{ DEVICE : 绑定
+  WORKSPACE ||--o{ SESSION : 包含
+  WORKSPACE ||--o{ ROLE_AGENT : 配置
+  WORKSPACE ||--o{ RUNTIME_BINDING : 约束
+  SESSION ||--o{ MESSAGE : 产生
+  SESSION ||--o{ ARTIFACT : 产物
+  SESSION ||--o{ ORCHESTRATOR_RUN : 编排
+  ORCHESTRATOR_RUN ||--o{ ORCHESTRATOR_PLAN : 版本
+  ORCHESTRATOR_PLAN ||--o{ PLAN_NODE : 节点
+  PLAN_NODE ||--o{ TASK_RESULT : 输出
+  ROLE_AGENT ||--o{ PLAN_NODE : 执行
+  ROLE_AGENT ||--o{ RUNTIME_SESSION : 持续会话
+  ACTION_REQUEST ||--o{ PENDING_APPROVAL : 触发
+  SESSION ||--o{ ACTION_REQUEST : 请求
 ```
 
-对应需求：`FR-AUTH-001`, `FR-WS-001`, `FR-DEVICE-001`, `FR-DESK-001`。
+对应需求：`FR-AUTH-001`, `FR-WS-001`, `FR-CHAT-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-ORCH-001`, `FR-ACTION-001`, `FR-RESULT-001`。
 
-### 7.2 Session、消息与 Artifact
+### 7.2 实体说明
 
-```typescript
-type MessageKind =
-  | 'user_text'
-  | 'agent_text'
-  | 'orchestrator_question'
-  | 'system_status'
-  | 'artifact_card'
-  | 'action_card'
-  | 'task_result_card';
+| 实体 | 关键字段/状态 | 说明 | 绑定需求 |
+| --- | --- | --- | --- |
+| Workspace | 执行域、云端目录引用、Desktop 设备引用、本地 root 引用、默认权限策略 | 项目级边界，创建后执行域不可变 | `FR-WS-001` |
+| Device | 设备类型、在线状态、最后心跳时间 | P0 只承载 Desktop Connector | `FR-DEVICE-001`, `FR-DESK-001` |
+| Session | 所属 Workspace、路由模式、自动推进开关、会话状态 | IM 会话和 Orchestrator 执行的共同容器 | `FR-CHAT-001`, `FR-ORCH-001` |
+| Message | 消息类型、流式状态、正文、关联 Artifact | 用户、Role Agent、系统状态都进入消息流 | `FR-CHAT-001` |
+| Artifact | Markdown、代码块、图片、文件引用、网页预览、Diff、Action 状态 | Diff 是展示材料，不是审批对象 | `FR-ARTIFACT-001`, `FR-RESULT-001` |
+| Role Agent | 名称、角色类型、System Prompt、能力标签、是否允许 Orchestrator 分派 | 用户面对的是角色，不是 Runtime 名称 | `FR-AGENT-001` |
+| Runtime Binding | Runtime 类型、执行域、配置引用 | 绑定必须匹配 Workspace 执行域 | `FR-RUNTIME-001` |
+| Runtime Session | native session id、cwd、能力快照、调用状态 | 维持 Claude Code/Codex 原生上下文连续 | `FR-RUNTIME-001`, `FR-CTX-001` |
+| Action Request | 类型、执行域、工作目录、风险等级、执行状态 | preview/test/build/shell/deploy 的统一请求 | `FR-ACTION-001` |
+| Pending Approval | 来源、风险等级、审批状态、决策时间 | 审批绑定计划、Action、权限升级、重试 | `FR-PERM-001`, `FR-NOTIFY-001` |
+| Task Result | 执行角色、状态、摘要、变更文件、关联 Diff/Preview/Action | 聊天流中的任务结果卡片数据源 | `FR-RESULT-001` |
 
-type MessageStatus =
-  | 'pending'
-  | 'streaming'
-  | 'completed'
-  | 'failed'
-  | 'requires_confirmation';
+### 7.3 Orchestrator Plan DAG
 
-type ArtifactKind =
-  | 'markdown'
-  | 'code_block'
-  | 'image'
-  | 'file_ref'
-  | 'web_preview'
-  | 'diff'
-  | 'action_status';
+```mermaid
+flowchart LR
+  Plan[编排计划\n计划版本与摘要]
+  NodeA[计划节点 A\n需求澄清/设计]
+  NodeB[计划节点 B\n前端实现]
+  NodeC[计划节点 C\n测试验证]
+  NodeD[计划节点 D\n汇总结果]
+  RoleB[角色 Agent\n前端工程师]
+  RoleC[角色 Agent\n测试]
+  ResultB[任务结果\n变更摘要]
+  ResultC[任务结果\n测试结果]
 
-interface Session {
-  id: string;
-  workspaceId: string;
-  executionDomain: ExecutionDomain;
-  title: string;
-  routeMode: 'direct_role' | 'orchestrated';
-  autoProceedEnabled: boolean;
-  status: 'active' | 'waiting_user' | 'running' | 'failed' | 'completed';
-}
-
-interface Message {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  roleAgentId?: string;
-  kind: MessageKind;
-  status: MessageStatus;
-  content: string;
-  artifactIds: string[];
-  createdAt: string;
-}
-
-interface Artifact {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  kind: ArtifactKind;
-  title: string;
-  metadata: Record<string, unknown>;
-  storageRef?: string;
-  createdAt: string;
-}
+  Plan --> NodeA
+  NodeA -->|blocks / handoff| NodeB
+  NodeA -->|blocks / handoff| NodeC
+  NodeB -->|blocks| NodeD
+  NodeC -->|blocks| NodeD
+  RoleB --> NodeB
+  RoleC --> NodeC
+  NodeB --> ResultB
+  NodeC --> ResultC
 ```
 
-Markdown、代码块复制、图片、文件引用、网页预览、Diff 卡片、Action 状态卡都通过 `Message` + `Artifact` 表达。Diff 是 Artifact，不是审批对象。
-
-对应需求：`FR-CHAT-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-NOTIFY-001`。
-
-### 7.3 Role Agent 与 Runtime
-
-```typescript
-interface RoleAgent {
-  id: string;
-  workspaceId: string;
-  name: string;
-  roleType: 'orchestrator' | 'frontend' | 'tester' | 'reviewer' | 'pm' | 'custom';
-  systemPrompt: string;
-  capabilityTags: string[];
-  allowOrchestratorDispatch: boolean;
-}
-
-interface RuntimeBinding {
-  id: string;
-  workspaceId: string;
-  roleAgentId: string;
-  runtimeKind: RuntimeKind;
-  executionDomain: ExecutionDomain;
-  configRef?: string;
-}
-
-interface RuntimeSession {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  roleAgentId: string;
-  runtimeKind: RuntimeKind;
-  executionDomain: ExecutionDomain;
-  cwd: string;
-  nativeSessionId?: string;
-  capabilitiesSnapshot: RuntimeCapabilities;
-  status: 'starting' | 'running' | 'awaiting_approval' | 'completed' | 'failed' | 'cancelled';
-  lastInvocationAt: string;
-}
-```
-
-对应需求：`FR-AGENT-001`, `FR-RUNTIME-001`, `FR-CTX-001`。
-
-### 7.4 Orchestrator Plan DAG
-
-```typescript
-type OrchestratorRunStatus =
-  | 'idle'
-  | 'clarifying'
-  | 'planning'
-  | 'requires_plan_confirmation'
-  | 'dispatching'
-  | 'waiting_role_result'
-  | 'summarizing'
-  | 'requires_next_step_confirmation'
-  | 'completed'
-  | 'failed'
-  | 'canceled';
-
-type OrchestratorPlanStatus =
-  | 'draft'
-  | 'requires_confirmation'
-  | 'approved'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'canceled';
-
-type PlanNodeStatus =
-  | 'pending'
-  | 'ready'
-  | 'running'
-  | 'blocked'
-  | 'completed'
-  | 'failed'
-  | 'skipped'
-  | 'canceled';
-
-type PlanEdgeKind = 'blocks' | 'handoff' | 'reviews' | 'conflicts_with';
-
-interface OrchestratorRun {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  status: OrchestratorRunStatus;
-  activePlanId?: string;
-  autoProceedSnapshot: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface OrchestratorPlan {
-  id: string;
-  orchestratorRunId: string;
-  workspaceId: string;
-  sessionId: string;
-  version: number;
-  status: OrchestratorPlanStatus;
-  summary: string;
-  nodes: PlanNode[];
-  edges: PlanEdge[];
-  computed: PlanDAGComputedState;
-}
-
-interface PlanNode {
-  id: string;
-  roleAgentId: string;
-  title: string;
-  objective: string;
-  dependsOn: string[];
-  expectedArtifacts: string[];
-  contextPackageId?: string;
-  riskLevel: RiskLevel;
-  status: PlanNodeStatus;
-  resultId?: string;
-}
-
-interface PlanEdge {
-  fromNodeId: string;
-  toNodeId: string;
-  kind: PlanEdgeKind;
-  reason: string;
-}
-
-interface PlanDAGComputedState {
-  ready: string[];
-  running: string[];
-  waiting: string[];
-  blocked: Array<{ nodeId: string; reason: string; blockedBy: string[] }>;
-  completed: string[];
-  failed: string[];
-  cycles: string[][];
-  waves: string[][];
-}
-```
+| 计划对象 | 中文含义 | P0 必须记录 |
+| --- | --- | --- |
+| Orchestrator Run | 一次 Orchestrator 编排运行 | 所属 Workspace/Session、当前状态、当前计划版本、自动推进快照 |
+| Orchestrator Plan | 某一版结构化计划 | 版本号、状态、摘要、节点列表、依赖边、计算状态 |
+| Plan Node | 一个 Role Agent 子任务 | 角色、目标、依赖、预期产物、上下文包、风险等级、节点状态、结果引用 |
+| Plan Edge | 节点之间的关系 | blocks、handoff、reviews、conflicts_with、关系原因 |
+| Computed State | 后端计算结果 | ready、running、waiting、blocked、completed、failed、cycles、waves |
 
 对应需求：`FR-ORCH-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-PERM-001`, `FR-RESULT-001`。
-
-### 7.5 Action、Approval 与 Result
-
-```typescript
-type ActionKind = 'preview' | 'test' | 'build' | 'shell' | 'deploy';
-type ActionStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'canceled';
-type RiskLevel = 'low' | 'medium' | 'high';
-
-interface ActionRequest {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  requestedByRoleAgentId?: string;
-  requestedByOrchestrator: boolean;
-  executionDomain: ExecutionDomain;
-  kind: ActionKind;
-  command?: string;
-  args?: string[];
-  workingDirectory: string;
-  riskLevel: RiskLevel;
-  status: ActionStatus;
-}
-
-interface PendingApproval {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  sourceType: 'orchestrator_plan' | 'next_step' | 'permission_upgrade' | 'action' | 'retry';
-  sourceId: string;
-  riskLevel: RiskLevel;
-  status: 'pending' | 'approved' | 'rejected' | 'expired';
-  requestedAt: string;
-  decidedAt?: string;
-}
-
-interface TaskResult {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  roleAgentId?: string;
-  status: 'succeeded' | 'failed' | 'partial';
-  summary: string;
-  changedFiles: Array<{ path: string; status: 'added' | 'modified' | 'deleted' | 'renamed' }>;
-  diffArtifactId?: string;
-  previewArtifactId?: string;
-  actionIds: string[];
-}
-```
-
-对应需求：`FR-ACTION-001`, `FR-PERM-001`, `FR-NOTIFY-001`, `FR-RESULT-001`。
 
 ---
 
@@ -530,13 +330,16 @@ P0 采用 Supabase Postgres 作为真相源，Supabase Realtime 作为订阅层�
 
 ### 9.1 连接生命周期
 
-```typescript
-type DeviceConnectionStatus =
-  | 'connecting'
-  | 'authenticating'
-  | 'connected'
-  | 'reconnecting'
-  | 'disconnected';
+```mermaid
+stateDiagram-v2
+  [*] --> 连接中
+  连接中 --> 鉴权中: Desktop 发起 WebSocket
+  鉴权中 --> 已连接: device token 有效
+  鉴权中 --> 已断开: 鉴权失败
+  已连接 --> 重连中: 心跳丢失或网络断开
+  重连中 --> 已连接: 重连成功并补偿未确认请求
+  重连中 --> 已断开: 超过重试上限
+  已断开 --> 连接中: 用户手动重连
 ```
 
 连接流程：
@@ -550,27 +353,31 @@ type DeviceConnectionStatus =
 
 ### 9.2 帧模型
 
-```typescript
-type DeviceFrame =
-  | { kind: 'request'; seq: number; requestId: string; type: DeviceRequestType; payload: unknown }
-  | { kind: 'response'; seq: number; requestId: string; ok: boolean; payload?: unknown; error?: DeviceError }
-  | { kind: 'event'; seq: number; eventId: string; type: DeviceEventType; payload: unknown }
-  | { kind: 'heartbeat'; seq: number; sentAt: string };
+```mermaid
+sequenceDiagram
+  participant 后端 as 后端 Device Gateway
+  participant 桌面 as Desktop Connector
+  participant 本地 as 本地 Runtime/Action
 
-type DeviceRequestType =
-  | 'runtime.invoke'
-  | 'runtime.cancel'
-  | 'action.execute'
-  | 'action.cancel'
-  | 'runtime.detect'
-  | 'workspace.bind_local_root';
-
-type DeviceEventType =
-  | 'runtime.event'
-  | 'action.event'
-  | 'detector.status'
-  | 'workspace.status';
+  桌面->>后端: auth(device token)
+  后端-->>桌面: connected(scope)
+  loop 心跳
+    桌面->>后端: heartbeat(seq)
+    后端-->>桌面: heartbeat_ack(seq)
+  end
+  后端->>桌面: request(seq, requestId, runtime/action)
+  桌面->>本地: 执行已授权请求
+  本地-->>桌面: 运行事件或结果
+  桌面-->>后端: event(seq, eventId)
+  桌面-->>后端: response(seq, requestId, ok/error)
 ```
+
+| 帧类别 | 方向 | 作用 | 必带标识 |
+| --- | --- | --- | --- |
+| request | 后端到 Desktop | 下发 Runtime、Action、检测、绑定本地目录等请求 | `seq`, `requestId`, `type` |
+| response | Desktop 到后端 | 回应某个 request 的成功或失败 | `seq`, `requestId`, `ok/error` |
+| event | Desktop 到后端 | 流式回传 Runtime、Action、检测、Workspace 状态事件 | `seq`, `eventId`, `type` |
+| heartbeat | 双向 | 保持连接、检测断线和触发重连补偿 | `seq`, `sentAt` |
 
 安全边界：
 
@@ -596,53 +403,44 @@ type DeviceEventType =
 
 对应需求：`FR-RUNTIME-001`, `FR-DESK-001`, `FR-CTX-001`, `FR-PERM-001`。
 
-### 10.2 Adapter 接口
+### 10.2 Adapter 能力面
 
-```typescript
-interface RuntimeCapabilities {
-  supportsResume: boolean;
-  supportsContinue: boolean;
-  supportsApprovals: boolean;
-  supportsNativeSessionDiscovery: boolean;
-  supportsHttpSse: boolean;
-  supportsMcpConfig: boolean;
-  supportsPermissionModes: boolean;
-  supportsStreamingEvents: boolean;
-}
-
-interface RuntimeAdapter {
-  kind: RuntimeKind;
-  adapterVersion: string;
-  detect(input: RuntimeDetectInput): Promise<RuntimeDetectionResult>;
-  getCapabilities(input: RuntimeDetectInput): Promise<RuntimeCapabilities>;
-  createSession(input: RuntimeInvokeInput): Promise<RuntimeInvocation>;
-  resumeSession(input: RuntimeResumeInput): Promise<RuntimeInvocation>;
-  continueLatest(input: RuntimeContinueInput): Promise<RuntimeInvocation>;
-  stream(invocationId: string): AsyncIterable<RuntimeEvent>;
-  sendInput(invocationId: string, input: RuntimeStdinInput): Promise<void>;
-  cancel(invocationId: string): Promise<void>;
-  restart(invocationId: string): Promise<RuntimeInvocation>;
-  discoverNativeSessions(input: NativeSessionDiscoveryInput): Promise<NativeSessionRef[]>;
-}
+```mermaid
+flowchart LR
+  Request[AgentHub 运行请求] --> Host[运行时宿主]
+  Host --> Detect[检测 Runtime 可用性]
+  Host --> Session[创建 / 继续 / 恢复会话]
+  Session --> Stream[流式事件]
+  Stream --> Parser[事件解析与归一化]
+  Parser --> Store[运行时会话存储]
+  Parser --> Message[消息 / Artifact / Action 状态]
+  Host --> Cancel[取消 / 重启]
+  Host --> Discovery[原生会话发现]
 ```
 
-### 10.3 RuntimeEvent
+| 能力 | P0 作用 | Claude Code / Codex 要点 |
+| --- | --- | --- |
+| 检测 | 判断 CLI 是否安装、版本和登录状态 | Desktop main 执行，不在 Web/Mobile 执行 |
+| 能力声明 | 记录是否支持 resume、continue、审批、流式事件、MCP/config | 影响 UI 展示和降级策略 |
+| 创建会话 | 首次把 Role Agent 请求交给 Runtime | 绑定 Workspace root 和 Role Agent |
+| 恢复/继续会话 | 保持 native session continuity | 优先使用 CLI 官方 resume/continue 能力 |
+| 事件流 | 将文本、工具调用、审批、Artifact、完成/失败统一回传 | 原始输出只作诊断摘要，不直接暴露敏感内容 |
+| 取消/重启 | 支持用户停止或失败重试 | 先优雅中断，必要时升级 kill |
+| 原生会话发现 | 辅助校准 native session id | 只读发现，不编辑 `~/.claude` 或 `~/.codex` 文件 |
 
-```typescript
-type RuntimeEvent =
-  | { type: 'started'; invocationId: string; nativeSessionId?: string }
-  | { type: 'session_discovered'; nativeSessionId: string; source: 'stdout' | 'jsonl' | 'filesystem' }
-  | { type: 'text_delta'; content: string; channel?: 'assistant' | 'thinking' | 'system' }
-  | { type: 'tool_started'; toolCallId: string; name: string; inputPreview?: string }
-  | { type: 'tool_delta'; toolCallId: string; content: string }
-  | { type: 'tool_completed'; toolCallId: string; outputPreview?: string; exitCode?: number }
-  | { type: 'approval_requested'; approvalId: string; reason: string; commandPreview?: string }
-  | { type: 'permission_mode_changed'; mode: string; reason?: string }
-  | { type: 'artifact_created'; artifactId: string; path?: string; mimeType?: string }
-  | { type: 'completed'; summary?: string; nativeSessionId?: string }
-  | { type: 'failed'; errorCode: RuntimeErrorCode; message: string; retryable: boolean }
-  | { type: 'cancelled'; reason?: string };
-```
+### 10.3 Runtime 事件分类
+
+| 事件类别 | 说明 | 消费方 |
+| --- | --- | --- |
+| started | Runtime invocation 已启动，可记录 invocation 和 native session | Backend、消息流 |
+| session_discovered | 从 stdout/jsonl/filesystem 发现 native session id | Runtime Session Store |
+| text_delta | Agent 回复文本或思考片段 | Message 聚合 |
+| tool_started / tool_delta / tool_completed | 工具或命令执行过程 | Action 状态卡、诊断面板 |
+| approval_requested | Runtime 或权限策略要求用户确认 | Pending Approval |
+| permission_mode_changed | Runtime 权限模式变化 | 审计与状态提示 |
+| artifact_created | Runtime 产生文件、预览、Diff 等产物 | Artifact |
+| completed | Runtime 正常结束 | Task Result |
+| failed / cancelled | Runtime 失败或取消 | 错误码、重试、Orchestrator 失败分支 |
 
 ### 10.4 Claude Code 与 Codex 策略
 
@@ -674,19 +472,25 @@ Codex：
 
 Orchestrator 是 PM 型 Role Agent，但状态推进由后端状态机控制。复杂任务内部使用 Plan DAG 表达节点、依赖、并行、阻塞和失败影响范围。
 
-```typescript
-type OrchestratorRunStatus =
-  | 'idle'
-  | 'clarifying'
-  | 'planning'
-  | 'requires_plan_confirmation'
-  | 'dispatching'
-  | 'waiting_role_result'
-  | 'summarizing'
-  | 'requires_next_step_confirmation'
-  | 'completed'
-  | 'failed'
-  | 'canceled';
+```mermaid
+stateDiagram-v2
+  [*] --> 空闲
+  空闲 --> 澄清需求: 收到 Orchestrator 入口消息
+  澄清需求 --> 生成计划: 信息足够
+  生成计划 --> 等待计划确认: Plan DAG 校验通过
+  生成计划 --> 失败: Plan DAG 校验失败且无法修复
+  等待计划确认 --> 分派任务: 用户确认或低风险自动推进
+  等待计划确认 --> 生成计划: 用户要求修改计划
+  分派任务 --> 等待角色结果: ready 节点已派发
+  等待角色结果 --> 分派任务: 新节点变为 ready
+  等待角色结果 --> 汇总结果: 必需节点完成
+  等待角色结果 --> 失败: 节点失败且用户停止
+  汇总结果 --> 等待下一步确认: 需要用户决定下一步
+  汇总结果 --> 完成
+  等待下一步确认 --> 生成计划: 用户要求继续或调整
+  等待下一步确认 --> 完成: 用户结束
+  失败 --> [*]
+  完成 --> [*]
 ```
 
 ### 11.1 路由规则
@@ -737,19 +541,29 @@ P0 scheduler 使用拓扑层思想：只有 `dependsOn` 全部 completed/skipped
 
 ## 12. Context Package 与 Handoff
 
-```typescript
-interface ContextPackage {
-  workspaceId: string;
-  sessionId: string;
-  sourceMessageIds: string[];
-  pinnedMessageIds: string[];
-  artifactIds: string[];
-  fileRefs: Array<{ path: string; reason: string }>;
-  priorRoleSummaries: Array<{ roleAgentId: string; summary: string }>;
-  currentGoal: string;
-  constraints: string[];
-}
+```mermaid
+flowchart LR
+  UserMsg[源消息] --> Context[上下文包]
+  Pinned[Pin 消息] --> Context
+  Artifacts[Artifact / Diff / Preview] --> Context
+  Files[文件引用] --> Context
+  Prior[前序 Role 摘要] --> Context
+  Constraints[约束与权限] --> Context
+  Context --> Role[目标角色 Agent]
+  Role --> Adapter[运行时适配器]
+  Adapter --> Native[Claude/Codex 原生会话]
 ```
+
+| 内容 | 说明 |
+| --- | --- |
+| Workspace / Session | 明确上下文所属边界，避免跨 Workspace 误用 |
+| 源消息 | 用户触发任务的消息和必要引用 |
+| Pin 消息 | 用户手动固定的长期上下文 |
+| Artifact | 代码块、文件引用、Diff、预览、结果卡片 |
+| 文件引用 | 路径和引用原因，必须受 root containment 约束 |
+| 前序 Role 摘要 | 上游节点或其他 Role Agent 的结论 |
+| 当前目标 | 本次 handoff 的目标和验收口径 |
+| 约束 | 权限、风险、执行域、不得触碰范围等 |
 
 Handoff 规则：
 

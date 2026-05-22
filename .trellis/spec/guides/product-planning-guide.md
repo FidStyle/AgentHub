@@ -30,6 +30,7 @@ For Phase 2 technical selection:
 - [ ] Reference repository evidence is recorded under `research/reference-repos/` and summarized in `research/modules/reference-projects.md`.
 - [ ] Popularity and relevance are kept separate; low-star CLI/session/PTY/resume/runtime-adapter repositories are manually reviewed before being dismissed.
 - [ ] Generated scores are treated as first-pass signals, not final architecture decisions.
+- [ ] 面向评审的技术设计文档优先使用中文表格和 Mermaid/PlantUML 图，避免长篇代码式接口；精确类型签名放到实现任务或代码规范中。
 
 ---
 
@@ -82,3 +83,9 @@ If a behavior cannot be mapped to an existing `FR-ID`, pause and update the PRD 
 **Symptom**: A high-star generic chat or client project becomes the default reference for Runtime Adapter, Desktop Connector, or Device Gateway decisions.
 
 **Fix**: Use `research/reference-repos/repo-catalog.json` and `research/modules/reference-projects.md` together. Favor repositories with direct evidence for the module risk being evaluated, such as CLI subprocess control, native session resume, PTY handling, WebSocket gateway behavior, approval events, and artifact persistence.
+
+### Mistake: Making Technical Design Look Like Source Code
+
+**Symptom**: `research/technical-design.md` contains long TypeScript interface blocks that only implementers can read.
+
+**Fix**: 面向评审的技术文档尽量使用中文。用 Mermaid/PlantUML 图、实体表、状态表和 API 表表达架构；精确类型签名在 Phase 3 进入任务文档或代码规范。
