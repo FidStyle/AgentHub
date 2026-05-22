@@ -131,7 +131,8 @@ flowchart LR
 - Desktop 是 Connector，不复制三栏工作台。
 - Cloud Workspace 的 Action 和 Runtime 只在云端项目目录执行。
 - Local Desktop Workspace 的 Action 和 Runtime 只通过在线 Desktop Connector 执行。
-- Web/Mobile 永远不直接写本地文件，也不直接访问用户电脑端口。
+- Web/Mobile 是控制端，可以对 Cloud Workspace 或 Local Desktop Workspace 发送消息、审批和 Action 指令；但本地文件读写、命令执行和 Runtime 调用只能由 Desktop Connector 落地。
+- Web/Mobile 进程不承载本地文件执行能力，也不通过浏览器、手机或用户电脑端口绕过 Desktop Connector。
 
 对应需求：`FR-DEVICE-001`, `FR-WS-001`, `FR-DESK-001`, `FR-MOB-001`, `FR-ACTION-001`, `NFR-SEC-001`。
 
@@ -478,7 +479,7 @@ type DeviceEventType =
 
 安全边界：
 
-- Web/Mobile 不直接向 Desktop 建连。
+- Web/Mobile 可以控制 Local Desktop Workspace，但不与 Desktop 做点对点直连；控制请求统一进入后端，再通过 Desktop 主动建立的 DeviceChannel 下发。
 - Desktop 只接受后端签发、scope 匹配、workspace 匹配的请求。
 - 本地执行请求必须已经通过权限策略或审批。
 

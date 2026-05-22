@@ -18,6 +18,7 @@ Then verify:
 - [ ] UI behavior matches the page, flow, component, and state design in `research/product-design.md`.
 - [ ] Workspace execution domain is explicit: `Cloud Workspace` or `Local Desktop Workspace`.
 - [ ] No code path mixes Cloud Runtime and Local Desktop Runtime inside one Workspace or Session.
+- [ ] Web/Mobile are described and implemented as control surfaces for both Cloud and Local Desktop Workspaces; local file writes, shell commands, and Runtime calls for Local Desktop Workspaces land only in Desktop Connector.
 - [ ] User-facing chat targets are Role Agents, not Claude Code/Codex tool names.
 - [ ] Confirmation UX is tied to plans, next steps, permissions, retries, or publish/deploy actions; Diff remains display material.
 - [ ] Mobile and Desktop are not treated as full Web clones.
@@ -56,6 +57,12 @@ If a behavior cannot be mapped to an existing `FR-ID`, pause and update the PRD 
 **Symptom**: Mobile includes complex code editing or Runtime binding.
 
 **Fix**: Mobile P0 is lightweight IM, approval, progress, and preview.
+
+### Mistake: Saying Web/Mobile Cannot Control Local Workspaces
+
+**Symptom**: Copy or code treats "Web/Mobile do not directly write local files" as "Web/Mobile cannot control a user's local Desktop Workspace".
+
+**Fix**: Web/Mobile can send task messages, approvals, and Action requests for Local Desktop Workspaces. The boundary is execution location: local file writes, shell commands, and Claude/Codex calls must go through the authenticated Desktop Connector.
 
 ### Mistake: Approving Diff Instead of Action
 

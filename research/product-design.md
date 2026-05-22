@@ -78,8 +78,8 @@ User
 
 | 类型 | 用户心智 | 绑定对象 | 执行位置 | 三端行为 |
 | --- | --- | --- | --- | --- |
-| Cloud Workspace | 使用平台云端工作区 | 云端项目目录或个人云工作区 | 云端 Runtime | Web/Mobile 直接控制云端任务；Desktop 可查看但不是必需 Connector |
-| Local Desktop Workspace | 使用自己的电脑项目 | Desktop Connector 授权的本地文件夹 | 在线 Desktop Connector 暴露的本地 Runtime | Web/Mobile 通过云端后端转发到 Desktop；Desktop 离线时不可执行 |
+| Cloud Workspace | 使用平台云端工作区 | 云端项目目录或个人云工作区 | 云端 Runtime | Web/Mobile 作为控制端发起消息、审批和 Action；执行落在云端 Runtime；Desktop 可查看但不是必需 Connector |
+| Local Desktop Workspace | 使用自己的电脑项目 | Desktop Connector 授权的本地文件夹 | 在线 Desktop Connector 暴露的本地 Runtime | Web/Mobile 作为控制端发起消息、审批和 Action；执行经云端后端下发到 Desktop Connector；Desktop 离线时不可执行 |
 
 对应需求：`FR-WS-001`, `FR-DESK-001`, `FR-RUNTIME-001`。
 
@@ -280,7 +280,7 @@ Mobile 必须隐藏或降级以下复杂操作：
 禁止行为：
 
 - Cloud Workspace 不显示“绑定本地 Claude Code/Codex”作为可选 Runtime。
-- Cloud Workspace 不能写入用户本地文件。
+- Cloud Workspace 的执行只落在云端项目目录，不能影响用户本地文件。
 
 对应需求：`FR-WS-001`, `FR-RUNTIME-001`。
 

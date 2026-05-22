@@ -14,7 +14,7 @@ AgentHub P0 已确定使用 GitHub OAuth，不做独立用户名密码。Workspa
 1. 身份认证用自建 OAuth、Auth.js，还是 Supabase Auth？
 2. Workspace 执行域如何在数据模型和 UI 中强约束？
 3. Desktop Connector 如何绑定到同一用户身份？
-4. Local Desktop Workspace 如何避免被 Web/Mobile 直接写本地文件？
+4. Local Desktop Workspace 如何让 Web/Mobile 可远程控制，同时避免 Web/Mobile 进程直接成为本地文件或本地端口访问入口？
 
 ---
 
@@ -46,7 +46,7 @@ type WorkspaceExecutionDomain = 'cloud' | 'local_desktop';
 | Session 继承 Workspace 执行域 | Session 不单独选择 Cloud/Local |
 | Role Agent Runtime 必须匹配执行域 | Cloud Workspace 不可绑定本地 Claude Code/Codex |
 | Action 执行位置必须匹配执行域 | Cloud 走云端执行，Local Desktop 走 Desktop Connector |
-| Web/Mobile 不直接访问本地文件 | 只向后端发请求，由在线 Desktop 拉取和执行 |
+| Web/Mobile 是控制端而不是本地执行端 | 用户可以在 Web/Mobile 发起会影响本地 Workspace 的消息、审批和 Action；本地文件读写、命令执行和 Runtime 调用只由在线 Desktop Connector 执行 |
 
 对应需求：`FR-WS-001`, `FR-RUNTIME-001`, `FR-ACTION-001`。
 
