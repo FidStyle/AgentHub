@@ -114,7 +114,7 @@ export default function WorkspaceChatPage() {
         return [...m, userMsg]
       })
 
-      // Simulate AI streaming response
+      // AI streaming response via SSE
       const aiMsgId = genId()
       const aiMsg: Message = {
         id: aiMsgId,
@@ -130,32 +130,66 @@ export default function WorkspaceChatPage() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
-      setMessages((m) => {
-        if (m.some((msg) => msg.id === aiMsgId)) return m
-        return [...m, aiMsg]
-      })
+      setMessages((m) => [...m, aiMsg])
       setStreaming(true)
 
-      const response = `收到您的消息："${content}"。我是 AgentHub Orchestrator，正在为您协调处理...`
-      let i = 0
-      const interval = setInterval(() => {
-        i++
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: currentSessionId, content }),
+        })
+
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let fullContent = ''
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            const chunk = decoder.decode(value, { stream: true })
+            // Parse SSE lines: "data: {...}"
+            for (const line of chunk.split('\n')) {
+              const match = line.match(/^data: (.+)$/)
+              if (match) {
+                try {
+                  const data = JSON.parse(match[1])
+                  if (data.type === 'delta' && data.content) {
+                    fullContent += data.content
+                    setMessages((m) =>
+                      m.map((msg) =>
+                        msg.id === aiMsgId
+                          ? { ...msg, content: fullContent, streaming_status: 'streaming' as const }
+                          : msg,
+                      ),
+                    )
+                  } else if (data.type === 'done') {
+                    setMessages((m) =>
+                      m.map((msg) =>
+                        msg.id === aiMsgId
+                          ? { ...msg, content: fullContent, streaming_status: 'complete' as const }
+                          : msg,
+                      ),
+                    )
+                    setStreaming(false)
+                  }
+                } catch {}
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Fallback: mark as complete
         setMessages((m) =>
           m.map((msg) =>
             msg.id === aiMsgId
-              ? {
-                  ...msg,
-                  content: response.slice(0, i * 2),
-                  streaming_status: i * 2 >= response.length ? 'complete' : 'streaming',
-                }
+              ? { ...msg, content: '抱歉，发生了错误。', streaming_status: 'complete' as const }
               : msg,
           ),
         )
-        if (i * 2 >= response.length) {
-          clearInterval(interval)
-          setStreaming(false)
-        }
-      }, 30)
+        setStreaming(false)
+      }
     },
     [currentSessionId],
   )
