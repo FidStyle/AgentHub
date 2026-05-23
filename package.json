@@ -1,0 +1,27 @@
+{
+  "name": "agenthub",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @agenthub/web dev",
+    "dev:desktop": "pnpm --filter @agenthub/desktop dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "type-check": "pnpm -r type-check"
+  },
+  "dependencies": {
+    "react-markdown": "^9.0.0",
+    "rehype-highlight": "^7.0.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "prettier": "^3.4.0",
+    "eslint-config-prettier": "^10.0.0"
+  }
+}
