@@ -14,11 +14,22 @@ interface RoleAgent {
   updated_at: string
 }
 
-interface DetailPanelProps {
-  workspaceId?: string
+interface SelectedMessageDetail {
+  id: string
+  message_type: string
+  sender_type: string
+  content: string
+  metadata: Record<string, unknown> | null
+  created_at: string
 }
 
-export function DetailPanel({ workspaceId }: DetailPanelProps) {
+interface DetailPanelProps {
+  workspaceId?: string
+  selectedMessage?: SelectedMessageDetail | null
+  onCloseMessage?: () => void
+}
+
+export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: DetailPanelProps) {
   const [agents, setAgents] = useState<RoleAgent[]>([])
   const [selected, setSelected] = useState<RoleAgent | null>(null)
   const [editing, setEditing] = useState(false)
@@ -147,7 +158,45 @@ export function DetailPanel({ workspaceId }: DetailPanelProps) {
       </div>
 
       {/* Agent 配置表单 */}
-      {selected && (
+      {selectedMessage ? (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium text-sm">Artifact Detail</h4>
+            <button
+              onClick={onCloseMessage}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Close
+            </button>
+          </div>
+          <div className="space-y-2 text-xs">
+            <div className="flex gap-2">
+              <span className="text-gray-500">Type:</span>
+              <span className="font-medium">{selectedMessage.message_type}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-500">Sender:</span>
+              <span>{selectedMessage.sender_type}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-500">Time:</span>
+              <span>{new Date(selectedMessage.created_at).toLocaleString('zh-CN')}</span>
+            </div>
+            <div className="border-t pt-2">
+              <span className="text-gray-500">Content:</span>
+              <pre className="mt-1 whitespace-pre-wrap text-gray-700 max-h-48 overflow-y-auto">{selectedMessage.content}</pre>
+            </div>
+            {selectedMessage.metadata && (
+              <div className="border-t pt-2">
+                <span className="text-gray-500">Metadata:</span>
+                <pre className="mt-1 whitespace-pre-wrap text-gray-700 text-xs font-mono max-h-48 overflow-y-auto">
+                  {JSON.stringify(selectedMessage.metadata, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : selected && (
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">名称</label>

@@ -17,7 +17,22 @@ export default function WorkspaceChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [streaming, setStreaming] = useState(false)
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
   const realtimeRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
+
+  // Selected message for Artifact detail panel
+  const selectedMessage = messages.find((m) => m.id === selectedMessageId) ?? null
+
+  const handlePinMessage = useCallback(async (id: string, isPinned: boolean) => {
+    await fetch(`/api/messages/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_pinned: isPinned }),
+    })
+    setMessages((m) => m.map((msg) => msg.id === id ? { ...msg, is_pinned: isPinned } : msg))
+  }, [])
+
+  const handleCloseMessage = useCallback(() => setSelectedMessageId(null), [])
 
   // Load messages when session changes
   useEffect(() => {
@@ -202,8 +217,19 @@ export default function WorkspaceChatPage() {
         onSelect={(id) => setCurrentSessionId(id)}
         onNew={handleNewSession}
       />
-      <ChatPanel messages={messages} onSend={handleSend} streaming={streaming} />
-      <DetailPanel workspaceId={workspaceId} />
+      <ChatPanel
+        messages={messages}
+        onSend={handleSend}
+        streaming={streaming}
+        selectedMessageId={selectedMessageId}
+        onSelectMessage={setSelectedMessageId}
+        onPinMessage={handlePinMessage}
+      />
+      <DetailPanel
+        workspaceId={workspaceId}
+        selectedMessage={selectedMessage}
+        onCloseMessage={handleCloseMessage}
+      />
     </div>
   )
 }
