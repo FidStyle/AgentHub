@@ -1,0 +1,101 @@
+import { createClient } from '@/lib/supabase-server'
+import { NextResponse } from 'next/server'
+
+// Helper: auth + workspace ownership check
+async function authAndOwn(userId: string, agentId: string) {
+  const supabase = await createClient()
+
+  const { data: agent, error: agentError } = await supabase
+    .from('role_agents')
+    .select('workspace_id')
+    .eq('id', agentId)
+    .single()
+
+  if (agentError || !agent) return { error: 'Agent 不存在', status: 404, supabase, userId }
+
+  const { data: ws } = await supabase
+    .from('workspaces')
+    .select('id')
+    .eq('id', agent.workspace_id)
+    .eq('owner_id', userId)
+    .single()
+
+  if (!ws) return { error: '无权限', status: 403, supabase, userId }
+  return { supabase, userId, agentId, workspaceId: agent.workspace_id }
+}
+
+// GET: single agent
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+
+  const ctx = await authAndOwn(user.id, id)
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+
+  const { data, error } = await ctx.supabase
+    .from('role_agents')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
+
+// PATCH: update agent
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+
+  const ctx = await authAndOwn(user.id, id)
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+
+  const body = await request.json()
+  const { name, role_type, system_prompt, capabilities, is_orchestrator } = body
+
+  const updates: Record<string, unknown> = {}
+  if (name !== undefined) updates.name = name
+  if (role_type !== undefined) updates.role_type = role_type
+  if (system_prompt !== undefined) updates.system_prompt = system_prompt
+  if (capabilities !== undefined) updates.capabilities = capabilities
+  if (is_orchestrator !== undefined) updates.is_orchestrator = is_orchestrator
+
+  const { data, error } = await ctx.supabase
+    .from('role_agents')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
+
+// DELETE: delete agent
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+
+  const ctx = await authAndOwn(user.id, id)
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+
+  const { error } = await ctx.supabase.from('role_agents').delete().eq('id', id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}

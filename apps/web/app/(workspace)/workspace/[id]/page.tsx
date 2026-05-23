@@ -203,7 +203,7 @@ export default function WorkspaceChatPage() {
         onNew={handleNewSession}
       />
       <ChatPanel messages={messages} onSend={handleSend} streaming={streaming} />
-      <DetailPanel />
+      <DetailPanel workspaceId={workspaceId} />
     </div>
   )
 }
