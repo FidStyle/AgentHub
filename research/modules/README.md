@@ -1,6 +1,6 @@
 # AgentHub Phase 2 模块调研索引
 
-**日期：** 2026-05-21  
+**日期：** 2026-05-25
 **状态：** Phase 2 已收敛，结论已进入 `research/technical-design.md`
 
 ---
@@ -11,6 +11,7 @@
 | --- | --- | --- |
 | `reference-projects.md` | `refer_proj/*` 参考项目架构依据 | `FR-DEVICE-001`, `FR-DESK-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-ORCH-001` |
 | `client-shells.md` | Web/Desktop/Mobile 壳与代码共享 | `FR-DEVICE-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001` |
+| `ui-and-visual-testing.md` | 三端 UI 设计系统、组件库、视觉 E2E 工具链 | `FR-UI-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001` |
 | `auth-workspace.md` | GitHub OAuth、Workspace、执行域 | `FR-AUTH-001`, `FR-WS-001`, `FR-PERM-001` |
 | `im-foundation.md` | IM 底座、实时通信、富消息 | `FR-CHAT-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-NOTIFY-001` |
 | `desktop-connector.md` | 本地 Connector、本地执行边界 | `FR-DESK-001`, `FR-RUNTIME-001`, `FR-ACTION-001` |
@@ -26,6 +27,7 @@
 | 模块 | 推荐项 | 理由 |
 | --- | --- | --- |
 | 三端壳 | Web: Next.js；Desktop: Electron；Mobile P0: PWA；Android App 预留: Capacitor；React Native 预留: shared TS 领域层 | 最快满足三端职责分工，同时保留后续 Android 应用和原生移动端路线 |
+| UI 设计系统 | shadcn/ui + Tailwind CSS 4 + lucide-react；AionUi/codeg 为主参考；Playwright 分端视觉 E2E | 与当前 Web 技术栈兼容，可覆盖 Web、Electron renderer、Mobile/PWA，并把视觉质量纳入门禁 |
 | Auth/Workspace | Supabase Auth + GitHub OAuth + Postgres | 同时解决登录、DB、Realtime 基础设施 |
 | IM/Realtime | Supabase Realtime | 与 Auth/DB 统一，足够支撑消息、审批、状态同步 |
 | Desktop Connector | Electron + DeviceChannel 接口 + WebSocket 主实现 | Node 主进程适合本地 CLI、文件、进程能力；WebSocket 适合远程控制和状态回传 |
@@ -80,9 +82,10 @@ future apps/mobile-native
 以下路线已进入 `research/technical-design.md`，模块文档只保留研究依据：
 
 1. 三端壳：Next.js + Electron + PWA；后续 Android App 用 Capacitor 包装。
-2. Auth/DB/Realtime：P0 使用 Supabase 作为基础设施。
-3. Desktop 通道：`DeviceChannel` 作为接口，P0 直接使用 WebSocket 实现。
-4. Runtime Adapter：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟。
-5. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。
+2. UI 设计系统：`shadcn/ui + Tailwind CSS 4 + lucide-react`，视觉 E2E 使用 Playwright browser projects 与 Playwright Electron 分端覆盖。
+3. Auth/DB/Realtime：P0 使用 Supabase 作为基础设施。
+4. Desktop 通道：`DeviceChannel` 作为接口，P0 直接使用 WebSocket 实现。
+5. Runtime Adapter：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟。
+6. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。
 
 如果后续实现发现技术设计与模块研究冲突，以 `research/technical-design.md` 为准，再反向修正对应模块文档。

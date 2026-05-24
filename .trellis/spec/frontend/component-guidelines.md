@@ -1,59 +1,132 @@
-# Component Guidelines
+# 组件规范
 
-> How components are built in this project.
-
----
-
-## Overview
-
-<!--
-Document your project's component conventions here.
-
-Questions to answer:
-- What component patterns do you use?
-- How are props defined?
-- How do you handle composition?
-- What accessibility standards apply?
--->
-
-(To be filled by the team)
+> AgentHub 前端组件的实现方式。涉及 UI 的任务还必须读取 `./ui-style-guidelines.md` 和 `research/ui-design-system.md`。
 
 ---
 
-## Component Structure
+## 概览
 
-<!-- Standard structure of a component file -->
+组件必须服务于 PRD 中的 `FR-ID`，不能为了局部页面临时堆样式。P0 组件基线为 `shadcn/ui + Tailwind CSS 4 + lucide-react`。
 
-(To be filled by the team)
+优先顺序：
 
----
-
-## Props Conventions
-
-<!-- How props should be defined and typed -->
-
-(To be filled by the team)
+1. 复用现有项目组件。
+2. 按 shadcn/ui 模式抽取可组合组件。
+3. 页面内写小型私有组件。
+4. 只有在确实无法复用时，才新增组件变体。
 
 ---
 
-## Styling Patterns
+## 组件结构
 
-<!-- How styles are applied (CSS modules, styled-components, Tailwind, etc.) -->
+组件文件应保持职责单一：
 
-(To be filled by the team)
+- 展示组件只接收 typed props，不直接读取跨层全局数据。
+- 容器组件负责数据读取、状态派发和页面级编排。
+- 富内容组件必须显式处理 loading、empty、error、success 状态。
+- 关键 UI 容器必须提供稳定定位点，供 Playwright 使用。
+
+推荐定位点：
+
+- `data-testid="workspace-shell"`
+- `data-testid="session-sidebar"`
+- `data-testid="chat-panel"`
+- `data-testid="message-composer"`
+- `data-testid="artifact-panel"`
+- `data-testid="approval-card"`
+- `data-testid="connector-console"`
+- `data-testid="runtime-status-card"`
+- `data-testid="mobile-session"`
 
 ---
 
-## Accessibility
+## Props 约定
 
-<!-- A11y requirements and patterns -->
+- props 使用 TypeScript 明确类型，禁止把跨层领域对象直接传到深层组件后随意读取。
+- 状态类 props 使用有限枚举，例如 `pending | running | succeeded | failed`。
+- 组件需要触发动作时，使用语义回调名，例如 `onApprove`、`onReject`、`onRetry`、`onOpenPreview`。
+- 文案由上层传入时也必须是中文；组件内部默认文案同样使用中文。
+- Runtime 名称只作为配置或诊断摘要出现，不作为聊天对象或主要行动对象。
 
-(To be filled by the team)
+示例：
+
+```tsx
+type RuntimeStatus = 'ready' | 'not_installed' | 'auth_required' | 'error'
+
+type RuntimeStatusCardProps = {
+  runtimeName: 'Claude Code' | 'Codex'
+  status: RuntimeStatus
+  version?: string
+  onDetectAgain: () => void
+}
+```
 
 ---
 
-## Common Mistakes
+## 样式模式
 
-<!-- Component-related mistakes your team has made -->
+- 使用 Tailwind CSS 4 和语义变量，例如 `bg-card`、`text-muted-foreground`、`border`。
+- 使用 `cn()` 或等价工具组合 class，避免字符串拼接失控。
+- 动态样式只用于少量尺寸、位置或颜色变量，禁止用大段 `style={{ ... }}` 复刻 CSS。
+- 卡片默认圆角不超过 8px；页面 section 不做装饰性浮卡。
+- 工具按钮优先使用 lucide 图标，并提供中文 `aria-label` 或 tooltip。
 
-(To be filled by the team)
+错误：
+
+```tsx
+<button style={{ padding: 12, borderRadius: 999, background: 'linear-gradient(...)' }}>
+  Send
+</button>
+```
+
+正确：
+
+```tsx
+<button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm text-primary-foreground">
+  发送
+</button>
+```
+
+---
+
+## 可访问性
+
+- 交互按钮必须有可访问名称。
+- Dialog、Dropdown、Tabs、Tooltip 优先使用成熟组件模式，避免手写不可访问浮层。
+- 审批、失败、高风险动作必须有清晰文本说明，不能只依赖颜色。
+- 错误信息必须能被屏幕阅读器感知；表单错误应绑定到输入控件。
+- 移动端触控目标不小于 40px。
+
+---
+
+## 核心组件清单
+
+P0 UI 任务优先围绕以下组件复用或抽取：
+
+| 组件 | 所属端 | 绑定需求 |
+| --- | --- | --- |
+| `WorkspaceShell` | Web/Mobile | `FR-WEB-001`, `FR-MOB-001`, `FR-UI-001` |
+| `ChatPanel` | Web/Mobile | `FR-CHAT-001`, `FR-UI-001` |
+| `MessageComposer` | Web/Mobile | `FR-CHAT-001`, `FR-UI-001` |
+| `OrchestratorPlanCard` | Web/Mobile | `FR-ORCH-001`, `FR-PERM-001` |
+| `TaskResultCard` | Web/Mobile | `FR-RESULT-001`, `FR-ARTIFACT-001` |
+| `PermissionConfirmationCard` | 三端 | `FR-PERM-001`, `FR-NOTIFY-001` |
+| `RuntimeStatusCard` | Web/Desktop | `FR-RUNTIME-001`, `FR-DESK-001` |
+| `ConnectorConsole` | Desktop | `FR-DESK-001`, `FR-UI-001` |
+| `ArtifactPanel` | Web/Mobile | `FR-ARTIFACT-001`, `FR-RESULT-001` |
+
+---
+
+## 常见错误
+
+### 错误：本地 Runtime 组件里放 API Key 表单
+
+修正：本地 Claude Code / Codex 只展示检测和本机登录引导。平台托管模型 Provider 凭证属于未来独立能力，不能混入本地 CLI 绑定 UI。
+
+### 错误：页面能跑但没有视觉契约
+
+修正：UI 任务必须引用 `FR-UI-001`，并提前写 Playwright 截图、布局和文本溢出断言。
+
+### 错误：复制参考项目但带入错误产品模型
+
+修正：AionUi/codeg/lobehub/cherry-studio 只作为布局、密度和组件行为参考。AgentHub 的执行域、Runtime 凭证边界和三端职责以 PRD 为准。
