@@ -1,0 +1,53 @@
+{
+  "$schema": "context-package/1.0",
+  "source": {
+    "type": "analyze",
+    "artifact_id": "ANL-001",
+    "session_path": "scratch/20260523-analyze-P1-01-monorepo-shared",
+    "generated_at": "2026-05-23T05:31:08Z"
+  },
+  "requirements": [
+    { "id": "FR-AUTH-001", "title": "GitHub OAuth 登录 (types)", "acceptance": "类型定义导出正确", "ref": "conclusions.json" },
+    { "id": "FR-WS-001", "title": "Workspace 模型 (types)", "acceptance": "Workspace 类型含执行域字段", "ref": "conclusions.json" },
+    { "id": "FR-DEVICE-001", "title": "设备模型 (types)", "acceptance": "Device 类型含在线状态", "ref": "conclusions.json" },
+    { "id": "FR-RUNTIME-001", "title": "Runtime 模型 (types)", "acceptance": "RuntimeBinding + RuntimeSession 类型定义", "ref": "conclusions.json" },
+    { "id": "FR-PERM-001", "title": "权限策略 (policies)", "acceptance": "execution-domain policy 函数可调用", "ref": "conclusions.json" }
+  ],
+  "constraints": [
+    { "title": "Web 框架: Next.js App Router", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "Desktop 框架: Electron", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "Mobile: 响应式 PWA", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "包管理: pnpm workspace", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "TypeScript strict mode", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "shared 不依赖 DOM/Electron/Node-only", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "UI 全局中文", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "Electron renderer 不直接访问 Node", "status": "locked", "ref": "context.md#Locked" },
+    { "title": "CSS 框架", "status": "open", "ref": "context.md#Free" },
+    { "title": "Linter 配置", "status": "open", "ref": "context.md#Free" },
+    { "title": "Electron 构建工具", "status": "open", "ref": "context.md#Free" },
+    { "title": "shared 构建工具", "status": "open", "ref": "context.md#Free" }
+  ],
+  "domain": {
+    "entities": ["Workspace", "Device", "Session", "Message", "Artifact", "RoleAgent", "RuntimeBinding", "RuntimeSession", "ActionRequest", "PendingApproval", "TaskResult"],
+    "state_machines": ["message", "action", "orchestrator", "permission"]
+  },
+  "non_goals": [
+    { "title": "Supabase 接入", "rationale": "Phase 1 只定义类型", "ref": "context.md#Deferred" },
+    { "title": "状态管理方案", "rationale": "延迟到 M2", "ref": "context.md#Deferred" },
+    { "title": "国际化框架", "rationale": "P0 只做中文", "ref": "context.md#Deferred" },
+    { "title": "Android Capacitor", "rationale": "延迟到 M4", "ref": "context.md#Deferred" }
+  ],
+  "insights": [
+    { "role": "analyzer", "area": "architecture", "summary": "Greenfield 脚手架，技术路线已锁定，风险极低" },
+    { "role": "analyzer", "area": "implementation", "summary": "推荐 Vitest + tsup + Tailwind CSS 4 + GitHub Actions" },
+    { "role": "analyzer", "area": "dependencies", "summary": "Next.js 15 + Electron 33 + pnpm 9 + TypeScript 5" }
+  ],
+  "open_questions": [
+    { "area": "testing", "question": "Phase 1 测试覆盖率目标？", "options": ["不强制", "50%", "80%"] },
+    { "area": "build", "question": "是否引入 Turborepo？", "options": ["Phase 1 不引入", "直接引入"] }
+  ],
+  "references": [
+    { "type": "analysis", "path": "context.md" },
+    { "type": "conclusions", "path": "conclusions.json" }
+  ]
+}

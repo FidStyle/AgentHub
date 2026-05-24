@@ -1,0 +1,22 @@
+{
+  "id": "TASK-003",
+  "title": "WebSocket Device Gateway",
+  "description": "在 Web 后端实现 WebSocket Device Gateway：接受 Desktop 连接、验证 device token、管理心跳、路由请求到 Desktop、接收事件回传。使用 Next.js custom server + ws 库。",
+  "wave": 2,
+  "fr_ids": ["FR-DEVICE-001", "FR-DESK-001"],
+  "files_to_create": [
+    "apps/web/server/ws-gateway.ts",
+    "apps/web/server/device-connections.ts",
+    "apps/web/server.ts"
+  ],
+  "files_to_modify": ["apps/web/package.json"],
+  "acceptance_criteria": [
+    "WebSocket endpoint /ws/device 可接受连接",
+    "首帧 auth 验证 device token",
+    "心跳 30s 间隔，3 次未响应断开",
+    "可向指定 device 下发 request 帧",
+    "接收 Desktop 的 response/event 帧并路由到对应 handler"
+  ],
+  "depends_on": ["TASK-001"],
+  "estimated_effort": "medium"
+}

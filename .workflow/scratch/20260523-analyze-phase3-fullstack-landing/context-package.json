@@ -1,0 +1,53 @@
+{
+  "source": "maestro-analyze",
+  "session_id": "ANL-phase3-fullstack-2026-05-23",
+  "created_at": "2026-05-23T06:30:00Z",
+  "scope": "standalone",
+  "mode": "macro",
+  "scope_verdict": "large",
+  "constraints": [
+    { "id": "C1", "area": "scope", "decision": "large — 需要完整 roadmap", "status": "locked", "ref": "context.md#Locked" },
+    { "id": "C2", "area": "strategy", "decision": "增量构建，复用现有骨架", "status": "locked", "ref": "context.md#Locked" },
+    { "id": "C3", "area": "tech-stack", "decision": "Next.js + Supabase + Electron + pnpm", "status": "locked", "ref": "context.md#Locked" },
+    { "id": "C4", "area": "ui-language", "decision": "全局中文 UI", "status": "locked", "ref": "context.md#Locked" },
+    { "id": "C5", "area": "delivery", "decision": "每个 Milestone 必须产出可运行 UI", "status": "locked", "ref": "context.md#Locked" },
+    { "id": "C6", "area": "milestone-count", "decision": "5-8 个 milestone 渐进式交付", "status": "open", "ref": "context.md#Free" },
+    { "id": "C7", "area": "mobile", "decision": "PWA 优先，Capacitor 待定", "status": "open", "ref": "context.md#Free" }
+  ],
+  "requirements": [
+    { "id": "FR-AUTH-001", "title": "GitHub OAuth 登录", "status": "partial", "completion": 0.3 },
+    { "id": "FR-WS-001", "title": "Workspace 绑定项目工作区", "status": "minimal", "completion": 0.05 },
+    { "id": "FR-DEVICE-001", "title": "三端产品形态", "status": "minimal", "completion": 0.1 },
+    { "id": "FR-WEB-001", "title": "Web 三栏 IM 工作台", "status": "scaffold", "completion": 0.15 },
+    { "id": "FR-DESK-001", "title": "Desktop Connector Console", "status": "minimal", "completion": 0.1 },
+    { "id": "FR-MOB-001", "title": "Mobile 轻量 IM", "status": "minimal", "completion": 0.05 },
+    { "id": "FR-CHAT-001", "title": "核心 IM Session 体验", "status": "scaffold", "completion": 0.1 },
+    { "id": "FR-AGENT-001", "title": "Role Agent 配置", "status": "minimal", "completion": 0.05 },
+    { "id": "FR-RUNTIME-001", "title": "统一 Runtime/Adapter", "status": "minimal", "completion": 0.1 },
+    { "id": "FR-ORCH-001", "title": "Orchestrator 计划与分派", "status": "none", "completion": 0.0 },
+    { "id": "FR-CTX-001", "title": "上下文 Pin 与 Handoff", "status": "none", "completion": 0.0 },
+    { "id": "FR-ARTIFACT-001", "title": "富消息与产物查看", "status": "none", "completion": 0.0 },
+    { "id": "FR-RESULT-001", "title": "任务结果卡片", "status": "none", "completion": 0.0 },
+    { "id": "FR-ACTION-001", "title": "Action/CLI Adapter", "status": "none", "completion": 0.0 },
+    { "id": "FR-PERM-001", "title": "权限策略", "status": "none", "completion": 0.0 },
+    { "id": "FR-NOTIFY-001", "title": "站内通知与审批队列", "status": "none", "completion": 0.0 }
+  ],
+  "non_goals": [
+    { "id": "NG1", "area": "P1 requirements", "items": ["FR-IM-101", "FR-AGENT-101", "FR-WORKSPACE-101", "FR-NOTIFY-101"], "ref": "context.md#Deferred" },
+    { "id": "NG2", "area": "P2/P3 requirements", "items": ["FR-COLLAB-201", "FR-MARKET-201", "FR-VERSION-201"], "ref": "context.md#Deferred" },
+    { "id": "NG3", "area": "React Native", "reason": "P0 用 PWA", "ref": "context.md#Deferred" }
+  ],
+  "insights": [
+    { "role": "analyzer", "area": "delivery-strategy", "summary": "现有骨架可复用，增量构建比重写更高效" },
+    { "role": "analyzer", "area": "risk", "summary": "Runtime Adapter 对 CLI 版本依赖高，建议先 mock 再接真实" },
+    { "role": "analyzer", "area": "priority", "summary": "DB schema 是所有功能的前置依赖，必须最先完成" }
+  ],
+  "open_questions": [
+    { "area": "milestone-boundary", "question": "是否沿用 research/maestro-phase3-roadmap.md 的 M0-M8 结构？", "options": ["沿用", "重新拆分"] }
+  ],
+  "references": [
+    { "type": "analysis", "path": "context.md" },
+    { "type": "conclusions", "path": "conclusions.json" },
+    { "type": "discussion", "path": "discussion.md" }
+  ]
+}

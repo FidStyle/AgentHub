@@ -1,0 +1,46 @@
+{
+  "phase": "M5 Phase 1",
+  "source_route": "code",
+  "blueprint_ref": null,
+  "spec_mode": null,
+  "completed_at": "2026-05-23T11:13:00Z",
+  "convergence": {
+    "status": "converged",
+    "iterations": 1,
+    "final_pass_rate": 100.0,
+    "threshold": 95,
+    "strategy_history": ["single_pass"]
+  },
+  "infrastructure": {
+    "framework": "vitest",
+    "test_dir": "apps/web/__tests__/api",
+    "run_command": "pnpm exec vitest run --config apps/web/vitest.config.ts"
+  },
+  "layers": {
+    "L0": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "pass_rate": 100.0 },
+    "L1": { "total": 39, "passed": 39, "failed": 0, "blocked": 0, "pass_rate": 100.0 },
+    "L2": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "pass_rate": 0 },
+    "L3": { "total": 0, "passed": 0, "failed": 0, "blocked": 0, "pass_rate": 0 }
+  },
+  "scenarios": [],
+  "failures": [],
+  "requirement_coverage": [],
+  "summary": {
+    "source_route": "code",
+    "total_scenarios": 39,
+    "total_passed": 39,
+    "total_failed": 0,
+    "total_blocked": 0,
+    "bugs_discovered": 0,
+    "test_defects_fixed": 0,
+    "coverage_pct": 100.0
+  },
+  "confidence": {
+    "scenario_coverage": 75.0,
+    "test_quality": 80.0,
+    "diagnostic_accuracy": 100.0,
+    "strategy_effectiveness": 100.0,
+    "infrastructure_fitness": 85.0,
+    "overall": 88.0
+  }
+}

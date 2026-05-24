@@ -1,0 +1,28 @@
+{
+  "session_id": "auto-test-M5-P1-20260523",
+  "phase": "M5 Phase 1",
+  "phase_dir": "scratch/20260523-plan-P1-01-auth-db-api",
+  "source_route": "code",
+  "blueprint_ref": null,
+  "spec_mode": null,
+  "status": "converged",
+  "flags": { "max_iter": 1, "layer": null, "dry_run": false, "re_run": false },
+  "iteration": 1,
+  "strategy": "single_pass",
+  "strategy_history": ["single_pass"],
+  "threshold": 95,
+  "current_layer": "L0",
+  "layer_state": {
+    "L0": { "inner_iter": 0, "pass_rate": 100.0, "status": "passed" },
+    "L1": { "inner_iter": 0, "pass_rate": 100.0, "status": "completed" }
+  },
+  "pass_rate_history": [100.0],
+  "scenario_count": 39,
+  "infrastructure": {
+    "framework": "vitest",
+    "run_command": "pnpm exec vitest run --config apps/web/vitest.config.ts",
+    "test_dir": "apps/web/__tests__/api"
+  },
+  "started_at": "2026-05-23T11:07:00Z",
+  "updated_at": "2026-05-23T11:13:00Z"
+}

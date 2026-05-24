@@ -1,0 +1,24 @@
+{
+  "id": "TASK-008",
+  "title": "端到端集成：Agent 调用 → 流式回传",
+  "description": "Web 端 Agent 调用通过后端路由到 Desktop，Desktop 执行 CLI 并流式回传 RuntimeEvent，Web 消息流实时显示。完成 FR-RUNTIME-001 端到端验证。",
+  "wave": 4,
+  "fr_ids": ["FR-RUNTIME-001", "FR-AGENT-001"],
+  "files_to_create": [
+    "apps/web/app/api/runtime/invoke/route.ts",
+    "apps/web/lib/device-gateway-client.ts"
+  ],
+  "files_to_modify": [
+    "apps/web/app/api/chat/route.ts",
+    "apps/web/server/ws-gateway.ts"
+  ],
+  "acceptance_criteria": [
+    "Web 端发送 Agent 消息 → 后端判断 execution_domain=local → 通过 DeviceChannel 下发 request",
+    "Desktop 收到 request → RuntimeHost 启动 CLI → 流式 event 回传",
+    "后端收到 event → 通过 Supabase Realtime 推送到 Web 消息流",
+    "Web 消息流实时显示 Agent 回复文本",
+    "执行完成后 Task Result 卡片显示摘要"
+  ],
+  "depends_on": ["TASK-006", "TASK-003"],
+  "estimated_effort": "large"
+}

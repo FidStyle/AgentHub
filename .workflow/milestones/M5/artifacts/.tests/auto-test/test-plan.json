@@ -1,0 +1,27 @@
+{
+  "phase": "M5 Phase 1",
+  "source_route": "code",
+  "blueprint_ref": null,
+  "spec_mode": null,
+  "generated_at": "2026-05-23T11:07:00Z",
+  "infrastructure": {
+    "framework": "vitest",
+    "run_command": "pnpm exec vitest run --config apps/web/vitest.config.ts",
+    "test_dir": "apps/web/__tests__/api"
+  },
+  "layers": {
+    "L0": { "scenario_count": 0, "commands": ["tsc --noEmit apps/web"] },
+    "L1": {
+      "scenario_count": 39,
+      "priority_distribution": { "critical": 39, "high": 0, "medium": 0 }
+    },
+    "L2": { "scenario_count": 0, "priority_distribution": {} },
+    "L3": { "scenario_count": 0, "priority_distribution": {} }
+  },
+  "scenarios": [],
+  "fixtures": {},
+  "requirement_coverage_plan": {
+    "requirements_targeted": ["FR-WS-001"],
+    "requirements_skipped": []
+  }
+}

@@ -1,49 +1,159 @@
 {
   "version": "3.1",
   "project_name": "AgentHub",
-  "status": "idle",
-  "current_milestone": "M1",
+  "status": "completed",
+  "current_milestone": "M10",
   "current_task_id": null,
   "milestones": [
     {
       "id": "M1",
       "name": "Engineering Foundation",
       "type": "standard",
-      "status": "planned",
-      "phases": ["Phase 1: Monorepo + Shared Infrastructure"],
-      "phase_slugs": { "1": "01-monorepo-shared" },
+      "status": "completed",
+      "phases": [
+        "Phase 1: Monorepo + Shared Infrastructure"
+      ],
+      "phase_slugs": {
+        "1": "01-monorepo-shared"
+      },
       "roadmap_ref": ".workflow/roadmap.md",
-      "created_at": "2026-05-23T05:12:00Z"
+      "created_at": "2026-05-23T05:12:00Z",
+      "completed_at": "2026-05-23T06:00:00Z"
     },
     {
       "id": "M2",
       "name": "Auth + IM Core",
       "type": "standard",
-      "status": "planned",
-      "phases": ["Phase 1: Auth + Web IM Shell + Chat Core"],
-      "phase_slugs": { "1": "01-auth-im-core" },
+      "status": "completed",
+      "phases": [
+        "Phase 1: Auth + Web IM Shell + Chat Core"
+      ],
+      "phase_slugs": {
+        "1": "01-auth-im-core"
+      },
       "roadmap_ref": ".workflow/roadmap.md",
-      "created_at": "2026-05-23T05:12:00Z"
+      "created_at": "2026-05-23T05:12:00Z",
+      "completed_at": "2026-05-23T06:18:00Z"
     },
     {
       "id": "M3",
       "name": "Runtime + Orchestrator + Desktop",
       "type": "standard",
-      "status": "planned",
-      "phases": ["Phase 1: Runtime Adapters + Orchestrator + Desktop Connector"],
-      "phase_slugs": { "1": "01-runtime-orch-desktop" },
+      "status": "completed",
+      "phases": [
+        "Phase 1: Runtime Adapters + Orchestrator + Desktop Connector"
+      ],
+      "phase_slugs": {
+        "1": "01-runtime-orch-desktop"
+      },
       "roadmap_ref": ".workflow/roadmap.md",
-      "created_at": "2026-05-23T05:12:00Z"
+      "created_at": "2026-05-23T05:12:00Z",
+      "completed_at": "2026-05-23T06:21:00Z"
     },
     {
       "id": "M4",
       "name": "Multi-Platform Integration + Demo",
       "type": "standard",
-      "status": "planned",
-      "phases": ["Phase 1: Mobile + E2E Integration + Demo Hardening"],
-      "phase_slugs": { "1": "01-mobile-e2e-demo" },
+      "status": "completed",
+      "phases": [
+        "Phase 1: Mobile + E2E Integration + Demo Hardening"
+      ],
+      "phase_slugs": {
+        "1": "01-mobile-e2e-demo"
+      },
       "roadmap_ref": ".workflow/roadmap.md",
-      "created_at": "2026-05-23T05:12:00Z"
+      "created_at": "2026-05-23T05:12:00Z",
+      "completed_at": "2026-05-23T06:25:00Z"
+    },
+    {
+      "id": "M5",
+      "name": "Auth + DB + API 基础层",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: Auth + DB Schema + Workspace API"
+      ],
+      "phase_slugs": {
+        "1": "01-auth-db-api"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T06:35:00Z",
+      "completed_at": "2026-05-23T11:25:00Z"
+    },
+    {
+      "id": "M6",
+      "name": "Web IM 工作台核心",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: IM 消息流 + Agent + Artifact"
+      ],
+      "phase_slugs": {
+        "1": "01-im-agent-artifact"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T06:35:00Z",
+      "completed_at": "2026-05-23T12:50:00Z"
+    },
+    {
+      "id": "M7",
+      "name": "Desktop Connector + Runtime",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: Desktop Connector + Runtime Adapter"
+      ],
+      "phase_slugs": {
+        "1": "01-desktop-runtime"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T06:35:00Z",
+      "completed_at": "2026-05-23T20:55:00Z"
+    },
+    {
+      "id": "M8",
+      "name": "Orchestrator + Action + 权限",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: Orchestrator + Action + Permission"
+      ],
+      "phase_slugs": {
+        "1": "01-orch-action-perm"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T06:35:00Z",
+      "completed_at": "2026-05-23T21:11:00Z"
+    },
+    {
+      "id": "M9",
+      "name": "Mobile + 三端联调 + Demo",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: Mobile PWA + E2E Demo"
+      ],
+      "phase_slugs": {
+        "1": "01-mobile-e2e-demo"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-23T06:35:00Z",
+      "completed_at": "2026-05-23T21:28:00Z"
+    },
+    {
+      "id": "M10",
+      "name": "E2E Automation Gate",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: Playwright E2E 基础设施 + 核心用户流"
+      ],
+      "phase_slugs": {
+        "1": "01-e2e-playwright"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-24T00:00:00Z",
+      "completed_at": "2026-05-24T01:00:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -53,14 +163,159 @@
       "id": "RMAP-agenthub-20260523",
       "path": ".workflow/roadmap.md",
       "created_at": "2026-05-23T05:12:00Z"
+    },
+    {
+      "id": "ANL-002",
+      "type": "analyze",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M2",
+      "path": "20260523-analyze-P1-01-auth-im-core",
+      "created_at": "2026-05-23T06:18:00Z"
+    },
+    {
+      "id": "PLN-002",
+      "type": "plan",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M2",
+      "path": "20260523-plan-P1-01-auth-im-core",
+      "created_at": "2026-05-23T06:18:00Z"
+    },
+    {
+      "id": "EXC-002",
+      "type": "execute",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M2",
+      "path": "20260523-execute-P1-01-auth-im-core",
+      "created_at": "2026-05-23T06:18:00Z"
+    },
+    {
+      "id": "ANL-003",
+      "type": "analyze",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M3",
+      "path": "20260523-analyze-P1-01-runtime-orch-desktop",
+      "created_at": "2026-05-23T06:21:00Z"
+    },
+    {
+      "id": "PLN-003",
+      "type": "plan",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M3",
+      "path": "20260523-plan-P1-01-runtime-orch-desktop",
+      "created_at": "2026-05-23T06:21:00Z"
+    },
+    {
+      "id": "EXC-003",
+      "type": "execute",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M3",
+      "path": "20260523-execute-P1-01-runtime-orch-desktop",
+      "created_at": "2026-05-23T06:21:00Z"
+    },
+    {
+      "id": "ANL-004",
+      "type": "analyze",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M4",
+      "path": "20260523-analyze-P1-01-mobile-e2e-demo",
+      "created_at": "2026-05-23T06:25:00Z"
+    },
+    {
+      "id": "EXC-004",
+      "type": "execute",
+      "status": "completed",
+      "phase": 1,
+      "milestone": "M4",
+      "path": "20260523-execute-P1-01-mobile-e2e-demo",
+      "created_at": "2026-05-23T06:25:00Z"
+    },
+    {
+      "id": "ANL-005",
+      "type": "analyze",
+      "scope": "macro",
+      "status": "completed",
+      "milestone": null,
+      "phase": null,
+      "path": "scratch/20260523-analyze-phase3-fullstack-landing",
+      "context_package": "scratch/20260523-analyze-phase3-fullstack-landing/context-package.json",
+      "harvested": false,
+      "created_at": "2026-05-23T06:30:00Z",
+      "completed_at": "2026-05-23T06:32:00Z"
+    },
+    {
+      "id": "RMAP-phase3-20260523",
+      "type": "roadmap",
+      "status": "completed",
+      "path": ".workflow/roadmap.md",
+      "source_artifact": "ANL-005",
+      "created_at": "2026-05-23T06:35:00Z"
+    },
+    {
+      "id": "ANL-007",
+      "type": "analyze",
+      "scope": "phase",
+      "status": "completed",
+      "milestone": "M7",
+      "phase": 1,
+      "path": "20260523-analyze-P1-01-desktop-runtime",
+      "context_package": ".workflow/scratch/20260523-analyze-P1-01-desktop-runtime/context-package.json",
+      "harvested": false,
+      "created_at": "2026-05-23T20:33:00Z",
+      "completed_at": "2026-05-23T20:35:00Z"
+    },
+    {
+      "id": "PLN-007",
+      "type": "plan",
+      "scope": "phase",
+      "status": "completed",
+      "milestone": "M7",
+      "phase": 1,
+      "path": "20260523-plan-P1-01-desktop-runtime",
+      "harvested": false,
+      "created_at": "2026-05-23T20:36:00Z",
+      "completed_at": "2026-05-23T20:37:00Z"
+    },
+    {
+      "id": "EXC-007",
+      "type": "execute",
+      "scope": "phase",
+      "status": "completed",
+      "milestone": "M7",
+      "phase": 1,
+      "path": "20260523-plan-P1-01-desktop-runtime",
+      "harvested": false,
+      "created_at": "2026-05-23T20:37:00Z",
+      "completed_at": "2026-05-23T20:45:00Z"
+    },
+    {
+      "id": "EXC-008",
+      "type": "execute",
+      "scope": "phase",
+      "status": "completed",
+      "milestone": "M8",
+      "phase": 1,
+      "path": "20260523-plan-P1-01-orch-action-perm",
+      "harvested": false,
+      "created_at": "2026-05-23T21:00:00Z",
+      "completed_at": "2026-05-23T21:11:00Z"
     }
   ],
-  "last_updated": "2026-05-23T05:12:00Z",
+  "last_updated": "2026-05-23T12:50:00Z",
   "accumulated_context": {
     "key_decisions": [
-      "Progressive delivery: M1→M2→M3→M4",
+      "Progressive delivery: M5→M6→M7→M8→M9",
       "Tech: Next.js + Supabase + Electron + pnpm monorepo",
-      "Minimum-phase: 1 phase per milestone"
+      "Minimum-phase: 1 phase per milestone",
+      "全局中文 UI",
+      "每个 Milestone 必须产出可运行 UI",
+      "research/ 为唯一真相源"
     ],
     "blockers": [],
     "deferred": [
@@ -69,5 +324,227 @@
     ]
   },
   "transition_history": [],
-  "milestone_history": []
+  "milestone_history": [
+    {
+      "milestone": "M1",
+      "completed_at": "2026-05-23T06:00:00Z",
+      "artifacts": [
+        {
+          "type": "analyze",
+          "id": "ANL-001",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M1",
+          "phase": 1,
+          "path": "scratch/20260523-analyze-P1-01-monorepo-shared",
+          "context_package": "scratch/20260523-analyze-P1-01-monorepo-shared/context-package.json",
+          "harvested": false,
+          "created_at": "2026-05-23T05:31:08Z",
+          "completed_at": "2026-05-23T05:32:00Z"
+        },
+        {
+          "type": "plan",
+          "id": "PLN-001",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M1",
+          "phase": 1,
+          "path": "scratch/20260523-plan-P1-01-monorepo-shared",
+          "depends_on": "ANL-001",
+          "harvested": false,
+          "created_at": "2026-05-23T05:32:00Z",
+          "completed_at": "2026-05-23T05:33:00Z"
+        },
+        {
+          "type": "execute",
+          "id": "EXC-001",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M1",
+          "phase": 1,
+          "path": "scratch/20260523-plan-P1-01-monorepo-shared",
+          "depends_on": "PLN-001",
+          "harvested": false,
+          "created_at": "2026-05-23T05:33:00Z",
+          "completed_at": "2026-05-23T05:48:00Z"
+        }
+      ]
+    },
+    {
+      "milestone": "M5",
+      "completed_at": "2026-05-23T11:25:00Z",
+      "artifacts": [
+        {
+          "type": "analyze",
+          "id": "ANL-006",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M5",
+          "phase": 1,
+          "path": "scratch/20260523-analyze-P1-01-auth-db-api",
+          "context_package": "scratch/20260523-analyze-P1-01-auth-db-api/context-package.json",
+          "harvested": false,
+          "created_at": "2026-05-23T06:36:00Z",
+          "completed_at": "2026-05-23T06:37:00Z"
+        },
+        {
+          "type": "plan",
+          "id": "PLN-006",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M5",
+          "phase": 1,
+          "path": "scratch/20260523-plan-P1-01-auth-db-api",
+          "depends_on": "ANL-006",
+          "harvested": false,
+          "created_at": "2026-05-23T06:38:00Z",
+          "completed_at": "2026-05-23T06:38:00Z"
+        },
+        {
+          "type": "execute",
+          "id": "EXC-006",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M5",
+          "phase": 1,
+          "path": "scratch/20260523-plan-P1-01-auth-db-api",
+          "depends_on": "PLN-006",
+          "harvested": false,
+          "created_at": "2026-05-23T07:00:00Z",
+          "completed_at": "2026-05-23T07:00:00Z"
+        },
+        {
+          "type": "verification",
+          "id": "VRF-006",
+          "scope": "phase",
+          "status": "passed",
+          "milestone": "M5",
+          "phase": 1,
+          "path": "scratch/20260523-verify-M5-phase1-auth-db-api",
+          "depends_on": "EXC-006",
+          "coverage_score": 1.0,
+          "created_at": "2026-05-23T07:00:00Z"
+        },
+        {
+          "type": "review",
+          "id": "REV-006",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M5",
+          "phase": 1,
+          "path": "scratch/20260523-review-P1-01-auth-db-api",
+          "verdict": "PASS",
+          "depends_on": "VRF-006",
+          "created_at": "2026-05-23T07:05:00Z"
+        },
+        {
+          "type": "test",
+          "id": "TEST-006",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M5",
+          "phase": 1,
+          "path": ".tests/auto-test",
+          "depends_on": "REV-006",
+          "created_at": "2026-05-23T07:14:00Z"
+        }
+      ]
+    },
+    {
+      "milestone": "M6",
+      "completed_at": "2026-05-23T12:50:00Z",
+      "artifacts": [
+        {
+          "type": "analyze",
+          "id": "ANL-006",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M6",
+          "phase": 1,
+          "path": ".workflow/milestones/M6/artifacts/anl-006-analyze/20260523-analyze-P1-01-im-agent-artifact",
+          "harvested": false,
+          "created_at": "2026-05-23T11:30:00Z",
+          "completed_at": "2026-05-23T11:35:00Z"
+        },
+        {
+          "type": "plan",
+          "id": "PLN-007",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M6",
+          "phase": 1,
+          "path": ".workflow/milestones/M6/artifacts/pln-007-plan/20260523-plan-P1-01-im-agent-artifact",
+          "depends_on": "ANL-006",
+          "harvested": false,
+          "created_at": "2026-05-23T12:00:00Z",
+          "completed_at": "2026-05-23T12:05:00Z"
+        },
+        {
+          "type": "execute",
+          "id": "EXC-007",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M6",
+          "phase": 1,
+          "path": ".workflow/milestones/M6/artifacts/pln-007-plan/20260523-plan-P1-01-im-agent-artifact",
+          "depends_on": "PLN-007",
+          "harvested": false,
+          "created_at": "2026-05-23T12:10:00Z",
+          "completed_at": "2026-05-23T12:20:00Z"
+        },
+        {
+          "type": "verification",
+          "id": "VRF-007",
+          "scope": "phase",
+          "status": "passed",
+          "milestone": "M6",
+          "phase": 1,
+          "path": ".workflow/milestones/M6/artifacts/vrf-007-verify/20260523-verify-M6-phase1-im-agent-artifact",
+          "depends_on": "EXC-007",
+          "coverage_score": 1.0,
+          "created_at": "2026-05-23T12:22:00Z"
+        },
+        {
+          "type": "review",
+          "id": "REV-007",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M6",
+          "phase": 1,
+          "path": ".workflow/milestones/M6/artifacts/rev-001-review/20260523-review-P1-01-im-agent-artifact",
+          "verdict": "WARN",
+          "depends_on": "VRF-007",
+          "severity_distribution": {
+            "critical": 0,
+            "high": 0,
+            "medium": 1,
+            "low": 2
+          },
+          "created_at": "2026-05-23T12:35:00Z"
+        },
+        {
+          "type": "test",
+          "id": "TEST-007",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M6",
+          "phase": 1,
+          "path": ".workflow/milestones/M6/artifacts/test-results",
+          "depends_on": "REV-007",
+          "created_at": "2026-05-23T12:45:00Z"
+        },
+        {
+          "type": "audit",
+          "id": "AUDIT-007",
+          "scope": "milestone",
+          "status": "completed",
+          "milestone": "M6",
+          "path": ".workflow/milestones/M6/audit-report.md",
+          "verdict": "CONDITIONAL_PASS",
+          "concerns": "6 integration gaps (4 medium, 2 low), 3 open review findings",
+          "created_at": "2026-05-23T12:48:00Z"
+        }
+      ]
+    }
+  ]
 }

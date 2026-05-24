@@ -1,0 +1,73 @@
+{
+  "session_id": "ANL-P1-auth-db-api-2026-05-23",
+  "scope": "phase",
+  "mode": "micro",
+  "phase": 1,
+  "milestone": "M5",
+  "recommendation": "go",
+  "confidence": 0.88,
+  "dimensions": {
+    "feasibility": { "score": 5, "evidence": "Supabase Auth + Postgres 成熟方案，已有 OAuth 流程可复用" },
+    "impact": { "score": 5, "evidence": "数据持久化是所有后续功能的前置依赖" },
+    "risk": { "score": 4, "evidence": "Supabase 生态成熟，RLS 策略有文档支持" },
+    "complexity": { "score": 4, "evidence": "核心表 5-6 个，RLS 策略明确" },
+    "dependencies": { "score": 4, "evidence": "仅依赖 Supabase 外部服务" }
+  },
+  "implementation_scope": [
+    {
+      "objective": "Supabase DB Schema 创建",
+      "rationale": "所有 CRUD 依赖表结构",
+      "priority": 1,
+      "target_files": ["supabase/migrations/"],
+      "acceptance_criteria": "profiles, workspaces, sessions, messages, role_agents 表存在 + RLS 策略",
+      "fr_ids": ["FR-AUTH-001", "FR-WS-001"]
+    },
+    {
+      "objective": "Workspace CRUD API",
+      "rationale": "用户需要创建和管理 Workspace",
+      "priority": 2,
+      "target_files": ["apps/web/app/api/workspaces/", "apps/web/app/api/sessions/"],
+      "acceptance_criteria": "Workspace 创建/列表/详情 + Session 创建/列表 API 可用",
+      "fr_ids": ["FR-WS-001"]
+    },
+    {
+      "objective": "中文登录页 + Workspace 列表页",
+      "rationale": "用户可见的第一个界面",
+      "priority": 3,
+      "target_files": ["apps/web/app/page.tsx", "apps/web/app/(workspace)/"],
+      "acceptance_criteria": "登录页全中文 + Workspace 列表页展示真实数据",
+      "fr_ids": ["FR-AUTH-001", "FR-WEB-001"]
+    },
+    {
+      "objective": "基础权限策略",
+      "rationale": "Workspace 执行域不可变约束",
+      "priority": 4,
+      "target_files": ["packages/shared/src/policies/"],
+      "acceptance_criteria": "execution_domain 创建后不可变 + RLS 限制用户只能访问自己的 Workspace",
+      "fr_ids": ["FR-PERM-001"]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "title": "DB Schema 位置",
+      "status": "locked",
+      "chosen": "supabase/migrations/ 目录（SQL migration 文件）",
+      "reason": "Supabase CLI 标准做法"
+    },
+    {
+      "id": "D2",
+      "title": "API 路由模式",
+      "status": "locked",
+      "chosen": "Next.js App Router API routes + Server Actions",
+      "reason": "已有 Next.js 架构，保持一致"
+    },
+    {
+      "id": "D3",
+      "title": "M5 只建核心表",
+      "status": "locked",
+      "chosen": "profiles + workspaces + sessions + messages + role_agents",
+      "reason": "其余表（orchestrator_runs, actions 等）在后续 milestone 按需添加"
+    }
+  ]
+}

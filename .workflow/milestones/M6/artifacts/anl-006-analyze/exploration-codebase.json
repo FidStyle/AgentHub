@@ -1,0 +1,65 @@
+{
+  "id": "ANL-006",
+  "exploration_date": "2026-05-23T11:30:00Z",
+  "scope": "phase",
+  "milestone": "M6",
+  "phase": 1,
+  "layers": {
+    "L1_module_discovery": {
+      "files_found": 16,
+      "key_modules": [
+        "apps/web/app/(workspace)/workspace/[id]/page.tsx",
+        "apps/web/components/chat/ChatPanel.tsx",
+        "apps/web/components/layout/Sidebar.tsx",
+        "apps/web/components/layout/DetailPanel.tsx",
+        "packages/shared/src/domain/message.ts",
+        "packages/shared/src/database.types.ts",
+        "supabase/migrations/00001_initial_schema.sql"
+      ]
+    },
+    "L2_structure_tracing": {
+      "call_chains": [
+        {
+          "name": "加载 Workspace 聊天页面",
+          "chain": [
+            "user navigates to /workspace/[id]",
+            "useEffect → GET /api/sessions?workspace_id={id}",
+            "setSessions + setCurrentSessionId"
+          ]
+        },
+        {
+          "name": "发送消息并接收流式回复",
+          "chain": [
+            "handleSend → setMessages(userMsg)",
+            "setMessages(aiMsg, streamingStatus: streaming)",
+            "setInterval mock → streamingStatus: complete"
+          ]
+        }
+      ],
+      "data_flows": [
+        {
+          "name": "消息流数据流",
+          "direction": "user → frontend state → API → Supabase",
+          "steps": [
+            "User input → ChatPanel onSend",
+            "WorkspaceChatPage handleSend → setMessages",
+            "Mock SSE interval → streamingStatus 变化",
+            "Future: POST /api/chat → SSE → Supabase Realtime"
+          ]
+        }
+      ]
+    },
+    "L3_code_anchors": {
+      "three_column_layout": {
+        "container": "workspace/[id]/page.tsx:92-102",
+        "left": { "file": "Sidebar.tsx", "line": 13, "className": "w-64 border-r bg-gray-50" },
+        "center": { "file": "ChatPanel.tsx", "line": 28, "className": "flex-1 flex flex-col h-full" },
+        "right": { "file": "DetailPanel.tsx", "line": 5, "className": "w-72 border-l bg-gray-50 hidden lg:flex" }
+      },
+      "message_fields": {
+        "frontend_camel": ["id", "sessionId", "type", "content", "senderType", "senderId", "streamingStatus", "createdAt"],
+        "database_snake": ["id", "session_id", "sender_type", "sender_id", "role_agent_id", "content", "message_type", "streaming_status", "metadata", "is_pinned", "created_at", "updated_at"]
+      }
+    }
+  }
+}

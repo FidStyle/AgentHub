@@ -1,0 +1,99 @@
+{
+  "id": "TASK-004",
+  "title": "Role Agent CRUD API + DetailPanel Agent 配置表单",
+  "description": "实现 Role Agent REST API（GET 列表 / POST 创建 / PATCH 更新 / DELETE 删除）；重写 DetailPanel 为 Agent 配置表单，支持查看、编辑、创建、删除 Agent。",
+  "type": "feature",
+  "priority": "medium",
+  "effort": "medium",
+  "action": "新建 role-agents API routes；重写 DetailPanel 组件为 Agent 配置表单",
+  "scope": "apps/web/app/api/role-agents, apps/web/components/layout",
+  "focus_paths": [
+    "apps/web/app/api/role-agents/",
+    "apps/web/components/layout/DetailPanel.tsx",
+    "packages/shared/src/domain/role-agent.ts"
+  ],
+  "depends_on": [
+    "TASK-001"
+  ],
+  "parallel_group": "wave-3",
+  "convergence": {
+    "criteria": [
+      "grep: 'GET.*role_agents' apps/web/app/api/role-agents/route.ts",
+      "grep: 'POST.*role_agents.*INSERT' apps/web/app/api/role-agents/route.ts",
+      "grep: 'PATCH.*role_agents.*UPDATE' apps/web/app/api/role-agents/[id]/route.ts",
+      "grep: 'form.*input.*textarea.*select' apps/web/components/layout/DetailPanel.tsx",
+      "grep: 'onSave|onDelete|onCreate' apps/web/components/layout/DetailPanel.tsx",
+      "file: DetailPanel.tsx 包含 Agent 名称、系统提示词、角色类型、能力的表单元素"
+    ],
+    "verification": "DetailPanel 显示 Agent 列表，可编辑选中 Agent 的 name/system_prompt/role_type/capabilities，点击保存后数据持久化",
+    "definition_of_done": "右栏显示 Agent 列表，选择后可编辑配置并保存到 DB；支持新建和删除 Agent"
+  },
+  "files": [
+    {
+      "path": "apps/web/app/api/role-agents/route.ts",
+      "action": "create",
+      "target": "GET, POST handlers",
+      "change": "GET: 返回当前 workspace 的所有 role_agents 列表（需 workspace 归属校验）；POST: 创建新 Agent，body 包含 name, role_type, system_prompt, capabilities, is_orchestrator"
+    },
+    {
+      "path": "apps/web/app/api/role-agents/[id]/route.ts",
+      "action": "create",
+      "target": "GET, PATCH, DELETE handlers",
+      "change": "GET: 获取单个 Agent；PATCH: 更新 Agent 配置；DELETE: 删除 Agent（需校验 workspace 归属）"
+    },
+    {
+      "path": "apps/web/components/layout/DetailPanel.tsx",
+      "action": "rewrite",
+      "target": "Agent 配置表单",
+      "change": "重写为空壳 DetailPanel：顶部 Tab 切换（Agent 配置 / Artifact 详情）；Agent Tab 显示 Agent 列表 + 选中 Agent 的表单（name, role_type 下拉, system_prompt textarea, capabilities 多选/输入）；表单底部保存/删除按钮；支持新建 Agent"
+    }
+  ],
+  "implementation": [
+    "创建 apps/web/app/api/role-agents/route.ts：GET（带 workspace 归属校验）+ POST（INSERT 新 Agent）",
+    "创建 apps/web/app/api/role-agents/[id]/route.ts：GET/PATCH/DELETE（带 workspace 归属校验）",
+    "重写 DetailPanel.tsx：拆分为 AgentListSection + AgentFormSection；AgentListSection 展示所有 Agent，支持新建按钮；AgentFormSection 展示选中 Agent 的可编辑字段；表单提交调用 PATCH /api/role-agents/[id]；删除调用 DELETE"
+  ],
+  "test": {
+    "commands": [
+      "pnpm dev:web"
+    ],
+    "unit": [],
+    "integration": [
+      "手动测试：右栏显示 Agent 列表；选择 Agent 后表单填充；修改 name 后保存成功"
+    ],
+    "success_metrics": [
+      "GET /api/role-agents 返回 Agent 列表",
+      "POST /api/role-agents 创建新 Agent",
+      "PATCH /api/role-agents/[id] 更新成功",
+      "DELETE /api/role-agents/[id] 删除成功"
+    ]
+  },
+  "reference": {
+    "pattern": "参考 apps/web/app/api/sessions/route.ts 认证模式；参考 packages/shared/src/domain/role-agent.ts 字段",
+    "files": [
+      "apps/web/app/api/sessions/route.ts",
+      "packages/shared/src/domain/role-agent.ts",
+      "packages/shared/src/database.types.ts"
+    ],
+    "examples": null
+  },
+  "rationale": {
+    "chosen_approach": "DetailPanel 支持双模式：Agent 配置（默认）和 Artifact 详情（选中消息后切换）",
+    "decision_factors": [
+      "Agent 配置是高频操作，应在默认视图中可用",
+      "Artifact 详情只在选中特定消息时需要"
+    ],
+    "tradeoffs": "DetailPanel 需要在 Agent 表单和 Artifact 详情之间共享布局"
+  },
+  "risks": [],
+  "meta": {
+    "status": "completed",
+    "estimated_time": "60m",
+    "risk": "low",
+    "autonomous": true,
+    "checkpoint": false,
+    "wave": "wave-3",
+    "execution_group": null,
+    "executor": "agent"
+  }
+}

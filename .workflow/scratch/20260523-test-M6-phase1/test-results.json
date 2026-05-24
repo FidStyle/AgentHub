@@ -1,0 +1,49 @@
+{
+  "phase": 1,
+  "milestone": "M6",
+  "status": "passed",
+  "tested_at": "2026-05-23T12:45:00Z",
+  "suite": "vitest",
+  "test_files": {
+    "messages.test.ts": {
+      "tests": 15,
+      "passed": 15,
+      "cases": ["AT-M001-M015"]
+    },
+    "role-agents.test.ts": {
+      "tests": 19,
+      "passed": 19,
+      "cases": ["AT-A001-A019"]
+    },
+    "workspaces.test.ts": {
+      "tests": 17,
+      "passed": 17,
+      "cases": ["AT-W001-W017"]
+    },
+    "sessions.test.ts": {
+      "tests": 22,
+      "passed": 22,
+      "cases": ["AT-S001-S022"]
+    }
+  },
+  "summary": {
+    "total_test_files": 4,
+    "total_tests": 73,
+    "passed": 73,
+    "failed": 0
+  },
+  "coverage_claims": [
+    "Messages API (GET/POST) - auth, validation, workspace ownership, DB errors",
+    "Messages [id] API (PATCH is_pinned) - auth, ownership, update",
+    "Role Agents API (GET/POST) - auth, validation, workspace ownership",
+    "Role Agents [id] API (GET/PATCH/DELETE) - auth, ownership, CRUD"
+  ],
+  "gaps": [
+    "No browser-based SSE streaming integration test",
+    "No Realtime subscription test",
+    "No Markdown rendering test",
+    "No UI component test (ChatPanel, DetailPanel)"
+  ],
+  "verdict": "pass",
+  "quality_mode": "standard"
+}

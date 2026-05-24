@@ -1,0 +1,20 @@
+{
+  "name": "@agenthub/mobile",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/App.tsx",
+  "scripts": {
+    "start": "expo start",
+    "type-check": "echo 'skip: RN type-check requires Expo environment'",
+    "build": "echo 'mobile build: expo export handled separately'"
+  },
+  "dependencies": {
+    "@agenthub/shared": "workspace:*",
+    "react": "^18.2.0",
+    "react-native": "^0.73.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/react": "^18.2.0"
+  }
+}

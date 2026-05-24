@@ -1,0 +1,12 @@
+{
+  "plan_id": "PLN-M2-P1",
+  "phase": 1,
+  "milestone": "M2",
+  "summary": "Auth + IM Core: Supabase Auth, 三栏 IM 布局, 消息流",
+  "task_ids": ["TASK-001", "TASK-002", "TASK-003"],
+  "waves": [
+    {"id": "wave-1", "tasks": ["TASK-001"], "label": "Auth 基础"},
+    {"id": "wave-2", "tasks": ["TASK-002", "TASK-003"], "label": "IM 工作台 + 消息流"}
+  ],
+  "confidence": {"overall": 90}
+}

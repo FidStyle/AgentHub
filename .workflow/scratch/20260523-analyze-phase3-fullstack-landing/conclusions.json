@@ -1,0 +1,133 @@
+{
+  "session_id": "ANL-phase3-fullstack-2026-05-23",
+  "scope": "standalone",
+  "mode": "macro",
+  "scope_verdict": "large",
+  "recommendation": "go_conditional",
+  "confidence": 0.78,
+  "dimensions": {
+    "feasibility": { "score": 4, "evidence": "技术栈已确定且成熟，类型系统完整，auth 已通" },
+    "impact": { "score": 5, "evidence": "P0 Demo 是项目核心交付物" },
+    "risk": { "score": 3, "evidence": "Runtime CLI 依赖 + Orchestrator 复杂度 + 三端联调" },
+    "complexity": { "score": 2, "evidence": "16 FR-IDs × 6 子系统 × 3 端，串行依赖链" },
+    "dependencies": { "score": 3, "evidence": "Supabase + Claude Code CLI + Codex CLI 外部依赖" }
+  },
+  "implementation_scope": [
+    {
+      "objective": "建立 Supabase 数据库 schema + RLS 策略",
+      "rationale": "所有功能依赖持久化层",
+      "priority": 1,
+      "target_files": ["apps/web/supabase/", "packages/shared/src/domain/"],
+      "acceptance_criteria": "所有核心实体有对应表 + RLS 策略 + 类型同步",
+      "fr_ids": ["FR-AUTH-001", "FR-WS-001", "FR-CHAT-001"]
+    },
+    {
+      "objective": "实现 Workspace/Session CRUD API + 实时订阅",
+      "rationale": "Web 工作台核心数据流",
+      "priority": 2,
+      "target_files": ["apps/web/app/api/", "apps/web/lib/"],
+      "acceptance_criteria": "Workspace 创建/列表 + Session CRUD + 消息持久化 + Realtime",
+      "fr_ids": ["FR-WS-001", "FR-CHAT-001", "FR-WEB-001"]
+    },
+    {
+      "objective": "Web 三栏工作台完整功能",
+      "rationale": "用户主交互界面",
+      "priority": 3,
+      "target_files": ["apps/web/components/", "apps/web/app/(workspace)/"],
+      "acceptance_criteria": "Workspace 切换 + Session 管理 + 消息流 + Agent 配置 + Artifact 渲染",
+      "fr_ids": ["FR-WEB-001", "FR-CHAT-001", "FR-ARTIFACT-001", "FR-RESULT-001"]
+    },
+    {
+      "objective": "Desktop Connector 完整协议",
+      "rationale": "本地执行能力的唯一入口",
+      "priority": 4,
+      "target_files": ["apps/desktop/src/"],
+      "acceptance_criteria": "设备绑定 + WebSocket 通道 + Runtime 检测 + 文件夹绑定",
+      "fr_ids": ["FR-DESK-001", "FR-DEVICE-001", "FR-RUNTIME-001"]
+    },
+    {
+      "objective": "Runtime Adapter 接入 Claude Code/Codex",
+      "rationale": "Agent 执行后端",
+      "priority": 5,
+      "target_files": ["apps/desktop/src/main/runtime/", "packages/shared/src/runtime/"],
+      "acceptance_criteria": "Claude Code CLI 调用 + 流式事件 + session continuity",
+      "fr_ids": ["FR-RUNTIME-001", "FR-AGENT-001", "FR-CTX-001"]
+    },
+    {
+      "objective": "Orchestrator 编排引擎",
+      "rationale": "多 Agent 协作核心",
+      "priority": 6,
+      "target_files": ["apps/web/server/orchestrator/", "packages/shared/src/state-machines/"],
+      "acceptance_criteria": "Plan DAG 生成 + 确认 + 分派 + 汇总",
+      "fr_ids": ["FR-ORCH-001", "FR-CTX-001", "FR-PERM-001"]
+    },
+    {
+      "objective": "Mobile PWA 轻量功能",
+      "rationale": "三端联调必需",
+      "priority": 7,
+      "target_files": ["apps/web/app/(mobile)/", "apps/mobile/"],
+      "acceptance_criteria": "Session 查看 + 消息发送 + 审批完成",
+      "fr_ids": ["FR-MOB-001", "FR-NOTIFY-001"]
+    },
+    {
+      "objective": "三端联调 + P0 Demo 硬化",
+      "rationale": "最终交付验证",
+      "priority": 8,
+      "target_files": ["全部"],
+      "acceptance_criteria": "Web+Desktop+Mobile 配合完成端到端开发任务",
+      "fr_ids": ["全部 P0 FR-ID"]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "title": "Scope Verdict",
+      "status": "locked",
+      "chosen": "large",
+      "reason": "6 独立子系统 + 硬串行依赖 + 16 P0 FR-IDs"
+    },
+    {
+      "id": "D2",
+      "title": "增量构建策略",
+      "status": "locked",
+      "chosen": "增量构建（复用现有骨架）",
+      "reason": "现有 auth + 类型 + UI 骨架质量可接受"
+    },
+    {
+      "id": "D3",
+      "title": "技术栈",
+      "status": "locked",
+      "chosen": "Next.js + Supabase + Electron + pnpm monorepo",
+      "reason": "research/technical-design.md 已收敛，代码已按此搭建"
+    }
+  ],
+  "deferred": [
+    { "title": "P1/P2 需求", "reason": "不在 P0 范围", "items": ["FR-IM-101", "FR-AGENT-101", "FR-COLLAB-201", "FR-MARKET-201"] },
+    { "title": "React Native 独立移动端", "reason": "P0 用 PWA 替代" },
+    { "title": "OpenCode Adapter", "reason": "P0 只接 Claude Code + Codex" }
+  ],
+  "p0_fr_ids": [
+    "FR-AUTH-001", "FR-WS-001", "FR-DEVICE-001", "FR-WEB-001",
+    "FR-DESK-001", "FR-MOB-001", "FR-CHAT-001", "FR-AGENT-001",
+    "FR-RUNTIME-001", "FR-ORCH-001", "FR-CTX-001", "FR-ARTIFACT-001",
+    "FR-RESULT-001", "FR-ACTION-001", "FR-PERM-001", "FR-NOTIFY-001"
+  ],
+  "current_implementation_status": {
+    "FR-AUTH-001": 0.3,
+    "FR-WS-001": 0.05,
+    "FR-DEVICE-001": 0.1,
+    "FR-WEB-001": 0.15,
+    "FR-DESK-001": 0.1,
+    "FR-MOB-001": 0.05,
+    "FR-CHAT-001": 0.1,
+    "FR-AGENT-001": 0.05,
+    "FR-RUNTIME-001": 0.1,
+    "FR-ORCH-001": 0.0,
+    "FR-CTX-001": 0.0,
+    "FR-ARTIFACT-001": 0.0,
+    "FR-RESULT-001": 0.0,
+    "FR-ACTION-001": 0.0,
+    "FR-PERM-001": 0.0,
+    "FR-NOTIFY-001": 0.0
+  }
+}

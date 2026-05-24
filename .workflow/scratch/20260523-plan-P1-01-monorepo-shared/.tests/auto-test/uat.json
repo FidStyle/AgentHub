@@ -1,0 +1,22 @@
+{
+  "session_id": "UAT-P1-01-2026-05-23",
+  "phase": 1,
+  "milestone": "M1",
+  "tested_at": "2026-05-23T05:56:00Z",
+  "scenarios": [
+    { "id": "UAT-001", "name": "pnpm build 全工作区", "status": "pass", "evidence": "shared + web + desktop 全部构建成功" },
+    { "id": "UAT-002", "name": "pnpm type-check 严格模式", "status": "pass", "evidence": "3 包全部 tsc --noEmit 通过" },
+    { "id": "UAT-003", "name": "pnpm test 全测试套件", "status": "pass", "evidence": "2 文件 12 测试全部通过" },
+    { "id": "UAT-004", "name": "@agenthub/shared workspace:* 解析", "status": "pass", "evidence": "web 和 desktop 均成功导入 shared" },
+    { "id": "UAT-005", "name": "domain types 导出完整性", "status": "pass", "evidence": "10 domain 模块全部从 index.ts barrel 导出" },
+    { "id": "UAT-006", "name": "FR-ID 常量完整性", "status": "pass", "evidence": "16 个 FR-ID 全部定义，格式 FR-XXX-NNN" }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "blocked": 0
+  },
+  "verdict": "PASS",
+  "next_step": "/maestro-milestone-audit"
+}

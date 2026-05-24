@@ -1,0 +1,46 @@
+{
+  "id": "TASK-005",
+  "title": "配置测试基建和 GitHub Actions CI",
+  "type": "feature",
+  "priority": "medium",
+  "complexity": "low",
+  "estimated_minutes": 20,
+  "wave": "wave-4",
+  "depends_on": ["TASK-002", "TASK-003", "TASK-004"],
+  "fr_ids": [],
+  "description": "配置 Vitest 测试框架、ESLint + Prettier、GitHub Actions CI pipeline（lint + type-check + test + build）。",
+  "action": "在根目录配置 Vitest（vitest.workspace.ts 指向各包）。为 packages/shared 添加示例测试。配置 ESLint 9 flat config + Prettier。创建 .github/workflows/ci.yml 运行 pnpm install → lint → type-check → test → build。",
+  "implementation": [
+    "创建根 vitest.workspace.ts: defineWorkspace(['packages/*', 'apps/*'])",
+    "创建 packages/shared/vitest.config.ts: defineConfig({ test: { globals: true } })",
+    "创建 packages/shared/src/__tests__/domain.test.ts: 简单类型断言测试，验证 Workspace 和 Session 类型可实例化",
+    "创建根 eslint.config.js: ESLint 9 flat config, typescript-eslint, prettier plugin",
+    "创建 .prettierrc: { semi: false, singleQuote: true, trailingComma: 'all' }",
+    "创建 .github/workflows/ci.yml: on push/PR, jobs: lint(pnpm lint), type-check(pnpm type-check), test(pnpm test), build(pnpm build)",
+    "更新根 package.json devDependencies: vitest, eslint, @eslint/js, typescript-eslint, prettier, eslint-config-prettier"
+  ],
+  "files": [
+    "vitest.workspace.ts",
+    "packages/shared/vitest.config.ts",
+    "packages/shared/src/__tests__/domain.test.ts",
+    "eslint.config.js",
+    ".prettierrc",
+    ".github/workflows/ci.yml"
+  ],
+  "read_first": [
+    "package.json",
+    "packages/shared/package.json",
+    "apps/web/package.json",
+    "apps/desktop/package.json"
+  ],
+  "convergence": {
+    "criteria": [
+      "vitest.workspace.ts contains defineWorkspace",
+      "packages/shared/src/__tests__/domain.test.ts contains import",
+      ".github/workflows/ci.yml contains pnpm install",
+      ".github/workflows/ci.yml contains pnpm test",
+      ".github/workflows/ci.yml contains pnpm build",
+      "eslint.config.js contains typescript-eslint or @typescript-eslint"
+    ]
+  }
+}

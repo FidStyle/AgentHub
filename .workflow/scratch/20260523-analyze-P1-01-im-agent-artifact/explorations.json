@@ -1,0 +1,64 @@
+{
+  "id": "ANL-006",
+  "scope": "phase",
+  "generated_at": "2026-05-23T11:35:00Z",
+  "perspectives": ["technical"],
+  "findings": {
+    "technical": {
+      "message_type_unification": {
+        "problem": "domain/message.ts (camelCase) vs database.types.ts (snake_case) 双轨并存",
+        "gap": "前端类型缺少 role_agent_id, metadata, is_pinned, message_type 等 5 个字段",
+        "affected_files": ["packages/shared/src/domain/message.ts", "apps/web/components/chat/ChatPanel.tsx", "apps/web/app/(workspace)/workspace/[id]/page.tsx"],
+        "solution": "扩展 domain/message.ts 以匹配 database.types.ts"
+      },
+      "realtime_subscription": {
+        "problem": "Supabase Realtime 已配置但前端无订阅",
+        "gap": "Publication 已添加 messages + sessions 表，但前端无 channel().on('postgres_changes') 代码",
+        "affected_files": ["apps/web/app/(workspace)/workspace/[id]/page.tsx"],
+        "solution": "按 session_id 频道订阅，在 useEffect 中注册频道"
+      },
+      "markdown_rendering": {
+        "problem": "ChatPanel 只渲染纯文本",
+        "gap": "Agent 回复的 Markdown 和代码块无法显示",
+        "affected_files": ["apps/web/components/chat/ChatPanel.tsx"],
+        "solution": "集成 react-markdown + rehype-highlight + remark-gfm"
+      },
+      "agent_crud_api": {
+        "problem": "RoleAgent 类型已定义但无 API 端点",
+        "gap": "无 GET/POST/PATCH /api/role-agents",
+        "affected_files": ["apps/web/app/api/role-agents/", "apps/web/components/layout/DetailPanel.tsx"],
+        "solution": "新建 role-agents API routes，DetailPanel 重写为配置表单"
+      }
+    }
+  },
+  "technical_solutions": [
+    {
+      "solution": "扩展 domain/message.ts 以匹配 database.types.ts",
+      "status": "proposed",
+      "problem": "双轨类型导致前端/后端不一致",
+      "rationale": "database.types.ts 是 DB 规范，domain/message.ts 应向其对齐",
+      "alternatives": ["保持双轨用映射函数转换", "废弃 domain/message.ts 全部使用 database.types.ts"],
+      "status": "proposed",
+      "evidence_refs": ["packages/shared/src/domain/message.ts:5-14", "packages/shared/src/database.types.ts:57-70"],
+      "next_action": "扩展字段"
+    },
+    {
+      "solution": "按 session_id 频道订阅 Realtime",
+      "status": "proposed",
+      "problem": "无实时同步",
+      "rationale": "Supabase Realtime 已配置，按频道过滤减少广播",
+      "alternatives": ["轮询 GET /api/messages"],
+      "evidence_refs": ["supabase/migrations/00001_initial_schema.sql:227-228"],
+      "next_action": "前端添加订阅代码"
+    },
+    {
+      "solution": "react-markdown + rehype-highlight + remark-gfm",
+      "status": "proposed",
+      "problem": "Markdown 无渲染",
+      "rationale": "React 生态标准，防 XSS",
+      "alternatives": ["marked + highlight.js"],
+      "evidence_refs": ["ChatPanel.tsx:30-48"],
+      "next_action": "安装依赖 + 重写渲染"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "id": "PLN-007",
+  "type": "plan",
+  "status": "completed",
+  "milestone": "M6",
+  "phase": 1,
+  "scope": "phase",
+  "created_at": "2026-05-23T12:00:00Z",
+  "plan_type": "feature",
+  "source_artifact": "ANL-006",
+  "task_count": 5,
+  "tasks_completed": 5,
+  "wave_count": 4,
+  "estimated_time": "6-8h",
+  "complexity": "high",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Message 类型统一 + Markdown 依赖安装",
+      "wave": "wave-1",
+      "priority": "high",
+      "estimated_time": "30m",
+      "depends_on": [],
+      "status": "completed",
+      "commit": "a97843c"
+    },
+    {
+      "id": "TASK-002",
+      "title": "Messages CRUD API + Realtime 订阅",
+      "wave": "wave-2",
+      "priority": "high",
+      "estimated_time": "60m",
+      "depends_on": ["TASK-001"],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-003",
+      "title": "SSE 流式对接 + Markdown 渲染集成",
+      "wave": "wave-3",
+      "priority": "high",
+      "estimated_time": "60m",
+      "depends_on": ["TASK-001"],
+      "status": "completed",
+      "commit": "0597000"
+    },
+    {
+      "id": "TASK-004",
+      "title": "Role Agent CRUD API + DetailPanel Agent 配置表单",
+      "wave": "wave-3",
+      "priority": "medium",
+      "estimated_time": "60m",
+      "depends_on": ["TASK-001"],
+      "status": "completed",
+      "commit": "29ff59a"
+    },
+    {
+      "id": "TASK-005",
+      "title": "Pin 消息 + Result Card / Plan Card 渲染 + Artifact 详情",
+      "wave": "wave-4",
+      "priority": "medium",
+      "estimated_time": "60m",
+      "depends_on": ["TASK-002", "TASK-004"],
+      "status": "completed",
+      "commit": "a9bbd7f"
+    }
+  ],
+  "execution": {
+    "method": "agent",
+    "default_executor": "agent",
+    "completed_at": "2026-05-23T12:20:00Z"
+  },
+  "files": {
+    "plan": ".workflow/scratch/20260523-plan-P1-01-im-agent-artifact/plan.json",
+    "tasks_dir": ".workflow/scratch/20260523-plan-P1-01-im-agent-artifact/.task/",
+    "summaries_dir": ".workflow/scratch/20260523-plan-P1-01-im-agent-artifact/.summaries/"
+  },
+  "verification": {
+    "acceptance_tests": [
+      "pnpm dev:web 正常启动",
+      "发送消息后刷新页面消息仍存在",
+      "Agent 回复流式显示",
+      "Markdown（GFM）+ 代码块语法高亮正常",
+      "Pin 消息切换状态并持久化",
+      "plan_card/result_card 差异化渲染",
+      "右栏 DetailPanel 可编辑 Agent 配置",
+      "点击消息 DetailPanel 显示 Artifact 详情"
+    ]
+  }
+}

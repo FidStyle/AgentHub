@@ -1,0 +1,87 @@
+{
+  "phase": 1,
+  "milestone": "M5",
+  "status": "passed",
+  "verified_at": "2026-05-23T07:00:00Z",
+  "verifier": "workflow-verifier",
+  "must_haves": {
+    "truths": [
+      {
+        "claim": "DB Schema 包含 profiles, workspaces, sessions, messages, role_agents 表及 RLS 策略",
+        "status": "verified",
+        "evidence": "supabase/migrations/00001_initial_schema.sql 存在，包含所有 5 个表 + trigger + RLS policies"
+      },
+      {
+        "claim": "TypeScript 类型与 DB Schema 同步",
+        "status": "verified",
+        "evidence": "packages/shared/src/database.types.ts 存在，tsc --noEmit exit 0"
+      },
+      {
+        "claim": "Workspace/Session CRUD API 完整",
+        "status": "verified",
+        "evidence": "4 个 route 文件存在: workspaces/route.ts, workspaces/[id]/route.ts, sessions/route.ts, sessions/[id]/route.ts"
+      },
+      {
+        "claim": "登录页为全中文 UI",
+        "status": "verified",
+        "evidence": "apps/web/app/page.tsx 包含中文内容: 标题、描述、按钮"
+      },
+      {
+        "claim": "Workspace 列表页 + 创建对话框可正常工作",
+        "status": "verified",
+        "evidence": "workspace/page.tsx 实现了列表+创建流，CreateWorkspaceDialog.tsx 包含执行域选择"
+      },
+      {
+        "claim": "Profile 自动创建通过 DB trigger 实现",
+        "status": "verified",
+        "evidence": "handle_new_user() trigger 在 auth.users INSERT 后自动创建 profile"
+      }
+    ],
+    "artifacts": [
+      { "path": "supabase/migrations/00001_initial_schema.sql", "status": "exists", "substantive": true },
+      { "path": "packages/shared/src/database.types.ts", "status": "exists", "substantive": true },
+      { "path": "apps/web/app/api/workspaces/route.ts", "status": "exists", "substantive": true },
+      { "path": "apps/web/app/api/workspaces/[id]/route.ts", "status": "exists", "substantive": true },
+      { "path": "apps/web/app/api/sessions/route.ts", "status": "exists", "substantive": true },
+      { "path": "apps/web/app/api/sessions/[id]/route.ts", "status": "exists", "substantive": true },
+      { "path": "apps/web/app/(workspace)/workspace/page.tsx", "status": "exists", "substantive": true },
+      { "path": "apps/web/app/(workspace)/workspace/[id]/page.tsx", "status": "exists", "substantive": true },
+      { "path": "apps/web/components/workspace/CreateWorkspaceDialog.tsx", "status": "exists", "substantive": true }
+    ],
+    "key_links": [
+      {
+        "from": "CreateWorkspaceDialog -> /api/workspaces POST",
+        "status": "wired",
+        "evidence": "CreateWorkspaceDialog.tsx:22-27 fetch POST with JSON body"
+      },
+      {
+        "from": "workspace/page.tsx -> /api/workspaces GET",
+        "status": "wired",
+        "evidence": "workspace/page.tsx:22-24 fetch GET on mount"
+      },
+      {
+        "from": "workspace/[id]/page.tsx -> /api/sessions GET",
+        "status": "wired",
+        "evidence": "workspace/[id]/page.tsx:21-28 fetch GET with workspace_id param"
+      },
+      {
+        "from": "supabase-server.ts -> database.types.ts",
+        "status": "wired",
+        "evidence": "tsc --noEmit exit 0 验证了类型一致性"
+      }
+    ]
+  },
+  "gaps": [],
+  "constraint_violations": [],
+  "antipatterns": [
+    {
+      "type": "html_placeholder",
+      "file": "apps/web/components/workspace/CreateWorkspaceDialog.tsx",
+      "line": "50,59",
+      "description": "HTML input placeholder 属性（非代码反模式）",
+      "severity": "info"
+    }
+  ],
+  "fix_plans": [],
+  "coverage_score": 1.0
+}

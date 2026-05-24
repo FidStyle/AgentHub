@@ -1,0 +1,114 @@
+{
+  "id": "TASK-002",
+  "title": "Messages CRUD API + Realtime 订阅",
+  "description": "实现 Messages REST API（GET 列表 / POST 创建）；PATCH 支持 pin 操作。workspace page 集成 Supabase Realtime postgres_changes 订阅；使用 Zustand store 统一管理 messages state。",
+  "type": "feature",
+  "priority": "high",
+  "effort": "medium",
+  "action": "新建 apps/web/app/api/messages/route.ts（GET/POST）和 apps/web/app/api/messages/[id]/route.ts（PATCH）；修改 workspace page 集成 Realtime",
+  "scope": "apps/web/app/api/messages, apps/web/app/(workspace)/workspace/[id], apps/web/stores",
+  "focus_paths": [
+    "apps/web/app/api/messages/",
+    "apps/web/app/(workspace)/workspace/[id]/page.tsx",
+    "apps/web/stores/chat-store.ts"
+  ],
+  "depends_on": [
+    "TASK-001"
+  ],
+  "parallel_group": null,
+  "convergence": {
+    "criteria": [
+      "grep: 'GET.*messages.*session_id' apps/web/app/api/messages/route.ts",
+      "grep: 'POST.*messages.*INSERT' apps/web/app/api/messages/route.ts",
+      "grep: 'PATCH.*is_pinned' apps/web/app/api/messages/[id]/route.ts",
+      "grep: 'supabase.channel.*postgres_changes' apps/web/app/(workspace)/workspace/[id]/page.tsx",
+      "grep: 'postgres_changes.*INSERT.*messages' apps/web/app/(workspace)/workspace/[id]/page.tsx",
+      "file: apps/web/app/api/messages/route.ts 存在且 GET/POST 方法正确",
+      "file: apps/web/app/api/messages/[id]/route.ts 存在且 PATCH 方法正确"
+    ],
+    "verification": "启动 pnpm dev:web，创建消息后刷新页面消息仍存在（GET /api/messages 返回数据）",
+    "definition_of_done": "消息可持久化存储；刷新页面不丢失；Realtime 订阅在当前 session 内实时追加新消息"
+  },
+  "files": [
+    {
+      "path": "apps/web/app/api/messages/route.ts",
+      "action": "create",
+      "target": "GET, POST handlers",
+      "change": "GET: 验证 session 归属后查询 messages 表按 created_at 升序返回；POST: 验证归属后 INSERT 新消息（sender_type='user', streaming_status='complete'），返回插入的记录"
+    },
+    {
+      "path": "apps/web/app/api/messages/[id]/route.ts",
+      "action": "create",
+      "target": "PATCH handler",
+      "change": "PATCH: 支持更新 is_pinned 字段；验证消息归属后更新"
+    },
+    {
+      "path": "apps/web/app/(workspace)/workspace/[id]/page.tsx",
+      "action": "rewrite",
+      "target": "消息加载和 Realtime 订阅逻辑",
+      "change": "初始化时 GET /api/messages?session_id=X 加载历史消息；setup Realtime 订阅 supabase.channel('messages:' + sessionId).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'session_id=eq.' + sessionId }, callback) 追加到 messages state；切换 session 时取消旧订阅建立新订阅"
+    },
+    {
+      "path": "apps/web/stores/chat-store.ts",
+      "action": "edit",
+      "target": "Message 类型引用",
+      "change": "确保导入的 Message 类型已更新为 snake_case；addMessage/updateMessage 方法支持新字段"
+    }
+  ],
+  "implementation": [
+    "创建 apps/web/app/api/messages/route.ts：GET（带 session 归属校验）+ POST（INSERT 新消息）",
+    "创建 apps/web/app/api/messages/[id]/route.ts：PATCH（更新 is_pinned）",
+    "更新 workspace page.tsx：添加消息加载 useEffect；添加 Realtime 订阅（useEffect + cleanup 取消订阅）；session 切换时重新订阅",
+    "更新 chat-store.ts 确保 Message 类型和 store 方法兼容新字段",
+    "同步更新 workspace page 中消息创建逻辑（POST API 而非本地 setState）"
+  ],
+  "test": {
+    "commands": [
+      "pnpm dev:web"
+    ],
+    "unit": [],
+    "integration": [
+      "手动测试：发送消息后 F5 刷新，消息列表仍显示"
+    ],
+    "success_metrics": [
+      "GET /api/messages?session_id=X 返回历史消息",
+      "POST /api/messages 创建消息成功",
+      "PATCH /api/messages/[id] 更新 is_pinned 成功"
+    ]
+  },
+  "reference": {
+    "pattern": "参考 apps/web/app/api/sessions/route.ts 的认证 + 权限校验模式",
+    "files": [
+      "apps/web/app/api/sessions/route.ts",
+      "apps/web/app/(workspace)/workspace/[id]/page.tsx",
+      "apps/web/stores/chat-store.ts",
+      "apps/web/lib/supabase-browser.ts"
+    ],
+    "examples": null
+  },
+  "rationale": {
+    "chosen_approach": "使用 Zustand store 作为 messages 单一数据源，Realtime 订阅直接更新 store，workspace page 消费 store 而非本地 state",
+    "decision_factors": [
+      "避免多个组件各自维护 messages state 造成不一致",
+      "Realtime 回调直接 push 到 store，所有订阅 store 的组件自动更新",
+      "workspace page 初始化从 store 读取，切换 session 时清空 store"
+    ],
+    "tradeoffs": "需要处理 Realtime INSERT 和主动 POST 的去重（可在前端根据 id 去重）"
+  },
+  "risks": [
+    {
+      "risk": "Realtime INSERT 和主动 POST 可能导致消息重复",
+      "mitigation": "前端 messages state 使用 Map 或 filter 去重（按 id）"
+    }
+  ],
+  "meta": {
+    "status": "completed",
+    "estimated_time": "60m",
+    "risk": "medium",
+    "autonomous": true,
+    "checkpoint": false,
+    "wave": "wave-2",
+    "execution_group": null,
+    "executor": "agent"
+  }
+}
