@@ -1,2 +1,13 @@
 .ace-tool/
 .DS_Store
+node_modules/
+dist/
+.next/
+.env.local
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# E2E
+e2e/.env.test
+e2e/.web-server-pid
