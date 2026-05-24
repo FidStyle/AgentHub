@@ -160,4 +160,212 @@ interface OrchestratorConfig {
 }
 declare const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig;
 
-export { type ActionRequest, type ActionStatus, type ActionType, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, DEFAULT_ORCHESTRATOR_CONFIG, type Device, type DeviceType, type ExecutionDomain, FR_IDS, type FrId, type Message, type MessageType, type OrchestratorConfig, type PendingApproval, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeBinding, type RuntimeResult, type RuntimeSession, type RuntimeSessionStatus, type RuntimeType, type SenderType, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace };
+type FrameType = 'auth' | 'connected' | 'heartbeat' | 'heartbeat_ack' | 'request' | 'response' | 'event';
+interface BaseFrame {
+    type: FrameType;
+    seq: number;
+}
+interface AuthFrame extends BaseFrame {
+    type: 'auth';
+    deviceToken: string;
+}
+interface ConnectedFrame extends BaseFrame {
+    type: 'connected';
+    deviceId: string;
+    workspaceIds: string[];
+}
+interface HeartbeatFrame extends BaseFrame {
+    type: 'heartbeat';
+    sentAt: number;
+}
+interface HeartbeatAckFrame extends BaseFrame {
+    type: 'heartbeat_ack';
+    sentAt: number;
+}
+type RequestType = 'runtime_invoke' | 'runtime_cancel' | 'action_execute' | 'detect_runtime';
+interface RequestFrame extends BaseFrame {
+    type: 'request';
+    requestId: string;
+    requestType: RequestType;
+    payload: Record<string, unknown>;
+}
+interface ResponseFrame extends BaseFrame {
+    type: 'response';
+    requestId: string;
+    ok: boolean;
+    error?: string;
+    payload?: Record<string, unknown>;
+}
+interface EventFrame extends BaseFrame {
+    type: 'event';
+    eventId: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+}
+type DeviceFrame = AuthFrame | ConnectedFrame | HeartbeatFrame | HeartbeatAckFrame | RequestFrame | ResponseFrame | EventFrame;
+declare function serializeFrame(frame: DeviceFrame): string;
+declare function parseFrame(data: string): DeviceFrame | null;
+declare class SeqGenerator {
+    private seq;
+    next(): number;
+    reset(): void;
+}
+
+type RuntimeEventType = 'started' | 'session_discovered' | 'text_delta' | 'tool_started' | 'tool_delta' | 'tool_completed' | 'approval_requested' | 'artifact_created' | 'completed' | 'failed' | 'cancelled';
+interface BaseRuntimeEvent {
+    type: RuntimeEventType;
+    sessionId: string;
+    timestamp: number;
+}
+interface RuntimeStartedEvent extends BaseRuntimeEvent {
+    type: 'started';
+    runtimeType: string;
+    cwd: string;
+}
+interface RuntimeSessionDiscoveredEvent extends BaseRuntimeEvent {
+    type: 'session_discovered';
+    nativeSessionId: string;
+}
+interface RuntimeTextDeltaEvent extends BaseRuntimeEvent {
+    type: 'text_delta';
+    delta: string;
+}
+interface RuntimeToolStartedEvent extends BaseRuntimeEvent {
+    type: 'tool_started';
+    toolName: string;
+    toolInput?: string;
+}
+interface RuntimeToolDeltaEvent extends BaseRuntimeEvent {
+    type: 'tool_delta';
+    toolName: string;
+    delta: string;
+}
+interface RuntimeToolCompletedEvent extends BaseRuntimeEvent {
+    type: 'tool_completed';
+    toolName: string;
+    result?: string;
+}
+interface RuntimeApprovalRequestedEvent extends BaseRuntimeEvent {
+    type: 'approval_requested';
+    description: string;
+    riskLevel: string;
+}
+interface RuntimeArtifactCreatedEvent extends BaseRuntimeEvent {
+    type: 'artifact_created';
+    artifactType: string;
+    path?: string;
+    content?: string;
+}
+interface RuntimeCompletedEvent extends BaseRuntimeEvent {
+    type: 'completed';
+    summary?: string;
+    exitCode: number;
+}
+interface RuntimeFailedEvent extends BaseRuntimeEvent {
+    type: 'failed';
+    error: string;
+    exitCode?: number;
+}
+interface RuntimeCancelledEvent extends BaseRuntimeEvent {
+    type: 'cancelled';
+    reason?: string;
+}
+type RuntimeEvent = RuntimeStartedEvent | RuntimeSessionDiscoveredEvent | RuntimeTextDeltaEvent | RuntimeToolStartedEvent | RuntimeToolDeltaEvent | RuntimeToolCompletedEvent | RuntimeApprovalRequestedEvent | RuntimeArtifactCreatedEvent | RuntimeCompletedEvent | RuntimeFailedEvent | RuntimeCancelledEvent;
+
+/** Orchestrator Plan DAG Types */
+interface PlanNode {
+    id: string;
+    plan_id: string;
+    label: string;
+    agent_id?: string;
+    status: 'pending' | 'ready' | 'running' | 'completed' | 'failed' | 'skipped';
+    action_type?: 'runtime_invoke' | 'action_exec' | 'human_confirm';
+    action_payload?: Record<string, unknown>;
+    result?: Record<string, unknown>;
+    depends_on: string[];
+    started_at?: string;
+    completed_at?: string;
+}
+interface PlanDAG {
+    nodes: {
+        id: string;
+        label: string;
+        depends_on: string[];
+    }[];
+    edges: {
+        from: string;
+        to: string;
+    }[];
+}
+interface Plan {
+    id: string;
+    session_id: string;
+    owner_id: string;
+    title: string;
+    status: 'draft' | 'pending_confirm' | 'running' | 'completed' | 'failed' | 'cancelled';
+    dag: PlanDAG;
+    created_at: string;
+    updated_at: string;
+}
+type PlanStatus = Plan['status'];
+type PlanNodeStatus = PlanNode['status'];
+
+/** Action execution types for orchestrator (extends domain types) */
+
+type OrchestratorActionType = 'shell' | 'file_write' | 'git_push' | 'deploy';
+type OrchestratorActionStatus = 'pending' | 'approved' | 'rejected' | 'running' | 'completed' | 'failed';
+interface OrchestratorAction {
+    id: string;
+    plan_node_id?: string;
+    session_id: string;
+    owner_id: string;
+    action_type: OrchestratorActionType;
+    command: string;
+    cwd?: string;
+    risk_level: RiskLevel;
+    status: OrchestratorActionStatus;
+    requires_approval: boolean;
+    result?: Record<string, unknown>;
+    approved_at?: string;
+    executed_at?: string;
+    created_at: string;
+}
+/** Permission policy: determines if an action requires approval */
+interface PermissionPolicy {
+    action_type: string;
+    risk_level: RiskLevel;
+    requires_approval: boolean;
+    description: string;
+}
+declare const DEFAULT_POLICIES: PermissionPolicy[];
+
+/** Notification types */
+type NotificationType = 'approval_required' | 'plan_completed' | 'action_failed' | 'info';
+interface Notification {
+    id: string;
+    user_id: string;
+    type: NotificationType;
+    title: string;
+    body?: string;
+    ref_type?: 'plan' | 'action' | 'plan_node';
+    ref_id?: string;
+    read: boolean;
+    created_at: string;
+}
+
+/** Context Handoff: passes context between role agents */
+interface ContextPackage {
+    from_agent_id: string;
+    to_agent_id: string;
+    session_id: string;
+    summary: string;
+    pinned_message_ids: string[];
+    artifacts: {
+        type: string;
+        content: string;
+    }[];
+    metadata?: Record<string, unknown>;
+    created_at: string;
+}
+
+export { type ActionRequest, type ActionStatus, type ActionType, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCompletedEvent, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeResult, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, parseFrame, serializeFrame };
