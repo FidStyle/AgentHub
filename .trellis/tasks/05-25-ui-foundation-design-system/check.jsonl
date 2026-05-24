@@ -1,0 +1,5 @@
+{"file":"research/ui-design-system.md","reason":"检查基础组件是否符合设计系统。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查定位点、禁止项和视觉测试要求。"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"检查组件结构、props 和样式模式。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查中文文案、敏感信息和测试覆盖。"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"检查本地 Runtime 状态组件不得托管 API Key。"}

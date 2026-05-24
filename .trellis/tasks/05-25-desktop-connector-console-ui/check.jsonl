@@ -1,0 +1,5 @@
+{"file":"research/prd.md","reason":"检查 Desktop 任务是否满足绑定 FR-ID。"}
+{"file":"research/ui-design-system.md","reason":"检查 Connector Console 布局和状态视觉。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查 Desktop 定位点、截图和布局断言。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查中文文案和敏感信息禁止项。"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"检查本地 Runtime UI 不托管密钥。"}

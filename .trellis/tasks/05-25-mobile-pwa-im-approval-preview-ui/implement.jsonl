@@ -1,0 +1,8 @@
+{"file":"research/prd.md","reason":"Mobile 轻量 IM、审批、预览和 FR-UI-001 验收来源。"}
+{"file":"research/product-design.md","reason":"移动端页面、用户流和组件状态来源。"}
+{"file":"research/ui-design-system.md","reason":"Mobile/PWA 单栏布局、断点和状态视觉契约。"}
+{"file":"research/technical-design.md","reason":"Mobile P0 作为同一 Next.js PWA 的技术路线和测试策略。"}
+{"file":"research/modules/ui-and-visual-testing.md","reason":"lobehub/codeg 参考和 Playwright mobile viewport 依据。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"移动端样式、定位点、无横向滚动和视觉断言规范。"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"移动组件结构、props 和可访问性规范。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"中文文案、移动断点和测试要求。"}

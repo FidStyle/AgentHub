@@ -1,0 +1,5 @@
+{"file":"research/prd.md","reason":"检查任务切片是否覆盖 FR-UI-001 与业务 FR-ID。"}
+{"file":"research/ui-design-system.md","reason":"检查任务是否引用三端 UI 设计系统。"}
+{"file":"research/technical-design.md","reason":"检查任务是否符合技术路线和测试策略。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查视觉门禁、禁止项和断言要求。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查前端质量、中文文案和敏感信息边界。"}

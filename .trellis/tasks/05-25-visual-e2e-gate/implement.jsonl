@@ -1,0 +1,7 @@
+{"file":"research/prd.md","reason":"FR-UI-001 对三端视觉 E2E 的验收要求。"}
+{"file":"research/ui-design-system.md","reason":"视觉 E2E 覆盖矩阵、断言和截图策略。"}
+{"file":"research/technical-design.md","reason":"Web/Mobile Playwright browser projects 与 Desktop Playwright Electron 工具流。"}
+{"file":"research/modules/ui-and-visual-testing.md","reason":"视觉测试工具矩阵和最终路线。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"视觉断言 helper、定位点和禁止项。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"前端测试要求和代码审查清单。"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"截图和 UI 中不得暴露本地 Runtime 凭证。"}
