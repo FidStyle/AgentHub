@@ -224,6 +224,7 @@ Process layer 需要提供通用生命周期，不绑定 Claude/Codex 语义：
 
 配置合并需要借鉴 Cherry Studio 的 MCP service 思路：命令配置、环境变量、PATH、MCP config、重启触发要集中处理。安全边界是：
 
+- 本地 Claude Code / Codex 的 API Key 不属于 P0 Role Agent 配置项；AgentHub 只检测原生 CLI 的认证状态，并引导用户在本机 CLI 或独立模型 Provider 中完成配置。
 - env 合并必须白名单或显式来源标记，不能把敏感变量无条件注入所有 Runtime。
 - PATH 修正要可诊断，不能静默覆盖用户环境。
 - MCP/config 应按 runtime session 或 workspace 隔离，避免把 AgentHub 临时配置写成用户全局唯一状态。
@@ -251,6 +252,8 @@ Process layer 需要提供通用生命周期，不绑定 Claude/Codex 语义：
 - `refer_proj/lobehub/apps/desktop/src/main/controllers/HeterogeneousAgentCtr.ts`、`GatewayConnectionCtr.ts`、`ToolDetectorCtr.ts` 是当前最具体的 Electron Desktop + Claude/Codex heterogeneous agent 参考。
   `refer_proj/lobehub/packages/agent-runtime/src/*` 可校准 runtime factory、capability 和错误归一化。
 - `refer_proj/AionUi/src/process/acp/infra/{ProcessAcpClient.ts,NdjsonTransport.ts,processUtils.ts}` 是进程/NDJSON transport 生命周期参考，强化「进程管理」和「语义解析」分层。
+- `refer_proj/AionUi/src/renderer/pages/settings/AgentSettings/LocalAgents.tsx` 把本地 Agent 做成自动检测和自定义命令配置，模型 API Key 另在 Model 设置中管理；这支持 AgentHub 将本地 CLI Runtime 绑定与模型 Provider 凭证分离。
+- `refer_proj/codeg/src/components/settings/acp-agent-settings.tsx` 支持官方订阅、自定义端点和模型 Provider，但它的复杂度更适合作为 P1 高级配置参考；AgentHub P0 不把本地 Claude Code / Codex 默认做成 API Key 托管页。
 - `refer_proj/codeg/src-tauri/src/parsers/{claude.rs,codex.rs,opencode.rs}` 展示 Claude、Codex、OpenCode 原生历史/JSONL 解析和多 Runtime parser 快照测试，可作为 session discovery 与历史恢复对照。
 - `refer_proj/cherry-studio/src/main/services/MCPService.ts` 对 command config、env、PATH、MCP 配置合并和 restart handling 有参考价值。
 - `refer_proj/poco-claw/backend`、`executor`、`executor_manager` 展示多服务执行、callback、session/message/tool 持久化；它不作为 P0 CLI Adapter 主参考，但可校准事件持久化和执行状态回传。

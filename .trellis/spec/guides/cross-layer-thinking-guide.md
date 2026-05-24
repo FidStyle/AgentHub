@@ -77,6 +77,7 @@ Before implementation:
 - [ ] Identified all layer boundaries
 - [ ] Defined format at each boundary
 - [ ] Decided where validation happens
+- [ ] 如果功能涉及本地 Claude Code / Codex Runtime，先检查 `.trellis/spec/cross-layer/runtime-credential-boundary.md`，确认没有把本地 CLI API Key 混入 Role Agent、Workspace、Session 或 Runtime Binding。
 
 After implementation:
 - [ ] Tested with edge cases (null, empty, invalid)

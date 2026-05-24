@@ -22,9 +22,7 @@ Questions to answer:
 
 ## Forbidden Patterns
 
-<!-- Patterns that should never be used and why -->
-
-(To be filled by the team)
+- 本地 Claude Code / Codex 的 Role Agent 或 Runtime 绑定 UI 不得渲染 API Key、Base URL、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 等默认输入框。P0 只展示检测、绑定、诊断和本机登录/安装引导。
 
 ---
 
@@ -33,6 +31,7 @@ Questions to answer:
 - All user-visible frontend copy must use Simplified Chinese across Web, Desktop, and Mobile/PWA.
 - Terminology for shared concepts must stay consistent across the three surfaces: 工作区、会话、审批、产物、预览、智能体、桌面连接器。
 - Technical product names may remain in English only when they identify a specific technology or command, such as Vite, Electron, PWA, Codex, Claude Code, Node, or `corepack pnpm`.
+- 本地 Runtime 凭证边界必须遵守 `.trellis/spec/cross-layer/runtime-credential-boundary.md`：本地 CLI 只检测原生认证状态，不托管密钥。
 
 ---
 
