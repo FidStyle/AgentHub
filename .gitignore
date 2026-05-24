@@ -8,6 +8,9 @@ dist/
 playwright-report/
 test-results/
 
+# Maestro runtime logs
+.workflow/spec-analytics.jsonl
+
 # E2E
 e2e/.env.test
 e2e/.web-server-pid
