@@ -1,0 +1,14 @@
+{
+  "name": "AgentHub",
+  "short_name": "AgentHub",
+  "description": "多 Agent 协作平台",
+  "start_url": "/m",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

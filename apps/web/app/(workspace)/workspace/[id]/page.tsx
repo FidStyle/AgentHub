@@ -84,7 +84,7 @@ export default function WorkspaceChatPage() {
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) {
-          setSessions(data.map((s: any) => ({ id: s.id, name: s.name })))
+          setSessions(data.map((s: Record<string, string>) => ({ id: s.id, name: s.name })))
           if (data.length > 0 && !currentSessionId) setCurrentSessionId(data[0].id)
         }
       })
@@ -189,12 +189,12 @@ export default function WorkspaceChatPage() {
                     )
                     setStreaming(false)
                   }
-                } catch {}
+                } catch { /* parse error */ }
               }
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Fallback: mark as complete
         setMessages((m) =>
           m.map((msg) =>

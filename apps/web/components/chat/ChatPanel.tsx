@@ -47,9 +47,9 @@ export function ChatPanel({
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="font-semibold text-sm text-blue-800 mb-2">Plan</div>
           <div className="text-xs text-blue-700 whitespace-pre-wrap">{content}</div>
-          {metadata && typeof metadata === 'object' && 'steps' in metadata && Array.isArray((metadata as any).steps) && (
+          {metadata && typeof metadata === 'object' && 'steps' in metadata && Array.isArray((metadata as Record<string, unknown>).steps) && (
             <ol className="mt-2 space-y-1">
-              {(metadata as any).steps.map((step: string, i: number) => (
+              {((metadata as Record<string, unknown>).steps as string[]).map((step: string, i: number) => (
                 <li key={i} className="flex gap-2 text-xs">
                   <span className="font-medium">{i + 1}.</span>
                   <span>{step}</span>
@@ -68,7 +68,7 @@ export function ChatPanel({
           <div className="text-xs text-green-700 whitespace-pre-wrap">{content}</div>
           {metadata && typeof metadata === 'object' && 'status' in metadata && (
             <div className="mt-2 text-xs font-medium">
-              Status: <span className={(metadata as any).status === 'success' ? 'text-green-600' : 'text-red-600'}>{(metadata as any).status}</span>
+              Status: <span className={(metadata as Record<string, unknown>).status === 'success' ? 'text-green-600' : 'text-red-600'}>{(metadata as Record<string, unknown>).status as string}</span>
             </div>
           )}
         </div>
