@@ -40,7 +40,7 @@ interface RuntimeBinding {
 
 - 本地 `claude_code` / `codex` 绑定只允许保存 `runtimeKind`、`executionDomain`、`cliPath`、`version`、`authStatus`、`capabilities`、诊断码和 native session 绑定。
 - 禁止在本地 Runtime 绑定、Role Agent 配置、Workspace、Session、Message、Runtime Event 中保存原始 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`GEMINI_API_KEY`、`*_BASE_URL` 或等价密钥/中转地址。
-- Web 配置页只能展示检测状态、版本、登录状态、能力声明、修复引导和 Runtime 选择。
+- Web 配置页只能展示检测状态、版本、登录状态、能力声明、修复引导和 Runtime 选择。P0 不做 App 内代登录、设备码轮询或 OAuth 代理。
 - Desktop Connector 可以继承当前进程环境执行用户本机 CLI，但不得把敏感环境变量回传到 Web 或后端。
 - 平台托管 Runtime 或模型 Provider 如需 API Key，必须走单独凭证/模型供应商能力，并且不能复用本地 CLI Runtime Binding 数据结构。
 
@@ -51,6 +51,7 @@ interface RuntimeBinding {
 | Web/API 提交本地 `claude_code` / `codex` 绑定时携带 `apiKey`、`env`、`baseUrl` | 拒绝保存，返回 `SECRET_FIELD_NOT_ALLOWED` |
 | Desktop 未检测到 CLI | `RUNTIME_NOT_FOUND`，`installed=false` |
 | CLI 存在但未登录或调用返回认证失败 | `RUNTIME_AUTH_REQUIRED`，`authStatus='auth_required'` |
+| 用户点击未登录 Runtime 的修复入口 | 展示本机命令/文档引导，不启动 App 内登录代理 |
 | Workspace 是 `cloud` 但绑定本地 Runtime | `EXECUTION_DOMAIN_MISMATCH` |
 | Workspace 是 `local_desktop` 但 Desktop Connector 离线 | `DEVICE_OFFLINE` |
 | Runtime 执行事件包含疑似密钥值 | 写入前脱敏，测试中断言不落库 |
@@ -66,7 +67,7 @@ interface RuntimeBinding {
 - 单元测试：`assertRuntimeBindingAllowed` 拒绝本地 Runtime 绑定中的 `apiKey`、`env`、`baseUrl` 字段。
 - Desktop 单元测试：Runtime Detector 将 CLI not found、auth required、authenticated 映射到稳定诊断码。
 - API 集成测试：创建/更新 Role Agent Runtime Binding 时，Cloud/Local 执行域不匹配被拒绝，敏感字段被拒绝。
-- 前端组件测试：本地 Claude Code / Codex 配置页只渲染检测、绑定、诊断和引导控件，不渲染 API Key 输入框。
+- 前端组件测试：本地 Claude Code / Codex 配置页只渲染检测、绑定、诊断和引导控件，不渲染 API Key 输入框，也不渲染“在 App 内登录/授权”按钮。
 - E2E：本地 Runtime 未登录时，用户不能启动执行；完成本机登录并重新检测后，可以绑定并发起 Runtime 请求。
 
 ### 7. 错误与正确示例

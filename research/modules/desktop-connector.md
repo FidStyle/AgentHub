@@ -96,7 +96,7 @@ P0 推荐：
 - Desktop 壳：Electron。
 - 云端通道：抽象 `DeviceChannel` 接口，P0 使用 `WebSocketDeviceChannel` 作为主实现。
 - 执行：Node 子进程执行 CLI，统一采集 stdout/stderr/exit code。
-- 凭证边界：P0 不在 Desktop 配置页托管本地 Claude Code / Codex API Key；Desktop 只检测原生 CLI 是否已完成认证，并在失败时给出登录或安装引导。
+- 凭证边界：P0 不在 Desktop 配置页托管本地 Claude Code / Codex API Key；Desktop 只检测原生 CLI 是否已完成认证，并在失败时给出登录或安装引导，不在 App 内代执行 CLI 登录、设备码轮询或 OAuth 代理流程。
 - 文件边界：所有路径先 resolve，再检查是否位于 workspace root。
 - 状态：执行事件回写 Action/Message/Task Result 数据。
 - 通知：P0 站内队列；Desktop 系统通知放 P1。

@@ -224,7 +224,7 @@ Process layer 需要提供通用生命周期，不绑定 Claude/Codex 语义：
 
 配置合并需要借鉴 Cherry Studio 的 MCP service 思路：命令配置、环境变量、PATH、MCP config、重启触发要集中处理。安全边界是：
 
-- 本地 Claude Code / Codex 的 API Key 不属于 P0 Role Agent 配置项；AgentHub 只检测原生 CLI 的认证状态，并引导用户在本机 CLI 或独立模型 Provider 中完成配置。
+- 本地 Claude Code / Codex 的 API Key 不属于 P0 Role Agent 配置项；AgentHub 只检测原生 CLI 的认证状态，并引导用户在本机 CLI 或独立模型 Provider 中完成配置。P0 不在 App 内代执行 CLI 登录、设备码轮询或 OAuth 代理流程。
 - env 合并必须白名单或显式来源标记，不能把敏感变量无条件注入所有 Runtime。
 - PATH 修正要可诊断，不能静默覆盖用户环境。
 - MCP/config 应按 runtime session 或 workspace 隔离，避免把 AgentHub 临时配置写成用户全局唯一状态。
