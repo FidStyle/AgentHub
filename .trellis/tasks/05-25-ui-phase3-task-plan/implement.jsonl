@@ -1,5 +1,6 @@
 {"file":"research/prd.md","reason":"主 PRD 与 FR-ID Registry，包含 FR-UI-001。"}
 {"file":"research/ui-design-system.md","reason":"三端 UI 设计系统和视觉 E2E 契约。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"UI Phase 3 项目级任务规划、执行顺序和统一 Definition of Done。"}
 {"file":"research/technical-design.md","reason":"技术路线、三端 E2E 工具流和 Phase 3 输入。"}
 {"file":"research/modules/ui-and-visual-testing.md","reason":"UI 组件库和视觉测试工具链调研结论。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"实现层 UI 样式与视觉测试规范。"}

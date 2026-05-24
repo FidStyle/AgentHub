@@ -1,5 +1,6 @@
 {"file":"research/prd.md","reason":"检查 Mobile/PWA 任务是否满足绑定 FR-ID。"}
 {"file":"research/ui-design-system.md","reason":"检查移动端职责、断点和禁止项。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"检查 Mobile/PWA 子任务是否符合项目级 UI Phase 3 规划。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查移动视口截图、无横向滚动和导航无遮挡。"}
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查中文文案、文本溢出和视觉质量。"}
 {"file":".trellis/spec/guides/product-planning-guide.md","reason":"检查 Mobile 未被做成小号 Web IDE。"}

@@ -1,5 +1,6 @@
 {"file":"research/prd.md","reason":"检查 Web 任务是否满足绑定 FR-ID。"}
 {"file":"research/ui-design-system.md","reason":"检查三栏布局、组件状态和禁止项。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"检查 Web 子任务是否符合项目级 UI Phase 3 规划。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查截图、布局断言和定位点。"}
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查中文文案、敏感信息和视觉质量。"}
 {"file":".trellis/spec/guides/product-planning-guide.md","reason":"检查是否保持产品职责和 FR-ID 可追踪。"}

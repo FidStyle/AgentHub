@@ -1,6 +1,7 @@
 {"file":"research/prd.md","reason":"Web 工作台、IM、Artifact、结果卡和 FR-UI-001 验收来源。"}
 {"file":"research/product-design.md","reason":"页面、用户流、组件状态来源。"}
 {"file":"research/ui-design-system.md","reason":"Web 三栏布局、核心组件和状态视觉契约。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"UI Phase 3 项目级任务规划和 Web 模块执行要求。"}
 {"file":"research/technical-design.md","reason":"Web 前端边界和 E2E 测试策略。"}
 {"file":"research/modules/ui-and-visual-testing.md","reason":"AionUi/codeg 参考和视觉测试工具链依据。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"Web UI 样式、定位点和视觉断言规范。"}

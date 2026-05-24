@@ -1,5 +1,6 @@
 {"file":"research/prd.md","reason":"确认 FR-UI-001 与三端职责边界。"}
 {"file":"research/ui-design-system.md","reason":"设计变量、组件契约、状态视觉和禁止项来源。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"UI Phase 3 项目级任务规划和基础设施执行顺序。"}
 {"file":"research/modules/ui-and-visual-testing.md","reason":"组件基线与视觉测试工具链取舍依据。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"UI 样式、定位点和视觉 E2E 实现规范。"}
 {"file":".trellis/spec/frontend/component-guidelines.md","reason":"基础组件结构、props、样式和可访问性规范。"}

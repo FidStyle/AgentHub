@@ -1,5 +1,6 @@
 {"file":"research/prd.md","reason":"Desktop Connector、Runtime、Action、通知和 FR-UI-001 验收来源。"}
 {"file":"research/ui-design-system.md","reason":"Desktop Connector Console 布局、状态卡和禁止项。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"UI Phase 3 项目级任务规划和 Desktop 模块执行要求。"}
 {"file":"research/technical-design.md","reason":"Desktop renderer 边界、Electron E2E 和凭证边界策略。"}
 {"file":"research/modules/ui-and-visual-testing.md","reason":"cherry-studio/AionUi/codeg 参考和 Electron 视觉测试依据。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"Desktop UI 样式、定位点和视觉断言规范。"}

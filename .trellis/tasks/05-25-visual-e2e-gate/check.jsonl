@@ -1,5 +1,6 @@
 {"file":"research/prd.md","reason":"检查视觉门禁是否覆盖 FR-UI-001。"}
 {"file":"research/ui-design-system.md","reason":"检查覆盖矩阵、截图和布局断言完整性。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"检查视觉门禁是否符合项目级 UI Phase 3 规划。"}
 {"file":"research/technical-design.md","reason":"检查分端 E2E 工具流是否符合技术设计。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查 helper、定位点、截图和禁止项。"}
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查 E2E 不只是 toBeVisible，包含布局和敏感信息断言。"}
