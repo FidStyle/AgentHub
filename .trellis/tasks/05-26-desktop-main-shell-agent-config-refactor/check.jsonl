@@ -1,0 +1,8 @@
+{"file":"research/prd.md","reason":"检查实现是否满足 Desktop P0 FR-ID 和职责边界。"}
+{"file":"research/prd-amendments/desktop-main-shell-agent-config.md","reason":"检查是否完整落实本次需求修订。"}
+{"file":"research/product-design.md","reason":"检查 Desktop 主壳、Agent 配置中心、轻量会话和打开 Web 行为。"}
+{"file":"research/ui-design-system.md","reason":"检查统一视觉母版、Desktop 布局和禁止项。"}
+{"file":"research/technical-design.md","reason":"检查 renderer/main 边界和 DeviceChannel 执行路径。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查定位点、视觉断言、敏感字段和禁止模式。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查中文文案、测试覆盖和质量底线。"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"检查本地 Runtime 凭证边界。"}

@@ -734,9 +734,11 @@ UI 约束：
 P0 页面：
 
 - 登录/设备绑定。
-- Connector 首页。
+- Desktop 主壳：左侧导航/Session、中间本地 Agent 轻量会话、右侧 Agent 配置中心与 Runtime 状态。
+- Connector 首页状态：在线、设备、Workspace、最近心跳和云端可达性。
 - 本地 Workspace 绑定。
 - Runtime 检测。
+- Agent 配置中心：Codex、Claude Code 已接入；OpenCode 和其他 Runtime 待接入。
 - 本地 Agent 会话/运行态入口。
 - 执行请求列表。
 - 待审批队列。
@@ -753,11 +755,14 @@ Desktop main 服务：
 
 UI 约束：
 
-- Desktop renderer 必须呈现 Connector Console，不复制完整 Web 三栏工作台。
+- Desktop renderer 必须呈现完整桌面主壳，不复制完整 Web 三栏工作台，也不能退化为单页检测面板。
+- Desktop 主壳必须包含左侧导航/Session、中间本地 Agent 轻量会话、右侧 Agent 配置中心与 Runtime 状态，布局可折叠但核心入口不能消失。
 - Runtime 检测 UI 展示安装、版本、CLI path、原生认证状态、能力声明、最近诊断和进入轻量会话动作；本地 Claude Code / Codex 不渲染 API Key、Base URL 或环境变量保存表单。
-- Desktop 可借鉴 AionUi 的 Local Agents 检测卡、AgentCard 和桌面 ChatLayout，也可借鉴 cherry-studio 的桌面密度和设置分组，但凭证边界必须服从 `FR-RUNTIME-001` 与 `.trellis/spec/cross-layer/runtime-credential-boundary.md`。
+- Agent 配置中心必须区分 P0 已接入和待接入 Runtime：Codex、Claude Code 已接入；OpenCode 和其他 Runtime 显示待接入且不可执行。
+- Desktop 可借鉴 AionUi 的 Layout/Sider/Router、Local Agents 检测卡、AgentCard 和桌面 ChatLayout，也可借鉴 codeg 的 Sidebar、ConversationShell、MessageInput 和 PermissionDialog；cherry-studio 只用于桌面密度和设置分组，但凭证边界必须服从 `FR-RUNTIME-001` 与 `.trellis/spec/cross-layer/runtime-credential-boundary.md`。
 - Desktop 轻量会话必须经后端和 DeviceChannel 路由到当前 Local Desktop Workspace，不允许 Electron renderer 直接拼 shell 命令或绕过权限策略。
-- Electron E2E 必须覆盖 Connector 首页、Runtime 检测、本地 Agent 轻量会话、执行活动和待审批状态截图。
+- 打开 Web 工作台入口必须指向有效 Workspace/Session；Web 不可用、未登录或 Workspace 不存在时，Desktop 内展示中文错误和下一步，不允许打开空白页。
+- Electron E2E 必须覆盖 Desktop 主壳、Agent 配置中心、Runtime 检测、本地 Agent 轻量会话、打开 Web 工作台状态、执行活动和待审批状态截图。
 
 对应需求：`FR-DESK-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-NOTIFY-001`, `FR-UI-001`。
 

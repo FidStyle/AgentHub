@@ -46,10 +46,13 @@
 
 ### Desktop
 
-- Desktop 是 Connector Console，不是 Web 工作台复制品。
-- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、本地 Agent 轻量会话、执行活动和待审批。
+- Desktop 是 Connector Console 和本地 Agent 轻量工作台，不是 Web 工作台复制品，也不是单页检测面板。
+- 启动后默认界面必须是桌面主壳：左侧导航/Session，中间本地 Agent 轻量会话，右侧 Agent 配置中心与 Runtime 状态。
+- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、Agent 配置中心、本地 Agent 轻量会话、执行活动和待审批。
 - 本地 Claude Code / Codex 只展示安装、版本、CLI path、认证状态、能力声明、最近诊断、进入轻量会话动作和本机修复引导。
+- Agent 配置中心必须展示 Codex、Claude Code、OpenCode 和其他预留 Runtime；Codex/Claude Code 为 P0 已接入，OpenCode 等为“待接入”且不可进入会话。
 - 本地 Agent 轻量会话只服务当前 Local Desktop Workspace：最近消息、Runtime 流式输出、执行活动、待审批和诊断。复杂 Artifact/Context/Agents/Preview 仍跳转 Web 工作台。
+- 打开 Web 工作台入口必须有有效目标；目标不可用时在 Desktop 内展示中文错误和下一步，不得打开空白页。
 - 禁止在本地 Runtime 绑定 UI 中展示 API Key、Base URL、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 输入框。
 
 ### Mobile/PWA
@@ -73,6 +76,7 @@
 | 审批卡/弹窗 | 展示审批类型、风险、影响范围、批准/拒绝。 | 批准/拒绝按钮语义清晰，Diff 不作为审批对象。 |
 | Agent 卡 | 展示角色、能力标签、调度状态和 Runtime 绑定摘要。 | Runtime 名称只在配置摘要出现，不作为聊天对象。 |
 | Runtime 状态卡 | 展示 installed、version、CLI path、authStatus、capability snapshot、最近诊断。 | 不出现本地 CLI API Key 表单。 |
+| Desktop Agent 配置中心 | Codex、Claude Code、OpenCode 和其他 Runtime 卡片；P0 已接入与待接入状态清晰。 | OpenCode 等待接入项不可执行，不出现密钥表单。 |
 | Desktop 本地 Agent 会话 | 展示本地 Runtime/Role Agent 身份、最近消息、流式输出、执行活动、待审批和轻量输入框。 | 不复制 Web 三栏，不绕过 DeviceChannel 执行 shell。 |
 | Artifact/Preview 面板 | 支持 loading、empty、ready、failed。 | 右栏滚动正常，移动端独立视图不遮挡。 |
 
@@ -82,6 +86,7 @@
 
 - 禁止无样式纯 HTML 页面。
 - 禁止用营销首页替代 Web 工作台主体验。
+- 禁止 Desktop 只有一个纵向卡片检测页，没有主壳、导航、会话和配置中心。
 - 禁止用户可见 UI 文案使用英文，除非是明确技术名词。
 - 禁止本地 Runtime 配置页渲染 API Key、Base URL 或敏感环境变量保存表单。
 - 禁止 Web、Desktop、Mobile/PWA 分别复刻不同参考项目的视觉皮肤。

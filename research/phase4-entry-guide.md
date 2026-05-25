@@ -48,6 +48,7 @@
 - research/phase4-entry-guide.md
 - .trellis/spec/frontend/ui-style-guidelines.md
 - .trellis/tasks/05-25-ui-phase3-task-plan/prd.md
+- .trellis/tasks/05-26-desktop-main-shell-agent-config-refactor/prd.md
 - .trellis/tasks/05-26-ui-visual-unification-refactor/prd.md
 - .trellis/tasks/05-25-visual-e2e-gate/prd.md
 
@@ -56,16 +57,19 @@
 2. AionUi 只参考聊天分栏、LocalAgents、AgentCard 和 Desktop 轻量会话结构；lobehub 只参考移动信息架构；cherry-studio 只参考桌面密度和设置分组。
 3. Web、Desktop、Mobile/PWA 不能分别像不同参考项目。按钮、卡片、Badge、消息气泡、输入框、状态卡和弹窗必须来自同一视觉语言。
 4. 先补测试和断言，再改 UI。必须包含功能断言、截图留存、布局断言、统一视觉母版断言、敏感字段断言。
-5. Desktop 是 Connector Console + 本地 Agent 轻量会话，不是完整 Web 三栏；不允许 API Key、Base URL、ANTHROPIC_API_KEY、OPENAI_API_KEY 表单。
-6. Mobile 是轻量 IM、审批、预览，不做本地 Runtime 接入，不做缩小版 Web IDE。
-7. 如果 PRD 没写清、参考项目和当前契约冲突、验收标准不够，必须暂停，生成 research/prd-amendments/*.md，回填 Trellis 任务，等待用户确认。
+5. Desktop 是完整桌面主壳 + Connector Console + Agent 配置中心 + 本地 Agent 轻量会话，不是单页检测面板，也不是完整 Web 三栏；不允许 API Key、Base URL、ANTHROPIC_API_KEY、OPENAI_API_KEY 表单。
+6. Desktop 必须有左侧导航/Session、中间本地 Agent 轻量会话、右侧 Agent 配置中心与 Runtime 状态。Codex/Claude Code 是 P0 已接入，OpenCode 等为待接入且不可执行。
+7. 打开 Web 工作台入口必须指向有效 Workspace/Session；Web 不可用时在 Desktop 内显示中文错误和下一步，不能打开空白页。
+8. Mobile 是轻量 IM、审批、预览，不做本地 Runtime 接入，不做缩小版 Web IDE。
+9. 如果 PRD 没写清、参考项目和当前契约冲突、验收标准不够，必须暂停，生成 research/prd-amendments/*.md，回填 Trellis 任务，等待用户确认。
 
 执行顺序：
 1. 先做 Phase 4 前置检查：读取 PRD、设计系统、技术设计、Trellis 任务、当前截图和 E2E 测试。
-2. 如果三端视觉不统一，先执行 .trellis/tasks/05-26-ui-visual-unification-refactor/：测试先行，修正共享 token/组件，再改三端页面。
-3. 每完成一个 wave，立即跑对应测试和截图，不要等最后。
-4. 前置修正通过后，再执行 .trellis/tasks/05-25-visual-e2e-gate/ 的最终 Phase 4。
-5. 最后运行 pnpm lint、pnpm type-check、pnpm test、pnpm test:e2e、pnpm test:e2e:desktop。若仓库脚本或环境有差异，先读取 package.json 和 e2e 配置后选择等价命令。
+2. 如果 Desktop 仍是单页检测面板、没有 Agent 配置中心、没有本地轻量会话主区，或打开 Web 工作台为空白，先执行 .trellis/tasks/05-26-desktop-main-shell-agent-config-refactor/。
+3. 如果三端视觉不统一，继续执行 .trellis/tasks/05-26-ui-visual-unification-refactor/：测试先行，修正共享 token/组件，再改三端页面。
+4. 每完成一个 wave，立即跑对应测试和截图，不要等最后。
+5. 前置修正通过后，再执行 .trellis/tasks/05-25-visual-e2e-gate/ 的最终 Phase 4。
+6. 最后运行 pnpm lint、pnpm type-check、pnpm test、pnpm test:e2e、pnpm test:e2e:desktop。若仓库脚本或环境有差异，先读取 package.json 和 e2e 配置后选择等价命令。
 
 最终交付：
 - 列出通过的测试命令。

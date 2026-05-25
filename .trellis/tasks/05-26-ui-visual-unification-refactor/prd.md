@@ -43,7 +43,7 @@
 - 建立或修正共享视觉 token：颜色、圆角、边框、阴影、状态色、按钮尺寸、Badge、输入框、消息气泡、状态卡。
 - 确保三端核心页面复用同一组件体系或同一 token，不各自临时堆样式。
 - Web 保持三栏 IM 工作台，但视觉语言统一为 codeg/shadcn。
-- Desktop 保持 Connector Console 和本地 Agent 轻量会话，不做成 Provider/API Key 设置页。
+- Desktop 保持完整桌面主壳、Connector Console、Agent 配置中心和本地 Agent 轻量会话，不做成单页检测面板或 Provider/API Key 设置页。
 - Mobile/PWA 保持轻量 IM、审批、预览，不做成缩小版 Web IDE。
 - E2E 截图必须按 Web/Desktop/Mobile 同状态对照留存。
 - 需求不清、PRD 和参考项目冲突、实现无法判断时，必须暂停并生成 `research/prd-amendments/*.md`，等待用户确认后继续。
@@ -52,7 +52,7 @@
 
 - 不改变 PRD 的三端职责边界。
 - 不新增平台 Provider 凭证管理。
-- 不把 Desktop 变成完整 Web 三栏工作台。
+- 不把 Desktop 变成完整 Web 三栏工作台，也不把 Desktop 退化成单页检测面板。
 - 不引入 Arco、Ant Design 或另一套主组件库。
 - 不用截图人工看一眼替代自动化断言。
 
@@ -75,6 +75,7 @@
 ## 7. 验收断言
 
 - [ ] Web、Desktop、Mobile/PWA 同状态截图能看出来自同一视觉母版。
+- [ ] Desktop 截图必须包含左侧导航/Session、中间本地 Agent 轻量会话、右侧 Agent 配置中心或其折叠入口。
 - [ ] 核心 UI 复用共享 token 或共享组件体系。
 - [ ] 三端只在布局密度、栏数和导航方式上差异化，不在基础视觉语言上分裂。
 - [ ] 本地 Runtime 检测、认证状态和轻量会话不展示 API Key/Base URL/环境变量表单。

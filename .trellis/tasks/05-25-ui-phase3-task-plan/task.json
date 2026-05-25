@@ -22,13 +22,14 @@
     "05-25-ui-foundation-design-system",
     "05-25-web-three-column-workbench-ui",
     "05-25-desktop-connector-console-ui",
+    "05-26-desktop-main-shell-agent-config-refactor",
     "05-25-mobile-pwa-im-approval-preview-ui",
     "05-26-ui-visual-unification-refactor",
     "05-25-visual-e2e-gate"
   ],
   "parent": null,
   "relatedFiles": [],
-  "notes": "父任务只承载任务规划，不直接实现代码。后续实现应从 05-25-ui-foundation-design-system 开始；若已有 UI 截图显示三端风格割裂，必须先执行 05-26-ui-visual-unification-refactor 再进入最终视觉门禁。",
+  "notes": "父任务只承载任务规划，不直接实现代码。后续实现应从 05-25-ui-foundation-design-system 开始；若 Desktop 仍是单页检测面板，必须先执行 05-26-desktop-main-shell-agent-config-refactor；若已有 UI 截图显示三端风格割裂，必须先执行 05-26-ui-visual-unification-refactor 再进入最终视觉门禁。",
   "meta": {
     "phase": "Phase 3",
     "fr_ids": [
@@ -42,6 +43,7 @@
       "05-25-ui-foundation-design-system",
       "05-25-web-three-column-workbench-ui",
       "05-25-desktop-connector-console-ui",
+      "05-26-desktop-main-shell-agent-config-refactor",
       "05-25-mobile-pwa-im-approval-preview-ui",
       "05-26-ui-visual-unification-refactor",
       "05-25-visual-e2e-gate"

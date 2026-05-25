@@ -1,0 +1,8 @@
+{"file":"research/prd.md","reason":"确认 FR-DESK-001、FR-RUNTIME-001、FR-CHAT-001 和 FR-UI-001 的 Desktop 主界面要求。"}
+{"file":"research/prd-amendments/desktop-main-shell-agent-config.md","reason":"本次 Desktop 主壳和 Agent 配置中心修订的来源。"}
+{"file":"research/product-design.md","reason":"Desktop 页面地图、主壳布局、Agent 配置中心和本地轻量会话交互来源。"}
+{"file":"research/ui-design-system.md","reason":"Desktop 三端统一视觉母版、布局契约、组件契约和禁止项。"}
+{"file":"research/technical-design.md","reason":"Desktop renderer/main 边界、DeviceChannel、Runtime Adapter 和安全边界。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"前端实现层 UI 样式、定位点、视觉 E2E 和禁止模式。"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"共享组件、props、样式和可访问性规范。"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"本地 Runtime 不得托管 API Key、Base URL 或环境变量。"}
