@@ -22,7 +22,16 @@
 | 样式 | 使用 Tailwind CSS 4 语义 class 和主题变量；禁止用大段内联样式拼页面。 |
 | 图标 | 使用 `lucide-react`。工具按钮优先使用图标，复杂或不熟悉图标必须提供 tooltip 或可访问名称。 |
 | 文案 | 用户可见文案必须是简体中文。技术产品名、库名、命令名可以保留英文。 |
-| 参考 | AionUi 与 codeg 为主参考；lobehub 与 cherry-studio 为辅助参考。参考只吸收布局、密度和组件行为，不复制不符合 PRD 的凭证或 Provider 流程。 |
+| 参考 | codeg/shadcn 工作台风格是三端统一视觉母版；AionUi、lobehub、cherry-studio 只吸收布局、密度和组件行为，不复制不符合 PRD 的凭证或 Provider 流程。 |
+
+### 2.1 统一视觉母版硬规则
+
+- Web、Desktop、Mobile/PWA 必须像同一个 AgentHub 产品。端侧布局可以不同，视觉语言不能分裂。
+- Button、IconButton、Card、Panel、Badge、MessageBubble、Composer、Approval、RuntimeStatusCard 必须复用同一套 token、variant 和状态色。
+- AionUi 只能作为聊天分栏、Agent 卡片、LocalAgents 和 Desktop 轻量会话结构参考；不得把 Arco 默认视觉引入主 UI。
+- lobehub 只能作为移动信息架构参考；不得把移动端做成另一套模型配置产品视觉。
+- cherry-studio 只能作为桌面密度和设置分组参考；不得把 Desktop 做成 Provider/API Key 设置页。
+- 页面不得绕过共享组件，用大段临时 class 拼出只在单端成立的视觉皮肤。
 
 ---
 
@@ -75,6 +84,7 @@
 - 禁止用营销首页替代 Web 工作台主体验。
 - 禁止用户可见 UI 文案使用英文，除非是明确技术名词。
 - 禁止本地 Runtime 配置页渲染 API Key、Base URL 或敏感环境变量保存表单。
+- 禁止 Web、Desktop、Mobile/PWA 分别复刻不同参考项目的视觉皮肤。
 - 禁止卡片套卡片、装饰性渐变球、超大圆角胶囊、模板化大面积渐变背景。
 - 禁止通过内联样式堆 UI；确需动态样式时只能用于少量变量或定位计算。
 - 禁止文本溢出、按钮文字截断、固定格式卡片被内容撑变形。
@@ -100,6 +110,8 @@
 - loading、disabled、hover、running 状态不改变固定格式组件尺寸。
 - 关键页面调用 `page.screenshot()` 或 Playwright 快照能力留存。
 - 本地 Runtime UI 不存在 `API Key`、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`Base URL` 等敏感配置入口。
+- 三端同状态截图必须能看出共享色板、圆角、按钮、Badge、消息气泡、输入框和状态卡来自同一视觉母版。
+- 关键页面必须断言共享组件或共享 token 生效；绕开共享组件临时堆样式时门禁失败。
 
 ### 6.3 推荐定位点
 
@@ -167,5 +179,6 @@ export function RuntimeStatusCard() {
 - [ ] 绑定业务 `FR-ID` 和 `FR-UI-001`。
 - [ ] 引用 `research/ui-design-system.md` 和本文件。
 - [ ] 写明参考项目来源，例如 AionUi 聊天分栏或 codeg 权限弹窗。
+- [ ] 写明 codeg/shadcn 是统一视觉母版，其他参考项目只是结构或端侧行为参考。
 - [ ] 测试先行：功能断言、截图断言、布局断言、敏感信息断言。
 - [ ] 明确 Web、Desktop、Mobile/PWA 中受影响的端，不把三端做成同一密度。

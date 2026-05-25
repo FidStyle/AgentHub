@@ -28,7 +28,7 @@
 | 模块 | 推荐项 | 理由 |
 | --- | --- | --- |
 | 三端壳 | Web: Next.js；Desktop: Electron；Mobile P0: PWA；Android App 预留: Capacitor；React Native 预留: shared TS 领域层 | 最快满足三端职责分工，同时保留后续 Android 应用和原生移动端路线 |
-| UI 设计系统 | shadcn/ui + Tailwind CSS 4 + lucide-react；AionUi/codeg 为主参考；Playwright 分端视觉 E2E | 与当前 Web 技术栈兼容，可覆盖 Web、Electron renderer、Mobile/PWA，并把视觉质量纳入门禁 |
+| UI 设计系统 | shadcn/ui + Tailwind CSS 4 + lucide-react；codeg/shadcn 为三端统一视觉母版；Playwright 分端视觉 E2E | 与当前 Web 技术栈兼容，可覆盖 Web、Electron renderer、Mobile/PWA，并把视觉质量纳入门禁 |
 | Auth/Workspace | Supabase Auth + GitHub OAuth + Postgres | 同时解决登录、DB、Realtime 基础设施 |
 | IM/Realtime | Supabase Realtime | 与 Auth/DB 统一，足够支撑消息、审批、状态同步 |
 | Desktop Connector | Electron + DeviceChannel 接口 + WebSocket 主实现 | Node 主进程适合本地 CLI、文件、进程能力；WebSocket 适合远程控制和状态回传 |

@@ -1,0 +1,45 @@
+{
+  "id": "ui-visual-unification-refactor",
+  "name": "ui-visual-unification-refactor",
+  "title": "三端 UI 视觉统一返工",
+  "description": "在进入最终 Phase 4 前，把 Web、Desktop、Mobile/PWA 从各端风格割裂修正为同一 codeg/shadcn 视觉母版，并补齐统一母版断言。",
+  "status": "planning",
+  "dev_type": "frontend",
+  "scope": "apps/web, apps/desktop/src/renderer, packages/ui, e2e",
+  "package": "frontend",
+  "priority": "P0",
+  "creator": "joytion",
+  "assignee": "joytion",
+  "createdAt": "2026-05-26",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "AgentHub_new_claude_test",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-25-ui-phase3-task-plan",
+  "relatedFiles": [],
+  "notes": "这是 Phase 4 前置修正任务。先补测试和截图对照，再改 UI；需求不清时暂停并生成 research/prd-amendments/*.md。",
+  "meta": {
+    "phase": "Phase 3.5",
+    "fr_ids": [
+      "FR-UI-001",
+      "FR-WEB-001",
+      "FR-DESK-001",
+      "FR-MOB-001",
+      "FR-CHAT-001",
+      "FR-RUNTIME-001"
+    ],
+    "depends_on": [
+      "05-25-ui-foundation-design-system",
+      "05-25-web-three-column-workbench-ui",
+      "05-25-desktop-connector-console-ui",
+      "05-25-mobile-pwa-im-approval-preview-ui"
+    ],
+    "unblocks": [
+      "05-25-visual-e2e-gate"
+    ]
+  }
+}

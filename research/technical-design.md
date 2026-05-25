@@ -31,7 +31,7 @@ P0 技术目标：
 | 模块 | P0 技术路线 | 绑定需求 |
 | --- | --- | --- |
 | Web 主工作台 | Next.js App Router + React + TypeScript | `FR-WEB-001`, `FR-CHAT-001`, `FR-ARTIFACT-001` |
-| UI 设计系统 | shadcn/ui 组件模式 + Tailwind CSS 4 + lucide-react；设计契约见 `research/ui-design-system.md` | `FR-UI-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001` |
+| UI 设计系统 | shadcn/ui 组件模式 + Tailwind CSS 4 + lucide-react；codeg/shadcn 为三端统一视觉母版，设计契约见 `research/ui-design-system.md` | `FR-UI-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001` |
 | Desktop Connector | Electron + React + TypeScript；Electron main 负责本地能力 | `FR-DESK-001`, `FR-RUNTIME-001`, `FR-ACTION-001` |
 | Mobile P0 | 同一 Next.js 应用的响应式 Web/PWA 路由 | `FR-MOB-001`, `FR-DEVICE-001` |
 | Mobile Android 预留 | Capacitor 包装移动 Web/PWA；P0 不强制 Android Studio | `FR-MOB-001`, `FR-NOTIFY-101` |

@@ -80,7 +80,7 @@
 | 身份 | GitHub OAuth，P0 使用 Supabase Auth | `technical-design.md`, `modules/auth-workspace.md` |
 | Desktop 技术路线 | Electron + Desktop 主动 WebSocket DeviceChannel | `technical-design.md`, `modules/desktop-connector.md` |
 | Mobile P0 | 响应式 Web/PWA；Android App 预留 Capacitor | `technical-design.md`, `modules/client-shells.md` |
-| UI 基线 | `shadcn/ui + Tailwind CSS 4 + lucide-react`，AionUi/codeg 为主参考 | `ui-design-system.md`, `ui-phase3-task-plan.md` |
+| UI 基线 | `shadcn/ui + Tailwind CSS 4 + lucide-react`；codeg/shadcn 是三端统一视觉母版，AionUi/lobehub/cherry-studio 只作结构和密度参考 | `ui-design-system.md`, `ui-phase3-task-plan.md` |
 | Runtime Adapter | Claude Code/Codex 均走 CLI 子进程 Adapter，保持 native session continuity | `technical-design.md`, `modules/runtime-adapters.md` |
 | 自动化执行 | Maestro-Flow 作为 plan/execute/verify/review/test/fix-loop 参考，CodeStable 作为需求暂停和验收回写参考 | `automation-reference-comparison.md`, `technical-design.md` |
 | Orchestrator | 后端 Run 状态机 + Plan DAG；LLM 生成候选计划，系统校验和调度 | `technical-design.md`, `modules/orchestrator-plan-dag.md` |

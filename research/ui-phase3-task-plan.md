@@ -28,7 +28,7 @@
 UI Phase 3 的目标不是“补一点样式”，而是把 `FR-UI-001` 落成可执行开发闭环：
 
 1. Web、Desktop、Mobile/PWA 三端都遵循 `shadcn/ui + Tailwind CSS 4 + lucide-react` 基线。
-2. AionUi 与 codeg 作为主参考，lobehub 与 cherry-studio 作为辅参考。
+2. 三端统一采用 codeg/shadcn 工作台风格作为视觉母版；AionUi、lobehub、cherry-studio 只作为结构、密度和端侧行为参考。
 3. 每个 UI 模块都有 TDD/视觉 E2E 规划，包含截图、布局不重叠、文本不溢出和敏感信息断言。
 4. P0 交付不得出现无样式纯 HTML、英文用户文案、营销首页替代工作台、本地 Runtime API Key 表单。
 
@@ -66,6 +66,23 @@ Web、Desktop、Mobile/PWA 三个页面任务都依赖 UI 基础设施。视觉 
 
 页面任务之间可以按资源情况调整顺序，但不能跳过 UI 基础设施，也不能在视觉门禁前宣称 UI Phase 3 完成。
 
+如果 Maestro/Ralph 已经完成过一轮 UI 实现但截图显示三端风格割裂、像不同产品，必须先执行 `.trellis/tasks/05-26-ui-visual-unification-refactor/`，再进入最终 Phase 4 门禁。
+
+---
+
+## 4.1 统一视觉母版执行规则
+
+三端 UI 的正确执行方式不是“Web 参考 AionUi、Desktop 参考 cherry-studio、Mobile 参考 lobehub 各做一套”，而是：
+
+| 层级 | 执行规则 |
+| --- | --- |
+| 视觉母版 | codeg/shadcn 工作台风格是三端唯一视觉母版 |
+| 共享组件 | Button、IconButton、Card、Panel、Badge、MessageBubble、Composer、Approval、RuntimeStatusCard 必须来自同一组件体系或同一设计变量 |
+| 端侧差异 | Web 三栏、Desktop Console、Mobile 单栏可以不同；颜色、圆角、边框、按钮、状态、消息、输入框视觉语言不能分裂 |
+| 参考项目 | AionUi 用于布局和 Agent/Chat 结构，lobehub 用于移动信息架构，cherry-studio 用于桌面密度；都不能覆盖统一视觉母版 |
+| 执行顺序 | 先补共享 token/组件和截图对照测试，再改三端页面 |
+| 停止条件 | 需求不清、PRD 和参考项目冲突、实现无法满足统一母版时，必须生成 `research/prd-amendments/*.md` 并暂停确认 |
+
 ---
 
 ## 5. 各 UI 模块怎么做
@@ -78,6 +95,7 @@ Web、Desktop、Mobile/PWA 三个页面任务都依赖 UI 基础设施。视觉 
 
 - Tailwind CSS 4 设计变量和语义状态色。
 - shadcn/ui 风格基础组件或项目内复用入口。
+- codeg/shadcn 统一视觉母版 token：颜色、边框、圆角、阴影、按钮、Badge、消息气泡、输入框和状态卡。
 - lucide 图标按钮规范，包含中文 `aria-label` 或 tooltip。
 - 基础状态组件：空、加载、失败、执行中、待审批、成功、Runtime 未安装、Runtime 未登录。
 - 关键 E2E 定位点约定，例如 `workspace-shell`、`chat-panel`、`message-composer`、`artifact-panel`、`connector-console`、`runtime-status-card`、`mobile-session`。
@@ -85,6 +103,7 @@ Web、Desktop、Mobile/PWA 三个页面任务都依赖 UI 基础设施。视觉 
 测试先行：
 
 - 基础状态组件渲染中文文案。
+- 三端示例组件使用同一套 token 和 variant。
 - Runtime 状态卡不出现 `API Key`、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`Base URL`。
 - 图标按钮有中文可访问名称。
 
@@ -155,6 +174,7 @@ Web、Desktop、Mobile/PWA 三个页面任务都依赖 UI 基础设施。视觉 
 - Mobile/PWA Playwright mobile viewport。
 - Electron Playwright runner。
 - 统一 helper：无横向滚动、元素不重叠、文本不溢出、无敏感字段、截图留存。
+- 统一视觉母版断言：三端同状态截图使用同一色板、圆角、按钮、Badge、消息气泡、输入框和状态卡；不得各端自写独立视觉皮肤。
 
 测试先行：
 
@@ -169,11 +189,14 @@ Web、Desktop、Mobile/PWA 三个页面任务都依赖 UI 基础设施。视觉 
 
 UI Phase 3 完成必须同时满足：
 
-- [ ] 5 个子任务全部完成。
+- [ ] 5 个原子 UI 子任务全部完成。
+- [ ] Phase 4 前置修正任务 `.trellis/tasks/05-26-ui-visual-unification-refactor/` 已完成，或经截图和测试确认无需返工。
 - [ ] 每个子任务都引用 `FR-UI-001` 和对应业务 FR-ID。
 - [ ] 每个 UI 页面没有英文用户文案、毛坯 HTML、临时内联样式堆叠。
 - [ ] Web、Desktop、Mobile/PWA 都通过功能 E2E。
 - [ ] Web、Desktop、Mobile/PWA 都有关键截图留存。
+- [ ] Web、Desktop、Mobile/PWA 三端截图能看出来自同一视觉母版，而不是三个参考项目拼贴。
+- [ ] 核心 UI 页面复用共享 token 和组件体系，不能绕开设计系统临时堆样式。
 - [ ] 视觉断言覆盖无横向滚动、关键卡片不重叠、长文本不溢出。
 - [ ] 本地 Claude Code/Codex Runtime UI 不出现 API Key、Base URL 或敏感环境变量保存表单。
 

@@ -1,0 +1,8 @@
+{"file":"research/prd.md","reason":"确认 FR-UI-001、三端职责、本地 Runtime 凭证边界和验收标准。"}
+{"file":"research/ui-design-system.md","reason":"统一视觉母版、共享组件硬约束、禁止风格分裂和视觉门禁来源。"}
+{"file":"research/ui-phase3-task-plan.md","reason":"Phase 3/Phase 4 前置顺序和视觉统一返工要求。"}
+{"file":"research/modules/ui-and-visual-testing.md","reason":"参考项目取舍、组件基线和视觉测试策略。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"实现层 UI 样式、定位点、统一母版断言和禁止模式。"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"共享组件结构、props、Tailwind 和可访问性规范。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"中文文案、敏感信息、测试和质量底线。"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"本地 Runtime 检测与凭证边界，防止 API Key 表单回归。"}

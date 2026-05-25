@@ -9,8 +9,8 @@
 | 3 | Milestone 数量 | 7 个 milestone (M11-M15 code-complete + M17 验证 + M18 门禁) | 修订：补充验证里程碑 |
 | 4 | Tech stack | shadcn/ui + Tailwind CSS 4 + lucide-react + Playwright | research/ui-design-system.md |
 | 5 | UI 语言 | 全局中文，禁止英文用户文案 | 用户强制约束 |
-| 6 | 设计参考 | AionUi + codeg 主参考，lobehub + cherry-studio 辅参考 | research/ui-design-system.md |
-| 7 | 验收标准 | 每个 Milestone 必须通过截图、布局断言和敏感信息断言 | research/ui-design-system.md §8 |
+| 6 | 设计参考 | codeg/shadcn 是三端统一视觉母版；AionUi、lobehub、cherry-studio 只作结构、密度和端侧行为参考 | research/ui-design-system.md |
+| 7 | 验收标准 | 每个 Milestone 必须通过截图、布局断言、统一视觉母版断言和敏感信息断言 | research/ui-design-system.md §9 |
 | 8 | 基础复用 | 复用 M5-M10 已完成的功能逻辑，仅重构 UI 层 | state.json M5-M10 completed |
 | 9 | 执行纪律 | TDD 优先 + Phase 4 嵌入每个 wave + 需求不清暂停 | 用户 Maestro 流程约束 |
 | 10 | M11-M16 状态 | 代码已产出但未经 Maestro 验证流程，需补验证 | 用户确认 |
@@ -25,9 +25,9 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 - 未参考 refer_proj 对照实现
 - 未在需求不清时暂停生成 prd-amendments
 
-**修订策略**：保留已产出代码，新增 M17（TDD 验证补全）和 M18（全量视觉门禁），严格按 Maestro 流程执行。
+**修订策略**：保留已产出代码，新增 M17（TDD 验证补全）、M17.5（三端视觉统一返工）和 M18（全量视觉门禁），严格按 Maestro 流程执行。
 
-执行顺序：M17 逐端 TDD 验证补全 → M18 全量三端 E2E 门禁。
+执行顺序：M17 逐端 TDD 验证补全 → M17.5 统一视觉母版返工 → M18 全量三端 E2E 门禁。
 
 ## Maestro 执行纪律（所有后续 Milestone 必须遵守）
 
@@ -37,6 +37,7 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 2. 读取 research/ui-design-system.md 确认设计约束
 3. 读取对应 .trellis/tasks/*/prd.md 确认任务范围
 4. 确认 refer_proj 参考来源
+5. 确认 codeg/shadcn 是三端统一视觉母版，其他参考项目只提供结构或端侧行为
 
 ### TDD 优先
 1. 先写 Playwright 测试/断言（期望行为）
@@ -50,8 +51,9 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 1. 跑该 wave 对应的 E2E 测试
 2. 跑布局断言（无横向滚动、无重叠）
 3. 跑敏感信息断言（无 API Key 等）
-4. 截图留存
-5. 全部通过后才进入下一个 wave
+4. 跑统一视觉母版断言（三端共享色板、圆角、按钮、Badge、消息气泡、输入框和状态卡）
+5. 截图留存
+6. 全部通过后才进入下一个 wave
 
 ### 需求不清暂停
 如果实现中发现：
@@ -153,6 +155,35 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 
 ---
 
+### Milestone 17.5: 三端 UI 视觉统一返工 (v0.17.5)
+**Target**: 修正 Web、Desktop、Mobile/PWA 风格割裂问题，统一到 codeg/shadcn 工作台视觉母版
+**Status**: planned
+
+#### Phases
+
+- [ ] **Phase 1: 统一母版测试先行** — 先补共享 token/组件断言和三端截图对照
+- [ ] **Phase 2: 三端 UI 返工** — 修正 Web、Desktop、Mobile/PWA 页面视觉，不改变三端职责边界
+- [ ] **Phase 3: 局部门禁** — 跑局部 E2E、截图、布局、敏感信息和统一母版断言
+
+#### Phase Details
+
+##### Phase 1-3: 视觉统一返工
+**Goal**: 三端像同一个 AgentHub 产品，而不是三个参考项目拼贴
+**Depends on**: M17 Phase 3
+**Requirements**: FR-UI-001, FR-WEB-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-RUNTIME-001
+**Trellis Task**: 05-26-ui-visual-unification-refactor
+**refer_proj**: codeg/shadcn 为视觉母版；AionUi、lobehub、cherry-studio 只作结构参考
+**Success Criteria** (what must be TRUE):
+  1. 统一母版测试先于 UI 改动落地
+  2. Web、Desktop、Mobile/PWA 同状态截图能看出共享色板、圆角、按钮、Badge、消息气泡、输入框和状态卡
+  3. Desktop 不形成 cherry-studio Provider 设置页视觉
+  4. Mobile 不形成独立 lobehub 模型配置视觉
+  5. Web 不形成 AionUi/Arco 独立视觉皮肤
+  6. 本地 Runtime 凭证边界跨端断言通过
+  7. 需求不清时生成 research/prd-amendments/*.md 并暂停
+
+---
+
 ### Milestone 18: 全量三端 E2E 视觉门禁 (v0.18)
 **Target**: 全量三端 E2E 通过，截图留存，CI 门禁就绪
 **Status**: planned
@@ -165,7 +196,7 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 
 ##### Phase 1: 全量视觉门禁
 **Goal**: 三端所有 E2E 测试通过，截图完整归档，生成门禁报告
-**Depends on**: M17 Phase 3
+**Depends on**: M17.5 Phase 3
 **Requirements**: FR-UI-001, FR-WEB-001, FR-DESK-001, FR-MOB-001
 **Trellis Task**: 05-25-visual-e2e-gate
 **Success Criteria** (what must be TRUE):
@@ -173,9 +204,10 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
   2. Mobile Playwright (390x844) 全部通过
   3. Desktop Playwright (1200x800) 全部通过
   4. 统一 helper 全部就绪：expectNoHorizontalOverflow, expectNoOverlap, expectNoSensitiveFields
-  5. 截图归档至 e2e/artifacts/{web,desktop,mobile}/{page}/{state}.png
-  6. 本地 Runtime 凭证边界跨端断言通过
-  7. 门禁报告生成至 .workflow/scratch/visual-gate-report.md
+  5. 统一视觉母版 helper 或等价断言就绪：expectUsesUnifiedVisualSystem
+  6. 截图归档至 e2e/artifacts/{web,desktop,mobile}/{page}/{state}.png
+  7. 本地 Runtime 凭证边界跨端断言通过
+  8. 门禁报告生成至 .workflow/scratch/visual-gate-report.md
 
 ---
 

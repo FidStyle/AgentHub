@@ -25,9 +25,9 @@
 
 ## 4. UI 参考
 
+- codeg：三端统一视觉母版，Desktop 的按钮、卡片、Badge、输入框、状态卡和弹窗必须与 Web/Mobile 共享 shadcn 工作台质感。
 - AionUi：LocalAgents 检测列表、AgentCard 信息层级、ChatLayout 轻量会话布局。
-- cherry-studio：桌面应用密度和设置分组。
-- codeg：权限弹窗和图标按钮。
+- cherry-studio：只参考桌面应用密度和设置分组，不采用 Provider/API Key 设置页视觉。
 
 ## 5. TDD 与测试计划
 
@@ -39,6 +39,7 @@
 - 凭证边界测试：页面不存在 `API Key`、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`Base URL` 输入框。
 - 离线状态测试：Connector 离线时本地执行入口不可用，并显示中文修复提示。
 - 视觉断言：1200x800 下状态卡不重叠、无横向滚动。
+- 视觉一致性断言：Desktop 不能形成独立 cherry-studio 设置页皮肤，必须与 Web/Mobile 共享 codeg/shadcn 母版。
 
 ## 6. 不做
 
@@ -55,3 +56,4 @@
 - [ ] 本地 Agent 轻量会话入口和运行态视图清晰。
 - [ ] 本地 Runtime 凭证边界通过 E2E 断言。
 - [ ] Electron 视觉截图和布局断言进入测试。
+- [ ] Desktop 与 Web/Mobile 共享核心视觉 token 和组件语言，只改变桌面密度和 Console 信息结构。

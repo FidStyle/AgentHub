@@ -194,13 +194,14 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。
 
 #### FR-UI-001: 三端 UI 视觉与交互契约
 
-**描述：** P0 必须把 UI 作为功能验收的一部分。Web、Desktop、Mobile/PWA 统一采用 `shadcn/ui + Tailwind CSS 4 + lucide-react` 作为组件和样式基线；AionUi 与 codeg 作为主参考，lobehub 与 cherry-studio 作为辅助参考。AionUi 提供高密度聊天、预览分栏和 Agent 卡片参考；codeg 提供 shadcn 风格侧栏、会话壳、输入框工具条和权限弹窗参考。
+**描述：** P0 必须把 UI 作为功能验收的一部分。Web、Desktop、Mobile/PWA 统一采用 `shadcn/ui + Tailwind CSS 4 + lucide-react` 作为组件和样式基线，并统一以 codeg/shadcn 工作台风格作为三端视觉母版。AionUi 只提供高密度聊天、预览分栏、LocalAgents、Agent 卡片和 Desktop 轻量会话结构参考；lobehub 只提供移动信息架构参考；cherry-studio 只提供桌面密度和设置分组参考。三端不能分别复刻不同参考项目的视觉皮肤。
 
 该需求覆盖全局视觉系统、三端布局、状态表达、中文术语和视觉 E2E 门禁。P0 任何核心交互都不能以“先能跑、后补样式”为交付口径。
 
 **验收标准：**
 
 - [ ] Web、Desktop、Mobile/PWA 的核心页面必须使用统一 Tailwind 设计变量、shadcn 组件模式和 lucide 图标，不得交付无样式纯 HTML 或大量一次性内联样式。
+- [ ] Web、Desktop、Mobile/PWA 的按钮、卡片、Badge、消息气泡、输入框、状态卡和弹窗必须来自同一视觉母版；只允许布局密度、栏数和导航方式按端差异化。
 - [ ] Web 首屏必须是可用的三栏 IM 工作台或其登录/空状态，不得用营销式首页替代主体验。
 - [ ] Desktop 必须呈现 Connector Console 的检测、连接、执行、审批状态和轻量本地 Agent 会话入口，不得复制完整 Web 三栏工作台，也不得渲染本地 Claude Code / Codex API Key 配置表单。
 - [ ] Mobile/PWA 必须采用轻量单栏或双层导航体验，覆盖 Workspace、Session、消息、审批和预览，不得塞入完整桌面级 Diff 合并或本地 Runtime 配置。
@@ -209,6 +210,7 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。
 - [ ] 消息气泡、Orchestrator 计划卡、任务结果卡、Action 状态卡、审批卡、Agent 卡、Runtime 状态卡、输入框工具条和 Artifact/Preview 面板必须符合 `research/ui-design-system.md` 的组件契约。
 - [ ] Playwright E2E 必须覆盖 Web 桌面视口、Mobile/PWA 视口和 Electron Desktop 视口，并对关键页面保存截图。
 - [ ] 视觉 E2E 不能只使用 `toBeVisible`；必须包含关键容器 bounding box、文本不溢出、卡片不重叠、固定格式组件尺寸稳定等布局断言。
+- [ ] 视觉 E2E 必须包含三端同状态截图对照和统一视觉母版断言，防止 Web、Desktop、Mobile/PWA 像三个不同产品。
 - [ ] 视觉回归截图不能包含密钥、完整敏感环境变量或未授权本地路径。
 
 **依赖：** FR-DEVICE-001, FR-WEB-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-RESULT-001, FR-PERM-001。
