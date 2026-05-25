@@ -2,7 +2,7 @@
   "version": "3.1",
   "project_name": "AgentHub",
   "status": "active",
-  "current_milestone": "M12",
+  "current_milestone": "M13",
   "current_task_id": null,
   "milestones": [
     {
@@ -174,7 +174,7 @@
       "id": "M12",
       "name": "Web 三栏 IM 工作台重构",
       "type": "standard",
-      "status": "planned",
+      "status": "completed",
       "phases": [
         "Phase 1: Web 三栏工作台 UI"
       ],
@@ -182,7 +182,8 @@
         "1": "01-web-workbench-ui"
       },
       "roadmap_ref": ".workflow/roadmap.md",
-      "created_at": "2026-05-25T00:00:00Z"
+      "created_at": "2026-05-25T00:00:00Z",
+      "completed_at": "2026-05-25T08:36:40.795991+00:00"
     },
     {
       "id": "M13",
@@ -376,45 +377,9 @@
       "harvested": false,
       "created_at": "2026-05-23T21:00:00Z",
       "completed_at": "2026-05-23T21:11:00Z"
-    },
-    {
-      "id": "ANL-012",
-      "type": "analyze",
-      "scope": "phase",
-      "status": "completed",
-      "milestone": "M12",
-      "phase": 1,
-      "path": ".workflow/scratch/20260525-analyze-M12-P1-web-workbench",
-      "recommendation": "Go",
-      "confidence": 90,
-      "created_at": "2026-05-25T08:24:44.835293+00:00"
-    },
-    {
-      "id": "PLN-012",
-      "type": "plan",
-      "scope": "phase",
-      "status": "completed",
-      "milestone": "M12",
-      "phase": 1,
-      "path": ".workflow/scratch/20260525-plan-M12-P1-web-workbench",
-      "depends_on": "ANL-012",
-      "task_count": 6,
-      "wave_count": 3,
-      "created_at": "2026-05-25T08:26:52.499056+00:00"
-    },
-    {
-      "id": "EXC-012",
-      "type": "execute",
-      "scope": "phase",
-      "status": "completed",
-      "milestone": "M12",
-      "phase": 1,
-      "path": ".workflow/scratch/20260525-plan-M12-P1-web-workbench",
-      "created_at": "2026-05-25T08:30:44.752694+00:00",
-      "confidence": 90
     }
   ],
-  "last_updated": "2026-05-25T08:30:44.752810+00:00",
+  "last_updated": "2026-05-25T08:36:40.795991+00:00",
   "accumulated_context": {
     "key_decisions": [
       "Progressive delivery: M5→M6→M7→M8→M9",
@@ -691,6 +656,48 @@
           "path": ".workflow/scratch/20260525-plan-P1-design-system",
           "created_at": "2026-05-25T06:43:13.763801+00:00",
           "confidence": 95
+        }
+      ]
+    },
+    {
+      "milestone": "M12",
+      "completed_at": "2026-05-25T08:36:40.795991+00:00",
+      "artifacts": [
+        {
+          "id": "ANL-012",
+          "type": "analyze",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M12",
+          "phase": 1,
+          "path": ".workflow/scratch/20260525-analyze-M12-P1-web-workbench",
+          "recommendation": "Go",
+          "confidence": 90,
+          "created_at": "2026-05-25T08:24:44.835293+00:00"
+        },
+        {
+          "id": "PLN-012",
+          "type": "plan",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M12",
+          "phase": 1,
+          "path": ".workflow/scratch/20260525-plan-M12-P1-web-workbench",
+          "depends_on": "ANL-012",
+          "task_count": 6,
+          "wave_count": 3,
+          "created_at": "2026-05-25T08:26:52.499056+00:00"
+        },
+        {
+          "id": "EXC-012",
+          "type": "execute",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M12",
+          "phase": 1,
+          "path": ".workflow/scratch/20260525-plan-M12-P1-web-workbench",
+          "created_at": "2026-05-25T08:30:44.752694+00:00",
+          "confidence": 90
         }
       ]
     }

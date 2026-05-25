@@ -1,209 +1,198 @@
-# Roadmap: AgentHub Phase 3 全栈落地
+# Roadmap: AgentHub UI Phase 3
 
 ## Roadmap Decisions
 
 | # | Decision | Choice | Source |
 |---|----------|--------|--------|
-| 1 | Scope | P0 MVP 全量（16 个 FR-ID） | research/prd.md |
-| 2 | Strategy | Progressive (渐进式交付) | analyze:ANL-005 |
-| 3 | Milestone 数量 | 5 个 milestone (M5-M9) | scope_verdict=large |
-| 4 | Tech stack | Next.js + Supabase + Electron + pnpm monorepo | research/technical-design.md |
-| 5 | UI 语言 | 全局中文 | 用户强制约束 |
-| 6 | 每个 Milestone | 必须产出可运行 UI + 一键启动 | 用户强制约束 |
-| 7 | Mobile | PWA (同一 Next.js 响应式路由) | research/technical-design.md |
-| 8 | 基础复用 | 复用已有 monorepo 骨架 + auth 流程 + 类型定义 | analyze:ANL-005 |
+| 1 | Scope | UI Phase 3 全量（三端 UI 重构 + 视觉门禁） | research/ui-phase3-task-plan.md |
+| 2 | Strategy | Progressive (渐进式交付) | 任务依赖链 |
+| 3 | Milestone 数量 | 5 个 milestone (M11-M15) | ui-phase3-task-plan.md 任务树 |
+| 4 | Tech stack | shadcn/ui + Tailwind CSS 4 + lucide-react + Playwright | research/ui-design-system.md |
+| 5 | UI 语言 | 全局中文，禁止英文用户文案 | 用户强制约束 |
+| 6 | 设计参考 | AionUi + codeg 主参考，lobehub + cherry-studio 辅参考 | research/ui-design-system.md |
+| 7 | 验收标准 | 每个 Milestone 必须通过截图、布局断言和敏感信息断言 | research/ui-design-system.md §8 |
+| 8 | 基础复用 | 复用 M5-M10 已完成的功能逻辑，仅重构 UI 层 | state.json M5-M10 completed |
 
 ## Overview
 
-AgentHub Phase 3 从已有 monorepo 骨架出发，渐进式实现全部 P0 需求。每个 Milestone 必须产出可运行的真实 UI 界面，禁止纯逻辑交付。
+UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-system.md` 设计系统契约，对三端 UI 进行系统性重构。目标是将所有 P0 页面从毛坯/营销式界面升级为符合设计系统的产品级界面，并建立视觉 E2E 门禁确保质量。
 
-已有基础：pnpm monorepo 骨架、GitHub OAuth 流程、Web 三栏布局壳子、Desktop Electron 壳子、packages/shared 完整 domain types。
+已有基础：M5-M10 全部功能逻辑已完成（Auth、IM 消息流、Agent、Desktop Connector、Runtime、Orchestrator、Mobile PWA、E2E 基础）。
+
+执行顺序：UI 基础设施 → Web 工作台 → Desktop Console → Mobile/PWA → 三端视觉 E2E 门禁。
 
 ## Milestones
 
-### Milestone 5: Auth + DB + API 基础层 (v0.5)
-**Target**: 完善 Auth 流程 + Supabase DB Schema + Workspace/Session CRUD API + 中文登录/首页 UI
+### Milestone 11: UI 基础设施与设计系统 (v0.11)
+**Target**: 落地三端共享设计变量、基础组件、状态组件和 E2E 定位点约定
 **Status**: planned
 
 #### Phases
 
-- [ ] **Phase 1: Auth + DB Schema + Workspace API** — Supabase 表结构、RLS 策略、Workspace/Session CRUD、中文登录页
+- [ ] **Phase 1: 设计系统基础设施** — Tailwind CSS 4 设计变量、shadcn/ui 基础组件、lucide 图标按钮、状态组件、E2E 定位点
 
 #### Phase Details
 
-##### Phase 1: Auth + DB Schema + Workspace API
-**Goal**: 用户可通过 GitHub OAuth 登录，看到中文首页，创建 Workspace 和 Session，数据持久化到 Supabase
-**Depends on**: 已有 monorepo 骨架
-**Requirements**: FR-AUTH-001, FR-WS-001, FR-PERM-001(基础)
+##### Phase 1: 设计系统基础设施
+**Goal**: 三端共享的设计变量、基础组件库和状态组件就绪，后续三端 UI 重构可直接引用
+**Depends on**: M5-M10 已完成的功能基础
+**Requirements**: FR-UI-001, FR-DEVICE-001
 **Success Criteria** (what must be TRUE):
-  1. `pnpm dev:web` 启动后浏览器可访问中文登录页
-  2. GitHub OAuth 登录成功后跳转中文 Workspace 列表页
-  3. 用户可创建 Workspace（选择执行域）和 Session
-  4. 所有数据持久化到 Supabase（非 in-memory）
-  5. 所有 UI 文字为简体中文
+  1. Tailwind CSS 4 设计变量（颜色、间距、圆角）在三端主题中生效
+  2. shadcn/ui 风格基础组件（Button、Card、Input、Dialog、Badge）可在三端复用
+  3. lucide 图标按钮规范落地，所有图标按钮有中文 `aria-label` 或 tooltip
+  4. 基础状态组件就绪：空、加载、失败、执行中、待审批、成功、Runtime 未安装、Runtime 未登录
+  5. 状态组件渲染中文文案，不出现英文占位
+  6. Runtime 状态卡不出现 `API Key`、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`Base URL`
+  7. E2E 定位点约定文档化：`workspace-shell`、`chat-panel`、`message-composer`、`artifact-panel`、`connector-console`、`runtime-status-card`、`mobile-session`
 
 ---
 
-### Milestone 6: Web IM 工作台核心 (v0.6)
-**Target**: Web 三栏 IM 工作台完整功能 + 消息流 + Agent 配置 + Artifact 渲染
+### Milestone 12: Web 三栏 IM 工作台重构 (v0.12)
+**Target**: 重构 Web 三栏 IM 工作台，替代营销式首页或毛坯工作台
 **Status**: planned
 
 #### Phases
 
-- [ ] **Phase 1: IM 消息流 + Agent + Artifact** — 消息发送/接收/流式、Role Agent 配置、Markdown/代码块渲染、上下文 Pin、结果卡片
+- [ ] **Phase 1: Web 三栏工作台 UI** — 左栏导航、中栏消息流、右栏 Artifact、顶部工具条、响应式收起
 
 #### Phase Details
 
-##### Phase 1: IM 消息流 + Agent + Artifact
-**Goal**: 用户在 Web 三栏工作台中发送消息、@ Role Agent、看到流式回复（先用 Hosted Runtime mock）；支持 Markdown 渲染、代码块高亮、上下文 Pin、任务结果卡片
-**Depends on**: Milestone 5 Phase 1
-**Requirements**: FR-WEB-001, FR-CHAT-001, FR-AGENT-001, FR-ARTIFACT-001, FR-RESULT-001, FR-CTX-001(pin)
+##### Phase 1: Web 三栏工作台 UI
+**Goal**: Web 端呈现符合设计系统的高密度三栏 IM 工作台，所有核心交互组件就位
+**Depends on**: M11 Phase 1
+**Requirements**: FR-WEB-001, FR-CHAT-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ORCH-001, FR-PERM-001, FR-UI-001
 **Success Criteria** (what must be TRUE):
-  1. 左栏 Workspace 切换 + Session 列表功能完整
-  2. 中栏消息流支持用户消息、Agent 流式回复、系统消息
-  3. 用户可 @ Role Agent，Agent 配置可在右栏查看/编辑
-  4. 消息支持 Markdown 渲染、代码块语法高亮、一键复制
-  5. 用户可 pin 消息作为长期上下文
-  6. 任务结果卡片展示状态、摘要、文件变更
-  7. 所有 UI 文字为简体中文
-  8. Supabase Realtime 订阅消息更新
+  1. 左栏：Workspace 切换、Session 列表、待审批入口、Connector 状态摘要
+  2. 中栏：消息流、用户消息、Role Agent 状态、计划卡、审批卡、任务结果卡、输入框
+  3. 右栏：Artifacts、Context、Agents、Preview tabs，可折叠
+  4. 顶部工具条：当前 Workspace、Session 状态、Role Agent 参与状态
+  5. 1440x900 下三栏不重叠
+  6. 1024x768 下右栏可收起，无横向滚动
+  7. 输入中文任务后能看到用户消息和 Agent 状态
+  8. 计划卡、审批卡、任务结果卡均有截图和布局断言
+  9. 所有 UI 文字为简体中文
 
 ---
 
-### Milestone 7: Desktop Connector + Runtime (v0.7)
-**Target**: Desktop Connector 完整协议 + Claude Code/Codex Runtime Adapter + 设备绑定
+### Milestone 13: Desktop Connector Console 重构 (v0.13)
+**Target**: 重构 Electron Connector Console，聚焦本地连接、检测、执行和审批
 **Status**: planned
 
 #### Phases
 
-- [ ] **Phase 1: Desktop Connector + Runtime Adapter** — 设备绑定、WebSocket DeviceChannel、Runtime 检测、Claude Code CLI Adapter、流式事件回传
+- [ ] **Phase 1: Desktop Console UI** — 状态条、Workspace 绑定、Runtime 检测、执行活动、待审批
 
 #### Phase Details
 
-##### Phase 1: Desktop Connector + Runtime Adapter
-**Goal**: Desktop Connector 可登录绑定、检测本地 Claude Code/Codex、通过 WebSocket 与后端通信；Role Agent 可通过 Adapter 调用本地 CLI 并流式回传结果
-**Depends on**: Milestone 6 Phase 1
-**Requirements**: FR-DESK-001, FR-DEVICE-001, FR-RUNTIME-001, FR-AGENT-001(runtime binding)
+##### Phase 1: Desktop Console UI
+**Goal**: Desktop Connector Console 呈现符合设计系统的中密度管理界面，聚焦本地 Runtime 状态和执行管理
+**Depends on**: M11 Phase 1
+**Requirements**: FR-DESK-001, FR-RUNTIME-001, FR-ACTION-001, FR-NOTIFY-001, FR-UI-001
 **Success Criteria** (what must be TRUE):
-  1. `pnpm dev:desktop` 启动 Electron 窗口，显示中文 Connector Console
-  2. Desktop 可通过绑定码与 Web 账号关联
-  3. Desktop 检测本地 Claude Code/Codex 可用性并显示状态
-  4. Desktop 通过 WebSocket 与后端建立 DeviceChannel
-  5. Role Agent 通过 Adapter 调用本地 Claude Code 并流式回传结果
-  6. 所有 Desktop UI 文字为简体中文
+  1. 顶部状态条：登录用户、设备名、在线状态、最后心跳
+  2. Workspace 绑定：授权目录、目录健康状态、打开 Web 工作台入口
+  3. Runtime 检测：Claude Code/Codex 安装、版本、原生认证状态、能力声明
+  4. 执行活动：最近 Runtime/Action 请求、状态、失败原因
+  5. 待审批：设备相关审批和高风险动作确认
+  6. Electron 启动后显示 `connector-console` 定位点
+  7. 本地 Runtime 页面不存在 API Key、Base URL 和敏感环境变量输入框
+  8. 1200x800 下状态卡不重叠、无横向滚动
+  9. 所有 Desktop UI 文字为简体中文
 
 ---
 
-### Milestone 8: Orchestrator + Action + 权限 (v0.8)
-**Target**: Orchestrator 编排引擎 + Action 执行 + 权限策略 + 通知队列
+### Milestone 14: Mobile/PWA 轻量 IM、审批、预览 (v0.14)
+**Target**: 实现移动轻量 IM、审批和预览，不做小号 Web IDE
 **Status**: planned
 
 #### Phases
 
-- [ ] **Phase 1: Orchestrator + Action + Permission** — Orchestrator Plan DAG、计划确认、任务分派、Action 执行、权限策略、站内通知
+- [ ] **Phase 1: Mobile/PWA UI** — Workspace 列表、Session 列表、轻量会话、审批详情、预览页
 
 #### Phase Details
 
-##### Phase 1: Orchestrator + Action + Permission
-**Goal**: Orchestrator 可生成计划、请求确认、分派任务、汇总结果；Action 可执行本地命令；权限策略在高风险动作时触发确认；站内通知队列工作
-**Depends on**: Milestone 7 Phase 1
-**Requirements**: FR-ORCH-001, FR-CTX-001(handoff), FR-ACTION-001, FR-PERM-001, FR-NOTIFY-001
+##### Phase 1: Mobile/PWA UI
+**Goal**: Mobile/PWA 端呈现符合设计系统的单列轻量界面，覆盖 IM、审批和预览核心场景
+**Depends on**: M11 Phase 1
+**Requirements**: FR-MOB-001, FR-NOTIFY-001, FR-CHAT-001, FR-RESULT-001, FR-UI-001
 **Success Criteria** (what must be TRUE):
-  1. Orchestrator 可生成 Plan DAG 并在 Web 展示计划卡
-  2. 用户确认后 Orchestrator 分派 ready 节点给 Role Agent
-  3. Action 执行本地 preview 命令并返回状态卡片
-  4. 权限策略在高风险动作时触发确认流程
-  5. 站内通知队列展示待审批项
-  6. 上下文 Handoff 在角色切换时传递 Context Package
-  7. 所有 UI 文字为简体中文
+  1. Workspace 列表：最近工作区、执行域、Connector 状态、待审批数量
+  2. Session 列表：会话标题、最后消息、Agent 状态、待确认标记
+  3. 轻量会话：消息流、任务状态、结果摘要、输入框、@ Role Agent
+  4. 审批详情：风险说明、影响范围、批准/拒绝
+  5. 预览页：预览链接、结果摘要、只读 Diff 或文件摘要
+  6. 390x844 下无横向滚动
+  7. 输入框、底部/顶部导航不遮挡消息内容
+  8. 审批详情页能完成批准/拒绝流转
+  9. 长标题、长文件名、长路径摘要不溢出
+  10. 所有 Mobile UI 文字为简体中文
 
 ---
 
-### Milestone 9: Mobile + 三端联调 + Demo (v0.9)
-**Target**: Mobile PWA + 三端联调 + P0 Demo 主路径硬化
+### Milestone 15: 三端视觉 E2E 门禁 (v0.15)
+**Target**: 建立三端截图、布局、文本溢出和敏感信息断言的自动化门禁
 **Status**: planned
 
 #### Phases
 
-- [ ] **Phase 1: Mobile PWA + E2E Demo** — Mobile 响应式路由、跨端通知/审批、端到端主路径验证
+- [ ] **Phase 1: 视觉 E2E 门禁** — Web/Desktop/Mobile Playwright 项目、统一 helper、截图留存
 
 #### Phase Details
 
-##### Phase 1: Mobile PWA + E2E Demo
-**Goal**: Mobile 可查看 Session、发送消息、完成审批；Web+Desktop+Mobile 三端配合完成一次端到端开发任务；P0 Demo 主路径无阻塞
-**Depends on**: Milestone 8 Phase 1
-**Requirements**: FR-MOB-001, FR-NOTIFY-001(cross-platform), FR-DEVICE-001(mobile), 全部 P0 FR-ID
+##### Phase 1: 视觉 E2E 门禁
+**Goal**: 三端视觉 E2E 测试全部通过，确保 UI Phase 3 交付质量
+**Depends on**: M12 Phase 1, M13 Phase 1, M14 Phase 1
+**Requirements**: FR-UI-001, FR-WEB-001, FR-DESK-001, FR-MOB-001
 **Success Criteria** (what must be TRUE):
-  1. Mobile PWA 路由可在手机浏览器访问
-  2. Mobile 可查看 Workspace/Session 列表和消息流
-  3. Mobile 可发送消息和完成待确认动作
-  4. Web + Desktop + Mobile 三端配合完成端到端开发任务
-  5. P0 Demo 主路径无阻塞错误
-  6. 所有 Mobile UI 文字为简体中文
+  1. Web desktop Playwright project 配置完成（1440x900 + 1024x768）
+  2. Mobile/PWA Playwright mobile viewport 配置完成（390x844）
+  3. Electron Playwright runner 配置完成（1200x800）
+  4. 统一 helper：无横向滚动断言、元素不重叠断言、文本不溢出断言、无敏感字段断言
+  5. Web 工作台截图和布局断言通过
+  6. Mobile/PWA 会话、审批、预览截图和布局断言通过
+  7. Desktop Connector Console 截图和布局断言通过
+  8. 本地 Runtime 凭证边界跨端断言通过
+  9. 截图保存至 `e2e/artifacts/<端>/<页面>/<状态>.png`
 
 ---
 
-### Milestone 10: E2E Automation Gate (v1.0-rc)
-**Target**: Playwright E2E 测试覆盖 Web + Desktop 核心用户流，建立自动化质量门禁
-**Status**: planned
+## Scope Decisions
 
-**Minimum-phase principle:** 单 Phase——所有 E2E 测试共享同一套 Playwright 基础设施，无硬依赖分割。
+- **In scope**: 三端 UI 设计系统落地、Web/Desktop/Mobile 页面重构、视觉 E2E 门禁
+- **Deferred**: 功能逻辑变更（已在 M5-M10 完成）、新 FR-ID 功能开发
+- **Out of scope**: 部署发布、Agent Marketplace、版本控制增强
 
-#### Phases
+## FR-ID → Milestone 映射 (UI Phase 3)
 
-- [ ] **Phase 1: Playwright E2E 基础设施 + 核心用户流** — 框架搭建、Web/Desktop 配置、5 条核心路径自动化
-
-#### Phase Details
-
-##### Phase 1: Playwright E2E 基础设施 + 核心用户流
-**Goal**: 搭建 Playwright 测试基础设施（Web + Electron），实现 5 条核心用户流 E2E 测试全部通过
-**Depends on**: M9 Phase 1（全部 P0 功能已实现）
-**Requirements**: QA-E2E-001（Web E2E）, QA-E2E-002（Desktop E2E）, QA-E2E-003（核心流覆盖）
-**Success Criteria** (what must be TRUE):
-  1. `pnpm test:e2e` 一键运行全部 E2E 测试并输出报告
-  2. Web 端 Playwright 配置完成，可启动 Next.js dev server 并自动化浏览器操作
-  3. Desktop 端通过 `@playwright/test` + Electron launch 配置完成，可自动化 Electron 窗口操作
-  4. 以下 5 条核心用户流全部绿灯：
-     - Flow 1: 登录 → 创建 Workspace → 进入 Session
-     - Flow 2: 发送消息 → 触发 Agent SSE 流式回复 → 消息渲染完成
-     - Flow 3: @ Role Agent → Agent 配置面板展示 → 编辑保存
-     - Flow 4: 消息 Pin → 上下文面板显示 → Artifact 详情展开
-     - Flow 5: Desktop 启动 → 设备绑定 → Runtime 状态检测
-  5. CI 可集成（测试脚本支持 headless 模式 + 退出码）
-
----
-
-## FR-ID → Milestone 映射
-
-| FR-ID | Milestone | Phase |
-|-------|-----------|-------|
-| FR-AUTH-001 | M5 | P1 |
-| FR-WS-001 | M5 | P1 |
-| FR-PERM-001 | M5 (基础) + M8 (完整) | P1 |
-| FR-WEB-001 | M6 | P1 |
-| FR-CHAT-001 | M6 | P1 |
-| FR-AGENT-001 | M6 (配置) + M7 (binding) | P1 |
-| FR-ARTIFACT-001 | M6 | P1 |
-| FR-RESULT-001 | M6 | P1 |
-| FR-CTX-001 | M6 (pin) + M8 (handoff) | P1 |
-| FR-DESK-001 | M7 | P1 |
-| FR-DEVICE-001 | M7 + M9 | P1 |
-| FR-RUNTIME-001 | M7 | P1 |
-| FR-ORCH-001 | M8 | P1 |
-| FR-ACTION-001 | M8 | P1 |
-| FR-NOTIFY-001 | M8 + M9 | P1 |
-| FR-MOB-001 | M9 | P1 |
-| QA-E2E-001 | M10 | P1 |
-| QA-E2E-002 | M10 | P1 |
-| QA-E2E-003 | M10 | P1 |
+| FR-ID | Milestone | Phase | 验收重点 |
+|-------|-----------|-------|----------|
+| FR-UI-001 | M11 (基础) + M12-M15 (各端) | P1 | 设计系统合规 |
+| FR-DEVICE-001 | M11 | P1 | 状态组件、断点适配 |
+| FR-WEB-001 | M12 | P1 | 三栏布局、响应式 |
+| FR-CHAT-001 | M12 + M14 | P1 | 消息流 UI |
+| FR-ARTIFACT-001 | M12 | P1 | 右栏 Artifact tabs |
+| FR-RESULT-001 | M12 + M14 | P1 | 任务结果卡片 |
+| FR-ORCH-001 | M12 | P1 | 计划卡 UI |
+| FR-PERM-001 | M12 | P1 | 审批卡 UI |
+| FR-DESK-001 | M13 | P1 | Connector Console |
+| FR-RUNTIME-001 | M13 | P1 | Runtime 检测 UI |
+| FR-ACTION-001 | M13 | P1 | 执行活动 UI |
+| FR-NOTIFY-001 | M13 + M14 | P1 | 待审批入口 |
+| FR-MOB-001 | M14 | P1 | 移动轻量界面 |
 
 ## Progress
 
 | Milestone | Status | Phases Done | Notes |
 |-----------|--------|-------------|-------|
-| M5: Auth + DB + API | completed | 1/1 | |
-| M6: Web IM 工作台 | completed | 1/1 | |
-| M7: Desktop + Runtime | completed | 1/1 | |
-| M8: Orchestrator + Action | completed | 1/1 | |
-| M9: Mobile + Demo | completed | 1/1 | |
-| M10: E2E Automation Gate | completed | 1/1 | |
+| M5: Auth + DB + API | completed | 1/1 | 功能基础 |
+| M6: Web IM 工作台 | completed | 1/1 | 功能基础 |
+| M7: Desktop + Runtime | completed | 1/1 | 功能基础 |
+| M8: Orchestrator + Action | completed | 1/1 | 功能基础 |
+| M9: Mobile + Demo | completed | 1/1 | 功能基础 |
+| M10: E2E Automation Gate | completed | 1/1 | 功能基础 |
+| M11: UI 基础设施与设计系统 | Not started | 0/1 | — |
+| M12: Web 三栏 IM 工作台重构 | Not started | 0/1 | 依赖 M11 |
+| M13: Desktop Connector Console 重构 | Not started | 0/1 | 依赖 M11 |
+| M14: Mobile/PWA 轻量 IM、审批、预览 | Not started | 0/1 | 依赖 M11 |
+| M15: 三端视觉 E2E 门禁 | Not started | 0/1 | 依赖 M12+M13+M14 |

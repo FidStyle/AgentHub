@@ -1,0 +1,23 @@
+{
+  "id": "TASK-001",
+  "title": "初始化 packages/ui 包",
+  "type": "implementation",
+  "wave": 1,
+  "depends_on": [],
+  "requirement_refs": ["FR-UI-001"],
+  "description": "创建 packages/ui 包：package.json（依赖 lucide-react, class-variance-authority, clsx, tailwind-merge）、tsconfig.json、src/index.ts、src/lib/utils.ts（cn 函数）",
+  "acceptance_criteria": [
+    "packages/ui/package.json 存在且依赖正确",
+    "cn() 工具函数可用",
+    "pnpm install 无报错"
+  ],
+  "files_to_create": [
+    "packages/ui/package.json",
+    "packages/ui/tsconfig.json",
+    "packages/ui/src/index.ts",
+    "packages/ui/src/lib/utils.ts"
+  ],
+  "files_to_modify": [
+    "pnpm-workspace.yaml"
+  ]
+}

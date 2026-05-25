@@ -1,0 +1,19 @@
+{
+  "id": "TASK-007",
+  "title": "Desktop RuntimeConfigPage 违规修复",
+  "type": "refactor",
+  "wave": 3,
+  "depends_on": ["TASK-006"],
+  "requirement_refs": ["FR-DEVICE-001"],
+  "description": "重构 apps/desktop/src/renderer/components/RuntimeConfigPage.tsx：删除 API Key/Base URL 输入表单，改为使用 packages/ui 的 StateCard（RuntimeNotInstalled/RuntimeNotLoggedIn）+ 引导用户使用原生 CLI 认证。迁移 inline style 到 Tailwind class。",
+  "acceptance_criteria": [
+    "页面不存在 API Key、ANTHROPIC_API_KEY、OPENAI_API_KEY、Base URL 输入框",
+    "使用 StateCard 组件展示 Runtime 状态",
+    "引导文案为中文",
+    "使用 Tailwind class 替代 inline style"
+  ],
+  "files_to_modify": [
+    "apps/desktop/src/renderer/components/RuntimeConfigPage.tsx",
+    "apps/desktop/src/renderer/components/RuntimeStatus.tsx"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "TASK-003",
+  "title": "Desktop + Mobile Tailwind 配置",
+  "type": "implementation",
+  "wave": 1,
+  "depends_on": ["TASK-002"],
+  "requirement_refs": ["FR-UI-001", "FR-DEVICE-001"],
+  "description": "为 apps/desktop/src/renderer 和 apps/mobile 新增 postcss.config.mjs + globals.css（引用 packages/ui 设计变量）。确保三端共享同一套设计变量。",
+  "acceptance_criteria": [
+    "Desktop renderer 有 postcss.config.mjs + globals.css",
+    "Mobile 有 postcss.config.mjs + globals.css",
+    "三端 Tailwind 编译无报错"
+  ],
+  "files_to_create": [
+    "apps/desktop/src/renderer/postcss.config.mjs",
+    "apps/desktop/src/renderer/globals.css",
+    "apps/mobile/postcss.config.mjs",
+    "apps/mobile/src/globals.css"
+  ],
+  "files_to_modify": [
+    "apps/desktop/package.json",
+    "apps/mobile/package.json"
+  ]
+}
