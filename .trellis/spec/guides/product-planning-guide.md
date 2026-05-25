@@ -11,14 +11,19 @@
 - `research/prd.md`
 - `research/product-design.md`
 - `research/ui-design-system.md`
+- `research/automation-reference-comparison.md`
 - 涉及 UI Phase 3 时读取 `research/ui-phase3-task-plan.md`
 - 当前活动的 `.trellis/tasks/*/prd.md` 切片
 
 然后检查：
 
 - [ ] 每个任务都写明它实现的 PRD `FR-ID`。
+- [ ] 每个任务都写明 `read_first` 或等价必读文件，包含 PRD、产品设计、技术设计、相关模块研究和参考项目来源。
+- [ ] 每个任务都写明 `reference_sources` 或等价参考来源；涉及参考项目的任务必须指出 `refer_proj/*` 的具体来源或对应 `research/` 调研文档。
+- [ ] 自动化执行遵循 `research/automation-reference-comparison.md`：Maestro-Flow 负责执行闭环参考，CodeStable 负责需求暂停和验收回写参考。
 - [ ] 项目级任务规划已经先写入 `research/`；`.trellis/tasks/*/` 只承载可执行切片。
 - [ ] 涉及 UI 的任务必须额外引用 `FR-UI-001`、`research/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
+- [ ] 涉及 UI 的任务必须引用 `research/modules/ui-and-visual-testing.md`，并写明 AionUi、codeg、lobehub、cherry-studio 中采用或不采用的部分。
 - [ ] 涉及 UI Phase 3 的任务必须能追溯到 `research/ui-phase3-task-plan.md` 中的模块、顺序和 Definition of Done。
 - [ ] UI 行为匹配 `research/product-design.md` 中的页面、流程、组件和状态设计。
 - [ ] UI 组件基线使用 `shadcn/ui + Tailwind CSS 4 + lucide-react`，不能交付无样式纯 HTML。
@@ -52,8 +57,44 @@ Phase 2 技术选型还要检查：
 - `验收来源`：正在实现的 PRD 验收标准或产品设计流程。
 - `UI 契约`：如果任务涉及界面，必须写 `FR-UI-001`、参考组件、断点和视觉 E2E 断言。
 - `项目级规划`：如果任务属于某个阶段性规划，必须能追溯到 `research/` 下的对应规划文档。
+- `自动化约束`：必须写明执行闭环、参考项目注入和需求反写规则，来源是 `research/automation-reference-comparison.md`。
+- `参考来源`：必须列出实现前要读的 `research/*`、`.trellis/spec/*`、`refer_proj/*` 或任务级研究文档。
 
-如果某个行为无法映射到现有 `FR-ID`，先暂停实现并更新 PRD。
+如果某个行为无法映射到现有 `FR-ID`，先暂停实现并更新 PRD 或新增 `research/prd-amendments/*.md` 修订记录。
+
+---
+
+## 自动化执行与需求反写规则
+
+AgentHub 实现阶段采用两层参考：
+
+- Maestro-Flow：作为 plan -> execute -> verify -> review -> test -> gap plan/fix-loop 的执行闭环参考。
+- CodeStable：作为需求不清暂停、设计回退、验收后回写 PRD/技术设计/任务状态的治理参考。
+
+实现中命中以下任一条件，必须停止继续写代码：
+
+- [ ] 新行为无法绑定到 `research/prd.md` 中的 `FR-ID`。
+- [ ] PRD Acceptance Criteria 不足以写出自动化断言。
+- [ ] UI 任务缺少 `FR-UI-001`、UI 设计系统、视觉 E2E 或参考项目来源。
+- [ ] 参考项目建议与 PRD、产品设计、UI 契约或技术设计冲突。
+- [ ] 代码需要引入 PRD 未定义的权限、凭证、本地执行能力或发布动作。
+- [ ] 实现步骤出现任务切片没有覆盖的方案外文件、方案外行为或方案外 UI 状态。
+- [ ] Playwright 截图或布局断言暴露新的视觉契约缺口。
+
+停止后按这个顺序处理：
+
+1. 在当前任务记录触发原因和受影响 `FR-ID`。
+2. 小修订直接更新 `research/prd.md`、`research/technical-design.md` 或 `research/ui-design-system.md`。
+3. 影响范围较大或需要用户确认时，新建 `research/prd-amendments/YYYY-MM-DD-{slug}.md`，写明触发任务、冲突点、建议改动、测试影响和待确认问题。
+4. 回填 `.trellis/tasks/*/prd.md`、`implement.jsonl`、`check.jsonl`，补齐测试与视觉门禁。
+5. 用户确认或文档提交后再恢复实现。
+
+禁止把这些决策藏在代码里：
+
+- 替用户决定新需求边界。
+- 让参考项目覆盖 AgentHub 已确认的执行域、凭证或 UI 契约。
+- 因为测试难写而降低 PRD Acceptance Criteria。
+- 因为页面能显示就跳过截图、布局和敏感信息断言。
 
 ---
 
@@ -64,6 +105,7 @@ Phase 2 技术选型还要检查：
 - UI Phase 3 规划：`research/ui-phase3-task-plan.md`
 - 技术选型：`research/technical-design.md`
 - UI 设计系统：`research/ui-design-system.md`
+- 自动化执行与需求反写：`research/automation-reference-comparison.md`
 - 模块调研：`research/modules/*.md`
 
 `.trellis/tasks/*/` 只放可执行切片，包括任务级 `prd.md`、`info.md`、`implement.jsonl`、`check.jsonl` 和 `task.json`。
@@ -125,6 +167,18 @@ Phase 2 技术选型还要检查：
 **症状**：页面只有默认 HTML、英文按钮、临时内联样式，没有响应式断点和截图测试。
 
 **修正**：涉及 UI 的任务必须先引用 `FR-UI-001` 和 `research/ui-design-system.md`，并在任务切片中写清功能断言、截图断言、布局断言和敏感信息断言。
+
+### 错误：执行时没有实际参考 refer_proj
+
+**症状**：任务描述写了“参考现有项目”，但 `implement.jsonl` 或任务 PRD 没有列出具体参考项目、参考页面、采用点和不采用点。
+
+**修正**：任务必须写入 `reference_sources` 或等价段落。UI 任务至少追溯到 `research/ui-design-system.md`、`research/modules/ui-and-visual-testing.md` 和对应 AionUi/codeg/lobehub/cherry-studio 参考结论；自动化任务至少追溯到 `research/automation-reference-comparison.md`。
+
+### 错误：需求不清还继续实现
+
+**症状**：实现中发现 PRD 没写、验收标准不够、参考项目和现有契约冲突，但 Agent 自行选择一个做法继续写代码。
+
+**修正**：停止实现，更新 PRD 或新增 `research/prd-amendments/*.md`，再回填任务切片和测试门禁。没有 `FR-ID` 和可验证验收标准的行为不能进入实现。
 
 ### 错误：照搬参考项目的 Provider/API Key 配置
 

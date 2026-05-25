@@ -19,6 +19,7 @@
 | `action-cli-adapter.md` | Action/CLI、预览、权限确认 | `FR-ACTION-001`, `FR-PERM-001`, `FR-RESULT-001` |
 | `orchestrator.md` | Orchestrator 状态机、计划分派、handoff | `FR-ORCH-001`, `FR-CTX-001`, `FR-PERM-001` |
 | `orchestrator-plan-dag.md` | Orchestrator Plan DAG、依赖、并行 wave、失败影响范围 | `FR-ORCH-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-PERM-001`, `FR-RESULT-001` |
+| `../automation-reference-comparison.md` | Maestro-Flow 与 CodeStable 的自动化执行、需求反写和参考项目注入规则 | `FR-ORCH-001`, `FR-CTX-001`, `FR-UI-001`, `FR-PERM-001`, `FR-RESULT-001`, `NFR-OBS-001` |
 
 ---
 
@@ -34,6 +35,7 @@
 | Runtime Adapter | Claude Code/Codex 均走 CLI 子进程 Adapter | 满足 native session resume/continue 的核心产品差异 |
 | Action/CLI | preview/test/build/shell 统一 ActionRequest | 覆盖 Demo，同时给未来部署发布留扩展点 |
 | Orchestrator | 后端状态机托管 + Plan DAG，LLM 生成候选计划和总结，系统校验依赖并调度 ready nodes | 保证可解释、可审批、可测试，并满足并行调度、失败降级和 handoff |
+| 自动化执行治理 | Maestro-Flow 作为执行闭环参考，CodeStable 作为需求暂停与验收回写参考 | 既能自动推进 plan/execute/verify/test，又能在需求不清、UI 契约缺失或参考项目冲突时停下来反写 PRD |
 
 ---
 
@@ -73,6 +75,7 @@ future apps/mobile-native
 - AionUi ACP rewrite 证明 Orchestrator/Agent session 必须集中状态机和单队列，避免隐式状态。
 - LobeHub `GraphAgent`、`taskGraph` 和 codeApe orchestration schema 证明 Orchestrator 计划应使用结构化 DAG、dependsOn、ready/waiting/blocked buckets，而不是仅保存自然语言步骤。
 - maestro-flow 的 wave DAG 证明 P0 可用并行组/波次表达依赖，不必先做复杂 DAG 编辑器。
+- CodeStable 的 requirement/design/implementation/acceptance 流程证明，执行中发现需求、接口契约或验收标准不清时必须暂停并回写需求或设计，而不是在代码里隐式做决定。
 - Poco-Claw 证明多服务 executor/callback 架构完整但偏重，AgentHub P0 暂不拆成独立 executor-manager。
 
 ---
@@ -87,5 +90,6 @@ future apps/mobile-native
 4. Desktop 通道：`DeviceChannel` 作为接口，P0 直接使用 WebSocket 实现。
 5. Runtime Adapter：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟。
 6. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。
+7. 自动化执行：参考 Maestro-Flow 的 plan/execute/verify/review/test/fix-loop，但参考 CodeStable 的需求暂停、PRD 反写和验收回写机制防止自动化跑偏。
 
 如果后续实现发现技术设计与模块研究冲突，以 `research/technical-design.md` 为准，再反向修正对应模块文档。
