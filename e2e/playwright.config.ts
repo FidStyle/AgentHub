@@ -16,8 +16,19 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'web-desktop',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+      testMatch: ['web/**', 'web-workbench.spec.ts', 'design-system.spec.ts', 'workspace.spec.ts'],
+    },
+    {
+      name: 'web-tablet',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1024, height: 768 } },
+      testMatch: ['web/**'],
+    },
+    {
+      name: 'mobile-pwa',
+      use: { ...devices['iPhone 14'], viewport: { width: 390, height: 844 } },
+      testMatch: ['mobile/**'],
     },
   ],
 })

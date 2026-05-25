@@ -1,8 +1,8 @@
 {
   "version": "3.1",
   "project_name": "AgentHub",
-  "status": "active",
-  "current_milestone": "M13",
+  "status": "idle",
+  "current_milestone": null,
   "current_task_id": null,
   "milestones": [
     {
@@ -159,7 +159,7 @@
       "id": "M11",
       "name": "UI 基础设施与设计系统",
       "type": "standard",
-      "status": "completed",
+      "status": "code-complete",
       "phases": [
         "Phase 1: 设计系统基础设施"
       ],
@@ -174,7 +174,7 @@
       "id": "M12",
       "name": "Web 三栏 IM 工作台重构",
       "type": "standard",
-      "status": "completed",
+      "status": "code-complete",
       "phases": [
         "Phase 1: Web 三栏工作台 UI"
       ],
@@ -189,7 +189,7 @@
       "id": "M13",
       "name": "Desktop Connector Console 重构",
       "type": "standard",
-      "status": "planned",
+      "status": "code-complete",
       "phases": [
         "Phase 1: Desktop Console UI"
       ],
@@ -203,7 +203,7 @@
       "id": "M14",
       "name": "Mobile/PWA 轻量 IM、审批、预览",
       "type": "standard",
-      "status": "planned",
+      "status": "code-complete",
       "phases": [
         "Phase 1: Mobile/PWA UI"
       ],
@@ -217,7 +217,7 @@
       "id": "M15",
       "name": "三端视觉 E2E 门禁",
       "type": "standard",
-      "status": "planned",
+      "status": "code-complete",
       "phases": [
         "Phase 1: 视觉 E2E 门禁"
       ],
@@ -226,6 +226,38 @@
       },
       "roadmap_ref": ".workflow/roadmap.md",
       "created_at": "2026-05-25T00:00:00Z"
+    },
+    {
+      "id": "M17",
+      "name": "TDD 验证补全",
+      "type": "standard",
+      "status": "active",
+      "phases": [
+        "Phase 1: 设计系统 TDD 验证",
+        "Phase 2: 三端页面 TDD 验证",
+        "Phase 3: refer_proj 对照审计"
+      ],
+      "phase_slugs": {
+        "1": "01-design-system-tdd",
+        "2": "02-platform-pages-tdd",
+        "3": "03-refer-proj-audit"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T14:30:00Z"
+    },
+    {
+      "id": "M18",
+      "name": "全量三端 E2E 视觉门禁",
+      "type": "standard",
+      "status": "planned",
+      "phases": [
+        "Phase 1: 全量视觉门禁"
+      ],
+      "phase_slugs": {
+        "1": "01-full-visual-gate"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T14:30:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -700,6 +732,27 @@
           "confidence": 90
         }
       ]
+    },
+    {
+      "id": "M13",
+      "completed_at": "2026-05-25T13:45:00Z",
+      "phases_completed": 1
+    },
+    {
+      "id": "M14",
+      "completed_at": "2026-05-25T13:55:00Z",
+      "phases_completed": 1
+    },
+    {
+      "id": "M15",
+      "completed_at": "2026-05-25T14:05:00Z",
+      "phases_completed": 1
+    },
+    {
+      "id": "M16",
+      "completed_at": "2026-05-25T14:15:00Z",
+      "phases_completed": 1
     }
-  ]
+  ],
+  "current_phase": 1
 }

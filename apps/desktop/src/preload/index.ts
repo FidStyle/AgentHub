@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron')
+import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     disconnect: () => ipcRenderer.invoke('device-channel:disconnect'),
     getState: () => ipcRenderer.invoke('device-channel:state'),
     onStateChanged: (callback: (state: string) => void) => {
-      ipcRenderer.on('device-channel:state-changed', (_e: unknown, state: string) => callback(state))
+      ipcRenderer.on('device-channel:state-changed', (_e, state: string) => callback(state))
     },
   },
 })

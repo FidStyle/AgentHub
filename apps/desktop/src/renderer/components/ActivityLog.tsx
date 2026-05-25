@@ -8,7 +8,7 @@ interface LogEntry {
 }
 
 export function ActivityLog() {
-  const [logs, setLogs] = useState<LogEntry[]>([
+  const [logs] = useState<LogEntry[]>([
     { id: '1', time: new Date().toLocaleTimeString('zh-CN'), type: 'info', message: '连接器已启动' },
   ])
   const bottomRef = useRef<HTMLDivElement>(null)

@@ -1,15 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Button, Card, CardContent, Badge, StateCard } from '@agenthub/ui'
 import type { Notification } from '@agenthub/shared'
 
 export default function MobileApprovePage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/notifications?unread=true')
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setNotifications(d) })
+      .finally(() => setLoading(false))
   }, [])
 
   const handleApprove = async (actionId: string, approved: boolean) => {
@@ -33,36 +36,36 @@ export default function MobileApprovePage() {
 
   const pending = notifications.filter(n => n.type === 'approval_required')
 
-  return (
-    <div>
-      <h2 className="text-lg font-medium mb-4">待审批动作</h2>
+  if (loading) {
+    return <StateCard variant="loading" />
+  }
 
-      {pending.length === 0 ? (
-        <p className="text-gray-400 text-sm text-center py-8">暂无待审批项</p>
-      ) : (
-        <div className="space-y-3">
-          {pending.map(n => (
-            <div key={n.id} className="bg-white border rounded-lg p-4">
-              <p className="font-medium text-sm">{n.title}</p>
-              {n.body && <p className="text-xs text-gray-500 mt-1">{n.body}</p>}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => n.ref_id && handleApprove(n.ref_id, true)}
-                  className="flex-1 py-2 bg-green-600 text-white rounded text-sm"
-                >
-                  批准
-                </button>
-                <button
-                  onClick={() => n.ref_id && handleApprove(n.ref_id, false)}
-                  className="flex-1 py-2 bg-red-600 text-white rounded text-sm"
-                >
-                  拒绝
-                </button>
-              </div>
+  if (pending.length === 0) {
+    return <StateCard variant="empty" title="无待审批项" description="当前没有需要确认的操作" />
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="text-sm font-medium">待审批动作</h2>
+      {pending.map(n => (
+        <Card key={n.id}>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-2 mb-2">
+              <Badge variant="warning">待审批</Badge>
+              <p className="text-sm font-medium flex-1 truncate">{n.title}</p>
             </div>
-          ))}
-        </div>
-      )}
+            {n.body && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{n.body}</p>}
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => n.ref_id && handleApprove(n.ref_id, true)} className="flex-1">
+                批准
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => n.ref_id && handleApprove(n.ref_id, false)} className="flex-1">
+                拒绝
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }

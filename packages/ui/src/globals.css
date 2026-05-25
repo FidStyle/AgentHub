@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+
+@theme {
+  /* 语义色 - 亮色模式 */
+  --color-background: oklch(0.99 0 0);
+  --color-foreground: oklch(0.15 0 0);
+  --color-card: oklch(0.98 0 0);
+  --color-card-foreground: oklch(0.15 0 0);
+  --color-border: oklch(0.90 0 0);
+  --color-muted: oklch(0.96 0 0);
+  --color-muted-foreground: oklch(0.55 0 0);
+  --color-primary: oklch(0.55 0.15 250);
+  --color-primary-foreground: oklch(0.99 0 0);
+  --color-destructive: oklch(0.55 0.2 25);
+  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-success: oklch(0.60 0.15 145);
+  --color-success-foreground: oklch(0.99 0 0);
+  --color-warning: oklch(0.75 0.15 75);
+  --color-warning-foreground: oklch(0.20 0 0);
+  --color-info: oklch(0.60 0.12 230);
+  --color-info-foreground: oklch(0.99 0 0);
+  --color-ring: oklch(0.55 0.15 250);
+
+  /* 圆角 */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}

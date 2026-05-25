@@ -1,9 +1,13 @@
-const { app, BrowserWindow } = require('electron')
-const path = require('path')
+import { app, BrowserWindow } from 'electron'
+import path from 'path'
 
-let deviceChannel: any = null
-let runtimeHost: any = null
-let configStore: any = null
+import type { RuntimeConfigStore as ConfigStoreType } from './runtime/runtime-config-store'
+import type { DeviceChannel as DeviceChannelType } from './device-channel'
+import type { RuntimeHost as RuntimeHostType } from './runtime/runtime-host'
+
+let deviceChannel: DeviceChannelType | null = null
+let runtimeHost: RuntimeHostType | null = null
+let configStore: ConfigStoreType | null = null
 
 async function setupRuntime() {
   try {

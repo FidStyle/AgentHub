@@ -1,0 +1,12 @@
+{
+  "id": "TASK-004",
+  "title": "E2E 定位点全量验证 + IconButton 中文 aria-label",
+  "fr_ids": ["FR-UI-001"],
+  "description": "验证所有约定定位点（workspace-shell, chat-panel, session-list, artifact-panel, message-composer, connector-console, mobile-session）存在且可定位。IconButton aria-label 必须为中文。",
+  "acceptance": [
+    "所有定位点有 toBeVisible 断言",
+    "IconButton aria-label 正则匹配中文字符",
+    "截图保存至 e2e/artifacts/design-system/"
+  ],
+  "wave": "W1"
+}

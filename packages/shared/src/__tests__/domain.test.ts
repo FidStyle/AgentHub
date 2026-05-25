@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Workspace, Session, Message, RoleAgent, RuntimeBinding } from '../domain'
+import type { Workspace, Session, Message } from '../domain'
 import { FR_IDS } from '../constants'
 
 describe('Domain Types', () => {
@@ -29,15 +29,19 @@ describe('Domain Types', () => {
   it('Message 类型可正确实例化', () => {
     const msg: Message = {
       id: 'msg-1',
-      sessionId: 'sess-1',
-      type: 'text',
+      session_id: 'sess-1',
+      message_type: 'text',
       content: '你好',
-      senderType: 'user',
-      senderId: 'user-1',
-      streamingStatus: 'complete',
-      createdAt: new Date(),
+      sender_type: 'user',
+      sender_id: 'user-1',
+      role_agent_id: null,
+      streaming_status: 'complete',
+      metadata: null,
+      is_pinned: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
-    expect(msg.senderType).toBe('user')
+    expect(msg.sender_type).toBe('user')
   })
 
   it('FR-ID 常量完整', () => {

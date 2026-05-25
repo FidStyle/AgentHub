@@ -68,12 +68,13 @@ export class RuntimeConfigStore {
 
     ipcMain.handle('runtime-config:test', async (_e, type: string) => {
       const cmd = type === 'claude_code' ? 'claude --version' : 'codex --version'
-      const env = { ...process.env, ...this.getEnvForRuntime(type as any) }
+      const runtimeType = type === 'claude_code' || type === 'codex' ? type : 'claude_code'
+      const env = { ...process.env, ...this.getEnvForRuntime(runtimeType) }
       try {
         const { stdout } = await execAsync(cmd, { timeout: 10000, env })
         return { ok: true, version: stdout.trim() }
-      } catch (err: any) {
-        return { ok: false, error: err.message }
+      } catch (err: unknown) {
+        return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
       }
     })
   }

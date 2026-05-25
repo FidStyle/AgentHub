@@ -1,18 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import type {
   ActionRequest,
-  RiskLevel,
-  ActionStatus,
   PendingApproval,
-  ApprovalSource,
   RuntimeBinding,
   RuntimeSession,
-  RuntimeType,
   RoleAgent,
-  RoleType,
-  Device,
   Artifact,
-  ArtifactType,
 } from '../domain'
 import { FR_IDS, type FrId } from '../constants'
 

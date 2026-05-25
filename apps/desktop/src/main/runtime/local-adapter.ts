@@ -12,11 +12,12 @@ export class LocalRuntimeAdapter implements RuntimeAdapter {
     try {
       const { stdout, stderr } = await execAsync(command, { cwd, timeout: 30000 })
       return { exitCode: 0, stdout, stderr, duration: Date.now() - start }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const e = err as { code?: number; stdout?: string; stderr?: string; message?: string }
       return {
-        exitCode: err.code ?? 1,
-        stdout: err.stdout ?? '',
-        stderr: err.stderr ?? err.message,
+        exitCode: e.code ?? 1,
+        stdout: e.stdout ?? '',
+        stderr: e.stderr ?? e.message ?? '',
         duration: Date.now() - start,
       }
     }

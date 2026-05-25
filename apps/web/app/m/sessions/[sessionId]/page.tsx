@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
+import { Button, Input, Card, CardContent, StateCard } from '@agenthub/ui'
 import type { Message } from '@agenthub/shared'
 
 export default function MobileSessionPage() {
@@ -9,12 +10,14 @@ export default function MobileSessionPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`/api/messages?session_id=${sessionId}`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setMessages(d) })
+      .finally(() => setLoading(false))
   }, [sessionId])
 
   useEffect(() => {
@@ -37,38 +40,39 @@ export default function MobileSessionPage() {
     setSending(false)
   }
 
+  if (loading) {
+    return <StateCard variant="loading" />
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
-      {/* Messages */}
-      <div className="flex-1 overflow-auto space-y-3 pb-4">
+      <div className="flex-1 overflow-auto flex flex-col gap-2 pb-4">
+        {messages.length === 0 && (
+          <StateCard variant="empty" title="暂无消息" description="发送第一条消息开始对话" />
+        )}
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-              msg.sender_type === 'user' ? 'bg-blue-500 text-white' : 'bg-white border'
-            }`}>
-              {msg.content}
-            </div>
+            <Card className={`max-w-[80%] ${msg.sender_type === 'user' ? 'bg-primary text-primary-foreground' : ''}`}>
+              <CardContent className="px-3 py-2">
+                <p className="text-sm break-words">{msg.content}</p>
+              </CardContent>
+            </Card>
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="flex gap-2 pt-2 border-t bg-gray-50">
-        <input
+      <div className="flex gap-2 pt-2 border-t border-border">
+        <Input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()}
           placeholder="输入消息..."
-          className="flex-1 px-3 py-2 border rounded-lg text-sm"
+          className="flex-1"
         />
-        <button
-          onClick={send}
-          disabled={sending || !input.trim()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
-        >
+        <Button onClick={send} disabled={sending || !input.trim()} size="sm">
           发送
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@agenthub/shared": "workspace:*",
+    "@agenthub/ui": "workspace:*",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.1",
     "next": "^15.1.0",

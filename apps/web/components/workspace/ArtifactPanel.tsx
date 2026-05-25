@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Card, StateCard } from '@agenthub/ui'
+import { Button, StateCard } from '@agenthub/ui'
 
 const TABS = ['产物', '上下文', 'Agents'] as const
 
