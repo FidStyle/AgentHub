@@ -1,6 +1,7 @@
 {"file":"research/prd.md","reason":"检查 Desktop 任务是否满足绑定 FR-ID。"}
 {"file":"research/ui-design-system.md","reason":"检查 Connector Console 布局和状态视觉。"}
 {"file":"research/ui-phase3-task-plan.md","reason":"检查 Desktop 子任务是否符合项目级 UI Phase 3 规划。"}
+{"file":"research/modules/reference-projects.md","reason":"检查 AionUi 参考是否已落实为本地 Agent 检测和轻量会话，而非完整 Web 克隆。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查 Desktop 定位点、截图和布局断言。"}
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查中文文案和敏感信息禁止项。"}
 {"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"检查本地 Runtime UI 不托管密钥。"}

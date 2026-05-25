@@ -185,6 +185,7 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。
 
 - [ ] Web 提供完整三栏 IM 工作台。
 - [ ] Desktop 提供 Connector Console：账号绑定、文件夹绑定、Runtime 检测、本地 Action 执行、连接状态展示。
+- [ ] Desktop 提供本地 Agent 会话/运行态入口：用户可以从已检测到的本地 Claude Code/Codex 或绑定的 Role Agent 进入轻量对话视图，查看本地 Runtime 流式输出、执行状态和最近消息，并发送与当前 Local Desktop Workspace 相关的轻量指令。
 - [ ] Mobile 提供轻量 IM、任务进度、审批和预览。
 - [ ] Web 和 Mobile 可以作为 Local Desktop Workspace 的控制端发送消息、审批和 Action 指令，但本地文件读写、命令执行和 Runtime 调用必须落在已认证且在线的 Desktop Connector。
 - [ ] 系统不能在没有已认证 Desktop Connector 的情况下声称可以控制用户本地 Workspace，也不能把 Web/Mobile 进程作为本地文件或本地端口访问入口。
@@ -201,7 +202,7 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。
 
 - [ ] Web、Desktop、Mobile/PWA 的核心页面必须使用统一 Tailwind 设计变量、shadcn 组件模式和 lucide 图标，不得交付无样式纯 HTML 或大量一次性内联样式。
 - [ ] Web 首屏必须是可用的三栏 IM 工作台或其登录/空状态，不得用营销式首页替代主体验。
-- [ ] Desktop 必须呈现 Connector Console 的检测、连接、执行和审批状态，不得复制完整 Web 三栏工作台，也不得渲染本地 Claude Code / Codex API Key 配置表单。
+- [ ] Desktop 必须呈现 Connector Console 的检测、连接、执行、审批状态和轻量本地 Agent 会话入口，不得复制完整 Web 三栏工作台，也不得渲染本地 Claude Code / Codex API Key 配置表单。
 - [ ] Mobile/PWA 必须采用轻量单栏或双层导航体验，覆盖 Workspace、Session、消息、审批和预览，不得塞入完整桌面级 Diff 合并或本地 Runtime 配置。
 - [ ] 全部用户可见文案必须使用简体中文；技术名词只在指代具体产品、库、命令或协议时保留英文。
 - [ ] 空状态、加载、失败、未登录、Desktop 离线、Runtime 未安装、Runtime 未登录、执行中、待审批、成功、失败重试都必须有明确视觉状态。
@@ -229,17 +230,23 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。
 
 #### FR-DESK-001: Desktop Connector Console
 
-**描述：** Desktop 是本地 Connector Console，不是完整 Web 工作台的复制品。它负责把用户自己的本地开发环境连接到 AgentHub。
+**描述：** Desktop 是本地 Connector Console，不是完整 Web 工作台的复制品。它负责把用户自己的本地开发环境连接到 AgentHub，并提供面向本地 Runtime 的轻量 Agent 会话/运行态入口。
+
+Desktop 的轻量会话能力来自原始课题对桌面端“本地文件访问、系统通知、Agent 进程管理”的要求，不是额外的完整 IM 工作台。它只服务 Local Desktop Workspace 的本地 Runtime 检测、诊断、运行流查看、轻量指令和待审批处理；完整 Workspace/Session 管理、Artifact 三栏工作台和复杂产物编辑仍由 Web 承担。
 
 **验收标准：**
 
 - [ ] Desktop 支持 GitHub 登录或绑定同一 AgentHub 账号。
 - [ ] Desktop 可以绑定本地 Workspace 文件夹。
 - [ ] Desktop 可以检测本地 Claude Code 和 Codex 可用性，并展示连接状态。
+- [ ] Desktop 可以把检测到的本地 Claude Code/Codex 以本地 Agent 卡片展示，包含名称、CLI path、版本、认证状态、能力声明、最近诊断和进入轻量会话的入口。
 - [ ] Desktop 可以展示 Connector 是否在线、是否可被云端后端触达。
 - [ ] Desktop 可以执行已批准的本地 Runtime 和 Action 请求。
+- [ ] Desktop 轻量会话视图可以展示当前 Local Desktop Workspace 下的最近消息、Runtime 流式输出、执行活动、失败原因和待审批动作。
+- [ ] Desktop 轻量会话视图可以发送与当前 Local Desktop Workspace 绑定的轻量文本指令；该指令仍必须走 Workspace 执行域、Runtime 绑定和权限策略校验，不能绕过云端后端和 DeviceChannel。
 - [ ] Desktop 展示最近任务执行、执行状态和失败原因。
 - [ ] Desktop 提供打开 Web 工作台的入口。
+- [ ] Desktop 不提供完整 Web 三栏 Artifact/Context/Agents/Preview 工作台，不承担复杂代码编辑、跨 Workspace Session 管理或移动端审批替代能力。
 
 **依赖：** FR-AUTH-001, FR-WS-001, FR-RUNTIME-001, FR-ACTION-001。
 

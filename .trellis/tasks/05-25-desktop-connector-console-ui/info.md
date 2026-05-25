@@ -5,6 +5,9 @@
 - `apps/desktop/src/renderer/App.tsx`
 - `apps/desktop/src/renderer/components/RuntimeStatus.tsx`
 - `apps/desktop/src/renderer/components/RuntimeConfigPage.tsx`
+- `apps/desktop/src/renderer/components/console/RuntimeDetection.tsx`
+- `apps/desktop/src/renderer/components/console/ConnectorConsole.tsx`
+- `apps/desktop/src/renderer/components/console/*`
 - `apps/desktop/src/renderer/components/*`
 - `e2e/tests/desktop/electron.spec.ts`
 
@@ -12,12 +15,14 @@
 
 1. 先改 Electron E2E：从“Runtime 配置 API Key 表单”转为“Runtime 检测和诊断状态”。
 2. 抽 Connector Console 布局。
-3. 重构 Runtime 状态卡，移除本地 API Key 表单。
-4. 增加执行活动和待审批视觉结构。
-5. 补截图、无重叠、无横向滚动断言。
+3. 重构 Runtime 状态卡，移除本地 API Key 表单，并补 CLI path、能力声明、最近诊断。
+4. 增加本地 Agent 轻量会话入口和运行态视图，参考 AionUi LocalAgents、AgentCard、ChatLayout。
+5. 增加执行活动和待审批视觉结构。
+6. 补截图、无重叠、无横向滚动断言。
 
 ## 风险
 
 - 不要改 Electron main 的安全边界。
 - renderer 不能新增 Node 直连能力。
 - 如果测试还在期待 API Key 配置页，必须同步改为凭证边界测试。
+- 本地 Agent 轻量会话仍必须走后端和 DeviceChannel，不允许 renderer 直接拼 shell 命令。

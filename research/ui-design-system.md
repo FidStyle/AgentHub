@@ -27,7 +27,8 @@ P0 UI 必须满足：
 | 参考源 | 参考路径 | 借鉴点 | 不采用点 | 绑定需求 |
 | --- | --- | --- | --- | --- |
 | AionUi | `refer_proj/AionUi/src/renderer/pages/conversation/components/ChatLayout/index.tsx` | 高密度聊天与预览分栏、紧凑工具条、会话与产物并行展示 | 不直接采用 Arco 作为主组件库，不复制其全部设置体系 | `FR-WEB-001`, `FR-ARTIFACT-001`, `FR-UI-001` |
-| AionUi | `refer_proj/AionUi/src/renderer/pages/settings/AgentSettings/AgentCard.tsx` | Agent 卡片的信息层级、状态标签、能力描述 | 不把 Runtime 凭证字段放进 Agent 卡片 | `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-UI-001` |
+| AionUi | `refer_proj/AionUi/packages/desktop/src/renderer/pages/settings/AgentSettings/LocalAgents.tsx`, `AgentCard.tsx` | Desktop 本地 Agent 检测列表、Agent 卡片信息层级、状态标签、能力描述、进入会话动作 | 不把 Runtime 凭证字段放进 Agent 卡片，不复制 AionUi 的完整 Agent 市场 | `FR-DESK-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-UI-001` |
+| AionUi | `refer_proj/AionUi/packages/desktop/src/renderer/pages/conversation/components/ChatLayout/index.tsx` | Desktop 轻量会话的标题区、Agent 身份展示、工作区侧栏和预览折叠行为 | 不把 Desktop 变成完整 Web 三栏工作台，不引入 Arco 作为主组件库 | `FR-DESK-001`, `FR-CHAT-001`, `FR-UI-001` |
 | codeg | `refer_proj/codeg/src/components/layout/sidebar.tsx` | shadcn 风格侧栏、紧凑导航、图标按钮和分组 | 不采用过度单页 IDE 化的信息堆叠 | `FR-WEB-001`, `FR-UI-001` |
 | codeg | `refer_proj/codeg/src/components/chat/conversation-shell.tsx` | 会话壳、消息区和上下文工具区的组合方式 | 不让聊天成为只有文本流的空白页 | `FR-CHAT-001`, `FR-UI-001` |
 | codeg | `refer_proj/codeg/src/components/chat/message-input.tsx` | 输入框工具条、附件入口、模式选择和发送动作 | 不保留英文按钮文案 | `FR-CHAT-001`, `FR-UI-001` |
@@ -103,12 +104,15 @@ Desktop 是 Connector Console，不是 Web 克隆。
 | 区域 | 内容 |
 | --- | --- |
 | 顶部状态条 | 登录用户、设备名、连接状态、最后心跳 |
-| Runtime 检测区 | Claude Code、Codex 的安装、版本、原生认证状态、能力声明 |
+| Runtime 检测区 | Claude Code、Codex 的安装、版本、CLI path、原生认证状态、能力声明、最近诊断 |
+| 本地 Agent 会话区 | 检测到的本地 Runtime/Role Agent 卡片、进入轻量会话、最近消息、Runtime 流式输出 |
 | Workspace 绑定区 | 当前授权目录、目录健康状态、打开 Web 入口 |
 | 执行活动区 | 最近 Action、Runtime 请求、失败原因、重试或查看详情 |
 | 待审批区 | 本设备相关审批和高风险动作确认 |
 
 Desktop 不提供本地 Claude Code / Codex API Key、Base URL、环境变量保存表单。未安装或未登录时只展示检测结果和本机 CLI 修复引导。
+
+Desktop 可以提供轻量本地 Agent 会话，但该会话只服务当前 Local Desktop Workspace 的运行态查看、轻量指令、待审批和诊断。完整 Artifact/Context/Agents/Preview 三栏工作台仍属于 Web。
 
 ### 4.3 Mobile/PWA
 

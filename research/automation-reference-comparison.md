@@ -176,7 +176,7 @@ PRD amendment 合并后，再更新 `research/prd.md`。小范围明确修订可
 | --- | --- |
 | UI 基础与组件 | `research/ui-design-system.md`, `.trellis/spec/frontend/ui-style-guidelines.md`, AionUi/codeg/cherry-studio/lobehub 对应参考说明 |
 | Web 工作台 | AionUi 聊天/预览分栏、codeg 侧栏/输入框、`research/modules/ui-and-visual-testing.md` |
-| Desktop Connector | cherry-studio 桌面密度、Runtime 配置边界、`research/modules/desktop-connector.md` |
+| Desktop Connector | AionUi LocalAgents/AgentCard/ChatLayout、cherry-studio 桌面密度、Runtime 配置边界、`research/modules/desktop-connector.md` |
 | Mobile/PWA | lobehub 移动会话布局、`research/modules/client-shells.md` |
 | Orchestrator/自动化 | Maestro-Flow plan/execute/verify 思路、`research/automation-reference-comparison.md` |
 | 需求漂移治理 | CodeStable design/impl/accept 暂停与回写思路、`research/automation-reference-comparison.md` |

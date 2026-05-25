@@ -38,8 +38,9 @@
 ### Desktop
 
 - Desktop 是 Connector Console，不是 Web 工作台复制品。
-- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、执行活动和待审批。
-- 本地 Claude Code / Codex 只展示安装、版本、认证状态、能力声明和诊断引导。
+- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、本地 Agent 轻量会话、执行活动和待审批。
+- 本地 Claude Code / Codex 只展示安装、版本、CLI path、认证状态、能力声明、最近诊断、进入轻量会话动作和本机修复引导。
+- 本地 Agent 轻量会话只服务当前 Local Desktop Workspace：最近消息、Runtime 流式输出、执行活动、待审批和诊断。复杂 Artifact/Context/Agents/Preview 仍跳转 Web 工作台。
 - 禁止在本地 Runtime 绑定 UI 中展示 API Key、Base URL、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 输入框。
 
 ### Mobile/PWA
@@ -62,7 +63,8 @@
 | Action 状态卡 | 展示动作类型、执行域、风险等级、输出摘要。 | running 到 succeeded/failed 状态更新。 |
 | 审批卡/弹窗 | 展示审批类型、风险、影响范围、批准/拒绝。 | 批准/拒绝按钮语义清晰，Diff 不作为审批对象。 |
 | Agent 卡 | 展示角色、能力标签、调度状态和 Runtime 绑定摘要。 | Runtime 名称只在配置摘要出现，不作为聊天对象。 |
-| Runtime 状态卡 | 展示 installed、version、authStatus、capability snapshot。 | 不出现本地 CLI API Key 表单。 |
+| Runtime 状态卡 | 展示 installed、version、CLI path、authStatus、capability snapshot、最近诊断。 | 不出现本地 CLI API Key 表单。 |
+| Desktop 本地 Agent 会话 | 展示本地 Runtime/Role Agent 身份、最近消息、流式输出、执行活动、待审批和轻量输入框。 | 不复制 Web 三栏，不绕过 DeviceChannel 执行 shell。 |
 | Artifact/Preview 面板 | 支持 loading、empty、ready、failed。 | 右栏滚动正常，移动端独立视图不遮挡。 |
 
 ---
@@ -88,7 +90,7 @@
 | --- | --- | --- | --- |
 | Web 桌面 | chromium desktop | 1440x900、1024x768 | 工作台、消息、计划卡、结果卡、Artifact 面板、审批队列 |
 | Mobile/PWA | chromium mobile | 390x844 | Workspace、Session、轻量消息、审批详情、预览页 |
-| Desktop | electron | 1200x800 | Connector 首页、Runtime 检测、执行活动、待审批 |
+| Desktop | electron | 1200x800 | Connector 首页、Runtime 检测、本地 Agent 轻量会话、执行活动、待审批 |
 
 ### 6.2 必须断言
 
@@ -111,6 +113,8 @@
 - `data-testid="approval-card"`
 - `data-testid="connector-console"`
 - `data-testid="runtime-status-card"`
+- `data-testid="desktop-agent-session"`
+- `data-testid="desktop-agent-composer"`
 - `data-testid="mobile-session"`
 
 ---

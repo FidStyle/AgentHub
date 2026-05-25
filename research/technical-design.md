@@ -737,6 +737,7 @@ P0 页面：
 - Connector 首页。
 - 本地 Workspace 绑定。
 - Runtime 检测。
+- 本地 Agent 会话/运行态入口。
 - 执行请求列表。
 - 待审批队列。
 - 打开 Web。
@@ -753,9 +754,10 @@ Desktop main 服务：
 UI 约束：
 
 - Desktop renderer 必须呈现 Connector Console，不复制完整 Web 三栏工作台。
-- Runtime 检测 UI 只展示安装、版本、原生认证状态、能力声明和诊断引导；本地 Claude Code / Codex 不渲染 API Key、Base URL 或环境变量保存表单。
-- Desktop 可借鉴 cherry-studio 的桌面密度和设置分组，但凭证边界必须服从 `FR-RUNTIME-001` 与 `.trellis/spec/cross-layer/runtime-credential-boundary.md`。
-- Electron E2E 必须覆盖 Connector 首页、Runtime 检测、执行活动和待审批状态截图。
+- Runtime 检测 UI 展示安装、版本、CLI path、原生认证状态、能力声明、最近诊断和进入轻量会话动作；本地 Claude Code / Codex 不渲染 API Key、Base URL 或环境变量保存表单。
+- Desktop 可借鉴 AionUi 的 Local Agents 检测卡、AgentCard 和桌面 ChatLayout，也可借鉴 cherry-studio 的桌面密度和设置分组，但凭证边界必须服从 `FR-RUNTIME-001` 与 `.trellis/spec/cross-layer/runtime-credential-boundary.md`。
+- Desktop 轻量会话必须经后端和 DeviceChannel 路由到当前 Local Desktop Workspace，不允许 Electron renderer 直接拼 shell 命令或绕过权限策略。
+- Electron E2E 必须覆盖 Connector 首页、Runtime 检测、本地 Agent 轻量会话、执行活动和待审批状态截图。
 
 对应需求：`FR-DESK-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-NOTIFY-001`, `FR-UI-001`。
 

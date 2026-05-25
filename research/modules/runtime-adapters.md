@@ -252,7 +252,8 @@ Process layer 需要提供通用生命周期，不绑定 Claude/Codex 语义：
 - `refer_proj/lobehub/apps/desktop/src/main/controllers/HeterogeneousAgentCtr.ts`、`GatewayConnectionCtr.ts`、`ToolDetectorCtr.ts` 是当前最具体的 Electron Desktop + Claude/Codex heterogeneous agent 参考。
   `refer_proj/lobehub/packages/agent-runtime/src/*` 可校准 runtime factory、capability 和错误归一化。
 - `refer_proj/AionUi/src/process/acp/infra/{ProcessAcpClient.ts,NdjsonTransport.ts,processUtils.ts}` 是进程/NDJSON transport 生命周期参考，强化「进程管理」和「语义解析」分层。
-- `refer_proj/AionUi/src/renderer/pages/settings/AgentSettings/LocalAgents.tsx` 把本地 Agent 做成自动检测和自定义命令配置，模型 API Key 另在 Model 设置中管理；这支持 AgentHub 将本地 CLI Runtime 绑定与模型 Provider 凭证分离。
+- `refer_proj/AionUi/packages/desktop/src/renderer/pages/settings/AgentSettings/LocalAgents.tsx` 和 `AgentCard.tsx` 把本地 Agent 做成自动检测、自定义命令配置和进入会话动作，模型 API Key 另在 Model 设置中管理；这支持 AgentHub 将本地 CLI Runtime 绑定与模型 Provider 凭证分离，并把 Desktop Runtime 检测从静态列表升级为本地 Agent 运行态入口。
+- `refer_proj/AionUi/packages/desktop/src/renderer/pages/conversation/components/ChatLayout/index.tsx` 可作为 Desktop 轻量会话布局参考，但 AgentHub P0 不复制完整 Web 三栏工作台。
 - `refer_proj/codeg/src/components/settings/acp-agent-settings.tsx` 支持官方订阅、自定义端点和模型 Provider，但它的复杂度更适合作为 P1 高级配置参考；AgentHub P0 不把本地 Claude Code / Codex 默认做成 API Key 托管页。
 - `refer_proj/codeg/src-tauri/src/parsers/{claude.rs,codex.rs,opencode.rs}` 展示 Claude、Codex、OpenCode 原生历史/JSONL 解析和多 Runtime parser 快照测试，可作为 session discovery 与历史恢复对照。
 - `refer_proj/cherry-studio/src/main/services/MCPService.ts` 对 command config、env、PATH、MCP 配置合并和 restart handling 有参考价值。

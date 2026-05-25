@@ -3,6 +3,10 @@
 {"file":"research/ui-phase3-task-plan.md","reason":"UI Phase 3 项目级任务规划和 Desktop 模块执行要求。"}
 {"file":"research/technical-design.md","reason":"Desktop renderer 边界、Electron E2E 和凭证边界策略。"}
 {"file":"research/modules/ui-and-visual-testing.md","reason":"cherry-studio/AionUi/codeg 参考和 Electron 视觉测试依据。"}
+{"file":"research/modules/reference-projects.md","reason":"AionUi LocalAgents、AgentCard、ChatLayout 对 Desktop 本地 Agent 会话的参考依据。"}
+{"file":"refer_proj/AionUi/packages/desktop/src/renderer/pages/settings/AgentSettings/LocalAgents.tsx","reason":"参考本地 Agent 检测列表、分区和进入会话动作。"}
+{"file":"refer_proj/AionUi/packages/desktop/src/renderer/pages/settings/AgentSettings/AgentCard.tsx","reason":"参考本地 Agent 卡片状态、能力标签和动作层级。"}
+{"file":"refer_proj/AionUi/packages/desktop/src/renderer/pages/conversation/components/ChatLayout/index.tsx","reason":"参考 Desktop 轻量会话布局、标题区和工作区侧栏行为。"}
 {"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"Desktop UI 样式、定位点和视觉断言规范。"}
 {"file":".trellis/spec/frontend/component-guidelines.md","reason":"Runtime 状态卡、审批卡和基础组件规范。"}
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"中文文案、禁止 API Key 表单和测试要求。"}
