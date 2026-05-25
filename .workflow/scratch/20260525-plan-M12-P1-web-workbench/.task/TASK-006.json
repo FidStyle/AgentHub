@@ -1,0 +1,18 @@
+{
+  "id": "TASK-006",
+  "title": "E2E 测试：三栏工作台核心路径",
+  "type": "test",
+  "wave": 3,
+  "depends_on": ["TASK-003", "TASK-004", "TASK-005"],
+  "requirement_refs": ["FR-UI-001", "FR-WEB-001"],
+  "description": "在 e2e/tests/ 下新增 web-workbench.spec.ts，覆盖：三栏布局渲染、消息发送交互、状态切换（loading→ready→error）。使用 visual-assertions helpers。",
+  "acceptance_criteria": [
+    "≥3 个测试用例",
+    "测试三栏布局 data-testid 存在",
+    "测试消息输入框可交互",
+    "使用 assertNoHorizontalScroll",
+    "不回归已有 design-system.spec.ts 测试"
+  ],
+  "files_to_create": ["e2e/tests/web-workbench.spec.ts"],
+  "files_to_modify": []
+}

@@ -1,0 +1,17 @@
+{
+  "id": "TASK-002",
+  "title": "会话 Store + Mock 数据层",
+  "type": "feature",
+  "wave": 1,
+  "depends_on": [],
+  "requirement_refs": ["FR-CHAT-001"],
+  "description": "创建 zustand store 管理会话列表和消息。提供 mock 数据供 UI 开发使用。Store 导出 useSessionStore（sessions, activeSessionId, messages, sendMessage, setActiveSession）。",
+  "acceptance_criteria": [
+    "zustand store 导出 useSessionStore",
+    "包含 sessions/messages/activeSessionId 状态",
+    "mock 数据包含至少 3 个会话、每会话 ≥2 条消息",
+    "sendMessage 乐观更新"
+  ],
+  "files_to_create": ["apps/web/store/session-store.ts", "apps/web/lib/mock-data.ts"],
+  "files_to_modify": []
+}

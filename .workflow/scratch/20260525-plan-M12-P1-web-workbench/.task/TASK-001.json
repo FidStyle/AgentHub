@@ -1,0 +1,17 @@
+{
+  "id": "TASK-001",
+  "title": "三栏布局骨架 (WorkspaceShell)",
+  "type": "feature",
+  "wave": 1,
+  "depends_on": [],
+  "requirement_refs": ["FR-WEB-001", "FR-UI-001"],
+  "description": "在 apps/web/components/workspace/ 下创建 WorkspaceShell 组件，使用 CSS Grid 实现三栏布局（侧边栏 280px、中栏 1fr、右栏 320px 可折叠）。必须消费 @agenthub/ui 的 Card 组件。添加 data-testid='workspace-shell'。",
+  "acceptance_criteria": [
+    "WorkspaceShell 使用 grid-cols-[280px_1fr_320px] 布局",
+    "导入 @agenthub/ui 组件",
+    "包含 data-testid='workspace-shell'",
+    "右栏支持折叠（通过 state 控制）"
+  ],
+  "files_to_create": ["apps/web/components/workspace/WorkspaceShell.tsx"],
+  "files_to_modify": ["apps/web/app/(workspace)/workspace/[id]/page.tsx"]
+}

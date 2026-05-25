@@ -1,0 +1,23 @@
+{
+  "id": "TASK-008",
+  "title": "E2E 视觉断言 helper + 基础测试",
+  "type": "test",
+  "wave": 3,
+  "depends_on": ["TASK-006", "TASK-007"],
+  "requirement_refs": ["FR-UI-001"],
+  "description": "在 e2e/ 下新增视觉断言 helper：无横向滚动断言、元素不重叠断言、文本不溢出断言、无敏感字段断言（禁止 API Key/Base URL）、截图留存。编写基础测试验证状态组件渲染中文、Runtime 页无敏感字段、图标按钮有中文 aria-label。",
+  "acceptance_criteria": [
+    "e2e/helpers/visual-assertions.ts 存在且包含 4 种 helper",
+    "新增 e2e/tests/design-system.spec.ts 测试状态组件",
+    "测试覆盖：状态组件中文文案、Runtime 无敏感字段、图标按钮可访问名称",
+    "截图保存至 e2e/artifacts/",
+    "pnpm test:e2e 全绿（含新旧测试）"
+  ],
+  "files_to_create": [
+    "e2e/helpers/visual-assertions.ts",
+    "e2e/tests/design-system.spec.ts"
+  ],
+  "files_to_modify": [
+    "e2e/playwright.config.ts"
+  ]
+}

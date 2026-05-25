@@ -1,8 +1,8 @@
 {
   "version": "3.1",
   "project_name": "AgentHub",
-  "status": "completed",
-  "current_milestone": "M10",
+  "status": "active",
+  "current_milestone": "M12",
   "current_task_id": null,
   "milestones": [
     {
@@ -154,6 +154,77 @@
       "roadmap_ref": ".workflow/roadmap.md",
       "created_at": "2026-05-24T00:00:00Z",
       "completed_at": "2026-05-24T01:00:00Z"
+    },
+    {
+      "id": "M11",
+      "name": "UI 基础设施与设计系统",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: 设计系统基础设施"
+      ],
+      "phase_slugs": {
+        "1": "01-design-system"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T00:00:00Z",
+      "completed_at": "2026-05-25T06:45:42.149195+00:00"
+    },
+    {
+      "id": "M12",
+      "name": "Web 三栏 IM 工作台重构",
+      "type": "standard",
+      "status": "planned",
+      "phases": [
+        "Phase 1: Web 三栏工作台 UI"
+      ],
+      "phase_slugs": {
+        "1": "01-web-workbench-ui"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T00:00:00Z"
+    },
+    {
+      "id": "M13",
+      "name": "Desktop Connector Console 重构",
+      "type": "standard",
+      "status": "planned",
+      "phases": [
+        "Phase 1: Desktop Console UI"
+      ],
+      "phase_slugs": {
+        "1": "01-desktop-console-ui"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T00:00:00Z"
+    },
+    {
+      "id": "M14",
+      "name": "Mobile/PWA 轻量 IM、审批、预览",
+      "type": "standard",
+      "status": "planned",
+      "phases": [
+        "Phase 1: Mobile/PWA UI"
+      ],
+      "phase_slugs": {
+        "1": "01-mobile-pwa-ui"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T00:00:00Z"
+    },
+    {
+      "id": "M15",
+      "name": "三端视觉 E2E 门禁",
+      "type": "standard",
+      "status": "planned",
+      "phases": [
+        "Phase 1: 视觉 E2E 门禁"
+      ],
+      "phase_slugs": {
+        "1": "01-visual-e2e-gate"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T00:00:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -305,9 +376,45 @@
       "harvested": false,
       "created_at": "2026-05-23T21:00:00Z",
       "completed_at": "2026-05-23T21:11:00Z"
+    },
+    {
+      "id": "ANL-012",
+      "type": "analyze",
+      "scope": "phase",
+      "status": "completed",
+      "milestone": "M12",
+      "phase": 1,
+      "path": ".workflow/scratch/20260525-analyze-M12-P1-web-workbench",
+      "recommendation": "Go",
+      "confidence": 90,
+      "created_at": "2026-05-25T08:24:44.835293+00:00"
+    },
+    {
+      "id": "PLN-012",
+      "type": "plan",
+      "scope": "phase",
+      "status": "completed",
+      "milestone": "M12",
+      "phase": 1,
+      "path": ".workflow/scratch/20260525-plan-M12-P1-web-workbench",
+      "depends_on": "ANL-012",
+      "task_count": 6,
+      "wave_count": 3,
+      "created_at": "2026-05-25T08:26:52.499056+00:00"
+    },
+    {
+      "id": "EXC-012",
+      "type": "execute",
+      "scope": "phase",
+      "status": "completed",
+      "milestone": "M12",
+      "phase": 1,
+      "path": ".workflow/scratch/20260525-plan-M12-P1-web-workbench",
+      "created_at": "2026-05-25T08:30:44.752694+00:00",
+      "confidence": 90
     }
   ],
-  "last_updated": "2026-05-23T12:50:00Z",
+  "last_updated": "2026-05-25T08:30:44.752810+00:00",
   "accumulated_context": {
     "key_decisions": [
       "Progressive delivery: M5→M6→M7→M8→M9",
@@ -543,6 +650,47 @@
           "verdict": "CONDITIONAL_PASS",
           "concerns": "6 integration gaps (4 medium, 2 low), 3 open review findings",
           "created_at": "2026-05-23T12:48:00Z"
+        }
+      ]
+    },
+    {
+      "milestone": "M11",
+      "completed_at": "2026-05-25T06:45:42.149195+00:00",
+      "artifacts": [
+        {
+          "type": "analyze",
+          "id": "ANL-011",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M11",
+          "phase": 1,
+          "path": ".workflow/scratch/20260525-analyze-P1-01-design-system",
+          "recommendation": "Go",
+          "confidence": 92,
+          "created_at": "2026-05-25T00:02:00Z"
+        },
+        {
+          "type": "plan",
+          "id": "PLN-011",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M11",
+          "phase": 1,
+          "path": ".workflow/scratch/20260525-plan-P1-design-system",
+          "depends_on": "ANL-011",
+          "task_count": 8,
+          "wave_count": 3,
+          "created_at": "2026-05-25T00:03:00Z"
+        },
+        {
+          "id": "EXC-011",
+          "type": "execute",
+          "phase": 1,
+          "scope": "phase",
+          "milestone": "M11",
+          "path": ".workflow/scratch/20260525-plan-P1-design-system",
+          "created_at": "2026-05-25T06:43:13.763801+00:00",
+          "confidence": 95
         }
       ]
     }

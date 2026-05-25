@@ -1,0 +1,42 @@
+{
+  "plan_id": "PLN-011",
+  "scope": "phase",
+  "milestone": "M11",
+  "phase": 1,
+  "title": "设计系统基础设施",
+  "description": "落地三端共享设计变量、基础组件库、状态组件和 E2E 视觉断言 helper",
+  "analysis_ref": "ANL-011",
+  "context_path": ".workflow/scratch/20260525-analyze-P1-01-design-system/context.md",
+  "requirements": ["FR-UI-001", "FR-DEVICE-001"],
+  "created_at": "2026-05-25T00:03:00Z",
+  "waves": [
+    {
+      "id": 1,
+      "title": "基础设施搭建",
+      "description": "packages/ui 包初始化 + 设计变量 + 三端 Tailwind 配置",
+      "task_ids": ["TASK-001", "TASK-002", "TASK-003"]
+    },
+    {
+      "id": 2,
+      "title": "基础组件 + 状态组件",
+      "description": "shadcn/ui 风格基础组件 + 8 种状态组件 + lucide 图标按钮",
+      "task_ids": ["TASK-004", "TASK-005", "TASK-006"]
+    },
+    {
+      "id": 3,
+      "title": "Desktop 违规修复 + E2E 视觉 helper",
+      "description": "删除 RuntimeConfigPage 敏感表单 + E2E 视觉断言基础设施",
+      "task_ids": ["TASK-007", "TASK-008"]
+    }
+  ],
+  "task_ids": ["TASK-001", "TASK-002", "TASK-003", "TASK-004", "TASK-005", "TASK-006", "TASK-007", "TASK-008"],
+  "success_criteria": [
+    "Tailwind CSS 4 设计变量在三端主题中生效",
+    "shadcn/ui 风格基础组件可在三端复用",
+    "lucide 图标按钮有中文 aria-label",
+    "8 种状态组件渲染中文文案",
+    "Runtime 状态卡不出现 API Key/Base URL",
+    "E2E 定位点约定落地",
+    "pnpm test 全绿（无回归）"
+  ]
+}

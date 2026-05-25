@@ -1,0 +1,18 @@
+{
+  "id": "TASK-003",
+  "title": "侧边栏 (Sidebar + SessionList)",
+  "type": "feature",
+  "wave": 2,
+  "depends_on": ["TASK-001", "TASK-002"],
+  "requirement_refs": ["FR-WEB-001", "FR-CHAT-001"],
+  "description": "创建侧边栏组件：顶部 Workspace 名称、Session 列表（使用 Card 组件）、新建会话按钮。使用 StateCard 展示 loading/empty 状态。data-testid='session-list'。",
+  "acceptance_criteria": [
+    "SessionList 消费 @agenthub/ui Card 组件",
+    "loading 状态使用 StateCard variant='loading'",
+    "empty 状态使用 StateCard variant='empty'",
+    "包含 data-testid='session-list'",
+    "会话项显示标题和最后消息预览"
+  ],
+  "files_to_create": ["apps/web/components/workspace/Sidebar.tsx", "apps/web/components/workspace/SessionList.tsx"],
+  "files_to_modify": []
+}
