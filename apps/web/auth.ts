@@ -1,0 +1,13 @@
+import NextAuth from 'next-auth'
+import type { NextAuthResult } from 'next-auth'
+import GitHub from 'next-auth/providers/github'
+import { DrizzleAdapter } from '@auth/drizzle-adapter'
+import { db } from './lib/db'
+
+const nextAuth: NextAuthResult = NextAuth({
+  adapter: DrizzleAdapter(db),
+  providers: [GitHub],
+  session: { strategy: 'database' },
+})
+
+export const { handlers, auth, signIn, signOut } = nextAuth
