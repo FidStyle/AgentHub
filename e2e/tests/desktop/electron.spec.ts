@@ -45,9 +45,9 @@ test.describe('Desktop Electron', () => {
     await expect(window.getByText('AgentHub 桌面连接器')).toBeVisible({ timeout: 10000 })
   })
 
-  test('显示 connector-console 定位点', async () => {
-    const console = window.locator('[data-testid="connector-console"]')
-    await expect(console).toBeVisible()
+  test('显示 desktop-main-shell 定位点', async () => {
+    const shell = window.locator('[data-testid="desktop-main-shell"]')
+    await expect(shell).toBeVisible()
   })
 
   test('显示 Runtime 检测区域', async () => {

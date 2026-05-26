@@ -7,7 +7,7 @@ let viteProcess: ChildProcess
 let electronApp: ElectronApplication
 let window: Page
 
-test.describe('Desktop Connector Console (M13)', () => {
+test.describe('Desktop 主壳基础验证', () => {
   test.beforeAll(async () => {
     viteProcess = spawn('npx', ['vite', '--port', '5174'], {
       cwd: desktopRoot,
@@ -41,9 +41,9 @@ test.describe('Desktop Connector Console (M13)', () => {
     viteProcess?.kill('SIGTERM')
   })
 
-  test('显示 connector-console 定位点', async () => {
-    const console = window.locator('[data-testid="connector-console"]')
-    await expect(console).toBeVisible({ timeout: 10000 })
+  test('显示 desktop-main-shell 定位点', async () => {
+    const shell = window.locator('[data-testid="desktop-main-shell"]')
+    await expect(shell).toBeVisible({ timeout: 10000 })
   })
 
   test('顶部状态条显示用户和设备信息', async () => {

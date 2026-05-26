@@ -229,11 +229,88 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 | FR-NOTIFY-001 | M13 + M14 | M17 P2 | 待审批入口 |
 | FR-MOB-001 | M14 | M17 P2 + M18 | 移动轻量界面 |
 
+---
+
+### Milestone 19: 三端 P0 UI 统一返工 (v0.19)
+**Target**: 让 Web、Desktop、Mobile/PWA 在 P0 达到同一套可交付产品 UI。统一 codeg/shadcn 视觉母版、品牌图标组件化、Desktop 主壳完善、Mobile 页面补全、全量 E2E 门禁。
+**Status**: active
+**Source**: analyze:ANL-009 (macro 分析)
+**Depends on**: M17 completed, M18 completed
+
+#### Phases
+
+- [ ] **Phase 1: 共享 Token 校准 + BrandIcon 组件** — 对齐 PRD hex 色板、新增 BrandIcon/RuntimeIcon
+- [ ] **Phase 2: Desktop 品牌图标 + 越界提示 + 轻量输入** — 接入品牌图标、完善越界中文提示、限制输入区
+- [ ] **Phase 3: Web 视觉对齐 + 测试补全** — 对齐 codeg 风格、补 1024x768 右栏收起测试
+- [ ] **Phase 4: Mobile/PWA 页面补全 + 测试补全** — 补 session/preview 页、截图测试
+- [ ] **Phase 5: 三端联合视觉门禁验收** — 全量 E2E + 品牌图标断言 + 跨端色板对比
+
+#### Phase Details
+
+##### Phase 1: 共享 Token 校准 + BrandIcon 组件
+**Goal**: packages/ui token 对齐 PRD hex 色板；新增 BrandIcon/RuntimeIcon 组件
+**Depends on**: M17, M18 completed
+**Requirements**: FR-UI-001, FR-RUNTIME-001
+**refer_proj**: codeg (shadcn token), AionUi (agent card icon slot)
+**Success Criteria**:
+  1. packages/ui/src/globals.css token 值对齐 research/ui-design-system.md §4.2 hex 色板
+  2. BrandIcon 组件导出 GitHub/Codex/ClaudeCode/OpenCode SVG
+  3. RuntimeIcon 组件按 runtimeKind 选择对应品牌图标
+  4. 三端 import @agenthub/ui 后可直接使用品牌图标
+
+##### Phase 2: Desktop 品牌图标 + 越界提示 + 轻量输入
+**Goal**: Desktop Agent 卡接入品牌图标；越界功能显示中文提示+Web 工作台按钮；输入区限制本地指令
+**Depends on**: Phase 1
+**Requirements**: FR-DESK-001, FR-RUNTIME-001
+**refer_proj**: AionUi (AgentCard icon), codeg (shadcn button states)
+**Success Criteria**:
+  1. Agent 卡渲染对应 RuntimeIcon（非纯文字）
+  2. GitHub 登录按钮渲染 GitHub SVG 图标
+  3. 越界功能入口显示中文职责提示 + "打开 Web 工作台" 按钮
+  4. 轻量输入区只承载诊断/继续/重试/停止/查看状态类指令
+  5. desktop-main-shell E2E 品牌图标断言通过
+
+##### Phase 3: Web 视觉对齐 + 测试补全
+**Goal**: Web 三栏工作台视觉对齐 codeg/shadcn 风格；补 1024x768 右栏收起截图测试
+**Depends on**: Phase 1
+**Requirements**: FR-WEB-001, FR-CHAT-001
+**refer_proj**: codeg (Sidebar, ConversationShell, MessageInput)
+**Success Criteria**:
+  1. Web 工作台截图符合 codeg 中性底色/细边框/紧凑侧栏风格
+  2. 1024x768 右栏收起不破版，有截图断言
+  3. web visual-gate + web-workbench E2E 通过
+
+##### Phase 4: Mobile/PWA 页面补全 + 测试补全
+**Goal**: 补 mobile session 详情页和 preview 页；补截图测试
+**Depends on**: Phase 1
+**Requirements**: FR-MOB-001
+**refer_proj**: lobehub (移动端信息架构)
+**Success Criteria**:
+  1. /m/sessions/[id] 页面完整渲染消息列表
+  2. /m/preview 页面存在且可导航
+  3. mobile visual-gate + mobile-pwa E2E 通过（含 session/preview 截图）
+  4. 390x844 所有路由无横向滚动
+
+##### Phase 5: 三端联合视觉门禁验收
+**Goal**: 全量 E2E 通过 + type-check + lint + 品牌图标断言 + 跨端色板一致性
+**Depends on**: Phase 2, 3, 4
+**Requirements**: FR-UI-001, FR-WEB-001, FR-DESK-001, FR-MOB-001
+**Success Criteria**:
+  1. pnpm --filter @agenthub/web type-check 通过
+  2. pnpm --filter @agenthub/desktop type-check 通过
+  3. pnpm --filter @agenthub/web lint 通过
+  4. pnpm --filter @agenthub/desktop lint 通过
+  5. Web/Desktop/Mobile visual-gate + desktop-main-shell + web-workbench + mobile-pwa E2E 全绿
+  6. 三端截图可见共用色板/圆角/按钮/Badge/输入框/状态卡
+  7. GitHub/Codex/Claude Code 图标渲染断言通过
+
+---
+
 ## Scope Decisions
 
-- **In scope**: M11-M15 代码验证、TDD 补全、refer_proj 对照、全量 E2E 门禁
+- **In scope**: M11-M15 代码验证、TDD 补全、refer_proj 对照、全量 E2E 门禁、三端 P0 UI 统一返工
 - **Deferred**: 功能逻辑变更、新 FR-ID 功能开发
-- **Out of scope**: 部署发布、Agent Marketplace、版本控制增强
+- **Out of scope**: 部署发布、Agent Marketplace、版本控制增强、API Key/Base URL 表单
 
 ## Progress
 

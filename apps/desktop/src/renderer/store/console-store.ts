@@ -7,6 +7,16 @@ export interface RuntimeInfo {
   authenticated: boolean
 }
 
+export type AgentStatus = 'connected' | 'pending'
+
+export interface AgentConfig {
+  id: string
+  name: string
+  status: AgentStatus
+  version?: string
+  capabilities?: string[]
+}
+
 export interface ActivityEntry {
   id: string
   time: string
@@ -24,6 +34,8 @@ export interface ApprovalItem {
   createdAt: string
 }
 
+export type DesktopPage = 'workspace' | 'sessions' | 'agents' | 'approvals' | 'settings'
+
 interface ConsoleState {
   connectionState: string
   deviceName: string
@@ -34,6 +46,10 @@ interface ConsoleState {
   activities: ActivityEntry[]
   approvals: ApprovalItem[]
   workspaceDirs: { path: string; healthy: boolean }[]
+  agents: AgentConfig[]
+  webWorkspaceError: string | null
+  currentPage: DesktopPage
+  selectedAgent: AgentConfig | null
 
   setConnectionState: (state: string) => void
   setRuntimes: (runtimes: RuntimeInfo[]) => void
@@ -41,6 +57,9 @@ interface ConsoleState {
   addActivity: (entry: Omit<ActivityEntry, 'id' | 'time'>) => void
   approveItem: (id: string) => void
   rejectItem: (id: string) => void
+  setWebWorkspaceError: (error: string | null) => void
+  navigateTo: (page: DesktopPage) => void
+  enterSession: (agent: AgentConfig) => void
 }
 
 export const useConsoleStore = create<ConsoleState>((set) => ({
@@ -60,6 +79,15 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
     { path: '~/Projects/agenthub', healthy: true },
     { path: '~/Projects/api-server', healthy: true },
   ],
+  agents: [
+    { id: 'codex', name: 'Codex', status: 'connected', version: '0.1.2', capabilities: ['代码生成', '代码审查', '测试生成'] },
+    { id: 'claude_code', name: 'Claude Code', status: 'connected', version: '1.0.6', capabilities: ['代码生成', '重构', '调试'] },
+    { id: 'opencode', name: 'OpenCode', status: 'pending', capabilities: [] },
+    { id: 'other', name: '其他 Runtime', status: 'pending', capabilities: [] },
+  ],
+  webWorkspaceError: null,
+  currentPage: 'workspace',
+  selectedAgent: null,
 
   setConnectionState: (connectionState: string) => set({ connectionState }),
   setRuntimes: (runtimes: RuntimeInfo[]) => set({ runtimes }),
@@ -69,4 +97,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   })),
   approveItem: (id: string) => set((s) => ({ approvals: s.approvals.filter((a) => a.id !== id) })),
   rejectItem: (id: string) => set((s) => ({ approvals: s.approvals.filter((a) => a.id !== id) })),
+  setWebWorkspaceError: (webWorkspaceError: string | null) => set({ webWorkspaceError }),
+  navigateTo: (currentPage: DesktopPage) => set({ currentPage }),
+  enterSession: (agent: AgentConfig) => set({ selectedAgent: agent, currentPage: 'workspace' }),
 }))

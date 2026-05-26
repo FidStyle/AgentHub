@@ -38,7 +38,8 @@ function createWindow() {
   })
 
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    win.loadURL('http://localhost:5173')
+    const port = process.env.VITE_PORT || '5173'
+    win.loadURL(`http://localhost:${port}`)
   } else {
     win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }

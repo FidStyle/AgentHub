@@ -1,5 +1,6 @@
 {"file":"research/prd.md","reason":"检查实现是否满足 Desktop P0 FR-ID 和职责边界。"}
 {"file":"research/prd-amendments/desktop-main-shell-agent-config.md","reason":"检查是否完整落实本次需求修订。"}
+{"file":"research/prd-amendments/desktop-navigation-agent-settings-page.md","reason":"检查左侧导航点击、独立 Agent 配置页和进入会话动作是否真实可用。"}
 {"file":"research/product-design.md","reason":"检查 Desktop 主壳、Agent 配置中心、轻量会话和打开 Web 行为。"}
 {"file":"research/ui-design-system.md","reason":"检查统一视觉母版、Desktop 布局和禁止项。"}
 {"file":"research/technical-design.md","reason":"检查 renderer/main 边界和 DeviceChannel 执行路径。"}

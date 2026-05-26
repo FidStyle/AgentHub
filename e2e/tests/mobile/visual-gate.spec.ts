@@ -3,6 +3,8 @@ import {
   assertNoHorizontalScroll,
   assertNoTextOverflow,
   assertNoSensitiveFields,
+  assertUsesUnifiedVisualSystem,
+  captureCrossSurfaceComparison,
 } from '../../helpers/visual-assertions'
 import path from 'path'
 import fs from 'fs'
@@ -49,5 +51,17 @@ test.describe('Mobile/PWA 视觉门禁', () => {
     await page.goto('/m/approve')
     await page.waitForSelector('[data-testid="mobile-session"]')
     await page.screenshot({ path: path.join(artifactDir, 'approve-390x844.png'), fullPage: true })
+  })
+
+  test('统一视觉母版断言', async ({ authedPage: page }) => {
+    await page.goto('/m')
+    await page.waitForSelector('[data-testid="mobile-session"]')
+    await assertUsesUnifiedVisualSystem(page)
+  })
+
+  test('三端对照截图 - Mobile 工作区', async ({ authedPage: page }) => {
+    await page.goto('/m')
+    await page.waitForSelector('[data-testid="mobile-session"]')
+    await captureCrossSurfaceComparison(page, 'mobile', 'workspace')
   })
 })

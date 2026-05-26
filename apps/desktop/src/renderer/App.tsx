@@ -1,6 +1,6 @@
 import './globals.css'
-import { ConnectorConsole } from './components/console/ConnectorConsole'
+import { DesktopMainShell } from './components/shell/DesktopMainShell'
 
 export default function App() {
-  return <ConnectorConsole />
+  return <DesktopMainShell />
 }

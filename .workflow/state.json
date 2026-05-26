@@ -524,6 +524,31 @@
       "path": "scratch/20260526-plan-P2-02-desktop-brand-boundary",
       "status": "completed",
       "created_at": "2026-05-25T21:49:02.912103+00:00"
+    },
+    {
+      "type": "analyze",
+      "id": "ANL-auth-migration",
+      "scope": "macro",
+      "status": "completed",
+      "milestone": null,
+      "phase": null,
+      "path": ".workflow/scratch/20260527-analyze-auth-migration",
+      "recommendation": "Go",
+      "confidence": 85,
+      "created_at": "2026-05-27T10:00:00Z"
+    },
+    {
+      "type": "plan",
+      "id": "PLN-auth-migration",
+      "scope": "standalone",
+      "status": "completed",
+      "milestone": null,
+      "phase": null,
+      "path": ".workflow/scratch/20260527-plan-auth-migration",
+      "depends_on": "ANL-auth-migration",
+      "task_count": 7,
+      "wave_count": 3,
+      "created_at": "2026-05-27T10:05:00Z"
     }
   ],
   "last_updated": "2026-05-25T08:36:40.795991+00:00",
@@ -870,5 +895,5 @@
     }
   ],
   "current_phase": 1,
-  "updated_at": "2026-05-27T02:00:00Z"
+  "updated_at": "2026-05-27T10:05:00Z"
 }

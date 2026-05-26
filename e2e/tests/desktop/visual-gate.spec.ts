@@ -53,22 +53,17 @@ test.describe('Desktop Connector Console 视觉门禁', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth)
   })
 
-  test('状态卡不重叠', async () => {
-    const cards = await window.locator('[data-testid="connector-console"] .rounded-md').all()
-    if (cards.length < 2) return
+  test('三栏不重叠', async () => {
+    const shell = window.locator('[data-testid="desktop-main-shell"]')
+    await expect(shell).toBeVisible({ timeout: 10000 })
 
-    const rects = await window.$$eval('[data-testid="connector-console"] .rounded-md', els =>
-      els.map(el => {
-        const r = el.getBoundingClientRect()
-        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }
-      })
-    )
-    for (let i = 0; i < rects.length; i++) {
-      for (let j = i + 1; j < rects.length; j++) {
-        const a = rects[i], b = rects[j]
-        const overlaps = a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
-        expect(overlaps, `Cards ${i} and ${j} overlap`).toBe(false)
-      }
+    const sidebar = await window.locator('[data-testid="desktop-session-sidebar"]').boundingBox()
+    const session = await window.locator('[data-testid="desktop-agent-session"]').boundingBox()
+    const config = await window.locator('[data-testid="desktop-agent-config"]').boundingBox()
+
+    if (sidebar && session && config) {
+      expect(sidebar.x + sidebar.width).toBeLessThanOrEqual(session.x + 1)
+      expect(session.x + session.width).toBeLessThanOrEqual(config.x + 1)
     }
   })
 
@@ -82,5 +77,38 @@ test.describe('Desktop Connector Console 视觉门禁', () => {
 
   test('截图留存 - Console 全貌', async () => {
     await window.screenshot({ path: path.join(artifactDir, 'connector-console-1200x800.png'), fullPage: true })
+  })
+
+  test('统一视觉母版断言', async () => {
+    await window.waitForSelector('[data-testid="desktop-main-shell"]')
+    const result = await window.evaluate(() => {
+      const tokenPatterns = [
+        'bg-card', 'bg-background', 'bg-muted', 'bg-primary',
+        'text-primary', 'text-muted-foreground', 'text-foreground',
+        'border-border', 'rounded-md', 'rounded-lg',
+      ]
+      const allElements = document.querySelectorAll('[class]')
+      const tokenHits = new Set<string>()
+      allElements.forEach(el => {
+        const cls = el.getAttribute('class') || ''
+        for (const t of tokenPatterns) {
+          if (cls.includes(t)) tokenHits.add(t)
+        }
+      })
+      let inlineCount = 0
+      document.querySelectorAll('[style]').forEach(el => {
+        const s = (el as HTMLElement).style
+        if (s.backgroundColor || s.color || s.borderRadius || s.border) inlineCount++
+      })
+      return { tokenCount: tokenHits.size, hasInlineStyleAbuse: inlineCount > 5 }
+    })
+    expect(result.tokenCount).toBeGreaterThanOrEqual(4)
+    expect(result.hasInlineStyleAbuse).toBe(false)
+  })
+
+  test('三端对照截图 - Desktop Console', async () => {
+    const crossDir = path.resolve(__dirname, '../artifacts/cross-surface/workspace')
+    fs.mkdirSync(crossDir, { recursive: true })
+    await window.screenshot({ path: path.join(crossDir, 'desktop.png'), fullPage: true })
   })
 })
