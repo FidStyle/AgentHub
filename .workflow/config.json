@@ -28,7 +28,22 @@
     "preflight_window_min": 30,
     "auto_preflight": true
   },
-  "specInjection": {},
+  "specInjection": {
+    "always": {
+      "keywords": [
+        "wave",
+        "跟进",
+        "tracker",
+        "commit",
+        "ui",
+        "playwright"
+      ],
+      "categories": [
+        "coding",
+        "test"
+      ]
+    }
+  },
   "dashboard": {
     "port": 3001
   },

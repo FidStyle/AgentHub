@@ -36,7 +36,7 @@ P0 技术目标：
 | Mobile P0 | 同一 Next.js 应用的响应式 Web/PWA 路由 | `FR-MOB-001`, `FR-DEVICE-001` |
 | Mobile Android 预留 | Capacitor 包装移动 Web/PWA；P0 不强制 Android Studio | `FR-MOB-001`, `FR-NOTIFY-101` |
 | 共享层 | `packages/shared` 纯 TypeScript 类型、协议、状态机、API client | `FR-WS-001`, `FR-RUNTIME-001`, `FR-PERM-001` |
-| Auth | Supabase Auth + GitHub OAuth | `FR-AUTH-001` |
+| Auth | Auth.js v5 + GitHub OAuth Provider（本地开发不依赖外部 Auth 服务） | `FR-AUTH-001` |
 | DB | Supabase Postgres | `FR-WS-001`, `FR-CHAT-001`, `FR-RESULT-001` |
 | Realtime | Supabase Realtime 订阅消息、事件、审批状态 | `FR-CHAT-001`, `FR-NOTIFY-001` |
 | Desktop 通道 | `DeviceChannel` 接口，P0 实现为 Desktop 主动 WebSocket 长连接 | `FR-DEVICE-001`, `FR-DESK-001`, `NFR-SEC-001` |

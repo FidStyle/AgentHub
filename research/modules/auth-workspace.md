@@ -74,8 +74,8 @@ type WorkspaceExecutionDomain = 'cloud' | 'local_desktop';
 
 P0 推荐：
 
-- Auth：Supabase Auth + GitHub OAuth。
-- DB：PostgreSQL，Workspace/Session/Role Agent/Action/Pending Approval 使用统一用户 ID。
+- Auth：Auth.js v5 + GitHub OAuth Provider。本地开发仅需 GitHub OAuth App credentials + local Postgres，不依赖 Supabase 控制台。
+- DB：PostgreSQL（生产可用 Supabase Postgres，本地开发用 local Postgres），Workspace/Session/Role Agent/Action/Pending Approval 使用统一用户 ID。
 - Workspace 执行域：数据库字段强约束 + 服务层校验 + UI 禁用不合法选择。
 - Desktop 绑定：一次性设备绑定码，绑定后获得 device token。
 - 本地目录权限：Desktop 只暴露用户选择的 workspace root；后端只保存目录标识和展示名，不保存任意可写路径能力。
