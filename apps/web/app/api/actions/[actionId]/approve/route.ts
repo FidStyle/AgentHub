@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 // POST /api/actions/[actionId]/approve — approve or reject an action
@@ -8,8 +9,8 @@ export async function POST(
 ) {
   const { actionId } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const body = await request.json()
   const { approved } = body // boolean

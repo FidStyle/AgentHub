@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { getReadyNodes } from '@/lib/orchestrator/dag-scheduler'
 import type { PlanNode } from '@agenthub/shared'
@@ -10,8 +11,8 @@ export async function POST(
 ) {
   const { planId } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   // Verify ownership
   const { data: plan } = await supabase

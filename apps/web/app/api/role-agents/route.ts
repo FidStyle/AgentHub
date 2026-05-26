@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 // GET: list all role agents for a workspace
 export async function GET(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const { searchParams } = new URL(request.url)
   const workspaceId = searchParams.get('workspace_id')
@@ -32,8 +33,8 @@ export async function GET(request: Request) {
 // POST: create a new role agent
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const body = await request.json()
   const { workspace_id, name, role_type, system_prompt, capabilities, is_orchestrator } = body

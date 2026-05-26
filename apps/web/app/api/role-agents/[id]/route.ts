@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 // Helper: auth + workspace ownership check
@@ -31,8 +32,8 @@ export async function GET(
 ) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const ctx = await authAndOwn(user.id, id)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
@@ -54,8 +55,8 @@ export async function PATCH(
 ) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const ctx = await authAndOwn(user.id, id)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
@@ -88,8 +89,8 @@ export async function DELETE(
 ) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const ctx = await authAndOwn(user.id, id)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })

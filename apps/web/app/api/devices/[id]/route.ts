@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 export async function DELETE(
@@ -6,8 +7,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const { id } = await params
 

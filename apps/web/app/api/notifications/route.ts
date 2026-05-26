@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 // GET /api/notifications — list user notifications
 // PATCH /api/notifications — mark as read
 export async function GET(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const { searchParams } = new URL(request.url)
   const unreadOnly = searchParams.get('unread') === 'true'
@@ -20,8 +21,8 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '未授权' }, { status: 401 })
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
 
   const body = await request.json()
   const { ids } = body // string[]
