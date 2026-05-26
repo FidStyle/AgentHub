@@ -191,7 +191,7 @@ flowchart TD
 
 ### 6.1 Auth
 
-P0 使用 Supabase Auth + GitHub OAuth。Web、Desktop、Mobile 共享同一 AgentHub user identity。
+P0 使用 Auth.js v5 + GitHub OAuth Provider。Web、Desktop、Mobile 共享同一 AgentHub user identity。
 
 身份对象：
 
@@ -830,7 +830,7 @@ UI 约束：
 
 1. 建立 monorepo：`apps/web`, `apps/desktop`, `packages/shared`。
 2. 建立 shared domain types、FR-ID 常量、execution domain policy。
-3. 接入 Supabase Auth + GitHub OAuth。
+3. 接入 Auth.js v5 + GitHub OAuth。
 
 绑定需求：`FR-AUTH-001`, `FR-WS-001`, `FR-DEVICE-001`。
 
@@ -968,7 +968,7 @@ P0 不把 mobile-dev-inc Maestro 当作三端 E2E 主工具。它只在后续进
 | --- | --- |
 | Next.js + Electron + PWA + Capacitor 预留 | `research/modules/client-shells.md` |
 | shadcn/ui + Tailwind CSS 4 + lucide-react 三端 UI 基线 | `research/ui-design-system.md`，AionUi/codeg/lobehub/cherry-studio 参考调研 |
-| Supabase Auth/Postgres/Realtime | `research/modules/auth-workspace.md`, `research/modules/im-foundation.md` |
+| Auth.js v5 + GitHub OAuth / Supabase Postgres / Supabase Realtime | `research/modules/auth-workspace.md`, `research/modules/im-foundation.md` |
 | DeviceChannel = 接口，P0 WebSocket | `research/modules/desktop-connector.md`, `research/modules/reference-projects.md` |
 | Claude Code/Codex 走 CLI 子进程 Adapter | `research/modules/runtime-adapters.md` |
 | ActionRequest 统一 preview/test/build/shell/deploy 兼容 | `research/modules/action-cli-adapter.md` |

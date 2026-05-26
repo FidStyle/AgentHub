@@ -26,9 +26,9 @@ AgentHub P0 已确定使用 GitHub OAuth，不做独立用户名密码。Workspa
 | Supabase Auth + GitHub OAuth | 快速获得 Auth、Session、DB、Realtime 组合能力 | 平台绑定更强；本地 Demo 依赖外部服务 | 高 |
 | 自建 GitHub OAuth | 控制最强 | 安全、回调、token 管理重复造轮子 | 低 |
 
-**推荐：** 若 P0 追求最快端到端 Demo，选 Supabase Auth；若追求代码可控和可迁移，选 Auth.js。
+**推荐：** Auth.js v5 + GitHub OAuth Provider。本地开发仅需 GitHub OAuth App credentials + local Postgres，不依赖 Supabase 控制台。
 
-考虑 AgentHub 还需要 Realtime、审批队列和三端同步，P0 推荐 **Supabase Auth + GitHub OAuth**。
+> 决策已确认（DEC-001）：P0 采用 Auth.js v5，消除本地开发/E2E 对外部 Auth 服务的强依赖。
 
 ---
 
@@ -86,11 +86,11 @@ P0 推荐：
 
 **推荐确认项：**
 
-A. P0 使用 Supabase Auth + GitHub OAuth + Postgres，加速三端同步。  
-B. 使用 Auth.js + 自管 Postgres，控制力更强但实现更多。  
-C. 自建 GitHub OAuth，不依赖认证框架。
+~~A. P0 使用 Supabase Auth + GitHub OAuth + Postgres，加速三端同步。~~
+**B. 使用 Auth.js v5 + GitHub OAuth + local Postgres，控制力强且本地零依赖。** ✅ 已采纳（DEC-001）
+~~C. 自建 GitHub OAuth，不依赖认证框架。~~
 
-我的建议是 **A**。它同时服务 Auth、DB、Realtime，适合 MVP。
+最终选择 **B**。Auth.js v5 消除 Supabase 控制台依赖；DB/Realtime 仍使用 Supabase Postgres。
 
 ---
 
