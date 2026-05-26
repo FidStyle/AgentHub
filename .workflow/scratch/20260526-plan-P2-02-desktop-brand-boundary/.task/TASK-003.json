@@ -1,0 +1,16 @@
+{
+  "id": "TASK-003",
+  "title": "轻量输入区本地指令按钮",
+  "status": "completed",
+  "description": "1. DesktopAgentSession composer 区域添加本地指令按钮：诊断、继续、重试、停止\n2. 按钮在无 Agent 连接时 disabled\n3. 按钮在有 Agent 时 enabled，点击触发 store action",
+  "files": [
+    "apps/desktop/src/renderer/components/shell/DesktopAgentSession.tsx",
+    "apps/desktop/src/renderer/store/console-store.ts"
+  ],
+  "acceptance": [
+    "4 个本地指令按钮可见",
+    "无连接时 disabled",
+    "有连接时 enabled",
+    "tsc --noEmit 通过"
+  ]
+}

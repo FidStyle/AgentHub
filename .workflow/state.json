@@ -231,7 +231,7 @@
       "id": "M17",
       "name": "TDD 验证补全",
       "type": "standard",
-      "status": "active",
+      "status": "completed",
       "phases": [
         "Phase 1: 设计系统 TDD 验证",
         "Phase 2: 三端页面 TDD 验证",
@@ -243,13 +243,14 @@
         "3": "03-refer-proj-audit"
       },
       "roadmap_ref": ".workflow/roadmap.md",
-      "created_at": "2026-05-25T14:30:00Z"
+      "created_at": "2026-05-25T14:30:00Z",
+      "completed_at": "2026-05-25T18:15:46.336769Z"
     },
     {
       "id": "M18",
       "name": "全量三端 E2E 视觉门禁",
       "type": "standard",
-      "status": "planned",
+      "status": "completed",
       "phases": [
         "Phase 1: 全量视觉门禁"
       ],
@@ -257,7 +258,31 @@
         "1": "01-full-visual-gate"
       },
       "roadmap_ref": ".workflow/roadmap.md",
-      "created_at": "2026-05-25T14:30:00Z"
+      "created_at": "2026-05-25T14:30:00Z",
+      "completed_at": "2026-05-25T18:15:46.336937Z"
+    },
+    {
+      "id": "M19",
+      "name": "三端 P0 UI 统一返工",
+      "type": "standard",
+      "status": "completed",
+      "phases": [
+        "Phase 1: 共享 Token 校准 + BrandIcon 组件",
+        "Phase 2: Desktop 品牌图标 + 越界提示 + 轻量输入",
+        "Phase 3: Web 视觉对齐 + 测试补全",
+        "Phase 4: Mobile/PWA 页面补全 + 测试补全",
+        "Phase 5: 三端联合视觉门禁验收"
+      ],
+      "phase_slugs": {
+        "1": "01-shared-token-brand-icon",
+        "2": "02-desktop-brand-boundary",
+        "3": "03-web-visual-align",
+        "4": "04-mobile-pwa-complete",
+        "5": "05-visual-gate-final"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T21:25:08.312154+00:00",
+      "completed_at": "2026-05-27T02:00:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -409,6 +434,96 @@
       "harvested": false,
       "created_at": "2026-05-23T21:00:00Z",
       "completed_at": "2026-05-23T21:11:00Z"
+    },
+    {
+      "id": "ANL-009",
+      "type": "analyze",
+      "scope": "macro",
+      "status": "completed",
+      "path": "20260526-analyze-macro-ui-unification",
+      "created_at": "2026-05-25T21:22:29.250400+00:00",
+      "milestone_ref": null,
+      "phase_slug": null
+    },
+    {
+      "id": "RMAP-m19-20260526",
+      "type": "roadmap",
+      "scope": "milestone",
+      "status": "completed",
+      "path": ".workflow/roadmap.md",
+      "created_at": "2026-05-25T21:25:08.312287+00:00",
+      "milestone_ref": "M19",
+      "phase_slug": null
+    },
+    {
+      "id": "ANL-010",
+      "type": "analyze",
+      "scope": "phase",
+      "status": "completed",
+      "path": "20260526-analyze-P1-01-shared-token-brand-icon",
+      "created_at": "2026-05-25T21:28:15.603325+00:00",
+      "milestone_ref": "M19",
+      "phase_slug": "01-shared-token-brand-icon"
+    },
+    {
+      "id": "PLN-P1-01-token-brand-icon",
+      "type": "plan",
+      "scope": "phase",
+      "phase": "01-shared-token-brand-icon",
+      "milestone": "M19",
+      "path": ".workflow/scratch/20260526-plan-P1-01-shared-token-brand-icon",
+      "depends_on": [
+        "ANL-010"
+      ],
+      "status": "completed",
+      "created_at": "2026-05-26T14:40:00+08:00",
+      "updated_at": "2026-05-26T14:40:00+08:00"
+    },
+    {
+      "id": "EXC-P1-01-token-brand-icon",
+      "type": "execute",
+      "scope": "phase",
+      "phase": "01-shared-token-brand-icon",
+      "milestone": "M19",
+      "path": ".workflow/scratch/20260526-plan-P1-01-shared-token-brand-icon",
+      "depends_on": [
+        "PLN-P1-01-token-brand-icon"
+      ],
+      "status": "completed",
+      "created_at": "2026-05-26T14:45:00+08:00",
+      "updated_at": "2026-05-26T14:45:00+08:00"
+    },
+    {
+      "id": "VRF-P1-01-token-brand-icon",
+      "type": "verify",
+      "scope": "phase",
+      "phase": "01-shared-token-brand-icon",
+      "milestone": "M19",
+      "path": ".workflow/scratch/20260526-plan-P1-01-shared-token-brand-icon",
+      "depends_on": [
+        "EXC-P1-01-token-brand-icon"
+      ],
+      "status": "completed",
+      "created_at": "2026-05-26T14:48:00+08:00",
+      "updated_at": "2026-05-26T14:48:00+08:00"
+    },
+    {
+      "id": "PLN-P2-02-desktop-brand-boundary",
+      "type": "plan",
+      "scope": "phase",
+      "milestone": "M19",
+      "path": "scratch/20260526-plan-P2-02-desktop-brand-boundary",
+      "status": "completed",
+      "created_at": "2026-05-25T21:45:39.362099+00:00"
+    },
+    {
+      "id": "EXC-P2-02-desktop-brand-boundary",
+      "type": "execute",
+      "scope": "phase",
+      "milestone": "M19",
+      "path": "scratch/20260526-plan-P2-02-desktop-brand-boundary",
+      "status": "completed",
+      "created_at": "2026-05-25T21:49:02.912103+00:00"
     }
   ],
   "last_updated": "2026-05-25T08:36:40.795991+00:00",
@@ -754,5 +869,6 @@
       "phases_completed": 1
     }
   ],
-  "current_phase": 1
+  "current_phase": 1,
+  "updated_at": "2026-05-27T02:00:00Z"
 }

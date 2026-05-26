@@ -1,1 +1,11 @@
 @import '@agenthub/ui/globals.css';
+
+[data-testid="desktop-main-shell"] {
+  user-select: none;
+}
+
+[data-testid="desktop-main-shell"] input,
+[data-testid="desktop-main-shell"] textarea,
+[data-testid="desktop-main-shell"] [data-selectable] {
+  user-select: text;
+}
