@@ -10,7 +10,15 @@ test-results/
 
 # Maestro runtime logs
 .workflow/spec-analytics.jsonl
+.workflow/.maestro/
+.workflow/.team/
+.workflow/scratch/
+.workflow/milestones/*/artifacts/
 
 # E2E
 e2e/.env.test
 e2e/.web-server-pid
+e2e/tests/artifacts/
+
+# Local reference clones
+refer_proj/CodeStable/
