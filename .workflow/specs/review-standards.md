@@ -24,3 +24,19 @@ keywords:
 所有 Maestro/Ralph 执行任务必须以 research/project-tracker.md 作为用户可见进度源。每完成一个 wave，必须同步更新 project-tracker.md 和 research/execution-reports/*.md。没有公开跟进记录，不允许标记任务完成。
 
 </spec-entry>
+
+<spec-entry category="review" keywords="ui,design,frontend,components,desktop,web,mobile" date="2026-05-26">
+
+### UI 设计与组件契约
+
+所有 UI 修改必须遵循 research/ui-design-system.md、research/product-design.md 和相关 UI 契约文档。三端视觉风格必须统一，全局中文。禁止无样式纯 HTML，禁止临时毛坯 UI，禁止把 Runtime API Key 配置暴露为主流程表单；Runtime 配置优先做检测、状态展示和引导。
+
+</spec-entry>
+
+<spec-entry category="review" keywords="git,commit,wave,quality,verify" date="2026-05-26">
+
+### Wave 级自动提交规则
+
+每个功能 wave 只有在 lint/type/test/E2E 或对应验证通过，并且 research/project-tracker.md 与 execution-reports 已同步后，才能git add 并 git commit。commit message 必须中文，且只能提交本 wave 相关文件；不得提交 refer_proj/*、无关缓存、临时日志或未确认改动。
+
+</spec-entry>

@@ -36,12 +36,38 @@
         "tracker",
         "commit",
         "ui",
-        "playwright"
+        "playwright",
+        "governance",
+        "e2e",
+        "visual"
       ],
       "categories": [
         "coding",
-        "test"
+        "test",
+        "review",
+        "arch"
+      ],
+      "docs": [
+        "research/index.md",
+        "research/project-tracker.md",
+        "research/decision-log.md",
+        "research/ui-design-system.md"
       ]
+    },
+    "categoryDocs": {
+      "ui": {
+        "docs": [
+          "research/ui-design-system.md",
+          "research/product-design.md",
+          "research/desktop-p0-ui-ux-contract.md"
+        ]
+      },
+      "test": {
+        "docs": [
+          "research/maestro-tdd-quality-gates.md",
+          "research/modules/ui-and-visual-testing.md"
+        ]
+      }
     }
   },
   "dashboard": {
