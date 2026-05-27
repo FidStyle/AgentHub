@@ -11,6 +11,7 @@
 - 状态变更时附带日期。
 - Maestro/Ralph 每完成一个 wave，必须更新对应任务的「当前状态」和「下一步动作」字段。
 - 验证通过后必须补充「测试证据」字段（截图路径、E2E 报告链接或命令输出）。
+- **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 且 exit 0。status.json completed ≠ 项目完成。
 
 ---
 

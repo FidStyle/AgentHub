@@ -70,3 +70,4 @@
 1. **跟进义务**：Maestro/Ralph 每完成一个 wave，必须同步更新 `project-tracker.md` 和 `execution-reports/*.md`。没有公开跟进记录，不允许标记任务完成。
 2. **PRD 修订**：如发现 PRD/技术设计与当前计划冲突，只能新增 `prd-amendments/*.md`，不允许直接改业务代码。
 3. **索引维护**：新增研究文档必须同步更新本索引。
+4. **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 并确认 exit 0。status.json completed 不等于项目完成。

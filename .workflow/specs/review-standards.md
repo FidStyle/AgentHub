@@ -33,6 +33,18 @@ keywords:
 
 </spec-entry>
 
+<spec-entry category="review" keywords="governance,gate,status,complete,ralph,maestro" date="2026-05-27">
+
+### 治理门禁硬规则
+
+1. **治理门禁不可绕过** — 任何 milestone complete / session complete 前必须通过 `scripts/verify-governance-gate.sh <TASK-ID>`。
+2. **Ralph completed 不等于项目完成** — status.json 仅为机器执行状态，不作为最终验收依据。
+3. **完成前必须运行** `bash scripts/verify-governance-gate.sh <TASK-ID>` 并确认 exit 0。
+4. **没有 research/project-tracker.md 和 execution-reports 证据，不允许 milestone complete**。
+5. **每个 wave 验证通过后必须精确 git add + 中文 commit** — 禁止 `git add .`，禁止提交 refer_proj、缓存、临时日志。
+
+</spec-entry>
+
 <spec-entry category="review" keywords="git,commit,wave,quality,verify" date="2026-05-26">
 
 ### Wave 级自动提交规则
