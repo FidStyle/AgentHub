@@ -48,3 +48,15 @@ bash scripts/verify-governance-gate.sh <TASK-ID>
 1. 所有实现类任务的 Prompt 必须引用 `research/prompts/maestro-execution-governance.md`。
 2. Maestro/Ralph 不得手动编辑 `.workflow/.maestro/*/status.json` 绕过门禁。
 3. 门禁失败时必须输出 `CONCERNS`，并先补 `research/project-tracker.md`、`research/execution-reports/`、测试证据和中文 commit。
+
+## 2026-05-27 补充：Codex 指导协议固化
+
+本次补充把 Codex 后续指导 Maestro/Ralph 的默认逻辑固化到 `research/maestro-guidance-playbook.md` 和 `.workflow/specs/review-standards.md`：
+
+1. 默认先用 Prompt 约束当前任务。
+2. 用 Spec / always-inject 保存长期规则。
+3. 用 `scripts/verify-governance-gate.sh <TASK-ID>` 做硬门禁。
+4. 观察 1-2 次任务后仍违规，才升级到 `/maestro-overlay` 或 `/maestro-amend`。
+5. 最后才考虑直接修改 Maestro 本体执行逻辑。
+
+该规则用于约束 Codex 自身：后续用户要求“给 Maestro Prompt”时，Codex 必须按该协议生成，而不是只给一段临时提醒。

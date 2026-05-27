@@ -69,3 +69,11 @@ Codex 在本项目中承担技术甲方和验收裁判职责，Maestro/Ralph 承
 任何 Maestro/Ralph session 不得仅凭 status.json completed 判定完成。完成前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`，并确认 research/project-tracker.md、research/execution-reports、测试证据和中文 commit 均已闭环；失败时必须输出 CONCERNS，禁止 milestone-complete。`scripts/check-governance-gate.sh` 仅作为兼容别名。
 
 </spec-entry>
+
+<spec-entry category="review" keywords="codex,prompt,maestro,ralph,overlay,amend,governance" date="2026-05-27">
+
+### Codex 指导 Maestro 的升级策略
+
+Codex 后续为用户生成 Maestro/Ralph prompt 时，必须遵循 `research/maestro-guidance-playbook.md` 的 Prompt 生成规则：先用当前任务 Prompt 明确约束，再依靠 Spec/always-inject 做长期记忆，以 `scripts/verify-governance-gate.sh <TASK-ID>` 作为硬门禁。只有当 Maestro/Ralph 仍反复漏跑门禁、门禁失败却 complete、手动改 `status.json` 或只写 `.workflow/scratch/` 时，才升级到 `/maestro-overlay` 或 `/maestro-amend --from-session <id> --scan`；不得优先直接修改 Maestro 本体执行逻辑。
+
+</spec-entry>

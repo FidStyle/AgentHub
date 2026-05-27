@@ -87,6 +87,20 @@ Codex 给 Maestro 的 prompt 必须包含：
 5. 完成定义：测试证据、执行报告、tracker、精确 commit、governance gate。
 6. 开始/结束标记，便于用户复制。
 
+Codex 后续为用户生成 Maestro/Ralph prompt 时，必须默认套用以下指导协议：
+
+1. **先用 Prompt 约束当前任务**：每次 prompt 都显式要求读取 `research/prompts/maestro-execution-governance.md`，并把 `bash scripts/verify-governance-gate.sh <TASK-ID>` 写成完成前硬门禁。
+2. **用 Spec 承载长期记忆**：如果本次任务暴露新的反复性规则、质量标准或流程缺口，优先补 `.workflow/specs/*` 或 `research/maestro-guidance-playbook.md`，而不是只在聊天里提醒。
+3. **用脚本承载硬判断**：完成与否不得靠 Maestro summary 或 `status.json completed`，必须以 `scripts/verify-governance-gate.sh <TASK-ID>`、git 状态、测试证据和 `research/` 公开总账为准。
+4. **观察后再升级 overlay**：只有当 Maestro/Ralph 在 1-2 次任务中仍然忘记运行门禁、脚本失败仍 complete、手动改 `status.json` 或只写 `.workflow/scratch/` 时，才建议使用 `/maestro-overlay` 或 `/maestro-amend --from-session <id> --scan` 注入命令级补丁。
+5. **最后才考虑改 Maestro 本体**：除非 overlay 不能覆盖、升级后仍重复失效，或用户明确要求维护 Maestro 工具链，否则不直接修改 Maestro 原始命令或执行逻辑。
+
+默认优先级：
+
+```text
+当前任务 Prompt > 项目 Spec / always-inject > 门禁脚本 > overlay/amend > Maestro 本体修改
+```
+
 推荐格式：
 
 ```text
@@ -98,6 +112,47 @@ Codex 给 Maestro 的 prompt 必须包含：
 验证要求：...
 提交要求：...
 完成标准：...
+END_MAESTRO_PROMPT>>>
+```
+
+标准 Prompt 骨架：
+
+```text
+<<<BEGIN_MAESTRO_PROMPT
+目标：<一句话说明本次任务>
+TASK-ID：<任务 ID>
+绑定 FR-ID：<FR-ID 列表>
+
+执行前必读：
+- research/prompts/maestro-execution-governance.md
+- research/index.md
+- research/project-tracker.md
+- research/decision-log.md
+- <本任务相关 PRD / 技术 / UI 文档>
+
+当前状态：
+- <来自 project-tracker / git / 用户反馈的事实>
+
+执行要求：
+- <分析/计划/实现/验证/治理修复的具体要求>
+- 不得手动编辑 .workflow/.maestro/*/status.json 绕过 active step 或 decision gate。
+- 不得只写 .workflow/scratch/，必须同步 research/ 公开总账。
+
+验证要求：
+- <lint/type/test/E2E/视觉断言命令>
+- 将验证命令和结果写入 research/execution-reports/。
+
+提交要求：
+- 只能精确 git add 本 wave 相关文件，禁止 git add .。
+- commit message 必须中文。
+- 禁止提交 refer_proj/*、缓存、临时日志和未确认改动。
+
+完成标准：
+- research/project-tracker.md 已更新。
+- research/execution-reports/ 已补齐。
+- 测试证据已写入报告。
+- 已运行 bash scripts/verify-governance-gate.sh <TASK-ID> 且 exit 0。
+- 门禁失败时输出 CONCERNS 并停止，不允许 milestone-complete/session complete。
 END_MAESTRO_PROMPT>>>
 ```
 
@@ -126,4 +181,3 @@ END_MAESTRO_PROMPT>>>
 - 如果是需求不清：暂停实现，更新 PRD amendment 或让 Maestro analyze。
 - 如果是测试失败：走 `quality-debug`，不要盲目 execute。
 - 如果是流程漏项：走 `maestro-amend` 或治理门禁，不把问题藏在单次 prompt。
-
