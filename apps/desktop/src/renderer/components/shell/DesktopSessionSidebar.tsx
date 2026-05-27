@@ -1,8 +1,19 @@
 import { Badge } from '@agenthub/ui'
+import { FolderOpen, MessageSquare, Bot, Bell, Settings, Github } from 'lucide-react'
 import { useConsoleStore, type DesktopPage } from '../../store/console-store'
+import { useDesktopAuth } from '../../hooks/useDesktopAuth'
+
+const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  workspace: FolderOpen,
+  sessions: MessageSquare,
+  agents: Bot,
+  approvals: Bell,
+  settings: Settings,
+}
 
 export function DesktopSessionSidebar() {
-  const { workspaceDirs, approvals, connectionState, currentPage, navigateTo } = useConsoleStore()
+  const { workspaceDirs, approvals, connectionState, currentPage, navigateTo, authError } = useConsoleStore()
+  const { handleGitHubLogin } = useDesktopAuth()
   const stateLabel = connectionState === 'connected' ? '在线' : '离线'
 
   return (
@@ -18,9 +29,13 @@ export function DesktopSessionSidebar() {
         <SidebarItem testId="desktop-nav-settings" label="设置" page="settings" currentPage={currentPage} onNavigate={navigateTo} />
       </nav>
       <div className="px-3 py-2 border-t border-border flex flex-col gap-2">
-        <button data-auth-action="github-login" className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 w-full text-left">
+        <button data-auth-action="github-login" onClick={handleGitHubLogin} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 w-full text-left">
+          <Github className="h-3.5 w-3.5" />
           GitHub 登录
         </button>
+        {authError && (
+          <p className="text-xs text-destructive px-2.5">{authError}</p>
+        )}
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${connectionState === 'connected' ? 'bg-success' : 'bg-destructive'}`} />
           <span className="text-xs text-muted-foreground">{stateLabel}</span>
@@ -40,6 +55,7 @@ function SidebarItem({ testId, label, count, highlight, page, currentPage, onNav
   onNavigate: (page: DesktopPage) => void
 }) {
   const active = currentPage === page
+  const Icon = NAV_ICONS[page]
   return (
     <button
       data-testid={testId}
@@ -47,7 +63,10 @@ function SidebarItem({ testId, label, count, highlight, page, currentPage, onNav
       onClick={() => onNavigate(page)}
       className={`flex items-center justify-between rounded-md px-2.5 py-1.5 text-sm w-full text-left ${active ? 'bg-muted font-medium' : 'hover:bg-muted/50'}`}
     >
-      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+        {label}
+      </span>
       {count != null && count > 0 && (
         <Badge variant={highlight ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0">{count}</Badge>
       )}

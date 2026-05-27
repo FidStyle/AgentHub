@@ -48,6 +48,7 @@ interface ConsoleState {
   workspaceDirs: { path: string; healthy: boolean }[]
   agents: AgentConfig[]
   webWorkspaceError: string | null
+  authError: string | null
   currentPage: DesktopPage
   selectedAgent: AgentConfig | null
 
@@ -58,6 +59,7 @@ interface ConsoleState {
   approveItem: (id: string) => void
   rejectItem: (id: string) => void
   setWebWorkspaceError: (error: string | null) => void
+  setAuthError: (error: string | null) => void
   navigateTo: (page: DesktopPage) => void
   enterSession: (agent: AgentConfig) => void
 }
@@ -86,6 +88,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
     { id: 'other', name: '其他 Runtime', status: 'pending', capabilities: [] },
   ],
   webWorkspaceError: null,
+  authError: null,
   currentPage: 'workspace',
   selectedAgent: null,
 
@@ -98,6 +101,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   approveItem: (id: string) => set((s) => ({ approvals: s.approvals.filter((a) => a.id !== id) })),
   rejectItem: (id: string) => set((s) => ({ approvals: s.approvals.filter((a) => a.id !== id) })),
   setWebWorkspaceError: (webWorkspaceError: string | null) => set({ webWorkspaceError }),
+  setAuthError: (authError: string | null) => set({ authError }),
   navigateTo: (currentPage: DesktopPage) => set({ currentPage }),
   enterSession: (agent: AgentConfig) => set({ selectedAgent: agent, currentPage: 'workspace' }),
 }))

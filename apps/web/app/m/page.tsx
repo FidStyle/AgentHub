@@ -57,6 +57,9 @@ export default function MobileHomePage() {
             <Badge variant="secondary" className="ml-2">
               {ws.execution_domain === 'cloud' ? '云端' : '本地'}
             </Badge>
+            {ws.execution_domain === 'local_desktop' && (
+              <p className="text-xs text-muted-foreground mt-1">需要 Desktop Connector 在线</p>
+            )}
           </button>
         ))}
         {workspaces.length === 0 && (

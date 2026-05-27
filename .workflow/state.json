@@ -549,6 +549,38 @@
       "task_count": 7,
       "wave_count": 3,
       "created_at": "2026-05-27T10:05:00Z"
+    },
+    {
+      "id": "ANL-p0-acceptance",
+      "type": "analyze",
+      "phase": null,
+      "scope": "macro",
+      "status": "completed",
+      "path": "ANL-p0-acceptance",
+      "milestone": "adhoc-p0-acceptance",
+      "created_at": "2026-05-27T14:36:00Z"
+    },
+    {
+      "id": "PLN-p0-acceptance",
+      "type": "plan",
+      "phase": null,
+      "scope": "standalone",
+      "status": "completed",
+      "path": "20260527-plan-p0-acceptance",
+      "milestone": "adhoc-p0-acceptance",
+      "depends_on": "ANL-p0-acceptance",
+      "created_at": "2026-05-27T14:38:00Z"
+    },
+    {
+      "id": "EXC-p0-acceptance",
+      "type": "execute",
+      "phase": null,
+      "scope": "standalone",
+      "status": "completed",
+      "path": "20260527-plan-p0-acceptance",
+      "milestone": "adhoc-p0-acceptance",
+      "depends_on": "PLN-p0-acceptance",
+      "created_at": "2026-05-27T14:40:00Z"
     }
   ],
   "last_updated": "2026-05-25T08:36:40.795991+00:00",

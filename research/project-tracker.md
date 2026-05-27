@@ -65,6 +65,23 @@
 | **阻塞问题** | 当前工作区存在既有 UI/业务改动，不由本治理任务回滚或提交 |
 | **下一步动作** | 后续 Maestro 每个 wave 完成后运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`；失败不得 complete |
 
+### P0-ACCEPT-001: P0 功能验收 — Desktop 主入口点击语义修复
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-DESK-001, FR-MOB-001 |
+| **对应计划** | Maestro plan: `PLN-p0-acceptance`（7 tasks, 3 waves） |
+| **Plan 路径** | `.workflow/scratch/20260527-plan-p0-acceptance/plan.json` |
+| **Ralph Session** | `ralph-20260527-143500`（status: completed） |
+| **当前状态** | ✅ 全部完成（2026-05-27）：Wave 1-3 执行完毕，verify PASS，review PASS，UAT 19 tests |
+| **目标** | 修复 Desktop 所有 broken 入口点击语义（GitHub 登录、打开工作台、Agent 选择、Composer） |
+| **方案摘要** | W1: 抽取 useDesktopAuth + useOpenWebWorkspace hooks → W2: 绑定 Sidebar/Settings/StatusBar/AgentConfig/AgentSession → W3: Mobile 离线提示 + E2E 测试 |
+| **验收方式** | type-check 通过 + convergence criteria 7/7 + Playwright E2E 19 tests 可编译 |
+| **测试证据** | `tsc --noEmit` desktop/web 通过；verification.json passed=true (7/7)；`playwright test --list` 19 tests；review.json verdict=PASS |
+| **阻塞问题** | 无 |
+| **下一步动作** | 闭环，无后续动作 |
+
 ---
 
 ## P1 任务
@@ -90,3 +107,4 @@
 | 2026-05-27 | UI-ALIGN-001 | 初始登记，impeccable improve chain critique 评分 22/40 |
 | 2026-05-27 | UI-ALIGN-001 | Refine loop 1：Desktop 侧栏 lucide 图标、Web Composer 工具条、Mobile 共享色彩 token、营销文案替换 |
 | 2026-05-27 | GOV-GATE-001 | 新增完成前治理门禁脚本、兼容别名、Maestro 执行治理 Prompt，并接入 research 索引和 Maestro spec injection |
+| 2026-05-27 | P0-ACCEPT-001 | 初始登记 + 全量完成：Desktop 入口修复（hooks 抽取 + 绑定）、Mobile 离线提示、E2E 19 tests |

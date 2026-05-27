@@ -1,6 +1,7 @@
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, RuntimeIcon, type RuntimeKind } from '@agenthub/ui'
 import { useConsoleStore } from '../../store/console-store'
 import { RuntimeDetection } from '../console/RuntimeDetection'
+import { useOpenWebWorkspace } from '../../hooks/useOpenWebWorkspace'
 
 function agentToRuntime(id: string): RuntimeKind {
   if (id === 'codex' || id === 'claude_code' || id === 'opencode' || id === 'github') return id
@@ -8,19 +9,8 @@ function agentToRuntime(id: string): RuntimeKind {
 }
 
 export function DesktopAgentConfigPanel() {
-  const { agents, webWorkspaceError, setWebWorkspaceError, navigateTo } = useConsoleStore()
-
-  const openWebWorkspace = async () => {
-    try {
-      const res = await fetch('http://localhost:3000/workspace', { method: 'HEAD', mode: 'no-cors' })
-      if (res.type === 'opaque' || res.ok) {
-        window.open('http://localhost:3000/workspace', '_blank')
-        setWebWorkspaceError(null)
-      }
-    } catch {
-      setWebWorkspaceError('无法连接到 Web 工作台，请确认 Web 服务已启动后重试。')
-    }
-  }
+  const { agents, webWorkspaceError, navigateTo } = useConsoleStore()
+  const { openWebWorkspace } = useOpenWebWorkspace()
 
   return (
     <aside data-testid="desktop-agent-config" className="w-72 border-l border-border bg-card h-full overflow-y-auto">

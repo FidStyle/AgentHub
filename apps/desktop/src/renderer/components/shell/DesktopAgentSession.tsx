@@ -1,13 +1,20 @@
 import React from 'react'
-import { Card, CardContent, Button, Badge } from '@agenthub/ui'
+import { Card, CardContent, Button, Badge, Input } from '@agenthub/ui'
 import { useConsoleStore } from '../../store/console-store'
 import { ActivityPanel } from '../console/ActivityPanel'
 import { ApprovalPanel } from '../console/ApprovalPanel'
 
 export function DesktopAgentSession() {
-  const { agents, activities, selectedAgent, workspaceDirs } = useConsoleStore()
+  const { agents, activities, selectedAgent, workspaceDirs, enterSession, addActivity } = useConsoleStore()
   const connectedAgents = agents.filter(a => a.status === 'connected')
   const [activeWorkspace, setActiveWorkspace] = React.useState<string | null>(null)
+  const [input, setInput] = React.useState('')
+
+  const handleSend = () => {
+    if (!input.trim() || !selectedAgent) return
+    addActivity({ type: 'action', status: 'success', message: `[${selectedAgent.name}] ${input.trim()}` })
+    setInput('')
+  }
 
   return (
     <section data-testid="desktop-agent-session" className="flex-1 flex flex-col h-full overflow-hidden">
@@ -46,7 +53,7 @@ export function DesktopAgentSession() {
             {!selectedAgent && (
               <div className="flex gap-2 justify-center mt-3">
                 {connectedAgents.map(agent => (
-                  <Button key={agent.id} variant="outline" size="sm">
+                  <Button key={agent.id} variant="outline" size="sm" onClick={() => enterSession(agent)}>
                     {agent.name}
                   </Button>
                 ))}
@@ -56,19 +63,25 @@ export function DesktopAgentSession() {
         </Card>
       </div>
       <div data-testid="desktop-agent-composer" className="border-t border-border px-4 py-3">
+        {!selectedAgent && (
+          <p className="text-xs text-muted-foreground mb-2">请先选择一个已接入的 Agent</p>
+        )}
         <div className="flex gap-2 mb-2">
-          <Button size="sm" variant="outline" disabled={connectedAgents.length === 0}>诊断</Button>
-          <Button size="sm" variant="outline" disabled={connectedAgents.length === 0}>继续</Button>
-          <Button size="sm" variant="outline" disabled={connectedAgents.length === 0}>重试</Button>
-          <Button size="sm" variant="destructive" disabled={connectedAgents.length === 0}>停止</Button>
+          <Button size="sm" variant="outline" disabled={!selectedAgent}>诊断</Button>
+          <Button size="sm" variant="outline" disabled={!selectedAgent}>继续</Button>
+          <Button size="sm" variant="outline" disabled={!selectedAgent}>重试</Button>
+          <Button size="sm" variant="destructive" disabled={!selectedAgent}>停止</Button>
         </div>
         <div className="flex gap-2">
-          <input
-            className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
-            placeholder="输入指令..."
-            disabled={connectedAgents.length === 0}
+          <Input
+            className="flex-1"
+            placeholder={selectedAgent ? '输入指令...' : '请先选择 Agent'}
+            disabled={!selectedAgent}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />
-          <Button size="sm" disabled={connectedAgents.length === 0}>发送</Button>
+          <Button size="sm" disabled={!selectedAgent || !input.trim()} onClick={handleSend}>发送</Button>
         </div>
       </div>
     </section>
