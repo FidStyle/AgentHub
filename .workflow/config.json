@@ -49,6 +49,7 @@
       ],
       "docs": [
         "research/index.md",
+        "research/maestro-guidance-playbook.md",
         "research/project-tracker.md",
         "research/decision-log.md",
         "research/ui-design-system.md"

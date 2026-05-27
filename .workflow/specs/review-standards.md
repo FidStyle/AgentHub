@@ -45,6 +45,14 @@ keywords:
 
 </spec-entry>
 
+<spec-entry category="review" keywords="maestro,codex,指导,验收,命令路由,playbook" date="2026-05-27">
+
+### Codex 指导 Maestro 的验收契约
+
+Codex 在本项目中承担技术甲方和验收裁判职责，Maestro/Ralph 承担执行职责。后续所有 Maestro 指导、命令选择、prompt 生成和完成验收必须遵循 `research/maestro-guidance-playbook.md`。当 Maestro 输出与 `research/project-tracker.md`、`research/execution-reports/`、git 提交或治理门禁不一致时，以 `research/` 总账和 `scripts/verify-governance-gate.sh <TASK-ID>` 为准，要求 Maestro 先补闭环，不进入新功能。
+
+</spec-entry>
+
 <spec-entry category="review" keywords="git,commit,wave,quality,verify" date="2026-05-26">
 
 ### Wave 级自动提交规则

@@ -40,6 +40,7 @@
 |------|------|
 | [project-tracker.md](./project-tracker.md) | **P0/P1/P2 项目跟进表** — 所有功能状态必须在此同步 |
 | [decision-log.md](./decision-log.md) | 关键产品与技术决策日志 |
+| [maestro-guidance-playbook.md](./maestro-guidance-playbook.md) | Codex 指导 Maestro 开发、路由命令和验收反馈的操作手册 |
 | [execution-reports/](./execution-reports/) | 执行报告（每次迁移/实现前后） |
 
 ## Prompt 模板
