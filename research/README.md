@@ -25,6 +25,8 @@ research/
   prompts/                  ← Maestro 执行 prompt 模板
   archive/                  ← 历史/过渡文档归档
     maestro/                ← Maestro 历史过渡文档
+scripts/
+  verify-governance-gate.sh ← Maestro/Ralph 完成前治理门禁脚本
 ```
 
 ---
@@ -60,3 +62,4 @@ research/
 2. **PRD 修订**：发现 PRD/技术设计与当前计划冲突，只能新增 `prd-amendments/*.md`。
 3. **索引维护**：新增研究文档必须同步更新 `index.md`。
 4. **归档规则**：已完成的过渡计划、历史 prompt 移入 `archive/` 或 `prompts/`。
+5. **完成门禁**：session/milestone complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`，失败时不得手动修改 `status.json` 绕过。

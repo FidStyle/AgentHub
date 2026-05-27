@@ -41,3 +41,11 @@ keywords:
 所有 UI 修改的测试必须包含 Playwright 深度交互测试（功能断言）和视觉/布局断言（截图对比、无重叠、状态切换）。拒绝仅用 toBeVisible 糊弄。E2E 测试必须覆盖 golden path 和边界情况。
 
 </spec-entry>
+
+<spec-entry category="test" keywords="verify,review,complete,status,gate" date="2026-05-27">
+
+### 完成前硬门禁
+
+所有实现类任务在 verify/review/milestone-complete 前必须运行治理门禁脚本。脚本 exit 非 0 时不得修改 status.json 为 completed，不得手动绕过 active_step_index 或 decision gate。
+
+</spec-entry>

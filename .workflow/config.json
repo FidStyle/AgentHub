@@ -39,7 +39,10 @@
         "playwright",
         "governance",
         "e2e",
-        "visual"
+        "visual",
+        "gate",
+        "治理门禁",
+        "status.json"
       ],
       "categories": [
         "coding",
@@ -52,7 +55,8 @@
         "research/maestro-guidance-playbook.md",
         "research/project-tracker.md",
         "research/decision-log.md",
-        "research/ui-design-system.md"
+        "research/ui-design-system.md",
+        "research/prompts/maestro-execution-governance.md"
       ]
     },
     "categoryDocs": {

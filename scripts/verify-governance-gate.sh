@@ -3,8 +3,9 @@ set -euo pipefail
 
 TASK_ID="${1:-}"
 if [[ -z "$TASK_ID" ]]; then
-  echo "❌ 用法: $0 <TASK-ID>"
-  echo "   例: $0 AUTH-MIG-001"
+  echo "错误：缺少 TASK-ID"
+  echo "用法: $0 <TASK-ID>"
+  echo "例: $0 AUTH-MIG-001"
   exit 1
 fi
 
@@ -13,18 +14,19 @@ TRACKER="$REPO_ROOT/research/project-tracker.md"
 REPORTS_DIR="$REPO_ROOT/research/execution-reports"
 FAILURES=0
 
-fail() { echo "❌ $1"; FAILURES=$((FAILURES + 1)); }
-pass() { echo "✅ $1"; }
+fail() { echo "[失败] $1"; FAILURES=$((FAILURES + 1)); }
+pass() { echo "[通过] $1"; }
+info() { echo "[信息] $1"; }
 
 echo "═══════════════════════════════════════"
 echo " 治理门禁检查: $TASK_ID"
 echo "═══════════════════════════════════════"
 echo ""
 
-# 1. Git 工作区干净
-DIRTY=$(git status --short 2>/dev/null | grep -v '^??' || true)
+# 1. Git 工作区必须完全干净，包括未跟踪文件。
+DIRTY=$(git status --short 2>/dev/null || true)
 if [[ -n "$DIRTY" ]]; then
-  fail "Git 工作区有未提交的修改:"
+  fail "Git 工作区存在未提交或未跟踪文件。请先精确 git add + 中文 commit，禁止 git add ."
   echo "$DIRTY"
 else
   pass "Git 工作区干净"
@@ -41,42 +43,80 @@ else
   fi
 fi
 
-# 3. task 状态为完成
+# 3. task 状态必须完成，且不能只停留在进行中。
+TASK_SECTION=""
 if [[ -f "$TRACKER" ]]; then
-  TASK_SECTION=$(sed -n "/### $TASK_ID/,/^### /p" "$TRACKER" | head -40)
-  if echo "$TASK_SECTION" | grep -qiE '(completed|全部完成|验证通过|✅.*完成)'; then
+  TASK_SECTION=$(awk -v id="### $TASK_ID" '
+    $0 ~ "^### " && found { exit }
+    index($0, id) == 1 { found = 1 }
+    found { print }
+  ' "$TRACKER")
+  if echo "$TASK_SECTION" | grep -qE '(completed|全部完成|验证通过|全量验收通过|✅.*完成|✅.*通过)'; then
     pass "$TASK_ID 状态为已完成"
   else
     fail "$TASK_ID 在 project-tracker.md 中未标记为完成状态"
   fi
 fi
 
-# 4. 包含测试证据
+# 4. project-tracker.md 必须包含有效测试证据。
 if [[ -f "$TRACKER" ]]; then
-  if echo "$TASK_SECTION" | grep -qiE '测试证据.*\|.*\S'; then
+  TEST_LINE=$(echo "$TASK_SECTION" | grep -E '^\| \*\*测试证据\*\* \|' || true)
+  if [[ -n "$TEST_LINE" ]] && ! echo "$TEST_LINE" | grep -qE '(待执行|待补充|无|N/A|TODO)'; then
     pass "project-tracker.md 包含测试证据"
   else
     fail "project-tracker.md 中 $TASK_ID 缺少测试证据"
   fi
 fi
 
-# 5. execution-reports 存在相关报告
-# 从 task ID 提取搜索词：AUTH-MIG-001 → "auth" (第一段)
+# 5. execution-reports 必须存在相关报告。优先按内容匹配 TASK-ID，再按任务前缀兜底。
 SEARCH_TERM=$(echo "$TASK_ID" | cut -d'-' -f1 | tr '[:upper:]' '[:lower:]')
-REPORT_COUNT=$(find "$REPORTS_DIR" -maxdepth 1 -type f -name "*${SEARCH_TERM}*" 2>/dev/null | wc -l | tr -d ' ')
+REPORT_COUNT=0
+if [[ -d "$REPORTS_DIR" ]]; then
+  CONTENT_MATCH_COUNT=$(grep -RIl -- "$TASK_ID" "$REPORTS_DIR" 2>/dev/null | wc -l | tr -d ' ')
+  NAME_MATCH_COUNT=$(find "$REPORTS_DIR" -maxdepth 1 -type f -name "*${SEARCH_TERM}*" 2>/dev/null | wc -l | tr -d ' ')
+  REPORT_COUNT=$((CONTENT_MATCH_COUNT + NAME_MATCH_COUNT))
+else
+  fail "research/execution-reports/ 不存在"
+fi
 if [[ "$REPORT_COUNT" -gt 0 ]]; then
   pass "execution-reports 包含 $REPORT_COUNT 个相关报告"
 else
   fail "execution-reports/ 下未找到 $TASK_ID 相关执行报告（搜索词: $SEARCH_TERM）"
 fi
 
-# 6. 最近 git commit 存在
+# 6. 最近 git commit 必须存在，且 commit message 必须包含中文。
 RECENT_COMMIT=$(git log --oneline -1 2>/dev/null || true)
 if [[ -n "$RECENT_COMMIT" ]]; then
   pass "最近 commit: $RECENT_COMMIT"
+  RECENT_COMMIT_SUBJECT=$(git log -1 --pretty=%s 2>/dev/null || true)
+  if echo "$RECENT_COMMIT_SUBJECT" | grep -qE '[一-龥]'; then
+    pass "最近 commit message 为中文或包含中文"
+  else
+    fail "最近 commit message 未包含中文：$RECENT_COMMIT_SUBJECT"
+  fi
 else
   fail "未找到任何 git commit"
 fi
+
+# 7. 最近 commit 必须覆盖公开治理账本。
+RECENT_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null || true)
+if echo "$RECENT_FILES" | grep -qE '(^research/project-tracker\.md$|^research/execution-reports/)'; then
+  pass "最近 commit 覆盖 project-tracker 或 execution-reports"
+else
+  fail "最近 commit 未覆盖 research/project-tracker.md 或 research/execution-reports/"
+fi
+
+# 8. 最近 commit 不得包含参考项目、缓存、临时日志或 Ralph 机器状态。
+if echo "$RECENT_FILES" | grep -qE '(^refer_proj/|^research/reference-repos/.*?/\.git/|(^|/)(node_modules|\.next|dist|build|coverage)/|(^|/).*\.log$|^\.workflow/\.maestro/.*/status\.json$)'; then
+  fail "最近 commit 包含禁止提交的文件："
+  echo "$RECENT_FILES" | grep -E '(^refer_proj/|^research/reference-repos/.*?/\.git/|(^|/)(node_modules|\.next|dist|build|coverage)/|(^|/).*\.log$|^\.workflow/\.maestro/.*/status\.json$)' || true
+else
+  pass "最近 commit 未包含 refer_proj、缓存、日志或 Ralph status.json"
+fi
+
+# 9. 输出最近 commit 文件，方便人工验收。
+info "最近 commit 文件清单："
+echo "$RECENT_FILES" | sed 's/^/  - /'
 
 echo ""
 echo "═══════════════════════════════════════"

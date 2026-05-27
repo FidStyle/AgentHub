@@ -17,6 +17,21 @@
 
 ## P0 任务
 
+### UI-ALIGN-001: 三端 UI 参考项目对齐修复
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-UI-001, FR-DESK-001, FR-WEB-001, FR-MOB-001 |
+| **对应计划** | impeccable improve chain: critique → refine → polish → audit |
+| **当前状态** | 🔄 进行中（2026-05-27）：refine loop 1 完成，P0 修复已落地 |
+| **目标** | 三端视觉母版统一，对齐 AionUi/codeg 参考项目的信息密度和组件规范 |
+| **方案摘要** | Desktop 侧栏加 lucide 图标；Web Composer 加工具条；Mobile 统一色彩 token；消除营销文案 |
+| **验收方式** | type-check 通过 + Playwright 视觉/布局断言 + critique 评分 ≥26/40 |
+| **测试证据** | `tsc --noEmit` web/desktop 通过；新增 e2e/tests/web/ui-alignment.spec.ts + e2e/tests/desktop/ui-alignment.spec.ts |
+| **阻塞问题** | Mobile React 版本兼容性（react-native 要求 18，项目用 19）— 预存问题 |
+| **下一步动作** | 完成 polish + audit 步骤，补充 execution-report |
+
 ### AUTH-MIG-001: 认证路线迁移 Supabase Auth → Auth.js v5
 
 | 字段 | 内容 |
@@ -34,6 +49,21 @@
 | **测试证据** | `tsc --noEmit` exit 0；`vitest run __tests__/` 85 tests pass；`rg 'supabase\.auth\|@supabase/ssr' apps/web/` 无匹配；verification.json verdict=PASS (20/20) |
 | **阻塞问题** | 无 |
 | **下一步动作** | 迁移闭环，无后续动作 |
+
+### GOV-GATE-001: Maestro/Ralph 完成前治理门禁
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-UI-001, FR-AUTH-001, 全部实现类任务 |
+| **对应计划** | Codex 治理基础设施补强 |
+| **当前状态** | ✅ 完成（2026-05-27）：治理门禁脚本、兼容别名、执行 Prompt 与索引接入已落地 |
+| **目标** | 防止 Maestro/Ralph 仅凭 `status.json completed` 假完成，强制公开跟进、测试证据和中文 commit 闭环 |
+| **方案摘要** | 增强 `scripts/verify-governance-gate.sh`，新增 `scripts/check-governance-gate.sh` 兼容别名，新增 `research/prompts/maestro-execution-governance.md`，并接入 Maestro spec injection |
+| **验收方式** | Shell 语法检查通过 + Maestro spec injection 已包含治理 Prompt + 真实门禁运行能识别当前未提交改动 |
+| **测试证据** | `bash -n scripts/verify-governance-gate.sh` exit 0；`bash -n scripts/check-governance-gate.sh` exit 0；`maestro spec injection always` 已注入治理 Prompt；当前存在未提交业务/UI 改动时门禁应失败 |
+| **阻塞问题** | 当前工作区存在既有 UI/业务改动，不由本治理任务回滚或提交 |
+| **下一步动作** | 后续 Maestro 每个 wave 完成后运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`；失败不得 complete |
 
 ---
 
@@ -57,3 +87,6 @@
 | 2026-05-27 | AUTH-MIG-001 | Wave 1 完成：TASK-001 文档修订 + TASK-002 Auth.js 基础设施搭建，type-check 通过 |
 | 2026-05-27 | AUTH-MIG-001 | Wave 2 完成：TASK-003 middleware + TASK-004 API auth guard + TASK-005 Login 替换，type-check 通过 |
 | 2026-05-27 | AUTH-MIG-001 | Wave 3 完成：TASK-006 Desktop 设备绑定 + TASK-007 测试适配，全量验收通过，session completed |
+| 2026-05-27 | UI-ALIGN-001 | 初始登记，impeccable improve chain critique 评分 22/40 |
+| 2026-05-27 | UI-ALIGN-001 | Refine loop 1：Desktop 侧栏 lucide 图标、Web Composer 工具条、Mobile 共享色彩 token、营销文案替换 |
+| 2026-05-27 | GOV-GATE-001 | 新增完成前治理门禁脚本、兼容别名、Maestro 执行治理 Prompt，并接入 research 索引和 Maestro spec injection |

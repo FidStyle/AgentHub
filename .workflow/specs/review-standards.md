@@ -60,3 +60,12 @@ Codex 在本项目中承担技术甲方和验收裁判职责，Maestro/Ralph 承
 每个功能 wave 只有在 lint/type/test/E2E 或对应验证通过，并且 research/project-tracker.md 与 execution-reports 已同步后，才能git add 并 git commit。commit message 必须中文，且只能提交本 wave 相关文件；不得提交 refer_proj/*、无关缓存、临时日志或未确认改动。
 
 </spec-entry>
+
+
+<spec-entry category="review" keywords="governance,tracker,execution-reports,commit,gate,ralph" date="2026-05-27">
+
+### 公开治理门禁
+
+任何 Maestro/Ralph session 不得仅凭 status.json completed 判定完成。完成前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`，并确认 research/project-tracker.md、research/execution-reports、测试证据和中文 commit 均已闭环；失败时必须输出 CONCERNS，禁止 milestone-complete。`scripts/check-governance-gate.sh` 仅作为兼容别名。
+
+</spec-entry>

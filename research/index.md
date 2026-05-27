@@ -42,6 +42,7 @@
 | [decision-log.md](./decision-log.md) | 关键产品与技术决策日志 |
 | [maestro-guidance-playbook.md](./maestro-guidance-playbook.md) | Codex 指导 Maestro 开发、路由命令和验收反馈的操作手册 |
 | [execution-reports/](./execution-reports/) | 执行报告（每次迁移/实现前后） |
+| [../scripts/verify-governance-gate.sh](../scripts/verify-governance-gate.sh) | Maestro/Ralph 完成前治理门禁脚本 |
 
 ## Prompt 模板
 
@@ -49,6 +50,7 @@
 |------|------|
 | [prompts/maestro-desktop-navigation-agent-settings-prompt.md](./prompts/maestro-desktop-navigation-agent-settings-prompt.md) | Desktop 导航与 Agent 设置 prompt |
 | [prompts/maestro-desktop-ui-refactor-prompt.md](./prompts/maestro-desktop-ui-refactor-prompt.md) | Desktop UI 重构 prompt |
+| [prompts/maestro-execution-governance.md](./prompts/maestro-execution-governance.md) | Maestro/Ralph 执行治理门禁 prompt |
 | [prompts/maestro-three-surface-ui-unification-prompt.md](./prompts/maestro-three-surface-ui-unification-prompt.md) | 三端 UI 统一 prompt |
 
 ## 归档（历史/过渡文档）

@@ -1,28 +1,50 @@
-# 治理门禁修复报告
+# GOV-GATE-001 执行报告
 
-> 日期：2026-05-27
+## 基本信息
 
-## 问题
+| 字段 | 内容 |
+|------|------|
+| 任务 ID | GOV-GATE-001 |
+| 日期 | 2026-05-27 |
+| 类型 | 项目治理基础设施 |
+| 执行方 | Codex |
+| 目标 | 把 Maestro/Ralph 完成前治理规则从软 Spec 固化为可执行脚本门禁 |
 
-Ralph session `ralph-20260527-100000` 的 status.json 标记 completed，但缺乏硬性机制确保 research 总账、execution-reports、测试证据和 git commit 同步闭环。
+## 变更范围
 
-## 修复措施
+| 文件 | 说明 |
+|------|------|
+| `scripts/verify-governance-gate.sh` | 增强完成前治理门禁：检查干净工作区、公开跟进表、执行报告、中文 commit、禁止提交路径和最近 commit 文件清单 |
+| `scripts/check-governance-gate.sh` | 兼容别名，转发到 `verify-governance-gate.sh`，避免旧 Prompt 或 Spec 调用失败 |
+| `research/prompts/maestro-execution-governance.md` | 新增 Maestro/Ralph 执行治理 Prompt |
+| `research/index.md` | 增加门禁脚本和治理 Prompt 索引 |
+| `research/README.md` | 增加 scripts 目录说明和完成门禁规则 |
+| `.workflow/specs/review-standards.md` | 统一脚本名称，明确 `check-governance-gate.sh` 只是兼容别名 |
+| `.workflow/config.json` | 将治理 Prompt、gate 关键词接入 Maestro spec injection |
+| `research/project-tracker.md` | 登记 GOV-GATE-001 跟进状态 |
 
-1. **治理门禁脚本** — `scripts/verify-governance-gate.sh`
-   - 检查 git 工作区、project-tracker 记录、完成状态、测试证据、执行报告、git commit
-   - 任一失败 exit 1
+## 验证记录
 
-2. **Spec 更新** — `.workflow/specs/review-standards.md` 新增治理门禁硬规则
+| 命令 | 结果 |
+|------|------|
+| `bash -n scripts/verify-governance-gate.sh` | 通过 |
+| `bash -n scripts/check-governance-gate.sh` | 通过 |
+| `maestro spec injection always --docs research/prompts/maestro-execution-governance.md --keywords gate,治理门禁,status.json --categories review,test` | 通过，治理 Prompt 已进入 always-inject |
 
-3. **Overlay 注入** — 两个 overlay 覆盖 4 个命令：
-   - `governance-gate-enforcement`: maestro-verify, maestro-milestone-audit, maestro-milestone-complete
-   - `governance-gate-ralph`: maestro-ralph
+## 门禁行为说明
 
-4. **Research 文档更新** — index.md 和 project-tracker.md 治理规则补充
+当前工作区仍存在既有 UI/业务改动和未跟踪 E2E 文件。治理门禁脚本在这种状态下应当失败，因为它的职责是阻止 Maestro/Ralph 在公开账本和提交闭环不完整时标记完成。
 
-## 验证
+该失败不是脚本错误，而是期望行为。后续每个 Maestro wave 完成后，必须先精确提交本 wave 相关文件，再运行：
 
+```bash
+bash scripts/verify-governance-gate.sh <TASK-ID>
 ```
-bash scripts/verify-governance-gate.sh AUTH-MIG-001 → exit 0
-maestro overlay list → 2 overlays enabled
-```
+
+只有 exit 0 才允许进入 verify/review/milestone-complete。
+
+## 后续使用要求
+
+1. 所有实现类任务的 Prompt 必须引用 `research/prompts/maestro-execution-governance.md`。
+2. Maestro/Ralph 不得手动编辑 `.workflow/.maestro/*/status.json` 绕过门禁。
+3. 门禁失败时必须输出 `CONCERNS`，并先补 `research/project-tracker.md`、`research/execution-reports/`、测试证据和中文 commit。
