@@ -8,10 +8,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   setupMockClient,
+  setupMockAuth,
   createSupabaseChain,
   createNoAuthChain,
   createErrorChain,
   resetMockClient,
+  resetMockAuth,
   mockUser,
 } from '../utils'
 
@@ -84,7 +86,6 @@ function noWorkspaceChain() {
     }
   }
   return vi.fn(() => ({
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockUser }, error: null }) },
     from: vi.fn((table: string) => {
       if (table === 'workspaces') {
         return {
@@ -111,7 +112,6 @@ function noWorkspaceChain() {
 /** GET sessions/[id]: session found but workspace not owned by user */
 function sessionWorkspaceNotOwnedChain() {
   return vi.fn(() => ({
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockUser }, error: null }) },
     from: vi.fn((table: string) => {
       if (table === 'sessions') {
         return {
@@ -147,7 +147,6 @@ function sessionWorkspaceNotOwnedChainForUpdate() {
     }
   }
   return vi.fn(() => ({
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockUser }, error: null }) },
     from: vi.fn((table: string) => {
       if (table === 'sessions') {
         return {
@@ -181,10 +180,13 @@ function sessionWorkspaceNotOwnedChainForUpdate() {
 describe('GET /api/sessions', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-S001: returns 401 when not authenticated', async () => {
     const { GET } = await import('@/app/api/sessions/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001' } })
     expect(result.status).toBe(401)
@@ -233,10 +235,13 @@ describe('GET /api/sessions', () => {
 describe('POST /api/sessions', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-S006: returns 401 when not authenticated', async () => {
     const { POST } = await import('@/app/api/sessions/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(POST, 'POST', { body: { workspace_id: 'ws-001' } })
     expect(result.status).toBe(401)
@@ -305,10 +310,13 @@ describe('POST /api/sessions', () => {
 describe('GET /api/sessions/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-S012: returns 401 when not authenticated', async () => {
     const { GET } = await import('@/app/api/sessions/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', { params: { id: 'session-001' } })
     expect(result.status).toBe(401)
@@ -339,10 +347,13 @@ describe('GET /api/sessions/[id]', () => {
 describe('PATCH /api/sessions/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-S015: returns 401 when not authenticated', async () => {
     const { PATCH } = await import('@/app/api/sessions/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'session-001' },

@@ -7,6 +7,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
+  setupMockAuth,
+  resetMockAuth,
   setupMockClient,
   createSupabaseChain,
   createNoAuthChain,
@@ -71,10 +73,13 @@ async function callRoute<T>(
 describe('GET /api/workspaces', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-W001: returns 401 when not authenticated', async () => {
     const { GET } = await import('@/app/api/workspaces/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', {})
     expect(result.status).toBe(401)
@@ -105,10 +110,13 @@ describe('GET /api/workspaces', () => {
 describe('POST /api/workspaces', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-W004: returns 401 when not authenticated', async () => {
     const { POST } = await import('@/app/api/workspaces/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(POST, 'POST', {
       body: { name: 'Test', execution_domain: 'cloud' },
@@ -178,10 +186,13 @@ describe('POST /api/workspaces', () => {
 describe('GET /api/workspaces/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-W010: returns 401 when not authenticated', async () => {
     const { GET } = await import('@/app/api/workspaces/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', { params: { id: 'ws-001' } })
     expect(result.status).toBe(401)
@@ -213,10 +224,13 @@ describe('GET /api/workspaces/[id]', () => {
 describe('PATCH /api/workspaces/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-W013: returns 401 when not authenticated', async () => {
     const { PATCH } = await import('@/app/api/workspaces/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'ws-001' },

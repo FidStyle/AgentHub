@@ -7,6 +7,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
+  setupMockAuth,
+  resetMockAuth,
   setupMockClient,
   createSupabaseChain,
   createNoAuthChain,
@@ -80,10 +82,13 @@ async function callRoute<T>(
 describe('GET /api/messages', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-M001: returns 401 when not authenticated', async () => {
     const { GET } = await import('@/app/api/messages/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', { query: { session_id: 'session-001' } })
     expect(result.status).toBe(401)
@@ -129,10 +134,13 @@ describe('GET /api/messages', () => {
 describe('POST /api/messages', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-M006: returns 401 when not authenticated', async () => {
     const { POST } = await import('@/app/api/messages/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(POST, 'POST', {
       body: { session_id: 'session-001', content: 'Hello' },
@@ -199,10 +207,13 @@ describe('POST /api/messages', () => {
 describe('PATCH /api/messages/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-M012: returns 401 when not authenticated', async () => {
     const { PATCH } = await import('@/app/api/messages/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'msg-001' },

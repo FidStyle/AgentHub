@@ -7,6 +7,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
+  setupMockAuth,
+  resetMockAuth,
   setupMockClient,
   createSupabaseChain,
   createNoAuthChain,
@@ -79,10 +81,13 @@ async function callRoute<T>(
 describe('GET /api/role-agents', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-A001: returns 401 when not authenticated', async () => {
     const { GET } = await import('@/app/api/role-agents/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001' } })
     expect(result.status).toBe(401)
@@ -120,10 +125,13 @@ describe('GET /api/role-agents', () => {
 describe('POST /api/role-agents', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-A005: returns 401 when not authenticated', async () => {
     const { POST } = await import('@/app/api/role-agents/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(POST, 'POST', {
       body: { workspace_id: 'ws-001', name: 'Test Agent', role_type: 'analyzer' },
@@ -188,10 +196,13 @@ describe('POST /api/role-agents', () => {
 describe('GET /api/role-agents/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-A011: returns 401 when not authenticated', async () => {
     const { GET } = await import('@/app/api/role-agents/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', { params: { id: 'agent-001' } })
     expect(result.status).toBe(401)
@@ -222,10 +233,13 @@ describe('GET /api/role-agents/[id]', () => {
 describe('PATCH /api/role-agents/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-A014: returns 401 when not authenticated', async () => {
     const { PATCH } = await import('@/app/api/role-agents/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'agent-001' },
@@ -266,10 +280,13 @@ describe('PATCH /api/role-agents/[id]', () => {
 describe('DELETE /api/role-agents/[id]', () => {
   beforeEach(() => {
     resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
   })
 
   it('AT-A017: returns 401 when not authenticated', async () => {
     const { DELETE } = await import('@/app/api/role-agents/[id]/route')
+    setupMockAuth(null)
     setupMockClient(createNoAuthChain())
     const result = await callRoute(DELETE, 'DELETE', { params: { id: 'agent-001' } })
     expect(result.status).toBe(401)

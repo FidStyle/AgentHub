@@ -1,11 +1,5 @@
 /**
- * Supabase mock utilities for API route unit tests.
- *
- * Pattern:
- *   import { setupMockClient, createSupabaseChain, createNoAuthChain, createErrorChain } from './utils'
- *   setupMockClient(createSupabaseChain(workspaces, sessions))
- *   const { GET } = await import('@/app/api/workspaces/route')
- *   // ...
+ * Auth + Supabase DB mock utilities for API route unit tests.
  */
 
 import { vi } from 'vitest'
@@ -16,17 +10,9 @@ import { vi } from 'vitest'
 
 export const mockUser = {
   id: 'user-001',
+  name: 'Test User',
   email: 'test@example.com',
-  role: 'authenticated',
-  aud: 'authenticated',
-  created_at: '2026-01-01T00:00:00.000Z',
-  updated_at: '2026-01-01T00:00:00.000Z',
-  email_confirmed_at: '2026-01-01T00:00:00.000Z',
-  phone_confirmed_at: null,
-  last_sign_in_at: '2026-01-01T00:00:00.000Z',
-  identity_data: null,
-  app_meta: {},
-  user_meta: {},
+  image: null,
 }
 
 export const mockWorkspace = {
@@ -76,6 +62,32 @@ export const mockRoleAgent = {
 }
 
 // ---------------------------------------------------------------------------
+// Auth mock
+// ---------------------------------------------------------------------------
+
+const _authMockFn = vi.fn()
+
+vi.mock('@/lib/auth-guard', () => ({
+  requireAuth: () => _authMockFn(),
+}))
+
+export function setupMockAuth(user: typeof mockUser | null = mockUser) {
+  if (user) {
+    _authMockFn.mockResolvedValue({ user, error: null })
+  } else {
+    const { NextResponse } = require('next/server')
+    _authMockFn.mockResolvedValue({
+      user: null,
+      error: NextResponse.json({ error: '未授权' }, { status: 401 }),
+    })
+  }
+}
+
+export function resetMockAuth() {
+  _authMockFn.mockReset()
+}
+
+// ---------------------------------------------------------------------------
 // Chain helpers
 // ---------------------------------------------------------------------------
 
@@ -103,7 +115,6 @@ function chain(data: unknown, error: { message: string } | null = null): ChainBu
   }
 }
 
-/** Chain that returns itself from `.eq()` to support chained eq calls */
 function chainBuilder(data: unknown, error: { message: string } | null = null): ChainBuilder {
   return {
     data,
@@ -121,30 +132,22 @@ function chainBuilder(data: unknown, error: { message: string } | null = null): 
 // Chain factories
 // ---------------------------------------------------------------------------
 
-/** Normal supabase chain for workspace + session queries */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createSupabaseChain(
-  user = mockUser,
+  _user: any = mockUser,
   workspaces: unknown[] = [mockWorkspace],
   sessions: unknown[] = [mockSession],
   messages: unknown[] = [mockMessage],
   roleAgents: unknown[] = [mockRoleAgent],
 ) {
-  // Supports chained .eq().eq() calls (e.g. .update().eq().eq().select().single())
-  // Uses a mutable cell so updates propagate through the chain
   let cell = { data: undefined as unknown, error: null as { message: string } | null }
-  function chainedEq(data: unknown, err: { message: string } | null = null) {
-    cell = { data: { ...(data as Record<string, unknown>) }, error: err }
-    const c = chainBuilder(cell.data, cell.error)
-    return c
-  }
-  // Override the cell setter inside update to capture the merged data
+
   function makeUpdateChain(baseData: unknown) {
     return (vals: Record<string, unknown>) => {
       const merged = { ...(baseData as Record<string, unknown>), ...vals }
       cell = { data: merged, error: null }
       return {
         eq: () => {
-          // Each .eq() in the chain returns a new builder pointing to the same cell
           const c = chainBuilder(cell.data, cell.error)
           return c
         },
@@ -153,11 +156,11 @@ export function createSupabaseChain(
   }
 
   return vi.fn(() => ({
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }) },
     from: vi.fn((table: string) => {
       if (table === 'workspaces') {
         return {
           select: () => ({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             eq: (field: string, value: string) => {
               if (field === 'owner_id' && value === 'user-001') {
                 return {
@@ -170,7 +173,8 @@ export function createSupabaseChain(
                   eq: () => ({
                     single: () => chain(workspaces[0] ?? null, workspaces[0] ? null : { message: 'Not found' }),
                   }),
-                  single: () => chain(workspaces.find(w => (w as any).id === value) ?? null, null),
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  single: () => chain((workspaces as any[]).find(w => w.id === value) ?? null, null),
                 }
               }
               return chain(workspaces, null)
@@ -196,6 +200,7 @@ export function createSupabaseChain(
               }
               if (field === 'workspace_id') {
                 return {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   order: () => chain(sessions.filter(s => (s as any).workspace_id === value), null),
                 }
               }
@@ -216,14 +221,12 @@ export function createSupabaseChain(
           select: () => ({
             eq: (field: string, value: string) => {
               if (field === 'id') {
-                return {
-                  single: () => chain(messages.find(m => (m as any).id === value) ?? null, null),
-                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return { single: () => chain((messages as any[]).find(m => m.id === value) ?? null, null) }
               }
               if (field === 'session_id') {
-                return {
-                  order: () => chain(messages.filter(m => (m as any).session_id === value), null),
-                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return { order: () => chain(messages.filter(m => (m as any).session_id === value), null) }
               }
               return chain(messages, null)
             },
@@ -242,14 +245,12 @@ export function createSupabaseChain(
           select: () => ({
             eq: (field: string, value: string) => {
               if (field === 'id') {
-                return {
-                  single: () => chain(roleAgents.find(a => (a as any).id === value) ?? null, null),
-                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return { single: () => chain((roleAgents as any[]).find(a => a.id === value) ?? null, null) }
               }
               if (field === 'workspace_id') {
-                return {
-                  order: () => chain(roleAgents.filter(a => (a as any).workspace_id === value), null),
-                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return { order: () => chain(roleAgents.filter(a => (a as any).workspace_id === value), null) }
               }
               return chain(roleAgents, null)
             },
@@ -269,15 +270,12 @@ export function createSupabaseChain(
   }))
 }
 
-/** Returns no authenticated user */
 export function createNoAuthChain() {
   return vi.fn(() => ({
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }) },
     from: vi.fn(() => chain(null, { message: 'Not called' })),
   }))
 }
 
-/** Returns DB errors */
 export function createErrorChain(msg = 'Database error') {
   function errChain() {
     return {
@@ -292,7 +290,6 @@ export function createErrorChain(msg = 'Database error') {
     }
   }
   return vi.fn(() => ({
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockUser }, error: null }) },
     from: vi.fn(() => errChain()),
   }))
 }
@@ -301,20 +298,17 @@ export function createErrorChain(msg = 'Database error') {
 // Module mock + export
 // ---------------------------------------------------------------------------
 
-/** The shared mock function that gets injected into the module */
 const _mockFn = vi.fn()
 
 vi.mock('@/lib/supabase-server', () => ({
   createClient: _mockFn,
 }))
 
-/** Call this to set up the mock in each test */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function setupMockClient(mockChain: any) {
   _mockFn.mockResolvedValue(mockChain() as any)
 }
 
-/** Reset between tests */
 export function resetMockClient() {
   _mockFn.mockReset()
 }

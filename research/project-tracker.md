@@ -24,15 +24,15 @@
 | **绑定 FR-ID** | FR-AUTH-001 |
 | **对应计划** | Maestro plan: `PLN-auth-migration`（7 tasks, 3 waves） |
 | **Plan 路径** | `.workflow/scratch/20260527-plan-auth-migration/plan.json` |
-| **Ralph Session** | `ralph-20260527-100000`（status: running, lifecycle: analyze-macro） |
-| **当前状态** | 🟢 Wave 2 完成（2026-05-27）：middleware + API routes auth guard + Login 页面替换 |
+| **Ralph Session** | `ralph-20260527-100000`（status: completed） |
+| **当前状态** | ✅ 全部完成（2026-05-27）：Wave 1-3 执行完毕，verify PASS，review PASS |
 | **目标** | 消除本地开发/E2E/Demo 对 Supabase Auth 控制台的强依赖 |
 | **方案摘要** | Auth.js v5 + GitHub OAuth Provider + Drizzle adapter + Database session；DB 层暂保留 Supabase Postgres |
 | **Wave 分解** | W1: 文档修订 + Auth.js 基础设施 → W2: 认证层替换 → W3: 设备绑定迁移 + E2E 验证 |
 | **验收方式** | `npm run dev` 无需 Supabase Auth 环境变量 + E2E auth 测试通过 + Demo 路径不退化 |
-| **测试证据** | 待执行后补充 |
-| **阻塞问题** | 无（confidence 82%，pressure_pass: TASK-004 通过） |
-| **下一步动作** | 执行 Wave 3（TASK-006 Desktop 设备绑定迁移 + TASK-007 E2E 验证） |
+| **测试证据** | `tsc --noEmit` exit 0；`vitest run __tests__/` 85 tests pass；`rg 'supabase\.auth\|@supabase/ssr' apps/web/` 无匹配；verification.json verdict=PASS (20/20) |
+| **阻塞问题** | 无 |
+| **下一步动作** | 迁移闭环，无后续动作 |
 
 ---
 
@@ -55,3 +55,4 @@
 | 2026-05-27 | AUTH-MIG-001 | 初始登记，计划已确认待执行 |
 | 2026-05-27 | AUTH-MIG-001 | Wave 1 完成：TASK-001 文档修订 + TASK-002 Auth.js 基础设施搭建，type-check 通过 |
 | 2026-05-27 | AUTH-MIG-001 | Wave 2 完成：TASK-003 middleware + TASK-004 API auth guard + TASK-005 Login 替换，type-check 通过 |
+| 2026-05-27 | AUTH-MIG-001 | Wave 3 完成：TASK-006 Desktop 设备绑定 + TASK-007 测试适配，全量验收通过，session completed |
