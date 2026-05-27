@@ -167,6 +167,7 @@ No active task. **A Direct answer** — pure Q&A / explanation / lookup / chat; 
 <!-- Per-turn breadcrumb: shown throughout Phase 1 (status='planning') -->
 
 [workflow-state:planning]
+If the user asks to guide Maestro/Ralph, generate a Maestro prompt, choose between `/maestro-*` commands, review Maestro output, or explain how Maestro should execute work, stop Trellis planning for this turn. Read `research/maestro-guidance-playbook.md` and `research/prompts/maestro-execution-governance.md`, then provide the command/prompt/verification plan. Do **not** continue `trellis-brainstorm`, write PRD, start the task, or modify code unless the user explicitly asks Codex itself to implement.
 Load the `trellis-brainstorm` skill and iterate on prd.md with the user.
 Phase 1.3 (required, once): before `task.py start`, you MUST curate `implement.jsonl` and `check.jsonl` — list the spec / research files sub-agents need so they get the right context injected. You may skip only if the jsonl already has agent-curated entries (the seed `_example` row alone doesn't count).
 Then run `task.py start <task-dir>` to flip status to in_progress.
@@ -179,6 +180,7 @@ Then run `task.py start <task-dir>` to flip status to in_progress.
      into a sub-agent. -->
 
 [workflow-state:planning-inline]
+If the user asks to guide Maestro/Ralph, generate a Maestro prompt, choose between `/maestro-*` commands, review Maestro output, or explain how Maestro should execute work, stop Trellis planning for this turn. Read `research/maestro-guidance-playbook.md` and `research/prompts/maestro-execution-governance.md`, then provide the command/prompt/verification plan. Do **not** continue `trellis-brainstorm`, write PRD, start the task, or modify code unless the user explicitly asks Codex itself to implement.
 Load the `trellis-brainstorm` skill and iterate on prd.md with the user.
 Phase 1.3 jsonl curation is **skipped** in inline dispatch mode — the main session loads `trellis-before-dev` directly in Phase 2 and reads spec context itself, so there is no sub-agent to inject jsonl into.
 Then run `task.py start <task-dir>` to flip status to in_progress.
