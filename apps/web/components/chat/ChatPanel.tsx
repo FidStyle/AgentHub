@@ -44,9 +44,9 @@ export function ChatPanel({
 
     if (message_type === 'plan_card') {
       return (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="font-semibold text-sm text-blue-800 mb-2">Plan</div>
-          <div className="text-xs text-blue-700 whitespace-pre-wrap">{content}</div>
+        <div className="bg-accent border border-border rounded-lg p-3">
+          <div className="font-semibold text-sm text-accent-foreground mb-2">Plan</div>
+          <div className="text-xs text-accent-foreground/80 whitespace-pre-wrap">{content}</div>
           {metadata && typeof metadata === 'object' && 'steps' in metadata && Array.isArray((metadata as Record<string, unknown>).steps) && (
             <ol className="mt-2 space-y-1">
               {((metadata as Record<string, unknown>).steps as string[]).map((step: string, i: number) => (
@@ -63,12 +63,12 @@ export function ChatPanel({
 
     if (message_type === 'result_card') {
       return (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="font-semibold text-sm text-green-800 mb-2">Result</div>
-          <div className="text-xs text-green-700 whitespace-pre-wrap">{content}</div>
+        <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+          <div className="font-semibold text-sm text-success mb-2">Result</div>
+          <div className="text-xs text-foreground/80 whitespace-pre-wrap">{content}</div>
           {metadata && typeof metadata === 'object' && 'status' in metadata && (
             <div className="mt-2 text-xs font-medium">
-              Status: <span className={(metadata as Record<string, unknown>).status === 'success' ? 'text-green-600' : 'text-red-600'}>{(metadata as Record<string, unknown>).status as string}</span>
+              Status: <span className={(metadata as Record<string, unknown>).status === 'success' ? 'text-success' : 'text-destructive'}>{(metadata as Record<string, unknown>).status as string}</span>
             </div>
           )}
         </div>
@@ -77,16 +77,16 @@ export function ChatPanel({
 
     if (message_type === 'approval') {
       return (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-          <div className="font-semibold text-sm text-yellow-800 mb-2">Pending Approval</div>
-          <div className="text-xs text-yellow-700 whitespace-pre-wrap">{content}</div>
+        <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
+          <div className="font-semibold text-sm text-warning-foreground mb-2">Pending Approval</div>
+          <div className="text-xs text-warning-foreground/80 whitespace-pre-wrap">{content}</div>
         </div>
       )
     }
 
     if (message_type === 'system_event') {
       return (
-        <div className="bg-gray-100 border border-gray-200 rounded px-2 py-1 text-xs text-gray-600 italic">
+        <div className="bg-muted border border-border rounded px-2 py-1 text-xs text-muted-foreground italic">
           {content}
         </div>
       )
@@ -109,16 +109,16 @@ export function ChatPanel({
             onMouseLeave={() => setHoveredId(null)}
             onClick={() => onSelectMessage?.(msg.id)}
             className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'} ${
-              selectedMessageId === msg.id ? 'ring-2 ring-blue-400 rounded-lg' : ''
+              selectedMessageId === msg.id ? 'ring-2 ring-ring rounded-lg' : ''
             }`}
           >
             <div
               className={`max-w-[70%] rounded-lg px-4 py-2 relative group ${
                 msg.sender_type === 'user'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-primary text-primary-foreground'
                   : msg.sender_type === 'system'
-                  ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
-                  : 'bg-gray-100 text-gray-900'
+                  ? 'bg-warning/10 text-warning-foreground border border-warning/30'
+                  : 'bg-muted text-foreground'
               }`}
             >
               {msg.sender_type === 'user' ? (
@@ -136,8 +136,8 @@ export function ChatPanel({
                     e.stopPropagation()
                     onPinMessage?.(msg.id, !msg.is_pinned)
                   }}
-                  className={`absolute -top-2 -right-2 p-1 rounded-full bg-white border shadow-sm hover:bg-gray-50 ${
-                    msg.is_pinned ? 'text-blue-500' : 'text-gray-400'
+                  className={`absolute -top-2 -right-2 p-1 rounded-full bg-card border shadow-sm hover:bg-muted ${
+                    msg.is_pinned ? 'text-primary' : 'text-muted-foreground'
                   }`}
                   title={msg.is_pinned ? 'Unpin' : 'Pin'}
                 >
@@ -160,13 +160,13 @@ export function ChatPanel({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Input message..."
-          className="flex-1 border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 border border-input rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           disabled={streaming}
         />
         <button
           type="submit"
           disabled={!input.trim() || streaming}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
         >
           Send
         </button>

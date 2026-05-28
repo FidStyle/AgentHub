@@ -107,50 +107,50 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
 
   if (!workspaceId) {
     return (
-      <aside className="w-72 border-l bg-gray-50 hidden lg:flex flex-col">
-        <div className="p-4 border-b">
+      <aside className="w-72 border-l border-border bg-muted/50 hidden lg:flex flex-col">
+        <div className="p-4 border-b border-border">
           <h3 className="font-semibold text-sm">Agent 配置</h3>
         </div>
         <div className="flex-1 p-4">
-          <p className="text-xs text-gray-400">请先选择一个 Workspace</p>
+          <p className="text-xs text-muted-foreground">请先选择一个 Workspace</p>
         </div>
       </aside>
     )
   }
 
   return (
-    <aside className="w-72 border-l bg-gray-50 hidden lg:flex flex-col">
-      <div className="p-4 border-b">
+    <aside className="w-72 border-l border-border bg-muted/50 hidden lg:flex flex-col">
+      <div className="p-4 border-b border-border">
         <h3 className="font-semibold text-sm">Agent 配置</h3>
       </div>
 
       {/* Agent 列表 */}
       <div className="border-b">
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-medium text-gray-600">Agent 列表</span>
+          <span className="text-xs font-medium text-muted-foreground">Agent 列表</span>
           <button
             onClick={handleCreate}
-            className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90"
           >
             + 新建
           </button>
         </div>
         <div className="max-h-32 overflow-y-auto">
           {loading ? (
-            <p className="text-xs text-gray-400 px-3 py-2">加载中...</p>
+            <p className="text-xs text-muted-foreground px-3 py-2">加载中...</p>
           ) : agents.length === 0 ? (
-            <p className="text-xs text-gray-400 px-3 py-2">暂无 Agent</p>
+            <p className="text-xs text-muted-foreground px-3 py-2">暂无 Agent</p>
           ) : (
             agents.map((agent) => (
               <button
                 key={agent.id}
                 onClick={() => { setSelected(agent); setEditing(false) }}
-                className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 ${
-                  selected?.id === agent.id ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                className={`w-full text-left px-3 py-2 text-xs hover:bg-muted ${
+                  selected?.id === agent.id ? 'bg-accent border-l-2 border-primary' : ''
                 }`}
               >
                 {agent.name}
-                {agent.is_orchestrator && <span className="ml-1 text-blue-500">*</span>}
+                {agent.is_orchestrator && <span className="ml-1 text-primary">*</span>}
               </button>
             ))
           )}
@@ -164,32 +164,32 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
             <h4 className="font-medium text-sm">Artifact Detail</h4>
             <button
               onClick={onCloseMessage}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
               Close
             </button>
           </div>
           <div className="space-y-2 text-xs">
             <div className="flex gap-2">
-              <span className="text-gray-500">Type:</span>
+              <span className="text-muted-foreground">Type:</span>
               <span className="font-medium">{selectedMessage.message_type}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-gray-500">Sender:</span>
+              <span className="text-muted-foreground">Sender:</span>
               <span>{selectedMessage.sender_type}</span>
             </div>
             <div className="flex gap-2">
-              <span className="text-gray-500">Time:</span>
+              <span className="text-muted-foreground">Time:</span>
               <span>{new Date(selectedMessage.created_at).toLocaleString('zh-CN')}</span>
             </div>
-            <div className="border-t pt-2">
-              <span className="text-gray-500">Content:</span>
-              <pre className="mt-1 whitespace-pre-wrap text-gray-700 max-h-48 overflow-y-auto">{selectedMessage.content}</pre>
+            <div className="border-t border-border pt-2">
+              <span className="text-muted-foreground">Content:</span>
+              <pre className="mt-1 whitespace-pre-wrap text-foreground/80 max-h-48 overflow-y-auto">{selectedMessage.content}</pre>
             </div>
             {selectedMessage.metadata && (
-              <div className="border-t pt-2">
-                <span className="text-gray-500">Metadata:</span>
-                <pre className="mt-1 whitespace-pre-wrap text-gray-700 text-xs font-mono max-h-48 overflow-y-auto">
+              <div className="border-t border-border pt-2">
+                <span className="text-muted-foreground">Metadata:</span>
+                <pre className="mt-1 whitespace-pre-wrap text-foreground/80 text-xs font-mono max-h-48 overflow-y-auto">
                   {JSON.stringify(selectedMessage.metadata, null, 2)}
                 </pre>
               </div>
@@ -199,7 +199,7 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
       ) : selected && (
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">名称</label>
+            <label className="block text-xs font-medium text-foreground/80 mb-1">名称</label>
             {editing ? (
               <input
                 value={form.name ?? selected.name}
@@ -212,7 +212,7 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">角色类型</label>
+            <label className="block text-xs font-medium text-foreground/80 mb-1">角色类型</label>
             {editing ? (
               <select
                 value={form.role_type ?? selected.role_type}
@@ -232,7 +232,7 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">System Prompt</label>
+            <label className="block text-xs font-medium text-foreground/80 mb-1">System Prompt</label>
             {editing ? (
               <textarea
                 value={form.system_prompt ?? selected.system_prompt}
@@ -241,7 +241,7 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
                 className="w-full border rounded px-2 py-1 text-xs font-mono"
               />
             ) : (
-              <p className="text-xs text-gray-600 whitespace-pre-wrap">
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
                 {selected.system_prompt || '（未设置）'}
               </p>
             )}
@@ -265,13 +265,13 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex-1 px-3 py-1.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 disabled:opacity-50"
+                  className="flex-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/90 disabled:opacity-50"
                 >
                   {saving ? '保存中...' : '保存'}
                 </button>
                 <button
                   onClick={() => { setEditing(false); setForm({}) }}
-                  className="flex-1 px-3 py-1.5 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+                  className="flex-1 px-3 py-1.5 bg-muted text-muted-foreground text-xs rounded hover:bg-muted/80"
                 >
                   取消
                 </button>
@@ -280,13 +280,13 @@ export function DetailPanel({ workspaceId, selectedMessage, onCloseMessage }: De
               <>
                 <button
                   onClick={() => setEditing(true)}
-                  className="flex-1 px-3 py-1.5 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                  className="flex-1 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/90"
                 >
                   编辑
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded hover:bg-red-100"
+                  className="px-3 py-1.5 bg-destructive/10 text-destructive text-xs rounded hover:bg-destructive/20"
                 >
                   删除
                 </button>

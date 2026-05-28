@@ -43,7 +43,7 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 w-96 space-y-4">
+      <form onSubmit={handleSubmit} className="bg-card rounded-lg p-6 w-96 space-y-4">
         <h2 className="text-lg font-semibold">新建工作区</h2>
         <div>
           <label className="block text-sm mb-1">名称</label>
@@ -75,12 +75,12 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
             <option value="local_desktop">本地桌面</option>
           </select>
         </div>
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && <p className="text-destructive text-sm">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded border hover:bg-gray-50">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded border border-input hover:bg-muted">
             取消
           </button>
-          <button type="submit" disabled={loading || !name} className="px-4 py-2 text-sm rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50">
+          <button type="submit" disabled={loading || !name} className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
             {loading ? '创建中...' : '创建'}
           </button>
         </div>
