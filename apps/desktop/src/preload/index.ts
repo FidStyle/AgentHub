@@ -25,4 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('device-channel:state-changed', (_e, state: string) => callback(state))
     },
   },
+  auth: {
+    onDeviceBind: (callback: (data: { code: string }) => void) => {
+      ipcRenderer.on('device-bind', (_e, data: { code: string }) => callback(data))
+    },
+  },
 })

@@ -20,6 +20,9 @@ declare global {
         getState: () => Promise<string>
         onStateChanged: (callback: (state: string) => void) => void
       }
+      auth: {
+        onDeviceBind: (callback: (data: { code: string }) => void) => void
+      }
     }
   }
 }

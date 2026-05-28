@@ -4,6 +4,7 @@
  * TEST_AUTH_COOKIE 必须对应 Auth.js database session 表中的真实 session token。
  * 验证链路：创建 workspace → 创建 session → 创建 message → GET 验证持久化
  */
+export {}
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 

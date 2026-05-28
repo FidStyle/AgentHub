@@ -14,7 +14,7 @@ test.describe('P0 Web 主链路', () => {
     const page = await context.newPage()
 
     await page.goto('/workspace')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('domcontentloaded')
 
     // 创建 Workspace
     const createWsBtn = page.locator('[data-testid="create-workspace"], button:has-text("新建"), button:has-text("创建")')
@@ -47,7 +47,7 @@ test.describe('P0 Web 主链路', () => {
 
     // Reload 验证持久化
     await page.reload()
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('domcontentloaded')
 
     // 视觉断言
     await assertNoHorizontalScroll(page)
@@ -60,7 +60,7 @@ test.describe('P0 Web 主链路', () => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     await page.goto('/workspace')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('domcontentloaded')
 
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth)
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth)

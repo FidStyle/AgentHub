@@ -607,6 +607,24 @@
       "task_count": 6,
       "wave_count": 4,
       "created_at": "2026-05-28T12:00:00Z"
+    },
+    {
+      "id": "ANL-20260529-p0-e2e-remaining",
+      "type": "analyze",
+      "scope": "macro",
+      "path": "20260529-analyze-p0-e2e-remaining",
+      "milestone": null,
+      "phase": null,
+      "created_at": "2026-05-29T10:05:00.000Z"
+    },
+    {
+      "id": "PLN-20260529-p0-e2e-remaining",
+      "type": "plan",
+      "scope": "standalone",
+      "path": "20260529-plan-p0-e2e-remaining",
+      "milestone": null,
+      "phase": null,
+      "created_at": "2026-05-29T10:10:00.000Z"
     }
   ],
   "last_updated": "2026-05-25T08:36:40.795991+00:00",
