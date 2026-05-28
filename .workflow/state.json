@@ -968,8 +968,52 @@
       "id": "M16",
       "completed_at": "2026-05-25T14:15:00Z",
       "phases_completed": 1
+    },
+    {
+      "scope": "standalone",
+      "label": "P0-END-TO-END-PRODUCT-FLOW",
+      "artifacts": [
+        {
+          "type": "analyze",
+          "id": "ANL-20260529-p0-e2e-remaining",
+          "scope": "standalone",
+          "status": "completed",
+          "path": ".workflow/scratch/20260529-analyze-p0-e2e-remaining",
+          "created_at": "2026-05-29T10:05:00Z"
+        },
+        {
+          "type": "plan",
+          "id": "PLN-20260529-p0-e2e-remaining",
+          "scope": "standalone",
+          "status": "completed",
+          "path": ".workflow/scratch/20260529-plan-p0-e2e-remaining",
+          "depends_on": "ANL-20260529-p0-e2e-remaining",
+          "created_at": "2026-05-29T10:10:00Z"
+        },
+        {
+          "type": "verification",
+          "id": "VRF-20260529-p0-e2e-remaining",
+          "scope": "standalone",
+          "status": "passed",
+          "path": ".workflow/scratch/20260529-plan-p0-e2e-remaining/verification.json",
+          "depends_on": "PLN-20260529-p0-e2e-remaining",
+          "coverage_score": 1.0,
+          "created_at": "2026-05-29T11:30:00Z"
+        },
+        {
+          "type": "review",
+          "id": "REV-20260529-p0-e2e-remaining",
+          "scope": "standalone",
+          "status": "completed",
+          "path": "scratch/20260529-review-P0-e2e-remaining",
+          "depends_on": "VRF-20260529-p0-e2e-remaining",
+          "verdict": "WARN",
+          "severity_distribution": { "critical": 0, "high": 2, "medium": 3, "low": 1 },
+          "created_at": "2026-05-29T11:45:00Z"
+        }
+      ]
     }
   ],
   "current_phase": 1,
-  "updated_at": "2026-05-28T12:00:00Z"
+  "updated_at": "2026-05-29T11:30:00Z"
 }

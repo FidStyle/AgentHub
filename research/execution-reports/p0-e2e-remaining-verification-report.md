@@ -103,3 +103,15 @@ SUMMARY: 11 passed, 0 failed, status=PASS
 1. `mobile-pwa.spec.ts` 使用旧 Supabase fixture，需迁移到 Auth.js `ensureP0StorageState()`
 2. Desktop Electron 完整 E2E 需要构建环境（`DESKTOP_APP_PATH`），当前仅验证 API 链路
 3. Agent Runtime 完整部署 deferred to P1（当前 HostedRuntimeAdapter 为 minimal stub）
+
+## Review 修复记录
+
+| Commit | 修复项 | 验证 |
+|--------|--------|------|
+| e3c56a3 | SEC-001: IPC listener 添加 cleanup 防止 StrictMode 重复注册 | type-check PASS |
+| e3c56a3 | SEC-002: bind-status URL 参数 encodeURIComponent | type-check PASS |
+
+修复内容：
+- `preload/index.ts`: `onDeviceBind` 返回 unsubscribe 函数（`ipcRenderer.removeListener`）
+- `useDesktopAuth.ts`: useEffect 接收 unsubscribe 并在 cleanup 中调用；`code` 参数使用 `encodeURIComponent`
+- `ConnectionStatus.tsx`: 类型声明同步更新为 `() => (() => void) | undefined`
