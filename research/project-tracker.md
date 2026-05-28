@@ -33,7 +33,7 @@
 | **验收方式** | 盲验证必须基于合同自行发现主链路断点；后续实现必须使用真实 DB/API/session 并覆盖 Web/Desktop/Mobile E2E |
 | **测试证据** | DB smoke: `research/execution-reports/p0-end-to-end-product-flow-real-db-smoke-report.md`；/api/chat: `tsx scripts/verify-p0-chat-api.ts` 11/11 PASS；Web E2E: `npx playwright test tests/web/p0-main-flow.spec.ts` 4/4 PASS；Mobile Auth: `npx playwright test tests/web/p0-mobile-auth.spec.ts` 4/4 PASS；Desktop API: `npx playwright test tests/desktop/p0-auth-flow.spec.ts` 1/1 PASS + 1 skip（需 Electron 构建）；视觉断言: assertNoHorizontalScroll + assertNoElementOverlap PASS |
 | **阻塞问题** | BLK-2 ✅ 已解决（Desktop IPC 认证闭环补全 + API 链路验证通过）；BLK-4 ✅ 已解决（Mobile Auth E2E 通过）；BLK-6 ⚠️ 部分解决（/api/chat DEVICE_OFFLINE 错误态验证通过，完整 Runtime 部署 deferred）；BLK-7 ✅ 已解决（三端 E2E 真实浏览器运行） |
-| **下一步动作** | Agent Runtime 完整部署（deferred to P1）；mobile-pwa.spec.ts 旧 fixture 迁移到 Auth.js（非 P0 blocker） |
+| **下一步动作** | Agent Runtime 完整部署（deferred to P1）；~~mobile-pwa.spec.ts 旧 fixture 迁移~~ ✅ 已完成（2026-05-29） |
 
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复
 
@@ -135,3 +135,4 @@
 | 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | Wave 2-4 / TASK-002~006 执行完成：Desktop login-intent + Mobile /m/* 鉴权 + /api/chat 重写 + 集成测试 + 三端 E2E；type-check 通过；真实 DB/Auth 验证待环境 |
 | 2026-05-29 | P0-END-TO-END-PRODUCT-FLOW | 真实 DB/Auth smoke 验证通过：Docker Postgres healthy + Auth.js session 三表 + API CRUD 5/5 PASS + build 通过 + Supabase 零残留；Desktop/Mobile/Runtime/E2E 待后续 |
 | 2026-05-29 | UI-ALIGN-001 | 闭环：critique→refine→polish→audit 全链完成；commits beb9825 + 1fe7b7d；audit 15/20 PASS；type-check 通过；P0 数据链路未受影响；P1 a11y gaps 残留 |
+| 2026-05-29 | P0-END-TO-END-PRODUCT-FLOW | mobile-pwa.spec.ts fixture 迁移完成：Supabase cookie → Auth.js ensureP0StorageState；4/4 tests PASS |
