@@ -8,8 +8,8 @@
   "priority": "critical",
   "effort": "medium",
   "action": "1. 重写 apps/web/store/session-store.ts：移除 import mockSessions/mockMessages；新增 fetchSessions(workspaceId) 调用 GET /api/sessions?workspace_id=xxx；新增 fetchMessages(sessionId) 调用 GET /api/messages?session_id=xxx；重写 sendMessage 为 async POST /api/messages。2. 删除 apps/web/lib/mock-data.ts。3. 修改 apps/web/app/api/workspaces/route.ts：移除 localWorkspaces 常量和 hasWorkspaceDatabase() fallback，未配置 DB 时返回 500 + 中文错误 '数据库未配置，请设置 DATABASE_URL'。4. ChatPanel/Sidebar 组件适配 async store（loading/error 状态已有）。5. 新增真实 API smoke 验证脚本 apps/web/scripts/verify-p0-api-crud.ts：要求 DATABASE_URL + TEST_AUTH_COOKIE 或 TEST_USER_ID；先通过真实 /api/workspaces 创建 workspace，再通过真实 /api/sessions 创建 session，再通过真实 /api/messages 创建 message，最后重新 GET 验证持久化；脚本必须把 user/workspace/session/message id 输出到 execution report。",
-  "status": "pending",
-  "completed_at": null,
+  "status": "completed",
+  "completed_at": "2026-05-28T16:43:00Z",
   "actual_duration": null,
 
   "scope": "apps/web",
