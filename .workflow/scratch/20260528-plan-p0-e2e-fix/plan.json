@@ -1,0 +1,126 @@
+{
+  "summary": "P0 端到端产品主链路修复计划：消除 5 个 critical blockers，使 Web/Desktop/Mobile 主链路接入真实 DB/API/Session",
+  "approach": "按依赖关系分 4 个 wave：W1 消除 Web 前端 mock 数据（BLK-1/BLK-5）→ W2 修复 Desktop device login intent + Mobile PWA 鉴权（BLK-2/BLK-4）→ W3 /api/chat 接入真实 Runtime 鉴权（BLK-3）→ W4 真实 DB 集成测试 + E2E + governance gate",
+  "task_ids": ["TASK-001", "TASK-002", "TASK-003", "TASK-004", "TASK-005", "TASK-006"],
+  "task_count": 6,
+  "complexity": "high",
+  "estimated_time": "3-5 days",
+  "recommended_execution": "Agent, wave-by-wave. Execute Wave 1 first, then Codex reviews real DB/API/session evidence before Wave 2.",
+
+  "waves": [
+    {
+      "wave": 1,
+      "label": "Web 前端接入真实 API（消除 BLK-1 + BLK-5）",
+      "tasks": ["TASK-001"]
+    },
+    {
+      "wave": 2,
+      "label": "Desktop Device Login Intent + Mobile PWA 鉴权（消除 BLK-2 + BLK-4）",
+      "tasks": ["TASK-002", "TASK-003"]
+    },
+    {
+      "wave": 3,
+      "label": "/api/chat 接入真实 Runtime 鉴权（消除 BLK-3）",
+      "tasks": ["TASK-004"]
+    },
+    {
+      "wave": 4,
+      "label": "真实 DB 集成测试 + E2E + Governance Gate",
+      "tasks": ["TASK-005", "TASK-006"]
+    }
+  ],
+
+  "data_flow": {
+    "diagram": "User → Auth (GitHub OAuth) → API (requireAuth) → Supabase DB → Frontend Store (fetch, not mock)",
+    "stages": [
+      "W1: session-store 从 mock 切换到 fetch /api/sessions + /api/messages；验证脚本必须先用真实登录身份创建 workspace，再创建 session/message；无 DB 时 500 明确失败",
+      "W2: Desktop 创建 device login intent（无需预登录）→ Web /auth/device-bind 受保护落点绑定 user → Desktop poll bind-status 获取身份；middleware 保护 /m/* 路由",
+      "W3: /api/chat 加 requireAuth + session 归属验证 + Runtime adapter 仅输出 runtime_status 状态事件（禁止伪 Agent 消息）",
+      "W4: 集成测试验证真实 DB CRUD；E2E 验证三端主链路行为"
+    ]
+  },
+
+  "design_decisions": [
+    "workspaces API 已有 localWorkspaces fallback，修复时移除 fallback 逻辑，强制要求 DATABASE_URL，无 DB 时 500 明确失败",
+    "session-store 改为 async fetch 模式，初始化时从 API 加载",
+    "Desktop 身份连续性通过 device login intent 实现：Desktop 未登录即可创建 intent（公开端点），Web 登录后进入 /auth/device-bind?code=xxx 受保护落点绑定 user 到 intent，Desktop poll 获取身份。intent 必须落真实 DB（device_login_intents 表），禁止内存 Map；禁止在 Auth.js signIn callback 中假设可读取 request query",
+    "/api/chat Runtime Adapter 仅输出 runtime_status 状态事件（{type:'runtime_status', status:'minimal_adapter', ready:true}），绝不输出任何看起来像 Agent 回复的文本。local_desktop 离线输出 {type:'runtime_status', status:'DEVICE_OFFLINE'}",
+    "集成测试必须连接真实测试 DB 验证落库，无 DATABASE_URL 时 throw 失败（不允许 skip）",
+    "E2E convergence 要求真实运行（非 --list），登录 fixture 必须是 DB-backed test session/account seed 或人工录制 GitHub OAuth storageState，禁止 mock 主链路 API；结果写入 execution report，governance gate 必须在干净工作区 exit 0",
+    "所有 task convergence 中 grep/file-existence 仅作为辅助检查，每个 wave 必须有 behavioral_verification 证明行为"
+  ],
+
+  "shared_context": {
+    "patterns": ["requireAuth() guard pattern in auth-guard.ts", "Supabase client via createClient()"],
+    "conventions": ["中文错误消息", "Auth.js v5 session", "Drizzle adapter"],
+    "dependencies": ["@auth/drizzle-adapter", "next-auth", "@neondatabase/serverless"]
+  },
+
+  "confidence": {
+    "overall": 0.91,
+    "dimensions": {
+      "requirements_coverage": 0.95,
+      "task_quality": 0.93,
+      "dependency_correctness": 0.88,
+      "estimation_accuracy": 0.78,
+      "collision_safety": 0.90
+    },
+    "pressure_pass": {
+      "target_task": "TASK-002",
+      "result": "PASS",
+      "notes": "device login intent 公开端点无 requireAuth 前置；落 DB 非内存 Map；绑定落点改为 /auth/device-bind 受保护 route；behavioral_verification 包含无 auth 创建 intent、已登录绑定、bind-status bound:false→bound:true"
+    }
+  },
+
+  "blocker_mapping": {
+    "BLK-1": "TASK-001",
+    "BLK-2": "TASK-002",
+    "BLK-3": "TASK-004",
+    "BLK-4": "TASK-003",
+    "BLK-5": "TASK-001"
+  },
+
+  "_metadata": {
+    "timestamp": "2026-05-28T14:00:00Z",
+    "source": "workflow-planner",
+    "planning_mode": "revise",
+    "plan_type": "fix",
+    "schema_version": "2.0",
+    "git_commit": "fc6ed04",
+    "upstream_artifact": "ANL-p0-e2e-blind-verify",
+    "contract_ref": "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md",
+    "revision_history": [
+      {
+        "revision": 1,
+        "timestamp": "2026-05-28T12:30:00Z",
+        "changes": [
+          "TASK-002: 改为一次性 device-binding token 方案，移除跨进程 cookie 假设",
+          "TASK-004: 禁止 placeholder/mock Agent 响应，新增 HostedRuntimeAdapter 显式标记 minimal_adapter，local_desktop 返回 DEVICE_OFFLINE",
+          "TASK-005: 强制连接真实测试 DB（不允许 skip），直接查 DB 验证落库",
+          "TASK-006: convergence 要求真实运行 E2E（非 --list），结果写入 execution report，governance gate exit 0"
+        ]
+      },
+    {
+      "revision": 2,
+      "timestamp": "2026-05-28T14:00:00Z",
+      "changes": [
+          "TASK-002: bind-init 改为 login-intent（公开端点，无 requireAuth），Desktop 未登录即可发起；intent 必须落 device_login_intents 表，禁止内存 Map",
+          "TASK-001: convergence 新增 behavioral_verification：创建 Session 后 GET 可读、POST message 后 GET 可读、reload 后仍在、无 DATABASE_URL 时 500 明确失败",
+          "TASK-004: Runtime Adapter 仅输出 runtime_status 状态事件，禁止任何 message/text/content 字段（不输出伪 Agent 成功消息）；DEVICE_OFFLINE 也改为 runtime_status 事件",
+        "所有 TASK convergence 新增 behavioral_verification 字段：每个 wave 必须有真实运行命令或后续强依赖测试证明行为，grep/file-existence 仅作辅助"
+      ]
+    },
+    {
+      "revision": 3,
+      "timestamp": "2026-05-28T15:00:00Z",
+      "changes": [
+        "TASK-001: 修正 verification 不能直接 POST /api/sessions；新增 apps/web/scripts/verify-p0-api-crud.ts，要求 DATABASE_URL + TEST_AUTH_COOKIE/TEST_USER_ID，先真实创建 workspace，再创建 session/message，并重新 GET 验证持久化",
+        "TASK-002: 修正 Auth.js callback 不可控 query 假设；新增 /auth/device-bind?code=xxx 受保护 route 作为 Web 登录后绑定落点，Desktop 只信任 bind-status 后端查询结果",
+        "TASK-006: 定义 E2E 登录策略；auth fixture 只能替代 OAuth 人机步骤，禁止 mock Workspace/Session/Message/Device 主链路 API",
+        "TASK-006: Desktop E2E 必须验证 bind-status 从 bound:false 到 bound:true,user，Electron UI/store 显示同一 user，并打开 Web workspace 后身份不断裂",
+        "全局: governance gate 必须在干净工作区运行；执行者需记录 dirty baseline、精确提交本 wave 相关文件并列出剩余非本任务 dirty 项"
+      ]
+    }
+  ]
+  }
+}

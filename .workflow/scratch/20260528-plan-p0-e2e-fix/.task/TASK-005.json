@@ -1,0 +1,79 @@
+{
+  "id": "TASK-005",
+  "title": "真实 DB 集成测试：连接测试 DB 验证 CRUD 落库 + 权限拒绝",
+  "description": "新增集成测试，必须连接真实测试数据库（DATABASE_URL 指向 test DB）。使用 auth fixture（vi.mock requireAuth 返回固定 user），但所有 CRUD 操作必须验证数据真实写入和读取 DB。无 DATABASE_URL 时 throw 明确失败，不允许 skip。",
+  "issue_id": null,
+  "issue_refs": ["BLK-1", "BLK-3", "BLK-5"],
+  "type": "test",
+  "priority": "high",
+  "effort": "medium",
+  "action": "新建 apps/web/__tests__/integration/api-crud.test.ts：1. beforeAll 连接真实测试 DB（require DATABASE_URL，无则 throw 而非 skip）。2. beforeEach 清理测试数据（truncate 或 transaction rollback）。3. vi.mock('@/lib/auth-guard') 返回固定 test user。4. 测试 POST /api/workspaces → 直接查 DB 验证 row 存在。5. 测试 POST /api/sessions → 直接查 DB 验证 row 存在。6. 测试 POST /api/messages → 直接查 DB 验证 row 存在。7. 测试非 owner GET /api/sessions?workspace_id=other → 403。8. 测试未认证（mock requireAuth 返回 error）→ 401。",
+  "status": "pending",
+  "completed_at": null,
+  "actual_duration": null,
+
+  "scope": "apps/web/__tests__",
+  "focus_paths": ["apps/web/__tests__/integration/api-crud.test.ts"],
+
+  "read_first": [
+    "apps/web/app/api/workspaces/route.ts",
+    "apps/web/app/api/sessions/route.ts",
+    "apps/web/app/api/messages/route.ts",
+    "apps/web/app/api/chat/route.ts",
+    "apps/web/lib/auth-guard.ts",
+    "apps/web/lib/db.ts",
+    "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md"
+  ],
+
+  "depends_on": ["TASK-001", "TASK-004"],
+  "wave": 4,
+  "parallel_group": "wave4",
+  "execution_group": null,
+  "executor": "agent",
+
+  "convergence": {
+    "criteria": [
+      "apps/web/__tests__/integration/api-crud.test.ts exists",
+      "apps/web/__tests__/integration/api-crud.test.ts contains 'DATABASE_URL'",
+      "apps/web/__tests__/integration/api-crud.test.ts contains 'throw' near DATABASE_URL check (not skip)",
+      "apps/web/__tests__/integration/api-crud.test.ts contains direct DB query (.from( or select)",
+      "apps/web/__tests__/integration/api-crud.test.ts contains '401'",
+      "apps/web/__tests__/integration/api-crud.test.ts contains '403'",
+      "apps/web/__tests__/integration/api-crud.test.ts does NOT contain 'test.skip' or 'it.skip'"
+    ],
+    "behavioral_verification": [
+      "DATABASE_URL=<test-db> pnpm --filter @agenthub/web vitest run __tests__/integration/api-crud.test.ts exits 0",
+      "unset DATABASE_URL && pnpm --filter @agenthub/web vitest run __tests__/integration/api-crud.test.ts → exits non-zero with 'DATABASE_URL' in error message"
+    ],
+    "verification": "grep 'DATABASE_URL' apps/web/__tests__/integration/api-crud.test.ts && grep -c 'it(' apps/web/__tests__/integration/api-crud.test.ts && ! grep -q 'test.skip\\|it.skip' apps/web/__tests__/integration/api-crud.test.ts && DATABASE_URL=$TEST_DATABASE_URL pnpm --filter @agenthub/web vitest run __tests__/integration/api-crud.test.ts",
+    "definition_of_done": "集成测试连接真实测试 DB 运行通过；Workspace/Session/Message 真实落库可查；权限拒绝 401/403 生效；无 DATABASE_URL 时明确 throw 失败"
+  },
+
+  "files": [
+    {
+      "path": "apps/web/__tests__/integration/api-crud.test.ts",
+      "action": "create",
+      "target": null,
+      "change": "新建集成测试：连接真实 DB，CRUD 后直接查 DB 验证 row 存在，权限拒绝验证，无 DATABASE_URL throw"
+    }
+  ],
+
+  "implementation": [
+    "新建 apps/web/__tests__/integration/api-crud.test.ts",
+    "import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'",
+    "import { createClient } from '@/lib/supabase-server' (或直接 import db from '@/lib/db')",
+    "beforeAll: if (!process.env.DATABASE_URL) throw new Error('集成测试需要 DATABASE_URL 指向测试数据库，不允许 skip')",
+    "vi.mock('@/lib/auth-guard', () => ({ requireAuth: vi.fn() })) — 默认返回 {user: {id:'test-user-1', name:'Test', email:'test@test.com', image:null}, error:null}",
+    "beforeEach: 清理测试数据 — await supabase.from('messages').delete().neq('id',''); await supabase.from('sessions').delete().neq('id',''); await supabase.from('workspaces').delete().neq('id','')",
+    "describe('Workspace CRUD'): it('POST 创建后 DB 可查') — 调用 route handler；然后 const {data} = await supabase.from('workspaces').select('*').eq('name', 'test-ws'); expect(data.length).toBe(1)",
+    "describe('Session CRUD'): it('POST 创建后 DB 可查') — 先创建 workspace，再创建 session；直接查 DB 验证",
+    "describe('Message CRUD'): it('POST 创建后 DB 可查') — 先创建 workspace+session，再 POST message；直接查 DB 验证 row",
+    "describe('权限'): it('非 owner 返回 403') — mock requireAuth 返回 user-2，访问 user-1 的 workspace → 403",
+    "describe('鉴权'): it('未认证返回 401') — mock requireAuth 返回 {user:null, error: NextResponse.json({error:'未授权'},{status:401})} → 401"
+  ],
+
+  "test_contract": {
+    "integration": "本 task 本身就是集成测试，必须连接真实 DB 运行通过（不允许 skip/mock DB）",
+    "e2e": "CI 中 DATABASE_URL 指向测试 DB 时 vitest run 通过"
+  }
+}

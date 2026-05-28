@@ -1,0 +1,63 @@
+{
+  "id": "TASK-003",
+  "title": "Mobile PWA /m/* 路由鉴权保护",
+  "description": "当前 middleware.ts 只保护 /workspace/* 路由，/m/* 路由完全无鉴权。需要扩展 middleware matcher 覆盖 /m/* 路由，未登录时重定向到登录页",
+  "issue_id": "BLK-4",
+  "issue_refs": [],
+  "type": "fix",
+  "priority": "critical",
+  "effort": "small",
+  "action": "修改 apps/web/middleware.ts：1. matcher 数组新增 '/m/:path*'。2. auth callback 中新增 /m 路径判断：if (!req.auth && req.nextUrl.pathname.startsWith('/m')) 重定向到 '/'。",
+  "status": "pending",
+  "completed_at": null,
+  "actual_duration": null,
+
+  "scope": "apps/web",
+  "focus_paths": ["apps/web/middleware.ts"],
+
+  "read_first": [
+    "apps/web/middleware.ts",
+    "apps/web/app/m/layout.tsx",
+    "apps/web/auth.ts",
+    "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md"
+  ],
+
+  "depends_on": [],
+  "wave": 2,
+  "parallel_group": "wave2",
+  "execution_group": null,
+  "executor": "agent",
+
+  "convergence": {
+    "criteria": [
+      "apps/web/middleware.ts matcher array contains '/m/:path*'",
+      "apps/web/middleware.ts contains \"req.nextUrl.pathname.startsWith('/m')\"",
+      "pnpm --filter @agenthub/web type-check exits 0"
+    ],
+    "behavioral_verification": [
+      "未登录状态 GET /m → 302 redirect 到 /（使用 curl -I 验证 Location header）",
+      "登录状态 GET /m → 200（正常访问）"
+    ],
+    "verification": "grep '/m/:path' apps/web/middleware.ts && pnpm --filter @agenthub/web type-check && curl -sI http://localhost:3000/m | grep -q '302\\|Location: /'",
+    "definition_of_done": "未登录用户访问 /m/* 路由时被重定向到登录页；登录后正常访问"
+  },
+
+  "files": [
+    {
+      "path": "apps/web/middleware.ts",
+      "action": "modify",
+      "target": "auth callback + config.matcher",
+      "change": "auth callback 新增：if (!req.auth && req.nextUrl.pathname.startsWith('/m')) { redirect to '/' }；config.matcher 改为 ['/workspace/:path*', '/m/:path*']"
+    }
+  ],
+
+  "implementation": [
+    "middleware.ts auth callback：在现有 /workspace 判断后新增 if (!req.auth && req.nextUrl.pathname.startsWith('/m')) { const url = req.nextUrl.clone(); url.pathname = '/'; return NextResponse.redirect(url) }",
+    "config.matcher 改为 matcher: ['/workspace/:path*', '/m/:path*']"
+  ],
+
+  "test_contract": {
+    "integration": "未登录 GET /m 返回 302 redirect 到 /",
+    "e2e": "未登录访问 /m → 重定向到首页登录入口；登录后 /m 可正常访问"
+  }
+}

@@ -11,11 +11,29 @@
 - 状态变更时附带日期。
 - Maestro/Ralph 每完成一个 wave，必须更新对应任务的「当前状态」和「下一步动作」字段。
 - 验证通过后必须补充「测试证据」字段（截图路径、E2E 报告链接或命令输出）。
+- Analyze/plan/verify/review 等非代码阶段只要修改 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json` 或测试/代码文件，也必须精确 `git add` 本阶段相关文件并中文 commit；不得只更新 `status.json`。
+- 如果工作区已有无关 dirty 文件，必须记录 baseline，只提交本阶段相关文件，并在完成输出中列出剩余 dirty 项。
 - **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 且 exit 0。status.json completed ≠ 项目完成。
 
 ---
 
 ## P0 任务
+
+### P0-END-TO-END-PRODUCT-FLOW: MVP 端到端产品主链路合同与验真
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-AUTH-001, FR-WS-001, FR-DEVICE-001, FR-WEB-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-UI-001, FR-RUNTIME-001, FR-PERM-001 |
+| **对应计划** | Codex 前置合同与验真框架；Ralph blind verify session `ralph-20260528-100000` 已完成；下一步进入修复规划 |
+| **合同路径** | `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md` |
+| **当前状态** | 🟠 产品主链路未通过（2026-05-28）：Ralph 盲验证已自行发现 5 个 critical blockers；Codex 已直接修订 Rev 3 计划并放行 Wave 1 / TASK-001 执行，W2-W4 需逐 wave 复核后再放行 |
+| **目标** | 以真实 MVP 用户链路验证项目，而不是用单页、单接口或按钮反馈作为完成依据 |
+| **方案摘要** | 建立端到端产品合同；登记身份连续性、Workspace 创建闭环、三端 UX 一致性为验真样本；禁止把已知根因直接喂给执行者 |
+| **验收方式** | 盲验证必须基于合同自行发现主链路断点；后续实现必须使用真实 DB/API/session 并覆盖 Web/Desktop/Mobile E2E |
+| **测试证据** | 准备审计：`research/execution-reports/p0-end-to-end-product-flow-readiness-audit.md`；盲验证报告：`research/execution-reports/p0-end-to-end-product-flow-blind-verify-report.md`；Ralph 产物：`.workflow/scratch/20260528-analyze-p0-e2e-blind-verify/verification.json` (`passed:false`) |
+| **阻塞问题** | BLK-1 Web 消息不落库；BLK-2 Desktop 登录无身份回调；BLK-3 `/api/chat` 纯 mock；BLK-4 Mobile PWA 无鉴权；BLK-5 Web Session 使用 mock 数据 |
+| **下一步动作** | 执行 Wave 1 / TASK-001：Web session-store 接真实 API、移除 mock workspace fallback、补真实 API smoke 验证；完成后 Codex 复核 DB/API/session 行为证据，再决定是否放行 W2 |
 
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复
 
@@ -108,3 +126,8 @@
 | 2026-05-27 | UI-ALIGN-001 | Refine loop 1：Desktop 侧栏 lucide 图标、Web Composer 工具条、Mobile 共享色彩 token、营销文案替换 |
 | 2026-05-27 | GOV-GATE-001 | 新增完成前治理门禁脚本、兼容别名、Maestro 执行治理 Prompt，并接入 research 索引和 Maestro spec injection |
 | 2026-05-27 | P0-ACCEPT-001 | 初始登记 + 全量完成：Desktop 入口修复（hooks 抽取 + 绑定）、Mobile 离线提示、E2E 19 tests |
+| 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | 新增 MVP 端到端产品主链路共享合同和盲验证前准备审计；登录等已知问题登记为验真样本而非直接修复目标 |
+| 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | Ralph 盲验证完成：执行系统自行发现 5 个 critical blockers；流程验真通过，产品合同 FAIL/NO-GO，禁止标记产品完成 |
+| 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | 首版修复计划审查发现 plan anti-pattern：外部浏览器 cookie 假设、Runtime placeholder、mock auth 混入真实 DB、E2E 只查文件/--list；已新增 Trellis 规划指南并要求 revise/review |
+| 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | 修复计划生成：6 tasks / 4 waves，覆盖 BLK-1~5 + 真实 DB 集成测试 + 三端 E2E + governance gate。Plan: `.workflow/scratch/20260528-plan-p0-e2e-fix/plan.json` |
+| 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | 计划修订 Rev1：TASK-002 改为 device-binding token 方案；TASK-004 禁止 mock Agent 响应 + DEVICE_OFFLINE；TASK-005 强制真实 DB 运行；TASK-006 convergence 要求真实 E2E 运行 + 结果写入报告 |

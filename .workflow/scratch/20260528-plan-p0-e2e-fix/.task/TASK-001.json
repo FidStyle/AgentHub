@@ -1,0 +1,101 @@
+{
+  "id": "TASK-001",
+  "title": "Web session-store 接入真实 API，移除 mock 数据",
+  "description": "将 Web 前端 session-store 从硬编码 mock 数据切换为调用 /api/sessions 和 /api/messages 真实 API，使消息发送落库、Session 列表从数据库加载。无 DATABASE_URL 时必须明确失败（500），不得假成功。",
+  "issue_id": "BLK-1",
+  "issue_refs": ["BLK-5"],
+  "type": "fix",
+  "priority": "critical",
+  "effort": "medium",
+  "action": "1. 重写 apps/web/store/session-store.ts：移除 import mockSessions/mockMessages；新增 fetchSessions(workspaceId) 调用 GET /api/sessions?workspace_id=xxx；新增 fetchMessages(sessionId) 调用 GET /api/messages?session_id=xxx；重写 sendMessage 为 async POST /api/messages。2. 删除 apps/web/lib/mock-data.ts。3. 修改 apps/web/app/api/workspaces/route.ts：移除 localWorkspaces 常量和 hasWorkspaceDatabase() fallback，未配置 DB 时返回 500 + 中文错误 '数据库未配置，请设置 DATABASE_URL'。4. ChatPanel/Sidebar 组件适配 async store（loading/error 状态已有）。5. 新增真实 API smoke 验证脚本 apps/web/scripts/verify-p0-api-crud.ts：要求 DATABASE_URL + TEST_AUTH_COOKIE 或 TEST_USER_ID；先通过真实 /api/workspaces 创建 workspace，再通过真实 /api/sessions 创建 session，再通过真实 /api/messages 创建 message，最后重新 GET 验证持久化；脚本必须把 user/workspace/session/message id 输出到 execution report。",
+  "status": "pending",
+  "completed_at": null,
+  "actual_duration": null,
+
+  "scope": "apps/web",
+  "focus_paths": ["apps/web/store/session-store.ts", "apps/web/lib/mock-data.ts", "apps/web/app/api/workspaces/route.ts", "apps/web/scripts/verify-p0-api-crud.ts"],
+
+  "read_first": [
+    "apps/web/store/session-store.ts",
+    "apps/web/lib/mock-data.ts",
+    "apps/web/app/api/sessions/route.ts",
+    "apps/web/app/api/messages/route.ts",
+    "apps/web/app/api/workspaces/route.ts",
+    "apps/web/components/workspace/ChatPanel.tsx",
+    "apps/web/components/workspace/Sidebar.tsx",
+    "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md"
+  ],
+
+  "depends_on": [],
+  "wave": 1,
+  "parallel_group": null,
+  "execution_group": null,
+  "executor": "agent",
+
+  "convergence": {
+    "criteria": [
+      "apps/web/store/session-store.ts does NOT contain 'mockSessions'",
+      "apps/web/store/session-store.ts does NOT contain 'mockMessages'",
+      "apps/web/store/session-store.ts contains 'fetch('/api/sessions'",
+      "apps/web/store/session-store.ts contains 'fetch('/api/messages'",
+      "apps/web/lib/mock-data.ts does NOT exist",
+      "apps/web/app/api/workspaces/route.ts does NOT contain 'localWorkspaces'",
+      "apps/web/app/api/workspaces/route.ts does NOT contain 'hasWorkspaceDatabase'",
+      "pnpm --filter @agenthub/web type-check exits 0",
+      "apps/web/scripts/verify-p0-api-crud.ts exists and requires DATABASE_URL plus TEST_AUTH_COOKIE or TEST_USER_ID",
+      "apps/web/scripts/verify-p0-api-crud.ts creates workspace before creating session and message"
+    ],
+    "behavioral_verification": [
+      "启动 dev server 后：使用 TEST_AUTH_COOKIE 或 TEST_USER_ID 作为明确登录前置，POST /api/workspaces → 201，记录 workspace id",
+      "同一登录身份下 POST /api/sessions {workspace_id:<created>} → 201 → GET /api/sessions?workspace_id=<created> 返回包含新 session",
+      "同一登录身份下 POST /api/messages {session_id:<created>, content, sender_type:'user'} → 201 → GET /api/messages?session_id=<created> 返回包含新 message",
+      "page.reload() 或重新 GET /api/messages 后仍返回之前的 message（持久化验证）",
+      "unset DATABASE_URL 后启动 → GET /api/workspaces 返回 500 {error:'数据库未配置，请设置 DATABASE_URL'}，不返回 200 空数组"
+    ],
+    "verification": "pnpm --filter @agenthub/web type-check && DATABASE_URL=$TEST_DATABASE_URL TEST_AUTH_COOKIE=$TEST_AUTH_COOKIE pnpm --filter @agenthub/web exec tsx scripts/verify-p0-api-crud.ts",
+    "definition_of_done": "Web 前端 Session 列表和消息流从真实 API 加载；sendMessage 调用 POST /api/messages 落库；reload 后消息仍在；无 DATABASE_URL 时 API 返回 500 明确失败"
+  },
+
+  "files": [
+    {
+      "path": "apps/web/store/session-store.ts",
+      "action": "rewrite",
+      "target": "useSessionStore",
+      "change": "移除 mock import；新增 fetchSessions(workspaceId: string) 调用 GET /api/sessions?workspace_id；新增 fetchMessages(sessionId: string) 调用 GET /api/messages?session_id；sendMessage 改为 async POST /api/messages with body {session_id, content, sender_type:'user'}"
+    },
+    {
+      "path": "apps/web/lib/mock-data.ts",
+      "action": "delete",
+      "target": null,
+      "change": "删除整个文件"
+    },
+    {
+      "path": "apps/web/app/api/workspaces/route.ts",
+      "action": "modify",
+      "target": "GET handler",
+      "change": "移除 localWorkspaces 常量和 hasWorkspaceDatabase() 函数；GET 直接查 DB，无 DB 时返回 NextResponse.json({ error: '数据库未配置，请设置 DATABASE_URL' }, { status: 500 })"
+    },
+    {
+      "path": "apps/web/scripts/verify-p0-api-crud.ts",
+      "action": "create",
+      "target": "real authenticated API smoke verification",
+      "change": "真实调用 /api/workspaces、/api/sessions、/api/messages；必须带 TEST_AUTH_COOKIE 或使用受控 TEST_USER_ID 生成真实测试 session；验证 GET reread；输出 user/workspace/session/message id"
+    }
+  ],
+
+  "implementation": [
+    "重写 session-store.ts：export interface 保持不变；sessions/messages 初始为空数组；新增 activeWorkspaceId state；fetchSessions 为 async：const res = await fetch(`/api/sessions?workspace_id=${workspaceId}`); set({ sessions: await res.json(), loading: false })",
+    "fetchMessages 为 async：const res = await fetch(`/api/messages?session_id=${sessionId}`); 映射 API 字段到 store Message 接口",
+    "sendMessage 改为 async：await fetch('/api/messages', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({session_id: activeSessionId, content, sender_type:'user'}) }); 成功后 append 到 messages",
+    "删除 apps/web/lib/mock-data.ts",
+    "workspaces/route.ts GET：移除 localWorkspaces 和 hasWorkspaceDatabase；try { const supabase = await createClient() } catch { return 500 '数据库未配置' }；直接 query workspaces",
+    "workspaces/route.ts POST：移除 hasWorkspaceDatabase 分支，只保留真实 DB insert 路径",
+    "确认 ChatPanel 和 Sidebar 已有 loading/error 状态处理，无需额外修改",
+    "新增 verify-p0-api-crud.ts：若 DATABASE_URL 缺失直接 throw；若 TEST_AUTH_COOKIE/TEST_USER_ID 缺失直接 throw；禁止使用 mock API、page.route 或内存数据；每一步失败输出中文错误和 HTTP status；成功输出 JSON summary 供 execution report 引用"
+  ],
+
+  "test_contract": {
+    "integration": "POST /api/messages 后 GET /api/messages 返回新消息；POST /api/sessions 后 GET /api/sessions 返回新 session；无 DATABASE_URL 时 GET /api/workspaces → 500",
+    "e2e": "登录后进入 workspace → 创建 session → 发送消息 → 刷新后消息仍在"
+  }
+}

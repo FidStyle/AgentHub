@@ -1,0 +1,121 @@
+{
+  "id": "TASK-002",
+  "title": "Desktop 登录身份连续性：Device Login Intent（无需预登录）",
+  "description": "Desktop 未登录状态下发起 device login intent，Web 登录后绑定 user 到该 intent。全程不要求 Desktop 先有 session。intent 必须落真实 DB（device_login_intents 表），禁止内存 Map。",
+  "issue_id": "BLK-2",
+  "issue_refs": [],
+  "type": "fix",
+  "priority": "critical",
+  "effort": "high",
+  "action": "1. Web 后端新增 POST /api/devices/login-intent：无需鉴权（公开端点），生成 intent_code（UUID，TTL 5min），写入 device_login_intents 表（code, user_id=null, expires_at, created_at），返回 {code, expires_at, sign_in_url}；sign_in_url 指向 Web 的登录入口并携带 callbackUrl=/auth/device-bind?code={code}。2. Web 后端新增 GET /api/devices/bind-status?code=xxx：无需鉴权（公开端点），查 device_login_intents 表：未找到或过期→404；user_id 非空→{bound:true, user:{id,name,email,image}}；user_id 为空→{bound:false}。3. 新增受保护 route app/auth/device-bind/route.ts：GET /auth/device-bind?code=xxx 调用 auth() 读取当前 Web 登录用户；未登录则 redirect 到登录入口并保留 callbackUrl；已登录则 UPDATE device_login_intents SET user_id=auth.user.id WHERE code=xxx AND expires_at>now() AND user_id IS NULL，然后 redirect 到 agenthub://auth/bind?code={code}。禁止把 request query 读取逻辑塞进 Auth.js signIn callback。4. Desktop useDesktopAuth：handleGitHubLogin 改为：(a) POST /api/devices/login-intent 获取 code/sign_in_url（无需 auth，直接 fetch）；(b) shell.openExternal(sign_in_url)；(c) 启动 pollBindStatus(code) 每 2s GET /api/devices/bind-status?code={code}，bound=true 时 setUser(user)，超时 60s 报错。5. Electron main 注册 agenthub:// protocol handler：收到 agenthub://auth/bind?code=xxx 通过 IPC 传给 renderer 加速绑定确认，但最终身份只能来自 bind-status 后端查询。6. DB migration：新建 device_login_intents 表（id, code UNIQUE, user_id NULLABLE FK, expires_at, created_at, bound_at）。",
+  "status": "pending",
+  "completed_at": null,
+  "actual_duration": null,
+
+  "scope": "apps/desktop + apps/web",
+  "focus_paths": [
+    "apps/desktop/src/renderer/hooks/useDesktopAuth.ts",
+    "apps/desktop/src/renderer/store/console-store.ts",
+    "apps/desktop/src/main/index.ts",
+    "apps/web/app/api/devices/login-intent/route.ts",
+    "apps/web/app/api/devices/bind-status/route.ts",
+    "apps/web/app/auth/device-bind/route.ts"
+  ],
+
+  "read_first": [
+    "apps/desktop/src/renderer/hooks/useDesktopAuth.ts",
+    "apps/desktop/src/renderer/store/console-store.ts",
+    "apps/desktop/src/main/index.ts",
+    "apps/web/app/api/auth/[...nextauth]/route.ts",
+    "apps/web/auth.ts",
+    "apps/web/lib/db.ts",
+    "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md"
+  ],
+
+  "depends_on": [],
+  "wave": 2,
+  "parallel_group": "wave2",
+  "execution_group": null,
+  "executor": "agent",
+
+  "convergence": {
+    "criteria": [
+      "apps/web/app/api/devices/login-intent/route.ts exists AND does NOT contain 'requireAuth'",
+      "apps/web/app/api/devices/login-intent/route.ts contains 'device_login_intents'",
+      "apps/web/app/api/devices/bind-status/route.ts exists AND does NOT contain 'requireAuth'",
+      "apps/web/app/api/devices/bind-status/route.ts contains 'device_login_intents'",
+      "apps/web/app/auth/device-bind/route.ts exists AND contains 'auth()' AND contains 'device_login_intents'",
+      "apps/web/auth.ts is not used to read request query for device_bind/code",
+      "apps/web/app/api/devices/login-intent/route.ts does NOT contain 'Map(' or 'new Map'",
+      "apps/web/app/api/devices/bind-status/route.ts does NOT contain 'Map(' or 'new Map'",
+      "apps/desktop/src/renderer/hooks/useDesktopAuth.ts contains 'login-intent'",
+      "apps/desktop/src/renderer/hooks/useDesktopAuth.ts contains 'bind-status'",
+      "apps/desktop/src/main/index.ts contains 'agenthub'",
+      "pnpm --filter @agenthub/desktop type-check exits 0",
+      "pnpm --filter @agenthub/web type-check exits 0"
+    ],
+    "behavioral_verification": [
+      "curl -X POST http://localhost:3000/api/devices/login-intent → 200 with {code, expires_at, sign_in_url} (no auth header needed)",
+      "curl http://localhost:3000/api/devices/bind-status?code=<valid-unbound> → 200 {bound:false}",
+      "以已登录 Web session 访问 /auth/device-bind?code=<code> → 302 agenthub://auth/bind?code=<code>，随后 curl bind-status?code=<code> → {bound:true, user:{...}}",
+      "curl http://localhost:3000/api/devices/bind-status?code=expired-or-invalid → 404"
+    ],
+    "verification": "pnpm --filter @agenthub/desktop type-check && pnpm --filter @agenthub/web type-check && curl -sf -X POST http://localhost:3000/api/devices/login-intent | jq '.code' && ! grep -q 'requireAuth' apps/web/app/api/devices/login-intent/route.ts && ! grep -q 'new Map' apps/web/app/api/devices/login-intent/route.ts",
+    "definition_of_done": "Desktop 未登录状态可创建 login intent；Web 登录后绑定 user 到 intent（落 DB）；Desktop poll 获取 user 身份。全程无 requireAuth 前置条件，无内存 Map。"
+  },
+
+  "files": [
+    {
+      "path": "apps/web/app/api/devices/login-intent/route.ts",
+      "action": "create",
+      "target": "POST handler",
+      "change": "公开端点（无 requireAuth）：生成 UUID code → INSERT INTO device_login_intents (code, user_id, expires_at, created_at) VALUES (code, null, now+5min, now) → 返回 {code, expires_at}"
+    },
+    {
+      "path": "apps/web/app/api/devices/bind-status/route.ts",
+      "action": "create",
+      "target": "GET handler",
+      "change": "公开端点（无 requireAuth）：SELECT * FROM device_login_intents WHERE code=? → 未找到/过期→404 → user_id 非空→{bound:true, user} → user_id 为空→{bound:false}"
+    },
+    {
+      "path": "apps/web/app/auth/device-bind/route.ts",
+      "action": "create",
+      "target": "GET handler",
+      "change": "受保护登录落点：auth() 读取当前 Web session；未登录 redirect 到登录入口并保留 callbackUrl；已登录绑定 device_login_intents.user_id 并 redirect agenthub://auth/bind?code={code}"
+    },
+    {
+      "path": "apps/desktop/src/renderer/hooks/useDesktopAuth.ts",
+      "action": "rewrite",
+      "target": "useDesktopAuth",
+      "change": "handleGitHubLogin：(1) fetch POST /api/devices/login-intent 获取 code/sign_in_url（无 auth header）；(2) shell.openExternal(sign_in_url)；(3) pollBindStatus(code) 每 2s GET /api/devices/bind-status?code={code}，bound=true→setUser(user)，超时 60s→setAuthError"
+    },
+    {
+      "path": "apps/desktop/src/renderer/store/console-store.ts",
+      "action": "modify",
+      "target": "ConsoleStore interface",
+      "change": "新增 user: {id:string, name:string|null, email:string|null, image:string|null} | null；新增 setUser action"
+    },
+    {
+      "path": "apps/desktop/src/main/index.ts",
+      "action": "modify",
+      "target": "app setup",
+      "change": "注册 app.setAsDefaultProtocolClient('agenthub')；app.on('open-url') 解析 agenthub://auth/bind?code=xxx 通过 IPC 发送给 renderer"
+    }
+  ],
+
+  "implementation": [
+    "DB migration: CREATE TABLE device_login_intents (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), code VARCHAR(36) UNIQUE NOT NULL, user_id TEXT REFERENCES \"user\"(id), expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT now(), bound_at TIMESTAMPTZ)",
+    "Web: 新建 apps/web/app/api/devices/login-intent/route.ts — POST handler（公开，无 requireAuth）: const code = crypto.randomUUID(); await db.insert(deviceLoginIntents).values({code, userId: null, expiresAt: new Date(Date.now()+300000)}); const signInUrl = `${APP_BASE_URL}/auth/device-bind?code=${code}` 或通过登录页 callbackUrl 指向该地址；return NextResponse.json({code, expires_at, sign_in_url: signInUrl})",
+    "Web: 新建 apps/web/app/api/devices/bind-status/route.ts — GET handler（公开，无 requireAuth）: const code = searchParams.get('code'); const intent = await db.select().from(deviceLoginIntents).where(eq(code)).limit(1); if (!intent || intent.expiresAt < now) return 404; if (intent.userId) { const user = await getUser(intent.userId); return {bound:true, user} } else return {bound:false}",
+    "Web: 新建 apps/web/app/auth/device-bind/route.ts: const session = await auth(); if (!session?.user?.id) redirect 到登录入口并设置 callbackUrl=/auth/device-bind?code=${code}; 已登录则 UPDATE device_login_intents SET user_id=session.user.id,bound_at=now() WHERE code=? AND expires_at>now() AND user_id IS NULL；最后 redirect `agenthub://auth/bind?code=${code}`",
+    "Desktop useDesktopAuth.ts: handleGitHubLogin = async () => { const res = await fetch(`${WEB_URL}/api/devices/login-intent`, {method:'POST'}); const {code, sign_in_url} = await res.json(); shell.openExternal(sign_in_url); pollBindStatus(code) }",
+    "pollBindStatus: const interval = setInterval(async()=>{ const r = await fetch(`${WEB_URL}/api/devices/bind-status?code=${code}`); const data = await r.json(); if(data.bound){clearInterval(interval); setUser(data.user)} }, 2000); setTimeout(()=>{clearInterval(interval); setAuthError('登录超时')}, 60000)",
+    "Desktop main/index.ts: app.setAsDefaultProtocolClient('agenthub'); app.on('open-url', (e, url) => { const parsed = new URL(url); if (parsed.pathname === '/auth/bind') { mainWindow.webContents.send('auth-bind-code', parsed.searchParams.get('code')) } })",
+    "Desktop renderer 监听 IPC 'auth-bind-code'：收到 code 后直接调用 bind-status 获取 user（加速，不等 poll）"
+  ],
+
+  "test_contract": {
+    "integration": "POST /api/devices/login-intent（无 auth）→ 200 {code}；绑定后 GET /api/devices/bind-status?code=xxx → {bound:true, user}；过期 code → 404",
+    "e2e": "Desktop 点击登录 → login-intent 创建 → Web OAuth 完成 → intent 绑定 user → Desktop poll 获取 user → 显示用户名"
+  }
+}

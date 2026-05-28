@@ -1,0 +1,115 @@
+{
+  "id": "TASK-006",
+  "title": "三端 E2E 主链路真实运行 + 视觉/布局断言 + 结果写入 execution report",
+  "description": "新增 Playwright E2E 测试并真实运行（不只 --list）。覆盖 Web 主链路、Mobile 鉴权、Desktop 登录。包含视觉/布局断言（无横向滚动、容器不重叠、文本不溢出）。convergence 要求真实运行测试并把 stdout/结果写入 research/execution-reports/。",
+  "issue_id": null,
+  "issue_refs": ["BLK-1", "BLK-2", "BLK-3", "BLK-4", "BLK-5"],
+  "type": "test",
+  "priority": "high",
+  "effort": "high",
+  "action": "1. 新建 e2e/helpers/auth-state.ts：定义 P0 E2E 登录策略。优先使用受控测试用户 + 真实 DB session/account seed 生成浏览器 storageState；允许手工录制真实 GitHub OAuth storageState，但必须在报告标记为人工 OAuth 前置。该 fixture 只能替代 OAuth 人机步骤，禁止 mock /api/workspaces、/api/sessions、/api/messages、/api/devices/*。2. 新建 e2e/tests/web/p0-main-flow.spec.ts：登录→Workspace 创建→Session 创建→消息发送→page.reload 验证持久化→视觉断言（scrollWidth<=clientWidth、关键容器 boundingBox 不重叠、文本不溢出）。3. 新建 e2e/tests/web/p0-mobile-auth.spec.ts：未登录 /m 重定向→登录后 /m 显示工作区→视觉断言。4. 新建 e2e/tests/desktop/p0-auth-flow.spec.ts：启动→点击登录→验证 login-intent 创建；bind-status 先返回 bound:false，Web 绑定后返回 bound:true,user；Electron renderer store/UI 显示同一 user id；打开 Web workspace 后身份不从 5173 断裂到 3000 未登录状态。5. 真实运行所有 E2E 测试。6. 把运行结果（pass/fail count、失败 test name、截图路径、user/workspace/session/message/device intent id）append 到 research/execution-reports/p0-end-to-end-product-flow-plan-report.md。7. Governance gate：最终 wave 提交后在干净工作区运行 bash scripts/verify-governance-gate.sh P0-END-TO-END-PRODUCT-FLOW；若开始前已有 dirty baseline，必须先精确提交本任务相关改动并列出剩余非本任务 dirty 文件。",
+  "status": "pending",
+  "completed_at": null,
+  "actual_duration": null,
+
+  "scope": "e2e/tests + research/execution-reports",
+  "focus_paths": [
+    "e2e/tests/web/p0-main-flow.spec.ts",
+    "e2e/tests/web/p0-mobile-auth.spec.ts",
+    "e2e/tests/desktop/p0-auth-flow.spec.ts",
+    "e2e/helpers/auth-state.ts",
+    "research/execution-reports/p0-end-to-end-product-flow-plan-report.md"
+  ],
+
+  "read_first": [
+    "e2e/tests/web/ui-alignment.spec.ts",
+    "e2e/tests/desktop/ui-alignment.spec.ts",
+    "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md",
+    "apps/web/middleware.ts",
+    "apps/desktop/src/renderer/hooks/useDesktopAuth.ts",
+    "research/execution-reports/p0-end-to-end-product-flow-plan-report.md"
+  ],
+
+  "depends_on": ["TASK-001", "TASK-002", "TASK-003", "TASK-004"],
+  "wave": 4,
+  "parallel_group": "wave4",
+  "execution_group": null,
+  "executor": "agent",
+
+  "convergence": {
+    "criteria": [
+      "e2e/tests/web/p0-main-flow.spec.ts exists AND contains 'reload'",
+      "e2e/tests/web/p0-main-flow.spec.ts contains 'scrollWidth'",
+      "e2e/helpers/auth-state.ts exists AND documents whether it uses DB-backed test session seed or manually recorded OAuth storageState",
+      "E2E files do NOT use page.route to mock /api/workspaces, /api/sessions, /api/messages, or /api/devices",
+      "e2e/tests/web/p0-mobile-auth.spec.ts exists AND contains 'toHaveURL'",
+      "e2e/tests/desktop/p0-auth-flow.spec.ts exists AND contains 'login-intent'",
+      "e2e/tests/desktop/p0-auth-flow.spec.ts contains assertions for both bound:false and bound:true",
+      "e2e/tests/desktop/p0-auth-flow.spec.ts asserts visible Desktop user id/email matches bind-status user",
+      "pnpm playwright test e2e/tests/web/p0-main-flow.spec.ts exits 0",
+      "pnpm playwright test e2e/tests/web/p0-mobile-auth.spec.ts exits 0",
+      "pnpm playwright test e2e/tests/desktop/p0-auth-flow.spec.ts exits 0",
+      "research/execution-reports/p0-end-to-end-product-flow-plan-report.md contains 'E2E 运行结果'",
+      "bash scripts/verify-governance-gate.sh P0-END-TO-END-PRODUCT-FLOW exits 0"
+    ],
+    "behavioral_verification": [
+      "pnpm playwright test e2e/tests/web/p0-main-flow.spec.ts --reporter=list 真实运行（非 --list），stdout 包含 'passed'",
+      "auth fixture 只替代 OAuth 人机步骤，不 mock Workspace/Session/Message/Device API；测试数据写入真实 DB",
+      "p0-main-flow 测试中：发送消息后 reload，消息仍可见（证明持久化）",
+      "p0-mobile-auth 测试中：未登录访问 /m 被 redirect（证明鉴权生效）",
+      "p0-auth-flow 测试中：Desktop 点击登录后 login-intent API 被调用；bind-status 从 bound:false 变为 bound:true,user；Desktop UI 显示同一 user id/email；打开 Web workspace 后仍为同一登录用户",
+      "governance gate 脚本在干净工作区 exit 0（证明 tracker + report + commit 全部闭环）"
+    ],
+    "verification": "pnpm playwright test e2e/tests/web/p0-main-flow.spec.ts --reporter=list 2>&1 | tee /tmp/e2e-web.log && pnpm playwright test e2e/tests/web/p0-mobile-auth.spec.ts --reporter=list 2>&1 | tee -a /tmp/e2e-web.log && pnpm playwright test e2e/tests/desktop/p0-auth-flow.spec.ts --reporter=list 2>&1 | tee /tmp/e2e-desktop.log && ! grep -R \"page.route(.*api/\\(workspaces\\|sessions\\|messages\\|devices\\)\" e2e/tests e2e/helpers && git diff --quiet && bash scripts/verify-governance-gate.sh P0-END-TO-END-PRODUCT-FLOW",
+    "definition_of_done": "三端 E2E 真实运行通过（非 --list），视觉/布局断言覆盖，运行结果已写入 execution report，governance gate exit 0"
+  },
+
+  "files": [
+    {
+      "path": "e2e/helpers/auth-state.ts",
+      "action": "create",
+      "target": null,
+      "change": "P0 E2E 登录 fixture：DB-backed test session/account seed 或人工录制 GitHub OAuth storageState；明确禁止 mock 主链路 API；输出 test user id"
+    },
+    {
+      "path": "e2e/tests/web/p0-main-flow.spec.ts",
+      "action": "create",
+      "target": null,
+      "change": "Web 主链路 E2E：登录→Workspace→Session→消息→reload 持久化→scrollWidth/boundingBox 视觉断言"
+    },
+    {
+      "path": "e2e/tests/web/p0-mobile-auth.spec.ts",
+      "action": "create",
+      "target": null,
+      "change": "Mobile PWA 鉴权 E2E：未登录 /m 重定向→登录后工作区列表→视觉断言"
+    },
+    {
+      "path": "e2e/tests/desktop/p0-auth-flow.spec.ts",
+      "action": "create",
+      "target": null,
+      "change": "Desktop 登录 E2E：启动→点击登录→login-intent 创建→bind-status bound:false→Web device-bind→bind-status bound:true,user→Desktop store/UI 身份展示→打开 Web workspace 身份连续"
+    },
+    {
+      "path": "research/execution-reports/p0-end-to-end-product-flow-plan-report.md",
+      "action": "modify",
+      "target": "append E2E results section",
+      "change": "在报告末尾追加 '## E2E 运行结果' section：日期、pass/fail count、失败 test name、截图路径"
+    }
+  ],
+
+  "implementation": [
+    "auth-state.ts: export async function ensureP0StorageState()；若使用 TEST_AUTH_STORAGE_STATE 则读取人工录制状态并校验 /api/auth/session 有 user；否则用 TEST_DATABASE_URL 创建 Auth.js user/session/account 或调用受控测试登录端点生成真实 session cookie；禁止 page.route mock 主链路 API",
+    "p0-main-flow.spec.ts: import { test, expect } from '@playwright/test'; import { ensureP0StorageState } from '../helpers/auth-state';",
+    "test('Web 主链路', async({browser})=>{ const storageState = await ensureP0StorageState(); const context = await browser.newContext({storageState}); const page = await context.newPage(); await page.goto('/workspace'); await 创建 workspace; await 创建 session; await 输入消息+发送; await expect(page.locator('[data-testid=message]')).toContainText(msg); await page.reload(); await expect(page.locator('[data-testid=message]')).toContainText(msg) /* 持久化验证 */ })",
+    "视觉断言: const body = page.locator('body'); const sw = await body.evaluate(el=>el.scrollWidth); const cw = await body.evaluate(el=>el.clientWidth); expect(sw).toBeLessThanOrEqual(cw);",
+    "p0-mobile-auth.spec.ts: test('未登录 /m 重定向', async({page})=>{ await page.goto('/m'); await expect(page).toHaveURL('/') }); test('登录后显示工作区', async({browser})=>{ const storageState = await ensureP0StorageState(); const page = await (await browser.newContext({storageState})).newPage(); await page.goto('/m'); await expect(page.locator('text=工作区')).toBeVisible() })",
+    "p0-auth-flow.spec.ts: import { _electron as electron } from '@playwright/test'; test('Desktop 登录', async()=>{ const app = await electron.launch({args:['.']}); const window = await app.firstWindow(); await window.click('[data-testid=github-login]'); const code = await waitForLoginIntentCode(); await expectBindStatus(code,{bound:false}); await bindIntentAsTestUser(code); const bound = await expectBindStatus(code,{bound:true}); await expect(window.locator('[data-testid=auth-user]')).toContainText(bound.user.email || bound.user.id); await window.click('[data-testid=open-web-workspace]'); await assertWebWorkspaceSessionUsesSameUser(bound.user.id); await app.close() })",
+    "运行后 append results 到 execution report",
+    "最后运行 bash scripts/verify-governance-gate.sh P0-END-TO-END-PRODUCT-FLOW"
+  ],
+
+  "test_contract": {
+    "integration": "N/A（本 task 本身是 E2E）",
+    "e2e": "pnpm playwright test 各文件真实运行 exit 0（非 --list），结果写入 execution report"
+  }
+}
