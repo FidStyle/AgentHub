@@ -28,7 +28,7 @@ function waitForServer(url: string, timeout = 20000): Promise<void> {
 async function globalSetup(_config: FullConfig) {
   const rootDir = path.resolve(__dirname, '..')
   execFileSync('pnpm', ['env:p0:db:up'], { cwd: rootDir, stdio: 'inherit' })
-  execFileSync('pnpm', ['env:p0:seed'], { cwd: rootDir, stdio: 'inherit' })
+  execFileSync('pnpm', ['env:p0:seed:fixture'], { cwd: rootDir, stdio: 'inherit' })
 
   const envFile = path.join(rootDir, 'docker/.p0-test.env')
   const seededEnv = Object.fromEntries(

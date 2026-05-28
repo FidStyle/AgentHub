@@ -16,10 +16,26 @@ pnpm env:p0:db:up
 DATABASE_URL=postgresql://agenthub:agenthub_dev@localhost:5432/agenthub_p0_test
 ```
 
-初始化 schema 并生成 Auth.js 测试 session：
+初始化 schema，并基于数据库里已有的 GitHub 关联测试用户生成 Auth.js 测试 session：
 
 ```bash
 pnpm env:p0:seed
+```
+
+默认模式不会创建用户。脚本会按以下优先级查找已有 GitHub 关联用户：
+
+1. `TEST_GITHUB_ACCOUNT_ID` 指定的 `account(provider='github', providerAccountId=...)`
+2. `TEST_USER_EMAIL` 指定的用户邮箱，且该用户已有 GitHub account 关联
+3. 任意已有 `account.provider='github'` 的用户
+
+默认模式会排除内置 bootstrap fixture（`00000000-0000-4000-8000-000000000001` / `agenthub-p0-test-github`），避免把本地合成账号误当成真实 GitHub 链接测试用户。
+
+如果空库需要 bootstrap 一个本地 fixture，必须显式启用：
+
+```bash
+P0_CREATE_GITHUB_FIXTURE=true pnpm env:p0:seed
+# 等价短命令
+pnpm env:p0:seed:fixture
 ```
 
 脚本会写入 `docker/.p0-test.env`，内容包含：
@@ -28,6 +44,7 @@ pnpm env:p0:seed
 - `AUTH_TRUST_HOST=true`
 - `AUTH_SECRET`
 - `TEST_USER_ID`
+- `TEST_USER_EMAIL`
 - `TEST_GITHUB_ACCOUNT_ID`
 - `TEST_AUTH_SESSION_TOKEN`
 - `TEST_AUTH_COOKIE`
@@ -77,6 +94,8 @@ docker compose -f docker/docker-compose.p0-test.yml down -v
 ## 规则
 
 - P0 主链路禁止 mock Workspace、Session、Message、Device API。
-- 测试账号必须 seed 为 Auth.js database 用户：`user`、`account(provider='github')`、`session` 三张表都要有记录。
+- 默认测试账号必须是数据库里已有的 Auth.js database 用户，且 `account(provider='github')` 已关联；seed 脚本只为该用户创建测试 session。
+- 只有 `P0_CREATE_GITHUB_FIXTURE=true` 或 `pnpm env:p0:seed:fixture` 时才允许为本地空库创建 fixture 用户和测试 GitHub account。
+- E2E 自动化使用 fixture seed；它验证 Auth.js database session、API 权限和真实 DB 持久化，不代表已完成真实 GitHub OAuth 浏览器登录。
 - API smoke 和 E2E 必须带真实 Auth.js database session cookie 访问真实 API，不能用 `X-Test-User-Id` 绕过 `auth()`。
 - 本地 Postgres 路径不启用 Postgres RLS；权限边界由 API 的 `requireAuth()` 和 owner/session 查询验证。
