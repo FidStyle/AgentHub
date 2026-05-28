@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [End-to-End Contract Planning Guide](./end-to-end-contract-planning.md) | Prevent fake product closure in plans and acceptance criteria | Before planning/reviewing auth, workspace, DB, runtime, E2E, or three-surface flows |
 | [Product Planning Thinking Guide](./product-planning-guide.md) | Keep AgentHub work bound to PRD FR-IDs and product design | Before implementing AgentHub product slices |
 
 ---
@@ -56,6 +57,15 @@ These guides help you **ask the right questions before coding**.
 - [ ] A UI decision could change the PRD or product-design contract
 
 → Read [Product Planning Thinking Guide](./product-planning-guide.md)
+
+### When to Think About End-to-End Contract Closure
+
+- [ ] A plan claims P0/MVP flow completion
+- [ ] The task touches auth, database, API, runtime, workspace, session, message, E2E, or Desktop/Web/Mobile consistency
+- [ ] The acceptance criteria mention file existence, grep, mock APIs, placeholder responses, or `playwright --list`
+- [ ] A known user-discovered issue is being converted into a plan
+
+→ Read [End-to-End Contract Planning Guide](./end-to-end-contract-planning.md)
 
 ---
 

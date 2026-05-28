@@ -19,3 +19,17 @@ If you're using Codex or another agent-capable tool, additional project-scoped h
 Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
 
 <!-- TRELLIS:END -->
+
+# AgentHub Project Workflow
+
+Before guiding or executing non-trivial AgentHub work, read `research/index.md` and `research/ai-workflow-control.md`.
+
+Project workflow rule:
+
+- `research/` is the shared contract layer and public project ledger.
+- `research/contracts/<TASK-ID>.md` is the required interface between Trellis and Maestro/Ralph for medium or large tasks.
+- `.trellis/` owns Codex/Trellis task context and engineering specs.
+- `.workflow/` owns Maestro/Ralph execution state, roadmap, scratch plans, and status files.
+- Do not treat `.workflow/.maestro/*/status.json` as project completion.
+- Do not use mock runtime data to satisfy MVP product flows that require real database/API/session behavior.
+- Codex is the workflow controller and final technical reviewer; Maestro/Ralph is the large-scope execution engine; Trellis is the implementation-spec and task-context system.

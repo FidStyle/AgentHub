@@ -10,6 +10,7 @@
 research/
   README.md                 ← 本文件：目录规范和阅读指南
   index.md                  ← 全部文档总索引（唯一入口）
+  ai-workflow-control.md    ← AI 工作流控制协议：Codex/Trellis/Maestro 分工
   prd.md                    ← 总体 PRD，FR-ID 注册表
   product-design.md         ← 产品设计：页面、用户流、组件状态
   technical-design.md       ← 技术路线、架构、数据模型、协议
@@ -18,6 +19,7 @@ research/
   automation-reference-comparison.md ← 自动化执行参考比较
   project-tracker.md        ← P0/P1/P2 项目跟进表（必须实时更新）
   decision-log.md           ← 关键产品与技术决策日志
+  contracts/                ← 共享任务合同（Trellis 与 Maestro/Ralph 的协作接口）
   modules/                  ← 模块调研（auth, runtime, orchestrator 等）
   prd-amendments/           ← PRD 增补修订（不直接改 prd.md）
   execution-reports/        ← 执行报告（每次迁移/实现前后）
@@ -47,19 +49,23 @@ scripts/
 
 ## 文档优先级（冲突时）
 
-1. `prd.md` 的 FR-ID 和验收标准
-2. `product-design.md` 的页面与交互契约
-3. `ui-design-system.md` 的 UI 契约
-4. `technical-design.md` 的最终技术路线
-5. `modules/*.md` 的研究证据
-6. 会话中的临时讨论
+1. `ai-workflow-control.md` 的工作流控制规则
+2. `contracts/<TASK-ID>.md` 的当前任务共享合同
+3. `prd.md` 的 FR-ID 和验收标准
+4. `product-design.md` 的页面与交互契约
+5. `ui-design-system.md` 的 UI 契约
+6. `technical-design.md` 的最终技术路线
+7. `modules/*.md` 的研究证据
+8. 会话中的临时讨论
 
 ---
 
 ## 治理规则
 
-1. **跟进义务**：Maestro/Ralph 每完成一个 wave，必须同步更新 `project-tracker.md` 和 `execution-reports/*.md`。
-2. **PRD 修订**：发现 PRD/技术设计与当前计划冲突，只能新增 `prd-amendments/*.md`。
-3. **索引维护**：新增研究文档必须同步更新 `index.md`。
-4. **归档规则**：已完成的过渡计划、历史 prompt 移入 `archive/` 或 `prompts/`。
-5. **完成门禁**：session/milestone complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`，失败时不得手动修改 `status.json` 绕过。
+1. **工作流入口**：新会话先读 `index.md` 和 `ai-workflow-control.md`，再进入 Trellis 或 Maestro。
+2. **共享合同**：中大型任务必须使用 `contracts/<TASK-ID>.md` 作为 Trellis 与 Maestro/Ralph 的协作接口。
+3. **跟进义务**：Maestro/Ralph 每完成一个 wave，必须同步更新 `project-tracker.md` 和 `execution-reports/*.md`。
+4. **PRD 修订**：发现 PRD/技术设计与当前计划冲突，只能新增 `prd-amendments/*.md`。
+5. **索引维护**：新增研究文档必须同步更新 `index.md`。
+6. **归档规则**：已完成的过渡计划、历史 prompt 移入 `archive/` 或 `prompts/`。
+7. **完成门禁**：session/milestone complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`，失败时不得手动修改 `status.json` 绕过。

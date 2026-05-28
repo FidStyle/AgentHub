@@ -2,6 +2,8 @@
 
 > 本手册定义 Codex 如何指导 Maestro/Ralph 完成 AgentHub 后续开发，以及如何验收 Maestro 的反馈。它是 `research/` 公开总账体系的一部分，优先级高于 `.workflow/.maestro/*/status.json` 里的机器状态。
 
+工作流总入口是 [ai-workflow-control.md](./ai-workflow-control.md)。中大型任务必须先创建或引用 `research/contracts/<TASK-ID>.md`，Maestro/Ralph 只负责把共享合同派生为 analyze/plan/execute/verify/review，不得重写合同事实。
+
 ---
 
 ## 角色分工
@@ -13,6 +15,7 @@
 | Maestro/Ralph | 执行分析、规划、实现、验证、审查和提交 | 不得绕过 `research/` 总账和治理门禁 |
 | `research/` | 人类可读的需求、设计、跟进和证据中心 | 不存放临时机器状态 |
 | `.workflow/` | Maestro 机器执行状态、计划和 scratch 产物 | 不作为最终项目完成依据 |
+| `research/contracts/` | Trellis 与 Maestro/Ralph 的共享任务合同 | 不存放 scratch 计划或执行状态 |
 
 ---
 
@@ -20,11 +23,12 @@
 
 Codex 每次收到用户转述的 Maestro 反馈后，按以下顺序处理：
 
-1. 判断当前场景属于需求、技术方案、UI、实现、测试、验收、治理修复还是复盘。
-2. 读取必要的 `research/` 文档，而不是只相信 Maestro summary。
-3. 给出 Maestro 下一步应使用的命令和 prompt。
-4. 对 Maestro 宣称完成的内容做独立核对：`git status`、最新 commit、`research/project-tracker.md`、`execution-reports/`、测试证据。
-5. 发现不一致时，要求 Maestro 先补治理闭环，不进入新功能。
+1. 读取 `research/ai-workflow-control.md`，判断当前场景属于需求、技术方案、UI、实现、测试、验收、治理修复还是复盘。
+2. 对中大型任务确认是否已有 `research/contracts/<TASK-ID>.md`；没有合同则先让 Maestro/Codex 做合同阶段，不直接 execute。
+3. 读取必要的 `research/` 文档，而不是只相信 Maestro summary。
+4. 给出 Maestro 下一步应使用的命令和 prompt。
+5. 对 Maestro 宣称完成的内容做独立核对：共享合同、`git status`、最新 commit、`research/project-tracker.md`、`execution-reports/`、测试证据。
+6. 发现不一致时，要求 Maestro 先补治理闭环，不进入新功能。
 
 ---
 
@@ -74,6 +78,8 @@ Maestro/Ralph 说“完成”时，Codex 必须核对：
 
 `status.json completed` 只说明 Maestro 状态机完成，不等于项目完成。
 
+Analyze、plan、verify、review 等 artifact-only 阶段也必须提交自己的公开产物。只要写入或修改 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件或代码，就必须精确 `git add` 本阶段相关文件并使用中文 commit。不得把“没有代码改动”作为不提交 research/tracker/report 的理由。
+
 ---
 
 ## Prompt 生成规则
@@ -81,11 +87,14 @@ Maestro/Ralph 说“完成”时，Codex 必须核对：
 Codex 给 Maestro 的 prompt 必须包含：
 
 1. 明确的 `TASK-ID` 和绑定 `FR-ID`。
-2. 必读文档：至少包含 `research/index.md`、`research/project-tracker.md`、相关 PRD/技术/UI 文档。
+2. 必读文档：至少包含 `research/ai-workflow-control.md`、`research/index.md`、`research/project-tracker.md`、`research/contracts/<TASK-ID>.md`、相关 PRD/技术/UI 文档。
 3. 明确阶段：分析、计划、实现、验证、审查、治理修复之一。
 4. 禁止项：不得 `git add .`，不得提交 `refer_proj/*`、缓存、临时日志和未确认改动。
 5. 完成定义：测试证据、执行报告、tracker、精确 commit、governance gate。
 6. 开始/结束标记，便于用户复制。
+7. 对 plan 阶段，必须要求读取 `.trellis/spec/guides/end-to-end-contract-planning.md` 并输出 `PLAN_ANTI_PATTERN_REVIEW: PASS`；未通过时只能 revise，不能 execute。
+
+如果当前工作区存在既有无关改动，prompt 必须要求 Maestro/Ralph 在开始时记录 dirty baseline，在提交时只提交本任务相关文件，并在完成输出里列出剩余 dirty 项；不能因为无关 dirty 项存在而跳过本任务 commit。
 
 Codex 后续为用户生成 Maestro/Ralph prompt 时，必须默认套用以下指导协议：
 
@@ -125,9 +134,12 @@ TASK-ID：<任务 ID>
 
 执行前必读：
 - research/prompts/maestro-execution-governance.md
+- research/ai-workflow-control.md
+- .trellis/spec/guides/end-to-end-contract-planning.md
 - research/index.md
 - research/project-tracker.md
 - research/decision-log.md
+- research/contracts/<TASK-ID>.md
 - <本任务相关 PRD / 技术 / UI 文档>
 
 当前状态：
