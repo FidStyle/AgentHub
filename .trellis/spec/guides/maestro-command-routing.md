@@ -65,3 +65,23 @@ This may execute more scope than intended and does not encode the Wave 1 stop co
 ```
 
 The intent must explicitly say to stop after Wave 1 for Codex review.
+
+## Trellis Task Mapping
+
+Do not mirror every Maestro task into Trellis.
+
+Use this mapping:
+
+| Layer | Unit |
+| --- | --- |
+| `research/contracts/<TASK-ID>.md` | Product truth and shared contract |
+| `.workflow/scratch/*/.task/TASK-*.json` | Maestro execution slices |
+| `.trellis/tasks/<orchestration-task>/` | Codex guidance/review/control task |
+
+For long-running Maestro guidance, create one Trellis orchestration task per research contract or milestone. That task should reference the Maestro plan and current released wave in `prd.md`, `task.json.meta`, `implement.jsonl`, and `check.jsonl`.
+
+## Brainstorm Policy
+
+- One-off Maestro command or prompt guidance: no Trellis task and no `trellis-brainstorm`.
+- Multi-turn Maestro orchestration with an existing research contract: create one Trellis orchestration task, write a minimal PRD from the contract and plan, curate JSONL context, then start it. Do not run `trellis-brainstorm`.
+- Missing contract or unclear product scope: create/update the research contract first; use `trellis-brainstorm` only for unresolved requirements that cannot be inferred from PRD, product design, reference projects, and existing research.

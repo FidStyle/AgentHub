@@ -1,0 +1,7 @@
+{"file": "research/ai-workflow-control.md", "reason": "Verify orchestration follows the shared workflow contract"}
+{"file": "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md", "reason": "Verify evidence against the P0 product contract"}
+{"file": "research/execution-reports/p0-end-to-end-product-flow-plan-report.md", "reason": "Verify only Wave 1 is released before Codex review"}
+{"file": "research/project-tracker.md", "reason": "Verify public tracker updates and current state"}
+{"file": "research/maestro-command-reference.md", "reason": "Verify generated Maestro commands use current argument hints"}
+{"file": ".trellis/spec/guides/maestro-command-routing.md", "reason": "Verify Maestro/Ralph routing and wave stop rules"}
+{"file": ".trellis/spec/guides/end-to-end-contract-planning.md", "reason": "Verify no fake closure or mock main-path evidence is accepted"}

@@ -1,0 +1,7 @@
+{"file": "research/ai-workflow-control.md", "reason": "Top-level AgentHub workflow contract and Codex/Trellis/Maestro role split"}
+{"file": "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md", "reason": "Shared product contract and completion gates for P0 end-to-end flow"}
+{"file": "research/execution-reports/p0-end-to-end-product-flow-plan-report.md", "reason": "Rev 3 plan review status and Wave 1 release scope"}
+{"file": "research/project-tracker.md", "reason": "Public progress ledger and current P0 state"}
+{"file": "research/maestro-command-reference.md", "reason": "Generated Maestro command argument reference"}
+{"file": ".trellis/spec/guides/maestro-command-routing.md", "reason": "Trellis guide for choosing Maestro/Ralph commands"}
+{"file": ".trellis/spec/guides/end-to-end-contract-planning.md", "reason": "Plan anti-pattern and real behavior verification rules"}
