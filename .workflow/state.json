@@ -581,6 +581,32 @@
       "milestone": "adhoc-p0-acceptance",
       "depends_on": "PLN-p0-acceptance",
       "created_at": "2026-05-27T14:40:00Z"
+    },
+    {
+      "id": "ANL-001",
+      "type": "analyze",
+      "scope": "macro",
+      "status": "completed",
+      "milestone": null,
+      "phase": null,
+      "path": "scratch/20260528-analyze-p0-e2e-blind-verify",
+      "context_package": "scratch/20260528-analyze-p0-e2e-blind-verify/context-package.json",
+      "harvested": false,
+      "created_at": "2026-05-28T10:00:00Z",
+      "completed_at": "2026-05-28T14:02:29Z",
+      "confidence": 92
+    },
+    {
+      "id": "PLN-p0-e2e-fix",
+      "type": "plan",
+      "scope": "standalone",
+      "status": "completed",
+      "milestone": "adhoc-p0-acceptance",
+      "path": ".workflow/scratch/20260528-plan-p0-e2e-fix",
+      "depends_on": "ANL-p0-e2e-blind-verify",
+      "task_count": 6,
+      "wave_count": 4,
+      "created_at": "2026-05-28T12:00:00Z"
     }
   ],
   "last_updated": "2026-05-25T08:36:40.795991+00:00",
@@ -927,5 +953,5 @@
     }
   ],
   "current_phase": 1,
-  "updated_at": "2026-05-27T10:05:00Z"
+  "updated_at": "2026-05-28T12:00:00Z"
 }
