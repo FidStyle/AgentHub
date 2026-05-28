@@ -29,8 +29,8 @@
 | --- | --- | --- |
 | 三端壳 | Web: Next.js；Desktop: Electron；Mobile P0: PWA；Android App 预留: Capacitor；React Native 预留: shared TS 领域层 | 最快满足三端职责分工，同时保留后续 Android 应用和原生移动端路线 |
 | UI 设计系统 | shadcn/ui + Tailwind CSS 4 + lucide-react；codeg/shadcn 为三端统一视觉母版；Playwright 分端视觉 E2E | 与当前 Web 技术栈兼容，可覆盖 Web、Electron renderer、Mobile/PWA，并把视觉质量纳入门禁 |
-| Auth/Workspace | Supabase Auth + GitHub OAuth + Postgres | 同时解决登录、DB、Realtime 基础设施 |
-| IM/Realtime | Supabase Realtime | 与 Auth/DB 统一，足够支撑消息、审批、状态同步 |
+| Auth/Workspace | Auth.js + GitHub OAuth + Postgres | 同时解决登录、DB、Realtime 基础设施 |
+| IM/Realtime | database-backed realtime | 与 Auth/DB 统一，足够支撑消息、审批、状态同步 |
 | Desktop Connector | Electron + DeviceChannel 接口 + WebSocket 主实现 | Node 主进程适合本地 CLI、文件、进程能力；WebSocket 适合远程控制和状态回传 |
 | Runtime Adapter | Claude Code/Codex 均走 CLI 子进程 Adapter | 满足 native session resume/continue 的核心产品差异 |
 | Action/CLI | preview/test/build/shell 统一 ActionRequest | 覆盖 Demo，同时给未来部署发布留扩展点 |
@@ -86,7 +86,7 @@ future apps/mobile-native
 
 1. 三端壳：Next.js + Electron + PWA；后续 Android App 用 Capacitor 包装。
 2. UI 设计系统：`shadcn/ui + Tailwind CSS 4 + lucide-react`，视觉 E2E 使用 Playwright browser projects 与 Playwright Electron 分端覆盖。
-3. Auth/DB/Realtime：P0 使用 Supabase 作为基础设施。
+3. Auth/DB/Realtime：P0 使用 external BaaS 作为基础设施。
 4. Desktop 通道：`DeviceChannel` 作为接口，P0 直接使用 WebSocket 实现。
 5. Runtime Adapter：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟。
 6. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。

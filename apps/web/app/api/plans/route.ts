@@ -1,19 +1,19 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 // GET /api/plans?session_id=xxx — list plans for session
 // POST /api/plans — create a new plan
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const { user, error: authError } = await requireAuth()
+  const db = await createClient()
+  const { error: authError } = await requireAuth()
   if (authError) return authError
 
   const { searchParams } = new URL(request.url)
   const sessionId = searchParams.get('session_id')
   if (!sessionId) return NextResponse.json({ error: 'session_id 必填' }, { status: 400 })
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('plans')
     .select('*, plan_nodes(*)')
     .eq('session_id', sessionId)
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   )
   const dag = { nodes: nodes.map((n: { id: string; label: string; depends_on?: string[] }) => ({ id: n.id, label: n.label, depends_on: n.depends_on || [] })), edges }
 
-  const { data: plan, error: planErr } = await supabase
+  const { data: plan, error: planErr } = await db
     .from('plans')
     .insert({ session_id, owner_id: user.id, title, dag, status: 'pending_confirm' })
     .select()
@@ -61,11 +61,11 @@ export async function POST(request: Request) {
     status: 'pending',
   }))
 
-  const { error: nodesErr } = await supabase.from('plan_nodes').insert(nodeRows)
+  const { error: nodesErr } = await db.from('plan_nodes').insert(nodeRows)
   if (nodesErr) return NextResponse.json({ error: nodesErr.message }, { status: 500 })
 
   // Create notification for approval
-  await supabase.from('notifications').insert({
+  await db.from('notifications').insert({
     user_id: user.id,
     type: 'approval_required',
     title: `计划待确认: ${title}`,

@@ -1,7 +1,7 @@
 /**
  * API route tests for /api/sessions and /api/sessions/[id]
  *
- * L0 unit tests: API route handlers with mocked Supabase client.
+ * L0 unit tests: API route handlers with mocked Postgres client.
  * Tests auth checks, input validation, ownership checks, and response shapes.
  */
 
@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   setupMockClient,
   setupMockAuth,
-  createSupabaseChain,
+  createPostgresChain,
   createNoAuthChain,
   createErrorChain,
   resetMockClient,
@@ -195,7 +195,7 @@ describe('GET /api/sessions', () => {
 
   it('AT-S002: returns 400 when workspace_id is missing', async () => {
     const { GET } = await import('@/app/api/sessions/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', {})
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('缺少 workspace_id')
@@ -211,7 +211,7 @@ describe('GET /api/sessions', () => {
 
   it('AT-S004: returns session list for valid workspace', async () => {
     const { GET } = await import('@/app/api/sessions/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001' } })
     expect(result.status).toBe(200)
     expect(result.data).toBeInstanceOf(Array)
@@ -250,7 +250,7 @@ describe('POST /api/sessions', () => {
 
   it('AT-S007: returns 400 when workspace_id is missing', async () => {
     const { POST } = await import('@/app/api/sessions/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', { body: {} })
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('缺少 workspace_id')
@@ -268,7 +268,7 @@ describe('POST /api/sessions', () => {
 
   it('AT-S009: returns 201 with created session on valid input', async () => {
     const { POST } = await import('@/app/api/sessions/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { workspace_id: 'ws-001', name: '新会话' },
     })
@@ -281,7 +281,7 @@ describe('POST /api/sessions', () => {
 
   it('AT-S010: uses default name "新会话" when name not provided', async () => {
     const { POST } = await import('@/app/api/sessions/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { workspace_id: 'ws-001' },
     })
@@ -325,7 +325,7 @@ describe('GET /api/sessions/[id]', () => {
 
   it('AT-S013: returns 404 when session not found', async () => {
     const { GET } = await import('@/app/api/sessions/[id]/route')
-    setupMockClient(createSupabaseChain(mockUser, [{ id: 'ws-001' }], []))
+    setupMockClient(createPostgresChain(mockUser, [{ id: 'ws-001' }], []))
     const result = await callRoute(GET, 'GET', { params: { id: 'nonexistent' } })
     expect(result.status).toBe(404)
     expect((result.data as { error: string }).error).toBe('会话不存在')
@@ -365,7 +365,7 @@ describe('PATCH /api/sessions/[id]', () => {
 
   it('AT-S016: returns 400 for invalid status value', async () => {
     const { PATCH } = await import('@/app/api/sessions/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'session-001' },
       body: { status: 'invalid-status' },
@@ -376,7 +376,7 @@ describe('PATCH /api/sessions/[id]', () => {
 
   it('AT-S017: returns 404 when session not found for update', async () => {
     const { PATCH } = await import('@/app/api/sessions/[id]/route')
-    setupMockClient(createSupabaseChain(mockUser, [{ id: 'ws-001' }], []))
+    setupMockClient(createPostgresChain(mockUser, [{ id: 'ws-001' }], []))
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'nonexistent' },
       body: { name: '测试' },
@@ -398,7 +398,7 @@ describe('PATCH /api/sessions/[id]', () => {
 
   it('AT-S019: returns updated session on valid PATCH with name', async () => {
     const { PATCH } = await import('@/app/api/sessions/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'session-001' },
       body: { name: '更新后的会话' },
@@ -410,7 +410,7 @@ describe('PATCH /api/sessions/[id]', () => {
 
   it('AT-S020: returns updated session on valid PATCH with status=active', async () => {
     const { PATCH } = await import('@/app/api/sessions/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'session-001' },
       body: { status: 'active' },
@@ -422,7 +422,7 @@ describe('PATCH /api/sessions/[id]', () => {
 
   it('AT-S021: returns updated session on valid PATCH with status=archived', async () => {
     const { PATCH } = await import('@/app/api/sessions/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'session-001' },
       body: { status: 'archived' },

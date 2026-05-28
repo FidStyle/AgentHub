@@ -1,12 +1,9 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 function hasDatabaseConfig() {
-  return Boolean(
-    process.env.DATABASE_URL ||
-    (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  )
+  return Boolean(process.env.DATABASE_URL)
 }
 
 export async function GET() {
@@ -17,9 +14,9 @@ export async function GET() {
     return NextResponse.json({ error: '数据库未配置，请设置 DATABASE_URL' }, { status: 500 })
   }
 
-  const supabase = await createClient()
+  const db = await createClient()
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('workspaces')
     .select('*')
     .eq('owner_id', user.id)
@@ -48,8 +45,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '数据库未配置，请设置 DATABASE_URL' }, { status: 500 })
   }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const db = await createClient()
+  const { data, error } = await db
     .from('workspaces')
     .insert({ owner_id: user.id, name, execution_domain, description: description || '' })
     .select()

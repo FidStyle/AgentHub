@@ -1,7 +1,7 @@
 /**
  * API route tests for /api/workspaces and /api/workspaces/[id]
  *
- * L0 unit tests: API route handlers with mocked Supabase client.
+ * L0 unit tests: API route handlers with mocked Postgres client.
  * Tests auth checks, input validation, business logic, and response shapes.
  */
 
@@ -10,7 +10,7 @@ import {
   setupMockAuth,
   resetMockAuth,
   setupMockClient,
-  createSupabaseChain,
+  createPostgresChain,
   createNoAuthChain,
   createErrorChain,
   resetMockClient,
@@ -88,7 +88,7 @@ describe('GET /api/workspaces', () => {
 
   it('AT-W002: returns workspace list for authenticated user', async () => {
     const { GET } = await import('@/app/api/workspaces/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', {})
     expect(result.status).toBe(200)
     expect(result.data).toBeInstanceOf(Array)
@@ -127,7 +127,7 @@ describe('POST /api/workspaces', () => {
 
   it('AT-W005: returns 400 when name is missing', async () => {
     const { POST } = await import('@/app/api/workspaces/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { execution_domain: 'cloud' },
     })
@@ -137,7 +137,7 @@ describe('POST /api/workspaces', () => {
 
   it('AT-W006: returns 400 when execution_domain is missing', async () => {
     const { POST } = await import('@/app/api/workspaces/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { name: '测试工作区' },
     })
@@ -147,7 +147,7 @@ describe('POST /api/workspaces', () => {
 
   it('AT-W007: returns 400 for invalid execution_domain', async () => {
     const { POST } = await import('@/app/api/workspaces/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { name: '测试', execution_domain: 'invalid' },
     })
@@ -157,7 +157,7 @@ describe('POST /api/workspaces', () => {
 
   it('AT-W008: returns 201 with created workspace on valid input', async () => {
     const { POST } = await import('@/app/api/workspaces/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { name: '新工作区', execution_domain: 'cloud', description: '描述' },
     })
@@ -201,7 +201,7 @@ describe('GET /api/workspaces/[id]', () => {
 
   it('AT-W011: returns workspace detail for valid workspace', async () => {
     const { GET } = await import('@/app/api/workspaces/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', { params: { id: 'ws-001' } })
     expect(result.status).toBe(200)
     const ws = result.data as Record<string, unknown>
@@ -210,7 +210,7 @@ describe('GET /api/workspaces/[id]', () => {
 
   it('AT-W012: returns 404 when workspace not found', async () => {
     const { GET } = await import('@/app/api/workspaces/[id]/route')
-    setupMockClient(createSupabaseChain(undefined, []))
+    setupMockClient(createPostgresChain(undefined, []))
     const result = await callRoute(GET, 'GET', { params: { id: 'nonexistent' } })
     expect(result.status).toBe(404)
     expect((result.data as { error: string }).error).toBe('工作区不存在')
@@ -242,7 +242,7 @@ describe('PATCH /api/workspaces/[id]', () => {
 
   it('AT-W014: returns 400 when name is empty string', async () => {
     const { PATCH } = await import('@/app/api/workspaces/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'ws-001' },
       body: { name: '' },
@@ -253,7 +253,7 @@ describe('PATCH /api/workspaces/[id]', () => {
 
   it('AT-W015: returns 400 when name exceeds 200 characters', async () => {
     const { PATCH } = await import('@/app/api/workspaces/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'ws-001' },
       body: { name: 'a'.repeat(201) },
@@ -264,7 +264,7 @@ describe('PATCH /api/workspaces/[id]', () => {
 
   it('AT-W016: returns updated workspace on valid PATCH', async () => {
     const { PATCH } = await import('@/app/api/workspaces/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'ws-001' },
       body: { name: '更新后的名称' },

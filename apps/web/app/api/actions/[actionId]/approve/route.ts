@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
@@ -8,14 +8,14 @@ export async function POST(
   { params }: { params: Promise<{ actionId: string }> }
 ) {
   const { actionId } = await params
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
   const body = await request.json()
   const { approved } = body // boolean
 
-  const { data: action } = await supabase
+  const { data: action } = await db
     .from('actions')
     .select('*')
     .eq('id', actionId)
@@ -28,7 +28,7 @@ export async function POST(
   }
 
   const newStatus = approved ? 'approved' : 'rejected'
-  await supabase.from('actions').update({
+  await db.from('actions').update({
     status: newStatus,
     approved_at: approved ? new Date().toISOString() : null,
   }).eq('id', actionId)

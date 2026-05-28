@@ -1,6 +1,7 @@
 /**
  * P0 端到端真实 API CRUD smoke 验证
- * 要求环境变量：DATABASE_URL + (TEST_AUTH_COOKIE 或 TEST_USER_ID)
+ * 要求环境变量：DATABASE_URL + TEST_AUTH_COOKIE
+ * TEST_AUTH_COOKIE 必须对应 Auth.js database session 表中的真实 session token。
  * 验证链路：创建 workspace → 创建 session → 创建 message → GET 验证持久化
  */
 
@@ -14,21 +15,19 @@ function requireEnv(name: string): string {
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const cookie = process.env.TEST_AUTH_COOKIE
+  const authCookie = cookie?.includes('=') ? cookie : `authjs.session-token=${cookie}`
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(cookie ? { Cookie: cookie } : {}),
+    ...(authCookie ? { Cookie: authCookie } : {}),
     ...(options.headers as Record<string, string> || {}),
-  }
-  if (process.env.TEST_USER_ID && !cookie) {
-    headers['X-Test-User-Id'] = process.env.TEST_USER_ID
   }
   return fetch(`${BASE_URL}${path}`, { ...options, headers })
 }
 
 async function main() {
   requireEnv('DATABASE_URL')
-  if (!process.env.TEST_AUTH_COOKIE && !process.env.TEST_USER_ID) {
-    throw new Error('缺少认证凭据: 需要 TEST_AUTH_COOKIE 或 TEST_USER_ID')
+  if (!process.env.TEST_AUTH_COOKIE) {
+    throw new Error('缺少认证凭据: 需要 TEST_AUTH_COOKIE。先运行 pnpm env:p0:seed 生成测试 session。')
   }
 
   console.log('=== P0 API CRUD Smoke 验证 ===')

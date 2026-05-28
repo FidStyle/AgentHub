@@ -144,7 +144,7 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。
 
 #### FR-AUTH-001: GitHub OAuth 登录
 
-**描述：** 系统必须允许用户通过 GitHub OAuth 登录。MVP 不实现独立用户名密码体系。认证层使用 Auth.js v5 + GitHub OAuth Provider，本地开发和 E2E 测试不依赖外部 Auth 服务（如 Supabase 控制台）。
+**描述：** 系统必须允许用户通过 GitHub OAuth 登录。MVP 不实现独立用户名密码体系。认证层使用 Auth.js v5 + GitHub OAuth Provider，本地开发和 E2E 测试不依赖外部 Auth 服务（如 external BaaS 控制台）。
 
 **验收标准：**
 

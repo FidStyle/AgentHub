@@ -1,10 +1,10 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 // GET: list all role agents for a workspace
 export async function GET(request: Request) {
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const workspaceId = searchParams.get('workspace_id')
   if (!workspaceId) return NextResponse.json({ error: '缺少 workspace_id' }, { status: 400 })
 
-  const { data: ws } = await supabase
+  const { data: ws } = await db
     .from('workspaces')
     .select('id')
     .eq('id', workspaceId)
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     .single()
   if (!ws) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('role_agents')
     .select('*')
     .eq('workspace_id', workspaceId)
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
 // POST: create a new role agent
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: '缺少 name' }, { status: 400 })
 
   // 验证 workspace 归属
-  const { data: ws } = await supabase
+  const { data: ws } = await db
     .from('workspaces')
     .select('id')
     .eq('id', workspace_id)
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
   if (!ws) return NextResponse.json({ error: '工作区不存在或无权限' }, { status: 403 })
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('role_agents')
     .insert({
       workspace_id,

@@ -29,9 +29,10 @@ const nextAuth: NextAuthResult = NextAuth({
       }
       return token
     },
-    session({ session, token }) {
-      if (session.user && token.sub) {
-        session.user.id = token.sub
+    session({ session, token, user }) {
+      const userId = user?.id ?? token?.sub
+      if (session.user && userId) {
+        session.user.id = userId
       }
       return session
     },

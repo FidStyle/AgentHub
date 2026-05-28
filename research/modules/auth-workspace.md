@@ -11,7 +11,7 @@
 
 AgentHub P0 已确定使用 GitHub OAuth，不做独立用户名密码。Workspace 必须在创建时绑定唯一执行域：Cloud 或 Local Desktop。本模块需要回答：
 
-1. 身份认证用自建 OAuth、Auth.js，还是 Supabase Auth？
+1. 身份认证用自建 OAuth、Auth.js，还是 Auth.js？
 2. Workspace 执行域如何在数据模型和 UI 中强约束？
 3. Desktop Connector 如何绑定到同一用户身份？
 4. Local Desktop Workspace 如何让 Web/Mobile 可远程控制，同时避免 Web/Mobile 进程直接成为本地文件或本地端口访问入口？
@@ -23,10 +23,10 @@ AgentHub P0 已确定使用 GitHub OAuth，不做独立用户名密码。Workspa
 | 方案 | 优点 | 风险 | 适配度 |
 | --- | --- | --- | --- |
 | Auth.js / NextAuth + GitHub Provider | 与 Next.js 集成自然；可自持 DB；控制力强 | 需要自己处理设备绑定和会话同步细节 | 高 |
-| Supabase Auth + GitHub OAuth | 快速获得 Auth、Session、DB、Realtime 组合能力 | 平台绑定更强；本地 Demo 依赖外部服务 | 高 |
+| Auth.js + GitHub OAuth | 快速获得 Auth、Session、DB、Realtime 组合能力 | 平台绑定更强；本地 Demo 依赖外部服务 | 高 |
 | 自建 GitHub OAuth | 控制最强 | 安全、回调、token 管理重复造轮子 | 低 |
 
-**推荐：** Auth.js v5 + GitHub OAuth Provider。本地开发仅需 GitHub OAuth App credentials + local Postgres，不依赖 Supabase 控制台。
+**推荐：** Auth.js v5 + GitHub OAuth Provider。本地开发仅需 GitHub OAuth App credentials + local Postgres，不依赖 external BaaS 控制台。
 
 > 决策已确认（DEC-001）：P0 采用 Auth.js v5，消除本地开发/E2E 对外部 Auth 服务的强依赖。
 
@@ -74,8 +74,8 @@ type WorkspaceExecutionDomain = 'cloud' | 'local_desktop';
 
 P0 推荐：
 
-- Auth：Auth.js v5 + GitHub OAuth Provider。本地开发仅需 GitHub OAuth App credentials + local Postgres，不依赖 Supabase 控制台。
-- DB：PostgreSQL（生产可用 Supabase Postgres，本地开发用 local Postgres），Workspace/Session/Role Agent/Action/Pending Approval 使用统一用户 ID。
+- Auth：Auth.js v5 + GitHub OAuth Provider。本地开发仅需 GitHub OAuth App credentials + local Postgres，不依赖 external BaaS 控制台。
+- DB：PostgreSQL（生产可用 Postgres，本地开发用 local Postgres），Workspace/Session/Role Agent/Action/Pending Approval 使用统一用户 ID。
 - Workspace 执行域：数据库字段强约束 + 服务层校验 + UI 禁用不合法选择。
 - Desktop 绑定：一次性设备绑定码，绑定后获得 device token。
 - 本地目录权限：Desktop 只暴露用户选择的 workspace root；后端只保存目录标识和展示名，不保存任意可写路径能力。
@@ -86,16 +86,16 @@ P0 推荐：
 
 **推荐确认项：**
 
-~~A. P0 使用 Supabase Auth + GitHub OAuth + Postgres，加速三端同步。~~
+~~A. P0 使用 Auth.js + GitHub OAuth + Postgres，加速三端同步。~~
 **B. 使用 Auth.js v5 + GitHub OAuth + local Postgres，控制力强且本地零依赖。** ✅ 已采纳（DEC-001）
 ~~C. 自建 GitHub OAuth，不依赖认证框架。~~
 
-最终选择 **B**。Auth.js v5 消除 Supabase 控制台依赖；DB/Realtime 仍使用 Supabase Postgres。
+最终选择 **B**。Auth.js v5 消除 external BaaS 控制台依赖；DB/Realtime 仍使用 Postgres。
 
 ---
 
 ## 7. 参考资料
 
 - GitHub OAuth Apps 文档：https://docs.github.com/en/apps/oauth-apps
-- Supabase Auth 文档：https://supabase.com/docs/guides/auth
+- Auth.js 文档：https://authjs.dev
 - Auth.js GitHub Provider 文档：https://authjs.dev/getting-started/providers/github

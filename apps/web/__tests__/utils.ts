@@ -1,5 +1,5 @@
 /**
- * Auth + Supabase DB mock utilities for API route unit tests.
+ * Auth + Postgres DB mock utilities for API route unit tests.
  */
 
 import { vi } from 'vitest'
@@ -133,7 +133,7 @@ function chainBuilder(data: unknown, error: { message: string } | null = null): 
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createSupabaseChain(
+export function createPostgresChain(
   _user: any = mockUser,
   workspaces: unknown[] = [mockWorkspace],
   sessions: unknown[] = [mockSession],
@@ -300,7 +300,7 @@ export function createErrorChain(msg = 'Database error') {
 
 const _mockFn = vi.fn()
 
-vi.mock('@/lib/supabase-server', () => ({
+vi.mock('@/lib/app-db-client', () => ({
   createClient: _mockFn,
 }))
 

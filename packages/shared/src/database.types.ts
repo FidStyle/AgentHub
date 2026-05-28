@@ -1,6 +1,6 @@
 /**
- * Supabase Database Types (手动维护，与 migration 同步)
- * 生产环境应使用 supabase gen types typescript 自动生成
+ * Postgres Database Types (手动维护，与 migration 同步)
+ * 生产环境应使用 db gen types typescript 自动生成
  */
 
 export type ExecutionDomain = 'cloud' | 'local_desktop'

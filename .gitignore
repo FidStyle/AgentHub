@@ -1,6 +1,7 @@
 .ace-tool/
 .DS_Store
 node_modules/
+.pnpm-store/
 dist/
 .next/
 .env.local
@@ -19,6 +20,7 @@ test-results/
 e2e/.env.test
 e2e/.web-server-pid
 e2e/tests/artifacts/
+docker/.p0-test.env
 
 # Local reference clones
 refer_proj/CodeStable/

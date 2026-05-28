@@ -15,13 +15,13 @@
 
 ### 背景
 
-AgentHub P0 需要 GitHub OAuth 登录，三端共享身份。初始调研推荐 Supabase Auth（同时服务 Auth + DB + Realtime）。后续发现本地开发和 E2E 测试对 Supabase 控制台强依赖，阻碍 Demo 流畅度。
+AgentHub P0 需要 GitHub OAuth 登录，三端共享身份。初始调研推荐 Auth.js（同时服务 Auth + DB + Realtime）。后续发现本地开发和 E2E 测试对 external BaaS 控制台强依赖，阻碍 Demo 流畅度。
 
 ### 评估选项
 
 | 选项 | 结论 |
 |------|------|
-| A. Supabase Auth + GitHub OAuth | ❌ 放弃 — 本地开发/E2E 强依赖外部服务 |
+| A. Auth.js + GitHub OAuth | ❌ 放弃 — 本地开发/E2E 强依赖外部服务 |
 | B. Auth.js v5 + GitHub OAuth + 自管 Postgres | ✅ 采纳 |
 | C. 自建 GitHub OAuth | ❌ 重复造轮子 |
 
@@ -31,22 +31,22 @@ AgentHub P0 需要 GitHub OAuth 登录，三端共享身份。初始调研推荐
 - DB session 存储（非 JWT）
 - Drizzle adapter 连接 Postgres
 - 本地开发用 local Postgres，零外部依赖
-- DB 查询层暂保留 Supabase Postgres client（仅作 Postgres 客户端）
+- DB 查询层暂保留 Postgres client（仅作 Postgres 客户端）
 - 设备绑定自建 device token 逻辑
 
 ### 锁定决策项
 
 - L1: Auth.js v5 + GitHub OAuth
 - L2: 保留 GitHub OAuth（不换其他 provider）
-- L3: 自建 device token（不依赖 Supabase Auth session）
-- L4: DB 层暂保留 Supabase Postgres
+- L3: 自建 device token（不依赖 Auth.js session）
+- L4: DB 层暂保留 Postgres
 - L5: 本地开发用 local Postgres
 
 ### 影响范围
 
 - `apps/web/middleware.ts` — 重写
 - `apps/web/app/auth/` — 替换
-- `apps/web/lib/supabase-*.ts` — auth 部分移除
+- `apps/web/lib/app-db-client.ts` — auth 部分移除
 - 全部 API routes auth guard — 替换为 Auth.js session
 - `packages/shared/src/database.types.ts` — 新增 auth schema
 

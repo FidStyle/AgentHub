@@ -1,12 +1,11 @@
 import { FullConfig } from '@playwright/test'
-import { startMockSupabase } from './mock-supabase'
 import { spawn, ChildProcess } from 'child_process'
+import { execFileSync } from 'child_process'
+import fs from 'fs'
 import path from 'path'
 
-let mockServer: ReturnType<typeof import('http').createServer> | null = null
 let webProcess: ChildProcess | null = null
 
-const MOCK_SUPABASE_PORT = 54321
 const WEB_PORT = 3000
 
 function waitForServer(url: string, timeout = 20000): Promise<void> {
@@ -27,17 +26,26 @@ function waitForServer(url: string, timeout = 20000): Promise<void> {
 }
 
 async function globalSetup(_config: FullConfig) {
-  // 1. Start mock Supabase
-  mockServer = await startMockSupabase(MOCK_SUPABASE_PORT)
-
-  // 2. Start web dev server with mock Supabase env
   const rootDir = path.resolve(__dirname, '..')
+  execFileSync('pnpm', ['env:p0:db:up'], { cwd: rootDir, stdio: 'inherit' })
+  execFileSync('pnpm', ['env:p0:seed'], { cwd: rootDir, stdio: 'inherit' })
+
+  const envFile = path.join(rootDir, 'docker/.p0-test.env')
+  const seededEnv = Object.fromEntries(
+    fs.readFileSync(envFile, 'utf8')
+      .split('\n')
+      .filter((line) => line && !line.startsWith('#'))
+      .map((line) => {
+        const index = line.indexOf('=')
+        return [line.slice(0, index), line.slice(index + 1)]
+      }),
+  )
+
   webProcess = spawn('pnpm', ['dev:web'], {
     cwd: rootDir,
     env: {
       ...process.env,
-      NEXT_PUBLIC_SUPABASE_URL: `http://localhost:${MOCK_SUPABASE_PORT}`,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key',
+      ...seededEnv,
       PORT: String(WEB_PORT),
     },
     stdio: 'pipe',
@@ -46,11 +54,8 @@ async function globalSetup(_config: FullConfig) {
   webProcess.stdout?.on('data', (d) => process.stdout.write(d))
   webProcess.stderr?.on('data', (d) => process.stderr.write(d))
 
-  // 3. Wait for web server
   await waitForServer(`http://localhost:${WEB_PORT}`)
 
-  // Store for teardown
-  ;(globalThis as any).__E2E_MOCK_SERVER = mockServer
   ;(globalThis as any).__E2E_WEB_PROCESS = webProcess
 }
 

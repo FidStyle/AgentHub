@@ -3,13 +3,10 @@ import type { IncomingMessage } from 'http'
 import type { Server } from 'http'
 import { parseFrame, type AuthFrame, type HeartbeatAckFrame, type ConnectedFrame } from '@agenthub/shared'
 import { addConnection, removeConnection, updateHeartbeat, getAllConnections } from './device-connections'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+import { createClient } from '../lib/app-db-client'
 
 function createAdminClient() {
-  return createClient(supabaseUrl, supabaseServiceKey)
+  return createClient()
 }
 
 export function setupWebSocketGateway(server: Server) {
@@ -34,8 +31,8 @@ export function setupWebSocketGateway(server: Server) {
           return
         }
         const authFrame = frame as AuthFrame
-        const supabase = createAdminClient()
-        const { data: device } = await supabase
+        const db = await createAdminClient()
+        const { data: device } = await db
           .from('devices')
           .select('id, user_id')
           .eq('device_token', authFrame.deviceToken)
@@ -50,7 +47,7 @@ export function setupWebSocketGateway(server: Server) {
         authenticated = true
         if (authTimeout) clearTimeout(authTimeout)
 
-        const { data: workspaces } = await supabase
+        const { data: workspaces } = await db
           .from('workspaces')
           .select('id')
           .eq('owner_id', device.user_id)
@@ -66,7 +63,7 @@ export function setupWebSocketGateway(server: Server) {
           lastHeartbeat: Date.now(),
         })
 
-        await supabase.from('devices').update({ online: true }).eq('id', deviceId)
+        await db.from('devices').update({ online: true }).eq('id', deviceId)
 
         const connectedFrame: ConnectedFrame = {
           type: 'connected',
@@ -99,8 +96,8 @@ export function setupWebSocketGateway(server: Server) {
     ws.on('close', async () => {
       if (deviceId) {
         removeConnection(deviceId)
-        const supabase = createAdminClient()
-        await supabase.from('devices').update({ online: false }).eq('id', deviceId)
+        const db = await createAdminClient()
+        await db.from('devices').update({ online: false }).eq('id', deviceId)
       }
     })
   })

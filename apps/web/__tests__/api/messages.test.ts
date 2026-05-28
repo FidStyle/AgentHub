@@ -1,7 +1,7 @@
 /**
  * API route tests for /api/messages and /api/messages/[id]
  *
- * L0 unit tests: API route handlers with mocked Supabase client.
+ * L0 unit tests: API route handlers with mocked Postgres client.
  * Tests auth checks, ownership checks, CRUD, and response shapes.
  */
 
@@ -10,7 +10,7 @@ import {
   setupMockAuth,
   resetMockAuth,
   setupMockClient,
-  createSupabaseChain,
+  createPostgresChain,
   createNoAuthChain,
   createErrorChain,
   resetMockClient,
@@ -97,7 +97,7 @@ describe('GET /api/messages', () => {
 
   it('AT-M002: returns 400 when session_id is missing', async () => {
     const { GET } = await import('@/app/api/messages/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', {})
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('Missing session_id')
@@ -113,7 +113,7 @@ describe('GET /api/messages', () => {
 
   it('AT-M004: returns message list for valid session', async () => {
     const { GET } = await import('@/app/api/messages/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', { query: { session_id: 'session-001' } })
     expect(result.status).toBe(200)
     expect(result.data).toBeInstanceOf(Array)
@@ -151,7 +151,7 @@ describe('POST /api/messages', () => {
 
   it('AT-M007: returns 400 when session_id is missing', async () => {
     const { POST } = await import('@/app/api/messages/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', { body: { content: 'Hello' } })
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('Missing session_id or content')
@@ -159,7 +159,7 @@ describe('POST /api/messages', () => {
 
   it('AT-M008: returns 400 when content is missing', async () => {
     const { POST } = await import('@/app/api/messages/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', { body: { session_id: 'session-001' } })
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('Missing session_id or content')
@@ -176,7 +176,7 @@ describe('POST /api/messages', () => {
 
   it('AT-M010: returns created message on valid input', async () => {
     const { POST } = await import('@/app/api/messages/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { session_id: 'session-001', content: 'Hello world' },
     })
@@ -235,7 +235,7 @@ describe('PATCH /api/messages/[id]', () => {
 
   it('AT-M014: returns updated message with is_pinned on valid PATCH', async () => {
     const { PATCH } = await import('@/app/api/messages/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'msg-001' },
       body: { is_pinned: true },

@@ -1,14 +1,14 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('workspaces')
     .select('*')
     .eq('id', id)
@@ -21,7 +21,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -35,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: '名称不能超过 200 字符' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('workspaces')
     .update({ name, description, updated_at: new Date().toISOString() })
     .eq('id', id)

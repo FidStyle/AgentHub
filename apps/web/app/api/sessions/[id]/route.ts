@@ -1,14 +1,14 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('sessions')
     .select('*, workspaces!inner(owner_id)')
     .eq('id', id)
@@ -25,7 +25,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -36,14 +36,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: '无效的会话状态' }, { status: 400 })
   }
 
-  const { data: session } = await supabase
+  const { data: session } = await db
     .from('sessions')
     .select('workspace_id')
     .eq('id', id)
     .single()
   if (!session) return NextResponse.json({ error: '会话不存在' }, { status: 404 })
 
-  const { data: ws } = await supabase
+  const { data: ws } = await db
     .from('workspaces')
     .select('id')
     .eq('id', session.workspace_id)
@@ -55,7 +55,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (name) update.name = name
   if (status) update.status = status
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('sessions')
     .update(update)
     .eq('id', id)

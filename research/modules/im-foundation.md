@@ -11,7 +11,7 @@
 
 AgentHub 的核心体验是 IM 式 Session。P0 需要消息流、Role Agent 流式回复、任务状态、富内容卡片、站内审批队列和三端同步。本模块需要回答：
 
-1. 实时通信用 Supabase Realtime、Socket.IO、SSE，还是纯轮询？
+1. 实时通信用 database-backed realtime、Socket.IO、SSE，还是纯轮询？
 2. 消息模型如何承载 Markdown、代码块、Diff、Action 状态、Task Result Card？
 3. Web 和 Mobile 如何共享轻量 IM 体验？
 
@@ -21,12 +21,12 @@ AgentHub 的核心体验是 IM 式 Session。P0 需要消息流、Role Agent 流
 
 | 方案 | 优点 | 风险 | 适配度 |
 | --- | --- | --- | --- |
-| Supabase Realtime | 与 Postgres/Auth 集成；可监听表变更、广播、presence | 复杂流式 token 事件可能需要额外表或 channel 设计 | 高 |
+| database-backed realtime | 与 Postgres/Auth 集成；可监听表变更、广播、presence | 复杂流式 token 事件可能需要额外表或 channel 设计 | 高 |
 | Socket.IO | 双向实时成熟，适合复杂事件 | 需要自建长连接服务和鉴权 | 高 |
 | SSE | 简单，适合服务端到客户端流式事件 | 不适合 Desktop 双向控制；移动和断线恢复需补逻辑 | 中 |
 | 轮询 | 实现最简单 | IM 体验差，流式和审批延迟明显 | 低 |
 
-**推荐：** P0 使用 Supabase Realtime 承载消息/审批/状态同步；Runtime 流式输出可以先聚合为 message chunks 或事件表更新。
+**推荐：** P0 使用 database-backed realtime 承载消息/审批/状态同步；Runtime 流式输出可以先聚合为 message chunks 或事件表更新。
 
 若后续发现 Desktop 控制通道需要更强双向能力，再引入专门 WebSocket gateway。
 
@@ -83,7 +83,7 @@ type ArtifactKind =
 P0 推荐：
 
 - 数据源：Postgres 表存储 Workspace、Session、Message、Artifact、Action、PendingApproval。
-- 实时：Supabase Realtime 监听 Session 消息和待审批项。
+- 实时：database-backed realtime 监听 Session 消息和待审批项。
 - 流式：先实现事件分片写入或消息内容增量更新；Web/Mobile 订阅更新。
 - 富消息渲染：前端统一 `MessageRenderer`，按 `MessageKind` 和 `ArtifactKind` 分派组件。
 - Markdown：使用成熟 Markdown 渲染库，代码高亮和复制封装成基础组件。
@@ -97,7 +97,7 @@ P0 推荐：
 - codeg `Transport` 和 `EventStream` 设计强调 reconnect、ready handshake、snapshot/replay，说明实时消息不能只依赖「连接在线时收到事件」。
 - Poco-Claw 通过 Backend 持久化 session/message/artifact/callback，Frontend 查询状态，说明消息和执行状态必须以数据库为真相源。
 
-这些参考支持当前结论：Supabase Realtime 可以作为 P0 同步通道，但 Message、Artifact、Action、PendingApproval 必须持久化，断线后通过查询补齐状态。
+这些参考支持当前结论：database-backed realtime 可以作为 P0 同步通道，但 Message、Artifact、Action、PendingApproval 必须持久化，断线后通过查询补齐状态。
 
 ---
 
@@ -105,7 +105,7 @@ P0 推荐：
 
 **推荐确认项：**
 
-A. P0 使用 Supabase Realtime 作为 IM/审批同步底座。  
+A. P0 使用 database-backed realtime 作为 IM/审批同步底座。
 B. P0 自建 Socket.IO gateway，控制更强但工程量更大。  
 C. P0 先轮询，降低初期复杂度但牺牲体验。
 
@@ -115,6 +115,6 @@ C. P0 先轮询，降低初期复杂度但牺牲体验。
 
 ## 7. 参考资料
 
-- Supabase Realtime 文档：https://supabase.com/docs/guides/realtime
+- database-backed realtime 文档：Postgres + WebSocket/事件表实现
 - Socket.IO 文档：https://socket.io/docs/v4/
 - MDN Server-Sent Events：https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events

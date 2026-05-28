@@ -1,7 +1,7 @@
 /**
  * API route tests for /api/role-agents and /api/role-agents/[id]
  *
- * L0 unit tests: API route handlers with mocked Supabase client.
+ * L0 unit tests: API route handlers with mocked Postgres client.
  * Tests auth checks, ownership checks, CRUD, and response shapes.
  */
 
@@ -10,7 +10,7 @@ import {
   setupMockAuth,
   resetMockAuth,
   setupMockClient,
-  createSupabaseChain,
+  createPostgresChain,
   createNoAuthChain,
   createErrorChain,
   resetMockClient,
@@ -96,7 +96,7 @@ describe('GET /api/role-agents', () => {
 
   it('AT-A002: returns 400 when workspace_id is missing', async () => {
     const { GET } = await import('@/app/api/role-agents/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', {})
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('缺少 workspace_id')
@@ -104,7 +104,7 @@ describe('GET /api/role-agents', () => {
 
   it('AT-A003: returns agent list for authenticated user with workspace_id', async () => {
     const { GET } = await import('@/app/api/role-agents/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001' } })
     expect(result.status).toBe(200)
     expect(result.data).toBeInstanceOf(Array)
@@ -142,7 +142,7 @@ describe('POST /api/role-agents', () => {
 
   it('AT-A006: returns 400 when workspace_id is missing', async () => {
     const { POST } = await import('@/app/api/role-agents/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', { body: { name: 'Test Agent', role_type: 'analyzer' } })
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('缺少 workspace_id')
@@ -150,7 +150,7 @@ describe('POST /api/role-agents', () => {
 
   it('AT-A007: returns 400 when name is missing', async () => {
     const { POST } = await import('@/app/api/role-agents/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', { body: { workspace_id: 'ws-001', role_type: 'analyzer' } })
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('缺少 name')
@@ -167,7 +167,7 @@ describe('POST /api/role-agents', () => {
 
   it('AT-A009: returns created agent on valid input', async () => {
     const { POST } = await import('@/app/api/role-agents/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
       body: { workspace_id: 'ws-001', name: 'Analyzer Agent', role_type: 'analyzer', system_prompt: 'You analyze things.' },
     })
@@ -211,7 +211,7 @@ describe('GET /api/role-agents/[id]', () => {
 
   it('AT-A012: returns agent detail for valid id', async () => {
     const { GET } = await import('@/app/api/role-agents/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(GET, 'GET', { params: { id: 'agent-001' } })
     expect(result.status).toBe(200)
     const agent = result.data as Record<string, unknown>
@@ -251,7 +251,7 @@ describe('PATCH /api/role-agents/[id]', () => {
 
   it('AT-A015: returns updated agent on valid PATCH', async () => {
     const { PATCH } = await import('@/app/api/role-agents/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'agent-001' },
       body: { name: 'Updated Agent Name', system_prompt: 'New prompt' },
@@ -295,7 +295,7 @@ describe('DELETE /api/role-agents/[id]', () => {
 
   it('AT-A018: returns 200 on successful delete', async () => {
     const { DELETE } = await import('@/app/api/role-agents/[id]/route')
-    setupMockClient(createSupabaseChain())
+    setupMockClient(createPostgresChain())
     const result = await callRoute(DELETE, 'DELETE', { params: { id: 'agent-001' } })
     expect(result.status).toBe(200)
     expect(result.data).toEqual({ success: true })

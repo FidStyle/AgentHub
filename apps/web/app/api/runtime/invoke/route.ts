@@ -1,10 +1,10 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { sendRuntimeInvoke } from '@/lib/device-gateway-client'
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   }
 
   // 检查 workspace 执行域
-  const { data: workspace } = await supabase
+  const { data: workspace } = await db
     .from('workspaces')
     .select('execution_domain')
     .eq('id', workspace_id)

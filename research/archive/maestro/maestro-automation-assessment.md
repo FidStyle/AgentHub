@@ -108,7 +108,7 @@ AgentHub 采用方式：
 | `.workflow/knowhow/` 只有 wiki 连接记录，缺少业务 tool | test agent 不能自动发现 API/E2E 验证流程 | 为 M1 注册 Auth/Workspace API 验证 tool |
 | FR-ID 到 plan/task 的自动校验仍需持续执行 | Agent 可能在执行时漂移到未授权范围 | M1 plan 必须声明 FR-ID、验收来源、测试锚点、out-of-scope |
 | 高风险权限闸门需要固化 | 自动化可能误执行本地 shell、文件系统、外部服务动作 | 把 plan approval、action approval、permission escalation 做成必须 gate |
-| 真实 Supabase OAuth、Claude/Codex 登录、Desktop 本地目录无法完全模拟 | L4/L5 验证仍需要人工或受控凭据 | 用 fixture/in-process L3 作为常规门禁，真实 runtime 放 L4 manual/gated |
+| 真实 external BaaS OAuth、Claude/Codex 登录、Desktop 本地目录无法完全模拟 | L4/L5 验证仍需要人工或受控凭据 | 用 fixture/in-process L3 作为常规门禁，真实 runtime 放 L4 manual/gated |
 
 ---
 
@@ -143,7 +143,7 @@ AgentHub 采用方式：
 | 产品范围变更 | PRD 是 SSOT，Agent 不应自行扩 P0 | 全部 FR-ID |
 | plan approval | 用户必须知道 Orchestrator 要做什么 | `FR-ORCH-001`, `FR-PERM-001` |
 | 权限升级 | 本地 shell、文件写入、外部网络、凭据读取都有风险 | `FR-PERM-001`, `NFR-SEC-001` |
-| 真实 OAuth/Supabase 项目配置 | 涉及外部账号和密钥 | `FR-AUTH-001`, `NFR-SEC-001` |
+| 真实 OAuth/external BaaS 项目配置 | 涉及外部账号和密钥 | `FR-AUTH-001`, `NFR-SEC-001` |
 | Claude Code/Codex 真 CLI 登录和 session resume | 登录态与计费/权限不可由 Agent 假设 | `FR-RUNTIME-001`, `FR-CTX-001` |
 | Desktop 本地目录授权 | 本地文件系统边界必须由用户授权 | `FR-DESK-001`, `NFR-SEC-001` |
 | 发布部署 | P0 已推迟完整发布平台，不能隐式上线 | `FR-PUBLISH-201` deferred |

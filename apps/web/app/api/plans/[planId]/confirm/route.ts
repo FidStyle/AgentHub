@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { getReadyNodes } from '@/lib/orchestrator/dag-scheduler'
@@ -10,12 +10,12 @@ export async function POST(
   { params }: { params: Promise<{ planId: string }> }
 ) {
   const { planId } = await params
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
   // Verify ownership
-  const { data: plan } = await supabase
+  const { data: plan } = await db
     .from('plans')
     .select('*')
     .eq('id', planId)
@@ -28,14 +28,14 @@ export async function POST(
   }
 
   // Update plan status to running
-  await supabase.from('plans').update({ status: 'running', updated_at: new Date().toISOString() }).eq('id', planId)
+  await db.from('plans').update({ status: 'running', updated_at: new Date().toISOString() }).eq('id', planId)
 
   // Get nodes and mark ready ones
-  const { data: nodes } = await supabase.from('plan_nodes').select('*').eq('plan_id', planId)
-  const readyNodes = getReadyNodes(nodes as PlanNode[])
+  const { data: nodes } = await db.from('plan_nodes').select('*').eq('plan_id', planId)
+  const readyNodes = getReadyNodes(nodes as unknown as PlanNode[])
 
   for (const node of readyNodes) {
-    await supabase.from('plan_nodes').update({ status: 'ready' }).eq('id', node.id)
+    await db.from('plan_nodes').update({ status: 'ready' }).eq('id', node.id)
   }
 
   return NextResponse.json({ status: 'running', ready_nodes: readyNodes.length })

@@ -1,13 +1,13 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('devices')
     .select('id, name, type, online, last_heartbeat, created_at')
     .eq('user_id', user.id)
@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '绑定码为必填项' }, { status: 400 })
   }
 
-  const { data: binding, error: bindErr } = await supabase
+  const { data: binding, error: bindErr } = await db
     .from('device_bindings')
     .select('*')
     .eq('bind_code', bind_code)
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '绑定码不属于当前用户' }, { status: 403 })
   }
 
-  const { data: device, error: devErr } = await supabase
+  const { data: device, error: devErr } = await db
     .from('devices')
     .insert({ user_id: user.id, name: name || '桌面连接器' })
     .select('id, name, type, device_token, created_at')
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
   if (devErr) return NextResponse.json({ error: devErr.message }, { status: 500 })
 
-  await supabase
+  await db
     .from('device_bindings')
     .update({ used: true, device_id: device.id })
     .eq('id', binding.id)

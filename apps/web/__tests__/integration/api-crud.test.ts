@@ -13,7 +13,7 @@ vi.mock('@/lib/auth-guard', () => ({
 }))
 
 const { requireAuth } = await import('@/lib/auth-guard')
-const { createClient } = await import('@/lib/supabase-server')
+const { createClient } = await import('@/lib/app-db-client')
 
 async function callRoute(handler: Function, options: { method?: string; body?: object; url?: string } = {}) {
   const url = options.url || 'http://localhost:3000/api/test'
@@ -25,16 +25,16 @@ async function callRoute(handler: Function, options: { method?: string; body?: o
 }
 
 describe('API 集成测试（真实 DB）', () => {
-  let supabase: Awaited<ReturnType<typeof createClient>>
+  let db: Awaited<ReturnType<typeof createClient>>
 
   beforeAll(async () => {
-    supabase = await createClient()
+    db = await createClient()
   })
 
   beforeEach(async () => {
-    await supabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    await supabase.from('sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    await supabase.from('workspaces').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await db.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await db.from('sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    await db.from('workspaces').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     vi.mocked(requireAuth).mockResolvedValue({ user: TEST_USER, error: null })
   })
 
@@ -48,7 +48,7 @@ describe('API 集成测试（真实 DB）', () => {
       expect(res.status).toBe(201)
       const ws = await res.json()
 
-      const { data } = await supabase.from('workspaces').select('*').eq('id', ws.id)
+      const { data } = await db.from('workspaces').select('*').eq('id', ws.id)
       expect(data).toHaveLength(1)
       expect(data![0].name).toBe('test-ws')
     })
@@ -65,7 +65,7 @@ describe('API 集成测试（真实 DB）', () => {
       expect(res.status).toBe(201)
       const session = await res.json()
 
-      const { data } = await supabase.from('sessions').select('*').eq('id', session.id)
+      const { data } = await db.from('sessions').select('*').eq('id', session.id)
       expect(data).toHaveLength(1)
       expect(data![0].name).toBe('test-session')
     })
@@ -86,7 +86,7 @@ describe('API 集成测试（真实 DB）', () => {
       expect(res.status).toBe(201)
       const msg = await res.json()
 
-      const { data } = await supabase.from('messages').select('*').eq('id', msg.id)
+      const { data } = await db.from('messages').select('*').eq('id', msg.id)
       expect(data).toHaveLength(1)
       expect(data![0].content).toBe('hello world')
     })

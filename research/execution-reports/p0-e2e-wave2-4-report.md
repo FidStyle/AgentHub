@@ -21,7 +21,7 @@ Wave 2-4 一次性完成 5 个 TASK 的代码实现和测试资产创建：
 
 | 文件 | 动作 | 说明 |
 |------|------|------|
-| `supabase/migrations/00004_device_login_intents.sql` | 新增 | device_login_intents 表 migration |
+| `docker/postgres/p0-test-schema.sql` | 新增 | device_login_intents 表 migration |
 | `apps/web/app/api/devices/login-intent/route.ts` | 新增 | 公开端点，生成 intent code 落 DB |
 | `apps/web/app/api/devices/bind-status/route.ts` | 新增 | 公开端点，查询 intent 绑定状态 |
 | `apps/web/app/auth/device-bind/route.ts` | 新增 | 受保护绑定落点，已登录用户绑定 intent |

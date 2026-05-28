@@ -1,4 +1,4 @@
-# 执行前报告：P0 认证路线迁移 Supabase Auth → Auth.js v5
+# 执行前报告：P0 认证路线迁移 Auth.js → Auth.js v5
 
 **报告类型：** 执行前（Pre-Execution）  
 **日期：** 2026-05-27  
@@ -10,7 +10,7 @@
 
 ## 1. 执行目标
 
-将认证层从 Supabase Auth 迁移至 Auth.js v5 + GitHub OAuth Provider，消除本地开发/E2E/Demo 对 Supabase 控制台的强依赖。DB 层暂保留 Supabase Postgres 客户端。
+将认证层从 Auth.js 迁移至 Auth.js v5 + GitHub OAuth Provider，消除本地开发/E2E/Demo 对 external BaaS 控制台的强依赖。DB 层暂保留 Postgres 客户端。
 
 ## 2. 前置分析结论
 
@@ -29,8 +29,8 @@
 - `apps/web/middleware.ts`
 - `apps/web/app/page.tsx`
 - `apps/web/app/auth/callback/route.ts`
-- `apps/web/lib/supabase-browser.ts`
-- `apps/web/lib/supabase-server.ts`
+- `apps/web/lib/app-auth-client.ts`
+- `apps/web/lib/app-db-client.ts`
 - `apps/web/server/ws-gateway.ts`
 - `apps/web/app/api/workspaces/route.ts`
 - `apps/web/app/api/sessions/route.ts`
@@ -64,7 +64,7 @@
 
 | Task | 内容 |
 |------|------|
-| TASK-003 | middleware 重写（Supabase session → Auth.js session） |
+| TASK-003 | middleware 重写（external BaaS session → Auth.js session） |
 | TASK-004 | API routes auth guard 批量替换 |
 | TASK-005 | Login/Logout 页面和回调路由替换 |
 
@@ -72,7 +72,7 @@
 
 | Task | 内容 |
 |------|------|
-| TASK-006 | Desktop 设备绑定迁移（自建 device token 替换 Supabase Auth session） |
+| TASK-006 | Desktop 设备绑定迁移（自建 device token 替换 Auth.js session） |
 | TASK-007 | E2E 验证（auth 测试通过 + Demo 路径不退化） |
 
 ## 5. 风险与缓解
@@ -81,11 +81,11 @@
 |------|----------|
 | API route auth guard 替换遗漏 | TASK-004 使用统一模式批量处理，pressure_pass 已验证 |
 | 设备绑定 token 安全性 | 自建 device token 使用 crypto.randomBytes + 过期机制 |
-| Realtime 订阅身份验证 | DB 层保留 Supabase client，Realtime 不受影响 |
+| Realtime 订阅身份验证 | DB 层保留 external BaaS client，Realtime 不受影响 |
 
 ## 6. 验收标准
 
-- [ ] `npm run dev` 无需 Supabase Auth 环境变量
+- [ ] `npm run dev` 无需 Auth.js 环境变量
 - [ ] E2E auth 测试通过
 - [ ] Demo 主路径不退化
 - [ ] Desktop Connector 设备绑定正常

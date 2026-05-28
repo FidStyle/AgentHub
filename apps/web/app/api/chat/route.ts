@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 
 export async function POST(req: NextRequest) {
@@ -12,16 +12,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: '缺少 sessionId 或 content' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  const db = await createClient()
 
-  const { data: session } = await supabase
+  const { data: session } = await db
     .from('sessions')
     .select('workspace_id')
     .eq('id', sessionId)
     .single()
   if (!session) return Response.json({ error: '会话不存在' }, { status: 404 })
 
-  const { data: ws } = await supabase
+  const { data: ws } = await db
     .from('workspaces')
     .select('id, execution_domain')
     .eq('id', session.workspace_id)
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     .single()
   if (!ws) return Response.json({ error: '无权限' }, { status: 403 })
 
-  await supabase.from('messages').insert({
+  await db.from('messages').insert({
     session_id: sessionId,
     content,
     sender_type: 'user',

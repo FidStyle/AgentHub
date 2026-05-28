@@ -1,7 +1,6 @@
 import { auth } from '@/auth'
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { NextRequest, NextResponse } from 'next/server'
-import { redirect } from 'next/navigation'
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code')
@@ -15,8 +14,8 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const db = await createClient()
+  const { error } = await db
     .from('device_login_intents')
     .update({ user_id: session.user.id, bound_at: new Date().toISOString() })
     .eq('code', code)

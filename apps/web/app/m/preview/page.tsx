@@ -1,9 +1,10 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardHeader, CardTitle, CardContent, StateCard } from '@agenthub/ui'
 
-export default function MobilePreviewPage() {
+function MobilePreviewContent() {
   const params = useSearchParams()
   const url = params.get('url')
   const title = params.get('title') ?? '预览'
@@ -27,5 +28,13 @@ export default function MobilePreviewPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function MobilePreviewPage() {
+  return (
+    <Suspense fallback={<StateCard variant="loading" />}>
+      <MobilePreviewContent />
+    </Suspense>
   )
 }

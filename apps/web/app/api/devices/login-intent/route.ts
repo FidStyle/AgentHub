@@ -1,12 +1,12 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { NextResponse } from 'next/server'
 
 export async function POST() {
-  const supabase = await createClient()
+  const db = await createClient()
   const code = crypto.randomUUID()
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
 
-  const { error } = await supabase
+  const { error } = await db
     .from('device_login_intents')
     .insert({ code, user_id: null, expires_at: expiresAt })
 

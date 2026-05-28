@@ -50,7 +50,7 @@
 | **阻塞问题** | Mobile React 版本兼容性（react-native 要求 18，项目用 19）— 预存问题 |
 | **下一步动作** | 完成 polish + audit 步骤，补充 execution-report |
 
-### AUTH-MIG-001: 认证路线迁移 Supabase Auth → Auth.js v5
+### AUTH-MIG-001: 认证路线迁移 Auth.js → Auth.js v5
 
 | 字段 | 内容 |
 |------|------|
@@ -60,11 +60,11 @@
 | **Plan 路径** | `.workflow/scratch/20260527-plan-auth-migration/plan.json` |
 | **Ralph Session** | `ralph-20260527-100000`（status: completed） |
 | **当前状态** | ✅ 全部完成（2026-05-27）：Wave 1-3 执行完毕，verify PASS，review PASS |
-| **目标** | 消除本地开发/E2E/Demo 对 Supabase Auth 控制台的强依赖 |
-| **方案摘要** | Auth.js v5 + GitHub OAuth Provider + Drizzle adapter + Database session；DB 层暂保留 Supabase Postgres |
+| **目标** | 消除本地开发/E2E/Demo 对 Auth.js 控制台的强依赖 |
+| **方案摘要** | Auth.js v5 + GitHub OAuth Provider + Drizzle adapter + Database session；DB 层暂保留 Postgres |
 | **Wave 分解** | W1: 文档修订 + Auth.js 基础设施 → W2: 认证层替换 → W3: 设备绑定迁移 + E2E 验证 |
-| **验收方式** | `npm run dev` 无需 Supabase Auth 环境变量 + E2E auth 测试通过 + Demo 路径不退化 |
-| **测试证据** | `tsc --noEmit` exit 0；`vitest run __tests__/` 85 tests pass；`rg 'supabase\.auth\|@supabase/ssr' apps/web/` 无匹配；verification.json verdict=PASS (20/20) |
+| **验收方式** | `npm run dev` 无需 Auth.js 环境变量 + E2E auth 测试通过 + Demo 路径不退化 |
+| **测试证据** | `tsc --noEmit` exit 0；`vitest run __tests__/` 85 tests pass；`rg 'auth.js session\|external auth SDK' apps/web/` 无匹配；verification.json verdict=PASS (20/20) |
 | **阻塞问题** | 无 |
 | **下一步动作** | 迁移闭环，无后续动作 |
 

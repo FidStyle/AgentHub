@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { classifyRisk, requiresApproval } from '@/lib/orchestrator/permission-engine'
@@ -7,15 +7,15 @@ import { DEFAULT_POLICIES } from '@agenthub/shared'
 // GET /api/actions?session_id=xxx
 // POST /api/actions — create an action (auto-classify risk)
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const { user, error: authError } = await requireAuth()
+  const db = await createClient()
+  const { error: authError } = await requireAuth()
   if (authError) return authError
 
   const { searchParams } = new URL(request.url)
   const sessionId = searchParams.get('session_id')
   if (!sessionId) return NextResponse.json({ error: 'session_id 必填' }, { status: 400 })
 
-  const { data } = await supabase
+  const { data } = await db
     .from('actions')
     .select('*')
     .eq('session_id', sessionId)
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const db = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const riskLevel = classifyRisk(action_type, command)
   const needsApproval = requiresApproval(action_type, riskLevel, DEFAULT_POLICIES)
 
-  const { data: action, error } = await supabase
+  const { data: action, error } = await db
     .from('actions')
     .insert({
       session_id,
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
   // If requires approval, create notification
   if (needsApproval) {
-    await supabase.from('notifications').insert({
+    await db.from('notifications').insert({
       user_id: user.id,
       type: 'approval_required',
       title: `动作待审批: ${command.slice(0, 50)}`,
