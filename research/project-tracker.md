@@ -27,13 +27,13 @@
 | **绑定 FR-ID** | FR-AUTH-001, FR-WS-001, FR-DEVICE-001, FR-WEB-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-UI-001, FR-RUNTIME-001, FR-PERM-001 |
 | **对应计划** | Codex 前置合同与验真框架；Ralph blind verify session `ralph-20260528-100000` 已完成；下一步进入修复规划 |
 | **合同路径** | `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md` |
-| **当前状态** | 🔄 Wave 1 完成（2026-05-28）：TASK-001 已执行，session-store 接真实 API、mock-data 删除、workspaces 无 DB 时 500、verify-p0-api-crud.ts 已创建；type-check 通过；待 Codex 复核 W2 放行 |
+| **当前状态** | 🔄 Wave 2-4 代码实现完成（2026-05-28）：TASK-002~006 全部实现 + type-check 通过 + E2E 结构通过；真实 DB/Auth 验证待环境就绪 |
 | **目标** | 以真实 MVP 用户链路验证项目，而不是用单页、单接口或按钮反馈作为完成依据 |
 | **方案摘要** | 建立端到端产品合同；登记身份连续性、Workspace 创建闭环、三端 UX 一致性为验真样本；禁止把已知根因直接喂给执行者 |
 | **验收方式** | 盲验证必须基于合同自行发现主链路断点；后续实现必须使用真实 DB/API/session 并覆盖 Web/Desktop/Mobile E2E |
-| **测试证据** | 准备审计：`research/execution-reports/p0-end-to-end-product-flow-readiness-audit.md`；盲验证报告：`research/execution-reports/p0-end-to-end-product-flow-blind-verify-report.md`；Wave 1 报告：`research/execution-reports/p0-e2e-wave1-task001-report.md`；type-check exit 0；verification.json verdict=PASS_WITH_CONCERNS（smoke 未运行：缺 TEST_DATABASE_URL） |
+| **测试证据** | 准备审计：`research/execution-reports/p0-end-to-end-product-flow-readiness-audit.md`；盲验证报告：`research/execution-reports/p0-end-to-end-product-flow-blind-verify-report.md`；Wave 1 报告：`research/execution-reports/p0-e2e-wave1-task001-report.md`；Wave 2-4 报告：`research/execution-reports/p0-e2e-wave2-4-report.md`；type-check exit 0；E2E 未登录重定向 2 passed |
 | **阻塞问题** | BLK-1 Web 消息不落库；BLK-2 Desktop 登录无身份回调；BLK-3 `/api/chat` 纯 mock；BLK-4 Mobile PWA 无鉴权；BLK-5 Web Session 使用 mock 数据 |
-| **下一步动作** | Codex 复核 Wave 1 DB/API/session 行为证据（需真实 DB 运行 verify-p0-api-crud.ts）；通过后放行 Wave 2 / TASK-002+003 |
+| **下一步动作** | 提供 TEST_DATABASE_URL + TEST_AUTH_COOKIE 环境变量；运行 migration；真实运行集成测试和 E2E；用户人工验收 |
 
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复
 
@@ -132,3 +132,4 @@
 | 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | 修复计划生成：6 tasks / 4 waves，覆盖 BLK-1~5 + 真实 DB 集成测试 + 三端 E2E + governance gate。Plan: `.workflow/scratch/20260528-plan-p0-e2e-fix/plan.json` |
 | 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | 计划修订 Rev1：TASK-002 改为 device-binding token 方案；TASK-004 禁止 mock Agent 响应 + DEVICE_OFFLINE；TASK-005 强制真实 DB 运行；TASK-006 convergence 要求真实 E2E 运行 + 结果写入报告 |
 | 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | Wave 1 / TASK-001 执行完成：session-store 接真实 API、删除 mock-data.ts、workspaces 无 DB 时 500、新增 verify-p0-api-crud.ts；type-check 通过 |
+| 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | Wave 2-4 / TASK-002~006 执行完成：Desktop login-intent + Mobile /m/* 鉴权 + /api/chat 重写 + 集成测试 + 三端 E2E；type-check 通过；真实 DB/Auth 验证待环境 |

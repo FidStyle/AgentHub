@@ -8,13 +8,14 @@
   "priority": "critical",
   "effort": "high",
   "action": "重写 apps/web/app/api/chat/route.ts：1. requireAuth() 鉴权，未登录返回 401。2. 验证 sessionId 存在且 workspace.owner_id === user.id，无权限返回 403。3. 用户消息写入 messages 表：supabase.from('messages').insert({session_id, content, sender_type:'user'})。4. 查 workspace.execution_domain：(a) cloud 域：调用 HostedRuntimeAdapter.status()，返回 SSE 流仅包含 {type:'runtime_status', status:'minimal_adapter', ready:true} + {type:'done'}——不包含任何 message/text/content 字段；(b) local_desktop 域：查 DeviceChannel 连接状态，不可用时返回 SSE {type:'runtime_status', status:'DEVICE_OFFLINE', message:'Desktop 连接器离线'} + {type:'done'} status 200（SSE 内标记错误，不用 503）。5. 保留 SSE 流式格式。6. 删除 generateResponse/detectRisk。7. 新建 apps/web/lib/runtime/hosted-adapter.ts 作为最小 adapter 实现。",
-  "status": "pending",
-  "completed_at": null,
+  "status": "completed",
+  "completed_at": "2026-05-28T19:15:00Z",
   "actual_duration": null,
-
   "scope": "apps/web",
-  "focus_paths": ["apps/web/app/api/chat/route.ts", "apps/web/lib/runtime/hosted-adapter.ts"],
-
+  "focus_paths": [
+    "apps/web/app/api/chat/route.ts",
+    "apps/web/lib/runtime/hosted-adapter.ts"
+  ],
   "read_first": [
     "apps/web/app/api/chat/route.ts",
     "apps/web/lib/auth-guard.ts",
@@ -23,13 +24,13 @@
     "packages/shared/src/constants/index.ts",
     "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md"
   ],
-
-  "depends_on": ["TASK-001"],
+  "depends_on": [
+    "TASK-001"
+  ],
   "wave": 3,
   "parallel_group": null,
   "execution_group": null,
   "executor": "agent",
-
   "convergence": {
     "criteria": [
       "apps/web/app/api/chat/route.ts contains 'requireAuth'",
@@ -56,7 +57,6 @@
     "verification": "pnpm --filter @agenthub/web type-check && ! grep -q 'generateResponse' apps/web/app/api/chat/route.ts && grep 'runtime_status' apps/web/lib/runtime/hosted-adapter.ts && ! grep -qE '正在处理|placeholder|AI.*(回复|响应)' apps/web/lib/runtime/hosted-adapter.ts",
     "definition_of_done": "/api/chat 有真实鉴权、session 归属验证、消息落库；Runtime Adapter 仅输出 runtime_status 状态事件（不输出任何伪 Agent 文本）；local_desktop 离线输出 DEVICE_OFFLINE 状态事件"
   },
-
   "files": [
     {
       "path": "apps/web/app/api/chat/route.ts",
@@ -71,7 +71,6 @@
       "change": "export class HostedRuntimeAdapter { async *status(): AsyncGenerator<SSEEvent> — 仅 yield {type:'runtime_status', status:'minimal_adapter', ready:true} 然后 yield {type:'done'}。不输出任何 message/text/content 字段 }"
     }
   ],
-
   "implementation": [
     "import { requireAuth } from '@/lib/auth-guard'; import { createClient } from '@/lib/supabase-server'; import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'",
     "POST handler: const { user, error: authError } = await requireAuth(); if (authError) return authError",
@@ -83,7 +82,6 @@
     "if (ws.execution_domain === 'cloud') { const adapter = new HostedRuntimeAdapter(); const stream = new ReadableStream({async start(ctrl){ for await (const evt of adapter.status()) { ctrl.enqueue(encode(evt)) } ctrl.close() }}); return new Response(stream, {headers:{'Content-Type':'text/event-stream'}}) }",
     "新建 apps/web/lib/runtime/hosted-adapter.ts: export class HostedRuntimeAdapter { async *status() { yield {type:'runtime_status', status:'minimal_adapter', ready:true}; yield {type:'done'} } } — 注意：不输出任何 message/text/content 字段，不输出任何自然语言文本"
   ],
-
   "test_contract": {
     "integration": "未登录 POST /api/chat → 401；session 不属于用户 → 403；正常 cloud 请求 → 消息落库 + SSE 仅含 runtime_status 事件（无 Agent 文本）；local_desktop 请求 → SSE 含 DEVICE_OFFLINE",
     "e2e": "登录后发送消息 → 消息在 messages 表可查 → SSE 响应仅含 runtime_status（无伪 Agent 回复）"

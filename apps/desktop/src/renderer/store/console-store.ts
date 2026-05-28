@@ -36,6 +36,13 @@ export interface ApprovalItem {
 
 export type DesktopPage = 'workspace' | 'sessions' | 'agents' | 'approvals' | 'settings'
 
+export interface AuthUser {
+  id: string
+  name: string | null
+  email: string | null
+  image: string | null
+}
+
 interface ConsoleState {
   connectionState: string
   deviceName: string
@@ -51,6 +58,7 @@ interface ConsoleState {
   authError: string | null
   currentPage: DesktopPage
   selectedAgent: AgentConfig | null
+  user: AuthUser | null
 
   setConnectionState: (state: string) => void
   setRuntimes: (runtimes: RuntimeInfo[]) => void
@@ -60,6 +68,7 @@ interface ConsoleState {
   rejectItem: (id: string) => void
   setWebWorkspaceError: (error: string | null) => void
   setAuthError: (error: string | null) => void
+  setUser: (user: AuthUser | null) => void
   navigateTo: (page: DesktopPage) => void
   enterSession: (agent: AgentConfig) => void
 }
@@ -91,6 +100,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   authError: null,
   currentPage: 'workspace',
   selectedAgent: null,
+  user: null,
 
   setConnectionState: (connectionState: string) => set({ connectionState }),
   setRuntimes: (runtimes: RuntimeInfo[]) => set({ runtimes }),
@@ -102,6 +112,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   rejectItem: (id: string) => set((s) => ({ approvals: s.approvals.filter((a) => a.id !== id) })),
   setWebWorkspaceError: (webWorkspaceError: string | null) => set({ webWorkspaceError }),
   setAuthError: (authError: string | null) => set({ authError }),
+  setUser: (user: AuthUser | null) => set({ user, userName: user?.name || user?.email || '未登录' }),
   navigateTo: (currentPage: DesktopPage) => set({ currentPage }),
   enterSession: (agent: AgentConfig) => set({ selectedAgent: agent, currentPage: 'workspace' }),
 }))

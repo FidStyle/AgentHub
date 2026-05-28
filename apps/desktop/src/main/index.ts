@@ -83,8 +83,22 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  app.setAsDefaultProtocolClient('agenthub')
   await setupRuntime()
   createWindow()
+})
+
+app.on('open-url', (_event, url) => {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'agenthub:' && parsed.pathname === '//auth/bind') {
+      const code = parsed.searchParams.get('code')
+      if (code) {
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win) win.webContents.send('device-bind', { code })
+      }
+    }
+  } catch { /* ignore malformed urls */ }
 })
 
 app.on('window-all-closed', () => {

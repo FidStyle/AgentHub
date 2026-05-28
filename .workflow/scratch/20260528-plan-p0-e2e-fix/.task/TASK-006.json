@@ -3,15 +3,20 @@
   "title": "三端 E2E 主链路真实运行 + 视觉/布局断言 + 结果写入 execution report",
   "description": "新增 Playwright E2E 测试并真实运行（不只 --list）。覆盖 Web 主链路、Mobile 鉴权、Desktop 登录。包含视觉/布局断言（无横向滚动、容器不重叠、文本不溢出）。convergence 要求真实运行测试并把 stdout/结果写入 research/execution-reports/。",
   "issue_id": null,
-  "issue_refs": ["BLK-1", "BLK-2", "BLK-3", "BLK-4", "BLK-5"],
+  "issue_refs": [
+    "BLK-1",
+    "BLK-2",
+    "BLK-3",
+    "BLK-4",
+    "BLK-5"
+  ],
   "type": "test",
   "priority": "high",
   "effort": "high",
   "action": "1. 新建 e2e/helpers/auth-state.ts：定义 P0 E2E 登录策略。优先使用受控测试用户 + 真实 DB session/account seed 生成浏览器 storageState；允许手工录制真实 GitHub OAuth storageState，但必须在报告标记为人工 OAuth 前置。该 fixture 只能替代 OAuth 人机步骤，禁止 mock /api/workspaces、/api/sessions、/api/messages、/api/devices/*。2. 新建 e2e/tests/web/p0-main-flow.spec.ts：登录→Workspace 创建→Session 创建→消息发送→page.reload 验证持久化→视觉断言（scrollWidth<=clientWidth、关键容器 boundingBox 不重叠、文本不溢出）。3. 新建 e2e/tests/web/p0-mobile-auth.spec.ts：未登录 /m 重定向→登录后 /m 显示工作区→视觉断言。4. 新建 e2e/tests/desktop/p0-auth-flow.spec.ts：启动→点击登录→验证 login-intent 创建；bind-status 先返回 bound:false，Web 绑定后返回 bound:true,user；Electron renderer store/UI 显示同一 user id；打开 Web workspace 后身份不从 5173 断裂到 3000 未登录状态。5. 真实运行所有 E2E 测试。6. 把运行结果（pass/fail count、失败 test name、截图路径、user/workspace/session/message/device intent id）append 到 research/execution-reports/p0-end-to-end-product-flow-plan-report.md。7. Governance gate：最终 wave 提交后在干净工作区运行 bash scripts/verify-governance-gate.sh P0-END-TO-END-PRODUCT-FLOW；若开始前已有 dirty baseline，必须先精确提交本任务相关改动并列出剩余非本任务 dirty 文件。",
-  "status": "pending",
-  "completed_at": null,
+  "status": "completed",
+  "completed_at": "2026-05-28T19:15:00Z",
   "actual_duration": null,
-
   "scope": "e2e/tests + research/execution-reports",
   "focus_paths": [
     "e2e/tests/web/p0-main-flow.spec.ts",
@@ -20,7 +25,6 @@
     "e2e/helpers/auth-state.ts",
     "research/execution-reports/p0-end-to-end-product-flow-plan-report.md"
   ],
-
   "read_first": [
     "e2e/tests/web/ui-alignment.spec.ts",
     "e2e/tests/desktop/ui-alignment.spec.ts",
@@ -29,13 +33,16 @@
     "apps/desktop/src/renderer/hooks/useDesktopAuth.ts",
     "research/execution-reports/p0-end-to-end-product-flow-plan-report.md"
   ],
-
-  "depends_on": ["TASK-001", "TASK-002", "TASK-003", "TASK-004"],
+  "depends_on": [
+    "TASK-001",
+    "TASK-002",
+    "TASK-003",
+    "TASK-004"
+  ],
   "wave": 4,
   "parallel_group": "wave4",
   "execution_group": null,
   "executor": "agent",
-
   "convergence": {
     "criteria": [
       "e2e/tests/web/p0-main-flow.spec.ts exists AND contains 'reload'",
@@ -63,7 +70,6 @@
     "verification": "pnpm playwright test e2e/tests/web/p0-main-flow.spec.ts --reporter=list 2>&1 | tee /tmp/e2e-web.log && pnpm playwright test e2e/tests/web/p0-mobile-auth.spec.ts --reporter=list 2>&1 | tee -a /tmp/e2e-web.log && pnpm playwright test e2e/tests/desktop/p0-auth-flow.spec.ts --reporter=list 2>&1 | tee /tmp/e2e-desktop.log && ! grep -R \"page.route(.*api/\\(workspaces\\|sessions\\|messages\\|devices\\)\" e2e/tests e2e/helpers && git diff --quiet && bash scripts/verify-governance-gate.sh P0-END-TO-END-PRODUCT-FLOW",
     "definition_of_done": "三端 E2E 真实运行通过（非 --list），视觉/布局断言覆盖，运行结果已写入 execution report，governance gate exit 0"
   },
-
   "files": [
     {
       "path": "e2e/helpers/auth-state.ts",
@@ -96,7 +102,6 @@
       "change": "在报告末尾追加 '## E2E 运行结果' section：日期、pass/fail count、失败 test name、截图路径"
     }
   ],
-
   "implementation": [
     "auth-state.ts: export async function ensureP0StorageState()；若使用 TEST_AUTH_STORAGE_STATE 则读取人工录制状态并校验 /api/auth/session 有 user；否则用 TEST_DATABASE_URL 创建 Auth.js user/session/account 或调用受控测试登录端点生成真实 session cookie；禁止 page.route mock 主链路 API",
     "p0-main-flow.spec.ts: import { test, expect } from '@playwright/test'; import { ensureP0StorageState } from '../helpers/auth-state';",
@@ -107,7 +112,6 @@
     "运行后 append results 到 execution report",
     "最后运行 bash scripts/verify-governance-gate.sh P0-END-TO-END-PRODUCT-FLOW"
   ],
-
   "test_contract": {
     "integration": "N/A（本 task 本身是 E2E）",
     "e2e": "pnpm playwright test 各文件真实运行 exit 0（非 --list），结果写入 execution report"

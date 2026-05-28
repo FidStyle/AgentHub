@@ -1,10 +1,8 @@
 import { useConsoleStore } from '../store/console-store'
 import { checkWebServiceAvailable, getWebUrl, WEB_BASE_URL } from '../utils/web-urls'
 
-const WEB_AUTH_URL = getWebUrl('/api/auth/signin?callbackUrl=/workspace')
-
 export function useDesktopAuth() {
-  const { setAuthError } = useConsoleStore()
+  const { setAuthError, setUser } = useConsoleStore()
 
   const handleGitHubLogin = async () => {
     setAuthError(null)
@@ -15,11 +13,38 @@ export function useDesktopAuth() {
     }
 
     try {
-      window.open(WEB_AUTH_URL, '_blank', 'noopener,noreferrer')
-      setAuthError(null)
+      const res = await fetch(getWebUrl('/api/devices/login-intent'), { method: 'POST' })
+      if (!res.ok) {
+        setAuthError('创建登录请求失败，请重试。')
+        return
+      }
+      const { code, sign_in_url } = await res.json()
+      window.open(sign_in_url, '_blank', 'noopener,noreferrer')
+      pollBindStatus(code)
     } catch {
-      setAuthError('无法打开登录页面，请确认 Web 服务已启动后重试。')
+      setAuthError('无法发起登录，请确认 Web 服务已启动后重试。')
     }
+  }
+
+  const pollBindStatus = (code: string) => {
+    let elapsed = 0
+    const interval = setInterval(async () => {
+      elapsed += 2000
+      if (elapsed > 60000) {
+        clearInterval(interval)
+        setAuthError('登录超时，请重试。')
+        return
+      }
+      try {
+        const res = await fetch(getWebUrl(`/api/devices/bind-status?code=${code}`))
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.bound && data.user) {
+          clearInterval(interval)
+          setUser(data.user)
+        }
+      } catch { /* ignore polling errors */ }
+    }, 2000)
   }
 
   return { handleGitHubLogin }
