@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native'
+import { colors } from '@agenthub/shared'
 import type { Message } from '@agenthub/shared'
 
 let counter = 0
@@ -14,28 +15,35 @@ export function ChatScreen() {
 
     const userMsg: Message = {
       id: genId(),
-      sessionId: 'mobile-sess-1',
-      type: 'text',
+      session_id: 'mobile-sess-1',
+      message_type: 'text',
       content: input.trim(),
-      senderType: 'user',
-      senderId: 'mobile-user',
-      streamingStatus: 'complete',
-      createdAt: new Date(),
+      sender_type: 'user',
+      sender_id: 'mobile-user',
+      role_agent_id: null,
+      streaming_status: 'complete',
+      metadata: null,
+      is_pinned: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
     setMessages((m) => [...m, userMsg])
     setInput('')
 
-    // Simulate response
     setTimeout(() => {
       const aiMsg: Message = {
         id: genId(),
-        sessionId: 'mobile-sess-1',
-        type: 'text',
+        session_id: 'mobile-sess-1',
+        message_type: 'text',
         content: `[Agent] 收到: "${userMsg.content}"`,
-        senderType: 'agent',
-        senderId: 'orchestrator',
-        streamingStatus: 'complete',
-        createdAt: new Date(),
+        sender_type: 'agent',
+        sender_id: 'orchestrator',
+        role_agent_id: null,
+        streaming_status: 'complete',
+        metadata: null,
+        is_pinned: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
       setMessages((m) => [...m, aiMsg])
     }, 500)
@@ -44,15 +52,15 @@ export function ChatScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>AgentHub Mobile</Text>
+        <Text style={styles.headerText}>AgentHub</Text>
       </View>
       <FlatList
         data={messages}
         keyExtractor={(m) => m.id}
         style={styles.list}
         renderItem={({ item }) => (
-          <View style={[styles.bubble, item.senderType === 'user' ? styles.userBubble : styles.agentBubble]}>
-            <Text style={item.senderType === 'user' ? styles.userText : styles.agentText}>
+          <View style={[styles.bubble, item.sender_type === 'user' ? styles.userBubble : styles.agentBubble]}>
+            <Text style={item.sender_type === 'user' ? styles.userText : styles.agentText}>
               {item.content}
             </Text>
           </View>
@@ -64,6 +72,7 @@ export function ChatScreen() {
           value={input}
           onChangeText={setInput}
           placeholder="输入消息..."
+          placeholderTextColor={colors.mutedForeground}
           onSubmitEditing={handleSend}
         />
         <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
@@ -75,17 +84,17 @@ export function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 16, borderBottomWidth: 1, borderColor: '#eee' },
-  headerText: { fontSize: 18, fontWeight: '600' },
+  container: { flex: 1, backgroundColor: colors.background },
+  header: { padding: 16, borderBottomWidth: 1, borderColor: colors.border },
+  headerText: { fontSize: 18, fontWeight: '600', color: colors.primary },
   list: { flex: 1, padding: 16 },
   bubble: { maxWidth: '75%', padding: 12, borderRadius: 12, marginBottom: 8 },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: '#007AFF' },
-  agentBubble: { alignSelf: 'flex-start', backgroundColor: '#F0F0F0' },
-  userText: { color: '#fff', fontSize: 14 },
-  agentText: { color: '#333', fontSize: 14 },
-  inputRow: { flexDirection: 'row', padding: 12, borderTopWidth: 1, borderColor: '#eee' },
-  input: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
-  sendBtn: { marginLeft: 8, backgroundColor: '#007AFF', borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
-  sendText: { color: '#fff', fontWeight: '600' },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: colors.primary },
+  agentBubble: { alignSelf: 'flex-start', backgroundColor: colors.muted },
+  userText: { color: colors.primaryForeground, fontSize: 14 },
+  agentText: { color: colors.primary, fontSize: 14 },
+  inputRow: { flexDirection: 'row', padding: 12, borderTopWidth: 1, borderColor: colors.border },
+  input: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, color: colors.primary },
+  sendBtn: { marginLeft: 8, backgroundColor: colors.primary, borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
+  sendText: { color: colors.primaryForeground, fontWeight: '600' },
 })

@@ -2,11 +2,29 @@ import { createClient } from '@/lib/supabase-server'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
+const localWorkspaces = [
+  {
+    id: 'local-demo-workspace',
+    name: '本地示例工作区',
+    description: '当前未配置数据库，先使用本地示例数据验证登录和工作台流程。',
+    execution_domain: 'local_desktop',
+    created_at: new Date(0).toISOString(),
+  },
+]
+
+function hasWorkspaceDatabase() {
+  return Boolean(process.env.DATABASE_URL || (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY))
+}
+
 export async function GET() {
-  const supabase = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
+  if (!hasWorkspaceDatabase()) {
+    return NextResponse.json(localWorkspaces)
+  }
+
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('workspaces')
     .select('*')
@@ -18,7 +36,6 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
@@ -33,6 +50,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '执行域必须为 cloud 或 local_desktop' }, { status: 400 })
   }
 
+  if (!hasWorkspaceDatabase()) {
+    return NextResponse.json({
+      id: `local-${Date.now()}`,
+      name,
+      description: description || '',
+      execution_domain,
+      created_at: new Date().toISOString(),
+    }, { status: 201 })
+  }
+
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('workspaces')
     .insert({ owner_id: user.id, name, execution_domain, description: description || '' })

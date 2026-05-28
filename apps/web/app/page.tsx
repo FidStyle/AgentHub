@@ -1,6 +1,12 @@
-import { signIn } from '@/auth'
+import { auth, signIn } from '@/auth'
+import { redirect } from 'next/navigation'
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth()
+  if (session?.user) {
+    redirect('/workspace')
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <h1 className="text-4xl font-bold mb-4">AgentHub 工作台</h1>
@@ -23,7 +29,7 @@ export default function Home() {
       </div>
       <form action={async () => {
         'use server'
-        await signIn('github')
+        await signIn('github', { redirectTo: '/workspace' })
       }}>
         <button
           type="submit"

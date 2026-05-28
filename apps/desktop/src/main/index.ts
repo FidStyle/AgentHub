@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 
 import type { RuntimeConfigStore as ConfigStoreType } from './runtime/runtime-config-store'
@@ -10,22 +10,49 @@ let runtimeHost: RuntimeHostType | null = null
 let configStore: ConfigStoreType | null = null
 
 async function setupRuntime() {
+  const { RuntimeHost } = await import('./runtime/runtime-host')
+  runtimeHost = new RuntimeHost()
+
   try {
     const { RuntimeConfigStore } = await import('./runtime/runtime-config-store')
-    const { DeviceChannel } = await import('./device-channel')
-    const { RuntimeHost } = await import('./runtime/runtime-host')
-
     configStore = new RuntimeConfigStore()
-    deviceChannel = new DeviceChannel()
-    runtimeHost = new RuntimeHost()
     runtimeHost.setConfigStore(configStore)
+  } catch (err) {
+    console.error('Runtime 配置初始化失败:', err)
+  }
+
+  try {
+    const { DeviceChannel } = await import('./device-channel')
+    deviceChannel = new DeviceChannel()
     runtimeHost.setChannel(deviceChannel)
   } catch (err) {
-    console.error('Runtime 初始化失败:', err)
+    console.error('设备通道初始化失败:', err)
+  }
+}
+
+function isDevRendererUrl(url: string, port: string) {
+  try {
+    const parsed = new URL(url)
+    return ['localhost', '127.0.0.1'].includes(parsed.hostname) && parsed.port === port
+  } catch {
+    return false
+  }
+}
+
+function openExternalHttpUrl(url: string) {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      shell.openExternal(url)
+    }
+  } catch {
+    console.error('无法打开外部链接:', url)
   }
 }
 
 function createWindow() {
+  const rendererPort = process.env.VITE_PORT || '5173'
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
   const win = new BrowserWindow({
     width: 900,
     height: 650,
@@ -37,9 +64,19 @@ function createWindow() {
     },
   })
 
-  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    const port = process.env.VITE_PORT || '5173'
-    win.loadURL(`http://localhost:${port}`)
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternalHttpUrl(url)
+    return { action: 'deny' }
+  })
+
+  win.webContents.on('will-navigate', (event, url) => {
+    if (isDev && isDevRendererUrl(url, rendererPort)) return
+    event.preventDefault()
+    openExternalHttpUrl(url)
+  })
+
+  if (isDev) {
+    win.loadURL(`http://localhost:${rendererPort}`)
   } else {
     win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }

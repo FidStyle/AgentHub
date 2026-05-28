@@ -1,18 +1,22 @@
 import { useConsoleStore } from '../store/console-store'
+import { checkWebServiceAvailable, getWebUrl, WEB_BASE_URL } from '../utils/web-urls'
 
-const WEB_AUTH_URL = 'http://localhost:3000/api/auth/signin/github'
+const WEB_AUTH_URL = getWebUrl('/api/auth/signin?callbackUrl=/workspace')
 
 export function useDesktopAuth() {
   const { setAuthError } = useConsoleStore()
 
-  const handleGitHubLogin = () => {
+  const handleGitHubLogin = async () => {
+    setAuthError(null)
+    const available = await checkWebServiceAvailable()
+    if (!available) {
+      setAuthError(`无法连接到 Web 登录服务（${WEB_BASE_URL}），请先启动 apps/web。`)
+      return
+    }
+
     try {
-      const win = window.open(WEB_AUTH_URL, '_blank')
-      if (!win) {
-        setAuthError('浏览器阻止了弹窗，请允许弹窗后重试，或手动访问 Web 工作台登录。')
-      } else {
-        setAuthError(null)
-      }
+      window.open(WEB_AUTH_URL, '_blank', 'noopener,noreferrer')
+      setAuthError(null)
     } catch {
       setAuthError('无法打开登录页面，请确认 Web 服务已启动后重试。')
     }

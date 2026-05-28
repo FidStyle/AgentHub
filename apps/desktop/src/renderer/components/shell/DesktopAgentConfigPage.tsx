@@ -62,7 +62,7 @@ export function DesktopAgentConfigPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <p className="text-xs text-muted-foreground">即将支持，敬请期待</p>
+                  <p className="text-xs text-muted-foreground">未检测到运行实例，请确认已安装并启动</p>
                   <Button variant="outline" size="sm" disabled className="mt-2">待接入</Button>
                 </CardContent>
               </Card>

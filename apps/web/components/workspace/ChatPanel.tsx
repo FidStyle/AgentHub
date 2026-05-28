@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Input, Card, StateCard } from '@agenthub/ui'
+import { Input, Card, StateCard, IconButton } from '@agenthub/ui'
+import { Paperclip, AtSign, Send, PanelRight } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 
 function MessageList() {
@@ -42,17 +43,21 @@ function MessageComposer() {
   }
 
   return (
-    <div data-testid="message-composer" className="flex gap-2 p-4 border-t border-border">
-      <Input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-        placeholder="输入消息..."
-        disabled={!activeSessionId}
-      />
-      <Button onClick={handleSend} disabled={!activeSessionId || !input.trim()}>
-        发送
-      </Button>
+    <div data-testid="message-composer" className="flex flex-col gap-2 p-4 border-t border-border">
+      <div className="flex gap-1">
+        <IconButton icon={AtSign} label="提及 Agent" variant="ghost" size="sm" disabled={!activeSessionId} />
+        <IconButton icon={Paperclip} label="附件" variant="ghost" size="sm" disabled={!activeSessionId} />
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+          placeholder="输入消息..."
+          disabled={!activeSessionId}
+        />
+        <IconButton icon={Send} label="发送" onClick={handleSend} disabled={!activeSessionId || !input.trim()} />
+      </div>
     </div>
   )
 }
@@ -67,9 +72,7 @@ export function ChatPanel({ onTogglePanel }: { onTogglePanel: () => void }) {
         <h2 className="text-sm font-semibold">
           {activeSession?.title ?? '选择一个会话'}
         </h2>
-        <Button variant="ghost" size="sm" onClick={onTogglePanel}>
-          面板
-        </Button>
+        <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" onClick={onTogglePanel} />
       </div>
       <MessageList />
       <MessageComposer />

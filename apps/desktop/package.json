@@ -4,7 +4,8 @@
   "private": true,
   "main": "dist/main/main/index.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "pnpm dev:app",
+    "dev:app": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build && tsc -p tsconfig.main.json",
     "type-check": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit",
     "lint": "eslint src/"
@@ -12,6 +13,7 @@
   "dependencies": {
     "@agenthub/shared": "workspace:*",
     "@agenthub/ui": "workspace:*",
+    "lucide-react": "^0.468.0",
     "ws": "^8.18.0",
     "zustand": "^5.0.0"
   },

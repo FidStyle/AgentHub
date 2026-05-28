@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useConsoleStore } from '../store/console-store'
+import { checkWebServiceAvailable, getWebUrl } from '../utils/web-urls'
 
-const WEB_WORKSPACE_URL = 'http://localhost:3000/workspace'
+const WEB_WORKSPACE_URL = getWebUrl('/workspace')
 
 export function useOpenWebWorkspace() {
   const [loading, setLoading] = useState(false)
@@ -11,9 +12,11 @@ export function useOpenWebWorkspace() {
     setLoading(true)
     setWebWorkspaceError(null)
     try {
-      const res = await fetch(WEB_WORKSPACE_URL, { method: 'HEAD', mode: 'no-cors' })
-      if (res.type === 'opaque' || res.ok) {
-        window.open(WEB_WORKSPACE_URL, '_blank')
+      const available = await checkWebServiceAvailable()
+      if (available) {
+        window.open(WEB_WORKSPACE_URL, '_blank', 'noopener,noreferrer')
+      } else {
+        setWebWorkspaceError('无法连接到 Web 工作台，请确认 Web 服务已启动后重试。')
       }
     } catch {
       setWebWorkspaceError('无法连接到 Web 工作台，请确认 Web 服务已启动后重试。')
