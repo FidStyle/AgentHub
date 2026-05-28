@@ -27,7 +27,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   auth: {
     onDeviceBind: (callback: (data: { code: string }) => void) => {
-      ipcRenderer.on('device-bind', (_e, data: { code: string }) => callback(data))
+      const handler = (_e: Electron.IpcRendererEvent, data: { code: string }) => callback(data)
+      ipcRenderer.on('device-bind', handler)
+      return () => { ipcRenderer.removeListener('device-bind', handler) }
     },
   },
 })

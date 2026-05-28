@@ -21,7 +21,7 @@ declare global {
         onStateChanged: (callback: (state: string) => void) => void
       }
       auth: {
-        onDeviceBind: (callback: (data: { code: string }) => void) => void
+        onDeviceBind: (callback: (data: { code: string }) => void) => (() => void) | undefined
       }
     }
   }
