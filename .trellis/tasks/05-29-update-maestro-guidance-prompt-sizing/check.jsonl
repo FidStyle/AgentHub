@@ -1,0 +1,4 @@
+{"file":"research/prompts/maestro-execution-governance.md","reason":"Verification and governance wording must remain consistent with prompt sizing guidance."}
+{"file":"research/maestro-guidance-playbook.md","reason":"Check rules for command-only, short prompt, and long prompt thresholds."}
+{"file":".trellis/spec/guides/maestro-command-routing.md","reason":"Check the P0 closeout routing note and current command-first guidance."}
+{"file":".trellis/workflow.md","reason":"Check that A2 routing now says command first and short/long prompt only when needed."}

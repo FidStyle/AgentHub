@@ -1,0 +1,4 @@
+{"file":"research/maestro-guidance-playbook.md","reason":"Source of truth for Maestro guidance and prompt sizing rules."}
+{"file":".trellis/spec/guides/maestro-command-routing.md","reason":"Local command routing guide that must stay aligned with prompt sizing guidance."}
+{"file":".trellis/workflow.md","reason":"Workflow-state A2 rules need to match the command-vs-prompt policy."}
+{"file":".agents/skills/trellis-start/SKILL.md","reason":"Session bootstrap guidance should reflect the shorter Maestro prompt policy."}
