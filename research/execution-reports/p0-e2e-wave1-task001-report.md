@@ -63,6 +63,30 @@ DATABASE_URL=$TEST_DATABASE_URL TEST_AUTH_COOKIE=$TEST_AUTH_COOKIE pnpm --filter
 
 ---
 
+## Verify 阶段（2026-05-28）
+
+### 结构验证
+
+| Truth | 结果 |
+|-------|------|
+| T1-T7: convergence criteria grep 检查 | ✅ 全部 PASS |
+| T8: type-check | ✅ exit 0 |
+| T9-T10: verify-p0-api-crud.ts 存在 + 要求 DATABASE_URL | ✅ PASS |
+
+### 行为验证
+
+| 项目 | 结果 |
+|------|------|
+| 真实 API smoke (verify-p0-api-crud.ts) | ⚠️ 未运行：TEST_DATABASE_URL + TEST_AUTH_COOKIE 未设置 |
+| Governance gate | exit 1（预期：P0 仅完成 W1/4） |
+
+### Verification 产物
+
+- `.workflow/scratch/20260528-plan-p0-e2e-fix/verification.json`
+- verdict: PASS_WITH_CONCERNS
+
+---
+
 ## 残留风险
 
 - verify-p0-api-crud.ts 尚未在真实 DB 环境运行（需 Codex 复核时提供测试 DB）

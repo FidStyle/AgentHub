@@ -31,7 +31,7 @@
 | **目标** | 以真实 MVP 用户链路验证项目，而不是用单页、单接口或按钮反馈作为完成依据 |
 | **方案摘要** | 建立端到端产品合同；登记身份连续性、Workspace 创建闭环、三端 UX 一致性为验真样本；禁止把已知根因直接喂给执行者 |
 | **验收方式** | 盲验证必须基于合同自行发现主链路断点；后续实现必须使用真实 DB/API/session 并覆盖 Web/Desktop/Mobile E2E |
-| **测试证据** | 准备审计：`research/execution-reports/p0-end-to-end-product-flow-readiness-audit.md`；盲验证报告：`research/execution-reports/p0-end-to-end-product-flow-blind-verify-report.md`；Wave 1 报告：`research/execution-reports/p0-e2e-wave1-task001-report.md`；type-check exit 0 |
+| **测试证据** | 准备审计：`research/execution-reports/p0-end-to-end-product-flow-readiness-audit.md`；盲验证报告：`research/execution-reports/p0-end-to-end-product-flow-blind-verify-report.md`；Wave 1 报告：`research/execution-reports/p0-e2e-wave1-task001-report.md`；type-check exit 0；verification.json verdict=PASS_WITH_CONCERNS（smoke 未运行：缺 TEST_DATABASE_URL） |
 | **阻塞问题** | BLK-1 Web 消息不落库；BLK-2 Desktop 登录无身份回调；BLK-3 `/api/chat` 纯 mock；BLK-4 Mobile PWA 无鉴权；BLK-5 Web Session 使用 mock 数据 |
 | **下一步动作** | Codex 复核 Wave 1 DB/API/session 行为证据（需真实 DB 运行 verify-p0-api-crud.ts）；通过后放行 Wave 2 / TASK-002+003 |
 
