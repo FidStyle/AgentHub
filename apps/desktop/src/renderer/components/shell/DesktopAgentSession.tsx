@@ -9,11 +9,14 @@ export function DesktopAgentSession() {
   const connectedAgents = agents.filter(a => a.status === 'connected')
   const [activeWorkspace, setActiveWorkspace] = React.useState<string | null>(null)
   const [input, setInput] = React.useState('')
+  const [sending, setSending] = React.useState(false)
 
   const handleSend = () => {
-    if (!input.trim() || !selectedAgent) return
+    if (!input.trim() || !selectedAgent || sending) return
+    setSending(true)
     addActivity({ type: 'action', status: 'success', message: `[${selectedAgent.name}] ${input.trim()}` })
     setInput('')
+    setSending(false)
   }
 
   return (
@@ -76,12 +79,14 @@ export function DesktopAgentSession() {
           <Input
             className="flex-1"
             placeholder={selectedAgent ? '输入指令...' : '请先选择 Agent'}
-            disabled={!selectedAgent}
+            disabled={!selectedAgent || sending}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />
-          <Button size="sm" disabled={!selectedAgent || !input.trim()} onClick={handleSend}>发送</Button>
+          <Button size="sm" disabled={!selectedAgent || !input.trim() || sending} onClick={handleSend}>
+            {sending ? '发送中' : '发送'}
+          </Button>
         </div>
       </div>
     </section>

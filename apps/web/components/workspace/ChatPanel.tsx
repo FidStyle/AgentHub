@@ -34,12 +34,15 @@ function MessageList() {
 
 function MessageComposer() {
   const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
   const { sendMessage, activeSessionId } = useSessionStore()
 
-  const handleSend = () => {
-    if (!input.trim() || !activeSessionId) return
-    sendMessage(input.trim())
+  const handleSend = async () => {
+    if (!input.trim() || !activeSessionId || sending) return
+    setSending(true)
+    await sendMessage(input.trim())
     setInput('')
+    setSending(false)
   }
 
   return (
@@ -54,9 +57,9 @@ function MessageComposer() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
           placeholder="输入消息..."
-          disabled={!activeSessionId}
+          disabled={!activeSessionId || sending}
         />
-        <IconButton icon={Send} label="发送" onClick={handleSend} disabled={!activeSessionId || !input.trim()} />
+        <IconButton icon={Send} label={sending ? '发送中...' : '发送'} onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending} />
       </div>
     </div>
   )

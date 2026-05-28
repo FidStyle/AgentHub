@@ -11,6 +11,7 @@ export default function MobileSessionPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -27,15 +28,22 @@ export default function MobileSessionPage() {
   const send = async () => {
     if (!input.trim() || sending) return
     setSending(true)
-    const res = await fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId, content: input.trim(), sender_type: 'user' }),
-    })
-    if (res.ok) {
-      const msg = await res.json()
-      setMessages(m => [...m, msg])
-      setInput('')
+    setError(null)
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, content: input.trim(), sender_type: 'user' }),
+      })
+      if (res.ok) {
+        const msg = await res.json()
+        setMessages(m => [...m, msg])
+        setInput('')
+      } else {
+        setError('发送失败，请重试')
+      }
+    } catch {
+      setError('网络错误，请检查连接')
     }
     setSending(false)
   }
@@ -62,17 +70,20 @@ export default function MobileSessionPage() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex gap-2 pt-2 border-t border-border">
-        <Input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && send()}
-          placeholder="输入消息..."
-          className="flex-1"
-        />
-        <Button onClick={send} disabled={sending || !input.trim()} size="sm">
-          发送
-        </Button>
+      <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && send()}
+            placeholder="输入消息..."
+            className="flex-1"
+          />
+          <Button onClick={send} disabled={sending || !input.trim()} size="sm">
+            {sending ? '发送中' : '发送'}
+          </Button>
+        </div>
       </div>
     </div>
   )
