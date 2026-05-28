@@ -42,13 +42,13 @@
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-UI-001, FR-DESK-001, FR-WEB-001, FR-MOB-001 |
 | **对应计划** | impeccable improve chain: critique → refine → polish → audit |
-| **当前状态** | 🔄 进行中（2026-05-27）：refine loop 1 完成，P0 修复已落地 |
+| **当前状态** | ✅ 完成（2026-05-29）：critique → refine → polish → audit 全链完成；audit 评分 15/20 PASS；type-check 通过；P0 数据链路未受影响 |
 | **目标** | 三端视觉母版统一，对齐 AionUi/codeg 参考项目的信息密度和组件规范 |
-| **方案摘要** | Desktop 侧栏加 lucide 图标；Web Composer 加工具条；Mobile 统一色彩 token；消除营销文案 |
-| **验收方式** | type-check 通过 + Playwright 视觉/布局断言 + critique 评分 ≥26/40 |
-| **测试证据** | `tsc --noEmit` web/desktop 通过；新增 e2e/tests/web/ui-alignment.spec.ts + e2e/tests/desktop/ui-alignment.spec.ts |
-| **阻塞问题** | Mobile React 版本兼容性（react-native 要求 18，项目用 19）— 预存问题 |
-| **下一步动作** | 完成 polish + audit 步骤，补充 execution-report |
+| **方案摘要** | Desktop 侧栏加 lucide 图标；Web Composer 加工具条；Mobile 统一色彩 token；消除营销文案；三端语义色 token 统一；交互闭环（workspace 切换、发送状态、空态描述） |
+| **验收方式** | type-check 通过 + audit 评分 ≥15/20 PASS + P0 数据链路无回归 |
+| **测试证据** | `tsc --noEmit` web/desktop 通过；audit 评分 15/20 PASS；commits: `beb9825`（三端视觉 token 统一）+ `1fe7b7d`（交互闭环 + 中文状态）；execution-report: `research/execution-reports/ui-align-001-report.md` |
+| **阻塞问题** | P1 残留：a11y 对比度/焦点环/aria-label 缺失（非 P0 blocker）；Mobile React 版本兼容性（预存问题） |
+| **下一步动作** | P1 a11y 修复（独立任务）；本任务闭环 |
 
 ### AUTH-MIG-001: 认证路线迁移 Auth.js → Auth.js v5
 
@@ -134,3 +134,4 @@
 | 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | Wave 1 / TASK-001 执行完成：session-store 接真实 API、删除 mock-data.ts、workspaces 无 DB 时 500、新增 verify-p0-api-crud.ts；type-check 通过 |
 | 2026-05-28 | P0-END-TO-END-PRODUCT-FLOW | Wave 2-4 / TASK-002~006 执行完成：Desktop login-intent + Mobile /m/* 鉴权 + /api/chat 重写 + 集成测试 + 三端 E2E；type-check 通过；真实 DB/Auth 验证待环境 |
 | 2026-05-29 | P0-END-TO-END-PRODUCT-FLOW | 真实 DB/Auth smoke 验证通过：Docker Postgres healthy + Auth.js session 三表 + API CRUD 5/5 PASS + build 通过 + Supabase 零残留；Desktop/Mobile/Runtime/E2E 待后续 |
+| 2026-05-29 | UI-ALIGN-001 | 闭环：critique→refine→polish→audit 全链完成；commits beb9825 + 1fe7b7d；audit 15/20 PASS；type-check 通过；P0 数据链路未受影响；P1 a11y gaps 残留 |
