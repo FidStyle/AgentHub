@@ -46,7 +46,7 @@ From Step 1 you know the current task. Check the task directory:
   python3 ./.trellis/scripts/get_context.py --mode phase --step 2.1 --platform codex
   ```
 - **Active task + no `prd.md`** → Phase 1.1. Load the `trellis-brainstorm` skill.
-- **User asks to guide Maestro/Ralph, generate a Maestro prompt, choose `/maestro-*` commands, or review Maestro output** → this is orchestration guidance, not Codex implementation. Read `research/maestro-guidance-playbook.md` and `research/prompts/maestro-execution-governance.md`, then provide the command/prompt/verification plan. Do not create a Trellis task or load `trellis-brainstorm` unless the user explicitly asks Codex itself to implement or modify code.
+- **User asks to guide Maestro/Ralph, generate Maestro guidance, choose `/maestro-*` commands, or review Maestro output** → this is orchestration guidance, not Codex implementation. Read `research/maestro-guidance-playbook.md` and `research/prompts/maestro-execution-governance.md`, then provide the command and verification plan. Add a short prompt only when command arguments do not fully express scope, blockers, or completion evidence; reserve long prompts for complex/high-risk handoffs, dirty worktrees, governance failures, repeated misses, unclear scope, or explicit user request. Do not create a Trellis task or load `trellis-brainstorm` unless the user explicitly asks Codex itself to implement or modify code.
 - **No active task** → when the user describes multi-step work, load the `trellis-brainstorm` skill to clarify requirements, then create a task via `task.py create`. For simple one-off questions or trivial edits, skip this and just answer directly — no task needed.
 
 ---

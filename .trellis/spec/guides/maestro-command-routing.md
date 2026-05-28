@@ -18,6 +18,9 @@ node scripts/export-maestro-command-reference.mjs
 ## Routing Rules
 
 - Use `argument-hint` from `research/maestro-command-reference.md` instead of guessing command syntax from memory.
+- Prefer a bare command when the command and recent context already express the next step clearly.
+- Add a short prompt only when scope boundaries, blockers, deferred items, or completion evidence need to be explicit.
+- Use a long copyable prompt only for medium/large contract handoff, risky execute steps, dirty worktrees, governance failures, repeated Maestro misses, unclear product scope, or when the user asks for one.
 - Use `/maestro-ralph "<intent>" -y` when the optimal command sequence or lifecycle state is unclear.
 - Use `/maestro-ralph status` to inspect the latest Ralph session.
 - Use `/maestro-ralph continue` when a Ralph session exists and should resume from current state.
@@ -31,21 +34,22 @@ node scripts/export-maestro-command-reference.mjs
 
 ## AgentHub P0 Rule
 
-For `P0-END-TO-END-PRODUCT-FLOW`, current plan status is:
+For `P0-END-TO-END-PRODUCT-FLOW`, current closeout status is:
 
 ```text
-PLAN_ANTI_PATTERN_REVIEW: PASS_FOR_WAVE_1_EXECUTION
+P0 closeout verification completed for PLN-20260529-p0-e2e-remaining.
+Known non-P0 items: Desktop Electron full E2E needs DESKTOP_APP_PATH; mobile-pwa.spec.ts fixture migration to Auth.js.
 ```
 
-Only Wave 1 / TASK-001 is currently released for execution. Do not instruct Maestro/Ralph to execute TASK-002 through TASK-006 until Codex reviews Wave 1 evidence.
+Do not instruct Maestro/Ralph to continue broad P0 execute unless a new P0 blocker is discovered. Prefer review, milestone audit, or deferred-task planning.
 
 Required references for P0 Maestro guidance:
 
 - `research/ai-workflow-control.md`
 - `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md`
-- `research/execution-reports/p0-end-to-end-product-flow-plan-report.md`
+- `research/execution-reports/p0-e2e-remaining-verification-report.md`
 - `research/project-tracker.md`
-- `.workflow/scratch/20260528-plan-p0-e2e-fix/.task/TASK-001.json`
+- `.workflow/scratch/20260529-plan-p0-e2e-remaining/verification.json`
 - `research/maestro-command-reference.md`
 
 ## Wrong Vs Correct
@@ -56,15 +60,15 @@ Required references for P0 Maestro guidance:
 /maestro-execute -y
 ```
 
-This may execute more scope than intended and does not encode the Wave 1 stop condition.
+This may execute more scope than intended and can reopen P0 work after closeout verification.
 
 ### Correct
 
 ```text
-/maestro-ralph "Execute only Wave 1 / TASK-001 for P0-END-TO-END-PRODUCT-FLOW ..." -y
+/quality-review P0-END-TO-END-PRODUCT-FLOW --level standard --dimensions architecture,testing,security,maintainability
 ```
 
-The intent must explicitly say to stop after Wave 1 for Codex review.
+If more context is needed, add a short prompt: "Review only; do not execute. Classify Desktop Electron full E2E and mobile-pwa fixture migration as non-P0 unless a new P0 blocker is found."
 
 ## Trellis Task Mapping
 
