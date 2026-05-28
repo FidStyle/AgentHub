@@ -24,6 +24,7 @@ These guides help you **ask the right questions before coding**.
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
 | [End-to-End Contract Planning Guide](./end-to-end-contract-planning.md) | Prevent fake product closure in plans and acceptance criteria | Before planning/reviewing auth, workspace, DB, runtime, E2E, or three-surface flows |
+| [Maestro Command Routing Guide](./maestro-command-routing.md) | Route between `/maestro-ralph`, pipeline commands, and generated command reference | When guiding Maestro/Ralph or choosing a Maestro command |
 | [Product Planning Thinking Guide](./product-planning-guide.md) | Keep AgentHub work bound to PRD FR-IDs and product design | Before implementing AgentHub product slices |
 
 ---
@@ -66,6 +67,15 @@ These guides help you **ask the right questions before coding**.
 - [ ] A known user-discovered issue is being converted into a plan
 
 → Read [End-to-End Contract Planning Guide](./end-to-end-contract-planning.md)
+
+### When to Route Maestro/Ralph
+
+- [ ] The user asks what Maestro/Ralph command to run
+- [ ] You're generating a `/maestro-*` prompt or command
+- [ ] You're continuing, checking status, or reviewing a Ralph session
+- [ ] You're unsure whether to use `/maestro-ralph`, `/maestro-ralph-execute`, `/maestro-execute`, or `/maestro-verify`
+
+→ Read [Maestro Command Routing Guide](./maestro-command-routing.md)
 
 ---
 

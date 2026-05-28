@@ -1,1 +1,2 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "research/maestro-command-reference.md", "reason": "Verify Maestro command guidance uses generated argument-hint reference"}
+{"file": ".trellis/spec/guides/maestro-command-routing.md", "reason": "Check Maestro/Ralph routing follows Trellis guide and wave stop rules"}
