@@ -112,13 +112,13 @@
 | **FR-ID** | FR-RT-001（Cloud Runtime Gateway 契约）、FR-RT-002（user_local tunnel）、FR-RT-003（public_cloud 池部署） |
 | **对应计划** | macro analyze `ANL-20260529-p1-runtime` + roadmap `RDM-20260529-p1-runtime`（架构已修订）+ **架构合同 `research/contracts/P1-RUNTIME-GATEWAY.md`（revised）** |
 | **合同路径** | `research/contracts/P1-RUNTIME-GATEWAY.md`（权威，revised）；`.workflow/scratch/20260529-analyze-p1-runtime/conclusions.json`（旧模型，已被合同取代） |
-| **当前状态** | 🔄 **架构修订完成（2026-05-29），止步于 revised plan**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），非 optional provider；旧「直连真实服务」模型作废。**不进入 execute**，等待确认 |
+| **当前状态** | ✅ **里程碑全部完成（2026-05-29）**：三 phase（gateway-contract / desktop-tunnel / public-cloud-pool）verify+review 均 PASS；milestone-audit PASS（0 critical/0 high）；归档至 `.workflow/milestones/P1-RT/`，current_milestone 置空（无 roadmap 后继） |
 | **目标** | Cloud Runtime Gateway 统一承载 public_cloud + user_local 两类 endpoint；Web/Mobile 统一经 gateway，不直连本地端口；DB 状态记录 + 统一事件语义 |
-| **方案摘要** | 修订为 3 phase：P1 = Gateway contract + DB model（runtime_endpoints/sessions/logs/device_runtime_channels/capabilities）+ routing/event semantics；P2 = Desktop local runtime tunnel 接入 gateway；P3 = 自建 public_cloud runtime 池 / worker 实现 |
-| **验收方式** | 本阶段：架构合同 + roadmap + tracker + report 同步；execute（未启动）按各 phase Success Criteria（见合同 §4） |
-| **测试证据** | 架构合同 `research/contracts/P1-RUNTIME-GATEWAY.md`；roadmap M:P1-RT 已修订；execution-report `research/execution-reports/p1-rt-gateway-revised-plan-report.md`；现有 gateway 雏形 `apps/web/server/ws-gateway.ts` + `device-connections.ts`（`/ws/device`） |
-| **阻塞问题** | D-003 ✅ 已决策：全部自建，禁止 Supabase/Fly/Neon/Upstash 等包装平台作为产品依赖 |
-| **下一步动作** | Phase 3：自建 public_cloud runtime 池 / worker 实现规划；不再做托管平台选型 |
+| **方案摘要** | 3 phase：P1 = Gateway contract + DB model + routing/event semantics；P2 = Desktop local runtime tunnel 接入 gateway；P3 = 自建 public_cloud runtime 池 / worker 实现 |
+| **验收方式** | 各 phase verify+review PASS + milestone-audit PASS + 真实 infra 回归（Phase 3 16/16 + Phase 2 13/13）+ tsc exit 0 + 治理门禁 exit 0 |
+| **测试证据** | milestone-audit `.workflow/milestones/P1-RT/audit-report.md`（PASS）；milestone summary `.workflow/milestones/P1-RT/summary.md`；三 phase execution-report 见 `research/execution-reports/p1-rt-*.md`；Phase 3 集成 `verify-p1-rt-phase3.ts` 16/16；Phase 2 回归 `verify-p1-rt-phase2.ts` 13/13 |
+| **阻塞问题** | 无（D-003 已决策全部自建，禁止 Supabase/Fly/Neon/Upstash 等包装平台） |
+| **下一步动作** | 里程碑闭环。已知后续项：state.json 补登 Phase 2/3 execute/verify/review artifact（bookkeeping）；真实 RuntimeExecutor 接入 + worker liveness/订阅超时 + runtime_logs 统一脱敏 |
 
 ---
 
@@ -207,3 +207,4 @@
 | 2026-05-29 | P1-RUNTIME-GATEWAY | **Phase 1 execute + 验收完成**（ralph-20260529-170344）：shared 7 事件类型 + 5 张 gateway 表幂等迁移（P0 不变）+ gateway 抽象（去 minimal_adapter）+ /api/chat 按 endpoint 路由 + session 落库；verify-p1-runtime-gateway.ts 真实 DB 12 passed/0 failed/1 skip；落库 probe 读回 + secret 脱敏；tsc exit 0；review verdict=PASS（critical/high/medium=0）；治理门禁覆盖 |
 | 2026-05-29 | P1-RT-PHASE2 | **Phase 2 execute + 验收完成**（ralph-20260529-194146）：device-channel-store 连接生命周期单点 upsert device_runtime_channels（ws-gateway addConnection/close/心跳超时 hook）+ gateway invoke user_local 分支 tunnel 事件闭环（tunnel_connected/tunnel_disconnected/local_runtime_offline，曾连接后断开经 channel.connected_at 判定）+ RuntimeErrorCode 集中 packages/shared 并替换内联字符串（DEVICE_OFFLINE/endpoint_unavailable 字面值不变保 P0 兼容）；verify-p1-rt-phase2.ts 真实 DB 13 passed/0 failed/0 skip；Phase 1 回归 12 passed/0 failed/1 skip；packages/shared + apps/web tsc exit 0 |
 | 2026-05-29 | P1-RT-PHASE3 | **Phase 3 execute + 验收完成**（ralph-20260529-220000）：自建 docker compose 栈（postgres:15.3+redis:7.2+node worker 官方镜像）+ redis-client 封装（enqueue/dequeue BRPOP/pub-sub/cancel 控制键）+ RuntimeExecutor 接口/FakeExecutor 流式 + worker processJob 状态机（running→completed/cancelled/failed，落 runtime_sessions/runtime_logs seq）+ gateway public_cloud 分支接入队列+订阅事件流转 SSE + cancelRuntimeSession（REDIS 未配保留 endpoint_unavailable 占位，user_local 未改）；verify-p1-rt-phase3.ts 真实 Postgres+Redis 16 passed/0 failed/0 skip（调度/流式/落库+seq/取消/失败 5 类语义）；Phase 2 回归 13 passed/0 failed/0 skip；apps/web tsc exit 0；compose config exit 0；banned-platform 扫描 clean；review verdict=PASS（critical/high=0） |
+| 2026-05-29 | P1-RT | **里程碑完成（milestone-audit + milestone-complete）**：三 phase verify+review 均 PASS；milestone-audit PASS（0 critical/0 high，跨 phase 集成无契约冲突）；真实 infra 回归 Phase 3 16/16 + Phase 2 13/13，apps/web + packages/shared tsc exit 0；10 个 artifact 归档至 milestone_history + `.workflow/milestones/P1-RT/`（audit-report/summary/roadmap-snapshot）；current_milestone 置空（standalone 里程碑无 roadmap 后继）；治理门禁 exit 0 |
