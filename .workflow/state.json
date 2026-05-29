@@ -743,6 +743,34 @@
       "verdict": "PASS",
       "created_at": "2026-05-29T10:11:21Z",
       "completed_at": "2026-05-29T10:11:21Z"
+    },
+    {
+      "id": "ANL-20260529-p1-rt-phase2",
+      "type": "analyze",
+      "scope": "phase",
+      "phase": 2,
+      "status": "completed",
+      "milestone": "P1-RT",
+      "path": "scratch/20260529-analyze-P2-02-desktop-tunnel",
+      "context_package": "scratch/20260529-analyze-P2-02-desktop-tunnel/context-package.json",
+      "harvested": false,
+      "created_at": "2026-05-29T12:14:47.480Z",
+      "completed_at": "2026-05-29T12:14:47.481Z"
+    },
+    {
+      "id": "PLN-20260529-p1-rt-phase2",
+      "type": "plan",
+      "scope": "phase",
+      "phase": 2,
+      "status": "completed",
+      "milestone": "P1-RT",
+      "path": "scratch/20260529-plan-P2-02-desktop-tunnel",
+      "depends_on": [
+        "ANL-20260529-p1-rt-phase2"
+      ],
+      "harvested": false,
+      "created_at": "2026-05-29T12:17:16.486Z",
+      "completed_at": "2026-05-29T12:17:16.487Z"
     }
   ],
   "last_updated": "2026-05-29T10:11:21Z",

@@ -1,7 +1,9 @@
 import type { ExecutionDomain } from '@agenthub/shared'
 import type { RuntimeGatewayEvent } from '@agenthub/shared'
+import { RuntimeErrorCode } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { getConnectionByUserId } from '@/server/device-connections'
+import { getChannelByDevice, markChannelConnected } from './device-channel-store'
 
 type EndpointKind = 'public_cloud' | 'user_local'
 type EndpointStatus = 'available' | 'offline' | 'unconfigured'
@@ -116,7 +118,7 @@ export async function* invoke(input: {
   if (endpoint.kind === 'public_cloud') {
     // Provider deployment (D-003) deferred — endpoint stays unconfigured. No fake assistant success.
     yield { type: 'public_runtime_available', available: false, endpointId }
-    yield { type: 'runtime_status', status: 'endpoint_unavailable', endpointId }
+    yield { type: 'runtime_status', status: RuntimeErrorCode.ENDPOINT_UNAVAILABLE, endpointId }
     yield {
       type: 'endpoint_unavailable',
       endpointId,
@@ -129,13 +131,20 @@ export async function* invoke(input: {
   // user_local: relay through Gateway/DeviceChannel; remote clients never touch local ports.
   const conn = getConnectionByUserId(input.userId)
   if (!conn) {
-    yield { type: 'local_runtime_offline', endpointId, deviceId: endpoint.deviceId }
+    // Distinguish "was connected then dropped" (tunnel_disconnected) from "never connected" (local_runtime_offline).
+    const channel = endpoint.deviceId ? await getChannelByDevice(endpoint.deviceId) : null
+    if (channel?.connected_at) {
+      yield { type: 'tunnel_disconnected', endpointId: endpoint.id ?? '', deviceId: endpoint.deviceId ?? '' }
+    } else {
+      yield { type: 'local_runtime_offline', endpointId, deviceId: endpoint.deviceId }
+    }
     // Preserve DEVICE_OFFLINE compatibility for P0 tests.
-    yield { type: 'runtime_status', status: 'DEVICE_OFFLINE', endpointId }
+    yield { type: 'runtime_status', status: RuntimeErrorCode.DEVICE_OFFLINE, endpointId }
     await setSessionStatus(input.runtimeSession.id, 'failed')
     return
   }
 
+  await markChannelConnected(conn.deviceId, endpoint.id ?? undefined)
   yield { type: 'tunnel_connected', endpointId: endpoint.id ?? '', deviceId: conn.deviceId }
   yield { type: 'runtime_status', status: 'tunnel_ready', endpointId }
 }

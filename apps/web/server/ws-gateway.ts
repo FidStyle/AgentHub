@@ -4,6 +4,7 @@ import type { Server } from 'http'
 import { parseFrame, type AuthFrame, type HeartbeatAckFrame, type ConnectedFrame } from '@agenthub/shared'
 import { addConnection, removeConnection, updateHeartbeat, getAllConnections } from './device-connections'
 import { createClient } from '../lib/app-db-client'
+import { markChannelConnected, markChannelDisconnected } from '../lib/runtime/device-channel-store'
 
 function createAdminClient() {
   return createClient()
@@ -64,6 +65,7 @@ export function setupWebSocketGateway(server: Server) {
         })
 
         await db.from('devices').update({ online: true }).eq('id', deviceId)
+        await markChannelConnected(deviceId)
 
         const connectedFrame: ConnectedFrame = {
           type: 'connected',
@@ -98,6 +100,7 @@ export function setupWebSocketGateway(server: Server) {
         removeConnection(deviceId)
         const db = await createAdminClient()
         await db.from('devices').update({ online: false }).eq('id', deviceId)
+        await markChannelDisconnected(deviceId)
       }
     })
   })
@@ -109,6 +112,7 @@ export function setupWebSocketGateway(server: Server) {
       if (now - conn.lastHeartbeat > 90000) {
         conn.ws.close(4004, '心跳超时')
         removeConnection(id)
+        void markChannelDisconnected(id)
       }
     }
   }, 30000)
