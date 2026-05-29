@@ -156,6 +156,23 @@
 
 ---
 
+### P1-RT-PHASE3
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（里程碑 P1-RT，Phase 3） |
+| **FR-ID** | FR-RT-001（Cloud Runtime Gateway 契约，Phase 3 自建 public_cloud worker/pool） |
+| **对应计划** | `PLN-P3-03-public-cloud-pool`（4 tasks / 2 waves） |
+| **合同/决策** | D-003（基础设施全部自建，禁用 Upstash/Neon/Modal 等托管平台）；`research/contracts/P1-RUNTIME-GATEWAY.md` |
+| **当前状态** | ✅ **Phase 3 全部完成，验证通过（2026-05-29）**：自建 docker compose 栈（Postgres+Redis+worker 官方镜像）+ Redis 队列调度（LIST+BRPOP）+ RuntimeExecutor 接口/FakeExecutor 流式 + worker 状态机（running→completed/cancelled/failed）落 runtime_sessions/runtime_logs + gateway public_cloud 分支接入队列+订阅事件流 + cancelRuntimeSession 取消语义；REDIS 未配保留 endpoint_unavailable 占位（向后兼容），user_local 分支未改 |
+| **目标** | gateway public_cloud 占位分支接入自建 Redis 队列：入队 runtime job → 自建 worker BRPOP 消费 → FakeExecutor 流式增量 → 事件 pub/sub 回流 gateway 转 SSE + 落 runtime_logs，状态机落 runtime_sessions（running/completed/cancelled/failed）；全部自建，无付费 API、无真实 CLI spawn、无托管平台依赖 |
+| **验收方式** | type-check exit 0（apps/web）；docker compose config exit 0；禁用平台依赖扫描无匹配；Phase 3 集成测试覆盖调度/流式/落库+seq/取消/失败 5 类语义 PASS；Phase 2 回归不破；治理门禁 P1-RT-PHASE3 exit 0 |
+| **测试证据** | `apps/web/scripts/verify-p1-rt-phase3.ts` 对真实 Postgres+Redis **16 passed / 0 failed / 0 skip（status=PASS）**：enqueue→dequeue 同一 job + FakeExecutor runtime_output 增量≥2（实测4）+ runtime_sessions.status=completed + runtime_logs seq 严格递增有序 + setCancel→cancelled（emit runtime_cancelled，不伪装 completed）+ job.fail→failed（emit runtime_failed，不伪装 completed）；回归 `verify-p1-rt-phase2.ts` 13 passed/0 failed/0 skip；apps/web tsc exit 0；compose config exit 0；banned-platform 扫描 clean；execution-report `research/execution-reports/p1-rt-phase3-execution-report.md` |
+| **阻塞问题** | 无（Phase 3 范围内）。后续项：真实 RuntimeExecutor 接入前需补 worker liveness/订阅超时 + runtime_logs 统一脱敏（review.json 1 medium + 1 low，均 out-of-scope） |
+| **下一步动作** | P1-RT milestone-audit / complete；真实 executor（CLI spawn/容器执行）接入与 worker 池水平扩展为后续独立范围 |
+
+---
+
 ## P2 任务
 
 （暂无登记）
@@ -189,3 +206,4 @@
 | 2026-05-29 | P1-RT | **基础设施自建决策**：Postgres 使用官方镜像/自管部署，Redis 使用官方 Redis 或开源替代自部署，Runtime Gateway/worker 自建；禁止 Supabase/Fly/Neon/Upstash 等包装平台作为产品依赖 |
 | 2026-05-29 | P1-RUNTIME-GATEWAY | **Phase 1 execute + 验收完成**（ralph-20260529-170344）：shared 7 事件类型 + 5 张 gateway 表幂等迁移（P0 不变）+ gateway 抽象（去 minimal_adapter）+ /api/chat 按 endpoint 路由 + session 落库；verify-p1-runtime-gateway.ts 真实 DB 12 passed/0 failed/1 skip；落库 probe 读回 + secret 脱敏；tsc exit 0；review verdict=PASS（critical/high/medium=0）；治理门禁覆盖 |
 | 2026-05-29 | P1-RT-PHASE2 | **Phase 2 execute + 验收完成**（ralph-20260529-194146）：device-channel-store 连接生命周期单点 upsert device_runtime_channels（ws-gateway addConnection/close/心跳超时 hook）+ gateway invoke user_local 分支 tunnel 事件闭环（tunnel_connected/tunnel_disconnected/local_runtime_offline，曾连接后断开经 channel.connected_at 判定）+ RuntimeErrorCode 集中 packages/shared 并替换内联字符串（DEVICE_OFFLINE/endpoint_unavailable 字面值不变保 P0 兼容）；verify-p1-rt-phase2.ts 真实 DB 13 passed/0 failed/0 skip；Phase 1 回归 12 passed/0 failed/1 skip；packages/shared + apps/web tsc exit 0 |
+| 2026-05-29 | P1-RT-PHASE3 | **Phase 3 execute + 验收完成**（ralph-20260529-220000）：自建 docker compose 栈（postgres:15.3+redis:7.2+node worker 官方镜像）+ redis-client 封装（enqueue/dequeue BRPOP/pub-sub/cancel 控制键）+ RuntimeExecutor 接口/FakeExecutor 流式 + worker processJob 状态机（running→completed/cancelled/failed，落 runtime_sessions/runtime_logs seq）+ gateway public_cloud 分支接入队列+订阅事件流转 SSE + cancelRuntimeSession（REDIS 未配保留 endpoint_unavailable 占位，user_local 未改）；verify-p1-rt-phase3.ts 真实 Postgres+Redis 16 passed/0 failed/0 skip（调度/流式/落库+seq/取消/失败 5 类语义）；Phase 2 回归 13 passed/0 failed/0 skip；apps/web tsc exit 0；compose config exit 0；banned-platform 扫描 clean；review verdict=PASS（critical/high=0） |

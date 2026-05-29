@@ -11,6 +11,7 @@ export class HostedRuntimeAdapter {
     sessionId: string
     executionDomain: ExecutionDomain
     workspaceId: string
+    userMessage?: string
   }): AsyncGenerator<RuntimeGatewayEvent> {
     const endpoint = await resolveEndpoint({
       userId: input.userId,
@@ -20,7 +21,7 @@ export class HostedRuntimeAdapter {
     const runtimeSession = await createSession({ sessionId: input.sessionId, endpoint })
 
     let seq = 0
-    for await (const event of invoke({ userId: input.userId, runtimeSession })) {
+    for await (const event of invoke({ userId: input.userId, runtimeSession, userMessage: input.userMessage })) {
       await persistRuntimeEvent(runtimeSession.id, event, seq++)
       yield event
     }

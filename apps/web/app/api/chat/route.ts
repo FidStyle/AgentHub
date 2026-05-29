@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
           sessionId,
           executionDomain: ws.execution_domain,
           workspaceId: ws.id,
+          userMessage: content,
         })) {
           controller.enqueue(encode(evt))
         }

@@ -771,6 +771,27 @@
       "harvested": false,
       "created_at": "2026-05-29T12:17:16.486Z",
       "completed_at": "2026-05-29T12:17:16.487Z"
+    },
+    {
+      "id": "ANL-20260529-p3-public-cloud-pool",
+      "type": "analyze",
+      "scope": "phase",
+      "milestone": "P1-RT",
+      "phase": 3,
+      "path": "scratch/20260529-analyze-P3-03-public-cloud-pool",
+      "status": "completed",
+      "created_at": "2026-05-29T14:10:00Z"
+    },
+    {
+      "id": "PLN-20260529-p3-public-cloud-pool",
+      "type": "plan",
+      "scope": "phase",
+      "milestone": "P1-RT",
+      "phase": 3,
+      "path": "scratch/20260529-plan-P3-03-public-cloud-pool",
+      "status": "completed",
+      "created_at": "2026-05-29T14:20:00Z",
+      "analyze_ref": "ANL-20260529-p3-public-cloud-pool"
     }
   ],
   "last_updated": "2026-05-29T10:11:21Z",

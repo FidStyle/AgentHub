@@ -1,0 +1,70 @@
+import { createClient } from '../lib/app-db-client'
+import { FakeExecutor, type RuntimeExecutor } from '../lib/runtime/executor'
+import { dequeue, publishEvent, isCancelled, type RuntimeJob } from '../lib/runtime/redis-client'
+
+type Terminal = 'completed' | 'cancelled' | 'failed'
+
+async function setStatus(runtimeSessionId: string, status: string, terminal = false): Promise<void> {
+  if (!runtimeSessionId) return
+  const db = await createClient()
+  const patch: Record<string, unknown> = { status }
+  if (status === 'running') patch.started_at = new Date().toISOString()
+  if (terminal) patch.completed_at = new Date().toISOString()
+  await db.from('runtime_sessions').update(patch).eq('id', runtimeSessionId)
+}
+
+async function log(runtimeSessionId: string, eventType: string, payload: Record<string, unknown>, seq: number): Promise<void> {
+  if (!runtimeSessionId) return
+  const db = await createClient()
+  await db.from('runtime_logs').insert({ runtime_session_id: runtimeSessionId, event_type: eventType, payload, seq })
+}
+
+// Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.
+// Each step persists to runtime_logs (seq) + publishes to redis for gateway relay. Exported for tests.
+export async function processJob(job: RuntimeJob, executor: RuntimeExecutor = new FakeExecutor()): Promise<Terminal> {
+  const id = job.runtimeSessionId
+  let seq = 0
+  const emit = async (event: Record<string, unknown>) => {
+    await log(id, String(event.type), event, seq++)
+    await publishEvent(id, event)
+  }
+
+  await setStatus(id, 'running')
+  await emit({ type: 'runtime_status', status: 'running', endpointId: job.endpointId })
+
+  try {
+    for await (const chunk of executor.execute({ prompt: job.prompt, fail: job.fail })) {
+      if (await isCancelled(id)) {
+        await setStatus(id, 'cancelled', true)
+        await emit({ type: 'runtime_cancelled', endpointId: job.endpointId, reason: 'cancelled by request' })
+        return 'cancelled'
+      }
+      await emit({ type: 'runtime_output', delta: chunk.delta, endpointId: job.endpointId })
+    }
+  } catch (err) {
+    await setStatus(id, 'failed', true)
+    await emit({ type: 'runtime_failed', endpointId: job.endpointId, error: err instanceof Error ? err.message : String(err) })
+    return 'failed'
+  }
+
+  await setStatus(id, 'completed', true)
+  await emit({ type: 'runtime_completed', endpointId: job.endpointId, summary: 'done' })
+  return 'completed'
+}
+
+async function main(): Promise<void> {
+  console.log('[runtime-worker] started, consuming queue...')
+  while (true) {
+    const job = await dequeue(5)
+    if (!job) continue
+    try {
+      await processJob(job)
+    } catch (err) {
+      console.error('[runtime-worker] job error', err)
+    }
+  }
+}
+
+if (process.argv[1] && process.argv[1].endsWith('runtime-worker.ts')) {
+  void main()
+}

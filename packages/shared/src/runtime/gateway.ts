@@ -20,3 +20,7 @@ export type RuntimeGatewayEvent =
   | { type: 'local_runtime_offline'; endpointId?: string; deviceId?: string }
   | { type: 'tunnel_connected'; endpointId: string; deviceId: string }
   | { type: 'tunnel_disconnected'; endpointId: string; deviceId: string }
+  | { type: 'runtime_output'; delta: string; endpointId?: string }
+  | { type: 'runtime_completed'; endpointId?: string; summary?: string }
+  | { type: 'runtime_failed'; endpointId?: string; error: string }
+  | { type: 'runtime_cancelled'; endpointId?: string; reason?: string }

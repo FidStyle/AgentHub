@@ -4,6 +4,7 @@ import { RuntimeErrorCode } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { getChannelByDevice, markChannelConnected } from './device-channel-store'
+import { enqueue, subscribeEvents, setCancel } from './redis-client'
 
 type EndpointKind = 'public_cloud' | 'user_local'
 type EndpointStatus = 'available' | 'offline' | 'unconfigured'
@@ -109,6 +110,7 @@ async function setSessionStatus(runtimeSessionId: string, status: string): Promi
 export async function* invoke(input: {
   userId: string
   runtimeSession: RuntimeSessionRecord
+  userMessage?: string
 }): AsyncGenerator<RuntimeGatewayEvent> {
   const { endpoint } = input.runtimeSession
   const endpointId = endpoint.id ?? undefined
@@ -116,15 +118,29 @@ export async function* invoke(input: {
   yield { type: 'gateway_connected', endpointId: endpoint.id ?? '' }
 
   if (endpoint.kind === 'public_cloud') {
-    // Provider deployment (D-003) deferred — endpoint stays unconfigured. No fake assistant success.
-    yield { type: 'public_runtime_available', available: false, endpointId }
-    yield { type: 'runtime_status', status: RuntimeErrorCode.ENDPOINT_UNAVAILABLE, endpointId }
-    yield {
-      type: 'endpoint_unavailable',
-      endpointId,
-      reason: '公共云端 Runtime 尚未配置，请稍后再试或切换到本地 Desktop 运行时',
+    // public_cloud routes through the self-hosted gateway worker pool (D-003). When Redis is
+    // unreachable the endpoint stays unconfigured — no fake assistant success.
+    if (!process.env.REDIS_URL) {
+      yield { type: 'public_runtime_available', available: false, endpointId }
+      yield { type: 'runtime_status', status: RuntimeErrorCode.ENDPOINT_UNAVAILABLE, endpointId }
+      yield {
+        type: 'endpoint_unavailable',
+        endpointId,
+        reason: '公共云端 Runtime 尚未配置，请稍后再试或切换到本地 Desktop 运行时',
+      }
+      await setSessionStatus(input.runtimeSession.id, 'failed')
+      return
     }
-    await setSessionStatus(input.runtimeSession.id, 'failed')
+
+    yield { type: 'public_runtime_available', available: true, endpointId }
+    await enqueue({
+      runtimeSessionId: input.runtimeSession.id,
+      endpointId: endpoint.id ?? undefined,
+      prompt: input.userMessage ?? '',
+    })
+    for await (const raw of subscribeEvents(input.runtimeSession.id)) {
+      yield raw as RuntimeGatewayEvent
+    }
     return
   }
 
@@ -147,4 +163,8 @@ export async function* invoke(input: {
   await markChannelConnected(conn.deviceId, endpoint.id ?? undefined)
   yield { type: 'tunnel_connected', endpointId: endpoint.id ?? '', deviceId: conn.deviceId }
   yield { type: 'runtime_status', status: 'tunnel_ready', endpointId }
+}
+
+export async function cancelRuntimeSession(runtimeSessionId: string): Promise<void> {
+  await setCancel(runtimeSessionId)
 }
