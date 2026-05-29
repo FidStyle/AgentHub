@@ -1,0 +1,137 @@
+# AgentHub
+
+## 安装
+
+```bash
+pnpm install
+```
+
+## 本地数据库
+
+启动 P0 本地 Postgres：
+
+```bash
+pnpm env:p0:db:up
+```
+
+初始化 schema / seed：
+
+```bash
+pnpm env:p0:seed
+```
+
+空库需要测试 fixture 时：
+
+```bash
+pnpm env:p0:seed:fixture
+```
+
+停止数据库：
+
+```bash
+pnpm env:p0:db:down
+```
+
+更多数据库说明见 `docker/README.md`。
+
+## Dev 开发
+
+只启动 Web / 手机端 PWA：
+
+```bash
+pnpm dev:web
+```
+
+访问：
+
+```text
+http://localhost:3000
+```
+
+同时启动 Web 后端和 Electron 桌面端：
+
+```bash
+pnpm dev:desktop
+```
+
+桌面端开发渲染页默认是：
+
+```text
+http://localhost:5173
+```
+
+单独启动桌面端开发应用：
+
+```bash
+pnpm --filter @agenthub/desktop dev:app
+```
+
+## Release 构建
+
+构建 Web：
+
+```bash
+pnpm release:web
+```
+
+构建 macOS 桌面端目录版：
+
+```bash
+pnpm release:desktop:mac
+```
+
+一次性构建 Web 和 macOS 桌面端：
+
+```bash
+pnpm release:local
+```
+
+macOS 桌面端产物位置：
+
+```text
+apps/desktop/release/mac-arm64/AgentHub.app
+```
+
+构建 macOS DMG：
+
+```bash
+pnpm --filter @agenthub/desktop dist:mac:dmg
+```
+
+## 检查和测试
+
+类型检查：
+
+```bash
+pnpm type-check
+```
+
+Lint：
+
+```bash
+pnpm lint
+```
+
+单元测试：
+
+```bash
+pnpm test
+```
+
+E2E：
+
+```bash
+pnpm test:e2e
+```
+
+桌面端 E2E：
+
+```bash
+pnpm test:e2e:desktop
+```
+
+P0 API smoke：
+
+```bash
+pnpm env:p0:smoke
+```
