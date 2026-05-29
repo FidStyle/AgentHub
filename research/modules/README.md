@@ -86,7 +86,7 @@ future apps/mobile-native
 
 1. 三端壳：Next.js + Electron + PWA；后续 Android App 用 Capacitor 包装。
 2. UI 设计系统：`shadcn/ui + Tailwind CSS 4 + lucide-react`，视觉 E2E 使用 Playwright browser projects 与 Playwright Electron 分端覆盖。
-3. Auth/DB/Realtime：P0 使用 external BaaS 作为基础设施。
+3. Auth/DB/Realtime：P0 使用 Auth.js v5 + 自建 Postgres；不依赖 Supabase/Neon 等包装型托管平台。
 4. Desktop 通道：`DeviceChannel` 作为接口，P0 直接使用 WebSocket 实现。
 5. Runtime Gateway / Adapter：P1 起 Cloud Runtime Gateway 是必需实体；public_cloud 官方 runtime 池和 user_local Desktop 本地 runtime 都必须经 Gateway 暴露。Claude Code/Codex 本地执行仍走 CLI 子进程，不用普通 API 模拟。
 6. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。

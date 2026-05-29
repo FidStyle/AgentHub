@@ -140,12 +140,9 @@ importers:
       '@auth/drizzle-adapter':
         specifier: ^1.11.2
         version: 1.11.2
-      '@neondatabase/serverless':
-        specifier: ^1.1.0
-        version: 1.1.0
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@neondatabase/serverless@1.1.0)(pg@8.21.0)
+        version: 0.45.2(pg@8.21.0)
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.6)
@@ -6598,8 +6595,6 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@neondatabase/serverless@1.1.0': {}
-
   '@next/env@15.5.18': {}
 
   '@next/swc-darwin-arm64@15.5.18':
@@ -7847,9 +7842,8 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
-  drizzle-orm@0.45.2(@neondatabase/serverless@1.1.0)(pg@8.21.0):
+  drizzle-orm@0.45.2(pg@8.21.0):
     optionalDependencies:
-      '@neondatabase/serverless': 1.1.0
       pg: 8.21.0
 
   dunder-proto@1.0.1:

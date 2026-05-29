@@ -9,7 +9,7 @@
 | 任务 ID | P1-RUNTIME-GATEWAY（里程碑 P1-RT，Phase 1） |
 | 权威合同 | `research/contracts/P1-RUNTIME-GATEWAY.md` + `.trellis/spec/cross-layer/runtime-gateway-contract.md` |
 | 计划 | `PLN-20260529-p1-rt-gateway-phase1`（4 tasks / 2 waves） |
-| 范围 | Gateway contract + DB 模型 + routing/event semantics；**不要求真实 provider 部署**（D-003 → Phase 3） |
+| 范围 | Gateway contract + DB 模型 + routing/event semantics；**不要求真实 public_cloud worker 部署**（D-003 已决策为自建，Phase 3 实现） |
 | 最终状态 | ✅ 全部完成，验证通过，review verdict=PASS |
 
 ## 交付物
@@ -33,7 +33,7 @@
 
 ## 边界遵守
 
-- 未触及真实 provider 部署（D-003 deferred → Phase 3）。
+- 未触及真实 public_cloud worker 部署（D-003 已决策为自建，Phase 3 实现）。
 - 未改 Desktop RuntimeHost / StreamAdapter / DeviceChannel 主链路。
 - 未 ALTER/DROP 任何 P0 表。
 
@@ -41,4 +41,4 @@
 
 - Phase 1 仅 1 个 low finding：endpoint.id 为 null 时 connected 事件 endpointId 落为空串（语义可接受）。
 - /api/chat 端到端 SSE 断言需运行 dev server + TEST_AUTH_COOKIE，正式 completion gate 前可补齐。
-- Phase 2：Desktop local runtime tunnel 接入 gateway；Phase 3：public_cloud 池部署基座选型（D-003）。
+- Phase 2：Desktop local runtime tunnel 接入 gateway；Phase 3：自建 public_cloud runtime worker/pool 实现。

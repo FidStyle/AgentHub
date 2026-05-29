@@ -7,7 +7,7 @@
 - 触发条件：`FR-RUNTIME-001`、`FR-DEVICE-001`、`FR-DESK-001`、`FR-MOB-001` 涉及 Runtime 执行、Web/Mobile 访问用户本地 Runtime、或 public cloud Runtime 池。
 - 权威产品合同：`research/contracts/P1-RUNTIME-GATEWAY.md`。
 - Cloud Runtime Gateway 是必需实体，不是 optional provider。它统一承载 `public_cloud` 与 `user_local` runtime endpoint。
-- D-003 只决定 public cloud runtime 池的部署基座（Modal/Fly/自建/其他），不决定 Gateway 是否存在。
+- D-003 已决策为全部自建：public cloud runtime 池、Cloud Gateway、DB、cache 均使用官方镜像或开源实现自部署；不采用 Supabase/Fly/Neon/Upstash 等包装平台。
 
 ### 2. Signatures
 
@@ -66,7 +66,7 @@ DB tables for P1 foundation:
 - `user_local` endpoint means a user's Desktop local runtime exposed through Gateway relay/tunnel.
 - Desktop may start a local child process or listen on a local port, but remote clients can only access it through Gateway and authenticated DeviceChannel/tunnel.
 - HostedRuntimeAdapter must be implemented as Gateway client/contract boundary. It must not bypass Gateway by hardcoding a provider-specific service.
-- Provider deployment can be unconfigured while Gateway contracts, DB records, and error events still work.
+- Self-hosted public runtime deployment can be unconfigured while Gateway contracts, DB records, and error events still work.
 
 ### 4. Validation & Error Matrix
 
@@ -75,13 +75,13 @@ DB tables for P1 foundation:
 | `cloud` workspace has no configured `public_cloud` endpoint | Emit `endpoint_unavailable` plus `runtime_status`; do not return fake assistant success |
 | `local_desktop` workspace has no connected Desktop tunnel | Emit `local_runtime_offline`; preserve `DEVICE_OFFLINE` compatibility while P0 tests depend on it |
 | Web/Mobile attempts to store or use local IP/port for runtime | Reject or ignore; runtime route must use `endpointId` |
-| Runtime provider is not selected for public pool | Store endpoint as `unconfigured`; do not block Gateway schema/routing work |
+| Self-hosted public runtime worker is not deployed yet | Store endpoint as `unconfigured`; do not block Gateway schema/routing work |
 | Runtime event contains credentials or local env secrets | Redact before persistence |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: Web sends `/api/chat`; backend creates a `runtime_sessions` row, routes to Gateway, emits `gateway_connected`, then routes to `public_cloud` or `user_local`.
-- Base: public runtime provider is not configured; request persists a runtime session/log and emits `endpoint_unavailable` with a Chinese user-facing next step.
+- Base: self-hosted public runtime worker is not deployed; request persists a runtime session/log and emits `endpoint_unavailable` with a Chinese user-facing next step.
 - Bad: `HostedRuntimeAdapter` returns a hardcoded assistant message or `minimal_adapter` text and claims runtime execution succeeded.
 - Bad: Mobile connects directly to a Desktop localhost URL or stores a user's private IP/port as the runtime target.
 

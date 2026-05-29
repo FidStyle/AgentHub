@@ -13,7 +13,7 @@
 原 `analyze:ANL-20260529-p1-runtime` + `PLN-20260529-p1-runtime` 假设：
 
 - HostedRuntimeAdapter 直接连接「某个真实云端 runtime 服务」
-- CloudRuntimeAdapter 作为「optional provider」，选型（Modal/Fly/自建）= D-003 deferred
+- CloudRuntimeAdapter 作为「optional provider」，选型（Modal/Fly/自建）= D-003 deferred（旧模型，已废弃）
 - Web/Mobile 与 runtime 的关系是「adapter 直连服务」
 
 该模型缺失了一个**必需中间实体**，导致 user_local（本地 Desktop runtime）无法被 Web/Mobile 访问。
@@ -35,12 +35,12 @@
           └──────────┼─────────────────────┼─────────────┘
                      │                      │ tunnel (现有 /ws/device)
               官方公共 runtime         ┌────▼─────────────┐
-              （部署基座 = D-003）      │ Desktop 本地 runtime │
+              （自建 Gateway/worker）   │ Desktop 本地 runtime │
                                        │ 监听本地端口      │
                                        └──────────────────┘
 ```
 
-- **`public_cloud`**：AgentHub 官方公共 runtime 池（Claude Code / Codex 等）。部署基座选型 = D-003。
+- **`public_cloud`**：AgentHub 官方公共 runtime 池（Claude Code / Codex 等）。部署基座固定为自建 Gateway / worker；不使用 Modal/Fly/Supabase/Neon/Upstash 等包装平台。
 - **`user_local`**：用户自己的 Desktop 本地 runtime，**通过 cloud gateway relay/tunnel** 暴露给 Web/Mobile。
 - **Web/Mobile 永不直连本地端口**，统一请求 Cloud Runtime Gateway。
 - **Desktop 本地 runtime 监听本地端口**，但通过云端 gateway 建立 device/channel/tunnel（现有 `/ws/device` WebSocket 即此 tunnel 的雏形）。
@@ -53,7 +53,7 @@
 | user_local tunnel（device channel） | `apps/web/server/ws-gateway.ts` + `apps/web/server/device-connections.ts`（`/ws/device`） | ✅ 雏形已存在（auth/heartbeat/runtime_invoke/runtime_cancel frame relay） |
 | Web→gateway 调用入口 | `apps/web/lib/device-gateway-client.ts`（`sendRuntimeInvoke`/`sendRuntimeCancel`） | ✅ 部分存在（仅 user_local 方向） |
 | `/api/chat` 路由 | `apps/web/app/api/chat/route.ts`（`execution_domain === 'local_desktop'` → DEVICE_OFFLINE stub；cloud → HostedRuntimeAdapter stub） | ⚠️ 两路都是 stub |
-| public_cloud runtime 池 | 无 | ❌ 不存在（D-003 部署基座选型） |
+| public_cloud runtime 池 | 无 | ❌ 不存在（D-003 已决策为自建，待 Phase 3 实现） |
 | HostedRuntimeAdapter | `apps/web/lib/runtime/hosted-adapter.ts`（minimal stub） | ⚠️ 应重定义为 **Gateway 客户端契约**，而非「直连服务」 |
 | runtime endpoint / session / tunnel DB | 无 | ❌ 不存在 |
 
@@ -100,7 +100,7 @@
 |-------|------|----------|------------|
 | **Phase 1** | Cloud Runtime Gateway **contract + DB model + routing/event semantics**。HostedRuntimeAdapter 重定义为 gateway 客户端；`/api/chat` 按 endpoint 路由；runtime_endpoints/sessions/logs/channels/capabilities 落库；事件语义统一。**不要求真实部署平台。** | ✅ 可执行（无需 D-003） | 不阻塞 |
 | **Phase 2** | Desktop local runtime tunnel/channel 正式接入 gateway（复用 `/ws/device`）；`device_runtime_channels` 持久化；`local_runtime_offline`/`tunnel_*` 事件闭环；错误码统一。 | ✅ 可执行（依赖 Phase 1 schema/事件） | 不阻塞 |
-| **Phase 3** | public cloud runtime pool/provider 部署基座选型与实现。 | ⏸ blocked | **依赖 D-003** |
+| **Phase 3** | 自建 public_cloud runtime pool / worker 实现。 | ✅ 可规划 | D-003 已决策为自建 |
 
 ### Phase 1 验收标准（revised，可执行）
 
@@ -109,17 +109,19 @@
 3. `/api/chat` 按 workspace `execution_domain` / selected endpoint 路由到 gateway 逻辑；user_local 走现有 device relay，cloud 走 public_cloud 占位路由。
 4. RuntimeEvent / gateway 事件语义统一（§3 事件全部定义在 shared 协议）。
 5. type-check 通过；`/api/chat` 集成测试覆盖新路由 + 事件 + runtime_sessions 落库；DB 迁移幂等性验证。
-6. **不跨越**：真实 cloud provider 部署（D-003）、Desktop 进程管理主链路改写。
+6. **不跨越**：真实 public_cloud worker 部署、Desktop 进程管理主链路改写。
 
 ---
 
-## 5. D-003 重定义
+## 5. D-003 决策
 
 | | 旧 | 新（修订） |
 |--|----|-----------|
-| D-003 问题 | 「是否需要 cloud provider」/「Cloud runtime 服务选型 Modal/Fly/自建」 | **「Cloud Gateway 部署基座选型：Modal / Fly / 自建 / 其他」** |
+| D-003 问题 | 「是否需要 cloud provider」/「Cloud runtime 服务选型 Modal/Fly/自建」 | **全部自建：Cloud Gateway / runtime worker / DB / cache 使用官方镜像或开源实现自部署** |
 | Cloud Gateway 本身 | （未建模） | **必需实体，不再 deferred** |
-| deferred 范围 | 整个 cloud adapter | 仅 **public_cloud runtime 池的部署基座**（Phase 3） |
+| deferred 范围 | 整个 cloud adapter | 不再做托管平台选型；Phase 3 直接实现自建 public_cloud worker/pool |
+
+用户决策（2026-05-29）：AgentHub 不依赖 Supabase/Fly/Neon/Upstash 等包装平台。PostgreSQL 使用自建 Postgres（本地 Docker 或自管服务器），Redis 使用官方 Redis 或开源替代自部署，public_cloud Runtime 使用自建 Gateway / worker。
 
 ---
 

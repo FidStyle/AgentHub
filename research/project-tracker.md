@@ -114,11 +114,11 @@
 | **合同路径** | `research/contracts/P1-RUNTIME-GATEWAY.md`（权威，revised）；`.workflow/scratch/20260529-analyze-p1-runtime/conclusions.json`（旧模型，已被合同取代） |
 | **当前状态** | 🔄 **架构修订完成（2026-05-29），止步于 revised plan**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），非 optional provider；旧「直连真实服务」模型作废。**不进入 execute**，等待确认 |
 | **目标** | Cloud Runtime Gateway 统一承载 public_cloud + user_local 两类 endpoint；Web/Mobile 统一经 gateway，不直连本地端口；DB 状态记录 + 统一事件语义 |
-| **方案摘要** | 修订为 3 phase：P1 = Gateway contract + DB model（runtime_endpoints/sessions/logs/device_runtime_channels/capabilities）+ routing/event semantics，可执行不要求真实部署；P2 = Desktop local runtime tunnel 接入 gateway；P3 = public_cloud 池部署基座选型（D-003） |
+| **方案摘要** | 修订为 3 phase：P1 = Gateway contract + DB model（runtime_endpoints/sessions/logs/device_runtime_channels/capabilities）+ routing/event semantics；P2 = Desktop local runtime tunnel 接入 gateway；P3 = 自建 public_cloud runtime 池 / worker 实现 |
 | **验收方式** | 本阶段：架构合同 + roadmap + tracker + report 同步；execute（未启动）按各 phase Success Criteria（见合同 §4） |
 | **测试证据** | 架构合同 `research/contracts/P1-RUNTIME-GATEWAY.md`；roadmap M:P1-RT 已修订；execution-report `research/execution-reports/p1-rt-gateway-revised-plan-report.md`；现有 gateway 雏形 `apps/web/server/ws-gateway.ts` + `device-connections.ts`（`/ws/device`） |
-| **阻塞问题** | **D-003 重定义**：从「是否需要 cloud provider」改为「Cloud Gateway 部署基座选型 Modal/Fly/自建/其他」，仅 public_cloud 池部署（Phase 3）deferred；Gateway 实体本身不再 deferred |
-| **下一步动作** | 用户确认修订后架构模型 + Phase 1 范围 → 之后 `/maestro-plan` 细化 Phase 1（Gateway contract + DB + 路由/事件）进入 execute；Phase 3 待 D-003 部署基座决策 |
+| **阻塞问题** | D-003 ✅ 已决策：全部自建，禁止 Supabase/Fly/Neon/Upstash 等包装平台作为产品依赖 |
+| **下一步动作** | Phase 3：自建 public_cloud runtime 池 / worker 实现规划；不再做托管平台选型 |
 
 ---
 
@@ -134,8 +134,8 @@
 | **目标** | Cloud Runtime Gateway 统一承载 public_cloud + user_local 两类 endpoint；Web/Mobile 统一经 gateway 不直连本地端口；DB 状态记录 + 统一事件语义；本阶段不要求真实 provider 部署 |
 | **验收方式** | type-check exit 0；DB 迁移幂等性验证 PASS；/api/chat 集成测试覆盖新路由/事件/落库；review verdict != BLOCK；治理门禁 P1-RUNTIME-GATEWAY |
 | **测试证据** | `apps/web/scripts/verify-p1-runtime-gateway.ts` 对真实 DB **12 passed / 0 failed / 1 skip(PASS)**（DB 二次 apply 幂等 exit 0 + 5 表存在 + P0 sessions/messages 不变 + isLocalNetworkTarget 安全 6/6）；落库 probe 写 runtime_sessions/runtime_logs 读回成功且 secret 脱敏；packages/shared + apps/web tsc exit 0；review.json verdict=PASS（critical/high/medium=0）；execution-report `research/execution-reports/p1-runtime-gateway-phase1-execution-report.md` |
-| **阻塞问题** | 无（Phase 1 范围内）；public_cloud 池部署基座选型 D-003 属 Phase 3 |
-| **下一步动作** | Phase 2：Desktop local runtime tunnel 接入 gateway；Phase 3：D-003 部署基座决策后 public_cloud 池部署 |
+| **阻塞问题** | 无（Phase 1 范围内）；D-003 已决策为自建，public_cloud 池自建实现属 Phase 3 |
+| **下一步动作** | Phase 2：Desktop local runtime tunnel 接入 gateway；Phase 3：自建 public_cloud 池 / worker 实现 |
 
 ---
 
@@ -151,8 +151,8 @@
 | **目标** | Desktop local runtime tunnel 复用 /ws/device + device-connections in-memory relay，把 user_local endpoint 的 tunnel/channel 状态接入 device_runtime_channels，打通 local_runtime_offline/tunnel_connected/tunnel_disconnected 事件闭环，统一 RuntimeErrorCode；不改 Desktop 主进程执行模型，不连真实部署平台 |
 | **验收方式** | type-check exit 0（packages/shared + apps/web）；Phase 2 集成测试覆盖 device_runtime_channels 落库读回 + tunnel 生命周期事件 PASS；P0/Phase 1 回归不破；治理门禁 P1-RT-PHASE2 exit 0 |
 | **测试证据** | `apps/web/scripts/verify-p1-rt-phase2.ts` 对真实 DB **13 passed / 0 failed / 0 skip（status=PASS）**：RuntimeErrorCode 字面值一致（DEVICE_OFFLINE/endpoint_unavailable/tunnel_disconnected/public_runtime_unconfigured）+ markChannelConnected→connected 行读回 + markChannelDisconnected→disconnected 且保留 connected_at + invoke 曾连接后断开 emit tunnel_disconnected + 从未连接 emit local_runtime_offline（均仍 emit runtime_status=DEVICE_OFFLINE，P0 兼容）；回归 `verify-p1-runtime-gateway.ts` 12 passed/0 failed/1 skip；packages/shared + apps/web tsc exit 0；execution-report `research/execution-reports/p1-rt-phase2-execution-report.md` |
-| **阻塞问题** | 无（Phase 2 范围内）；public_cloud 池部署基座选型 D-003 属 Phase 3，本阶段未触及 |
-| **下一步动作** | Phase 3：D-003 部署基座决策后 public_cloud 池部署；Desktop 主进程 RuntimeHost/StreamAdapter 执行模型为后续独立范围 |
+| **阻塞问题** | 无（Phase 2 范围内）；D-003 已决策为自建，public_cloud 池自建实现属 Phase 3，本阶段未触及 |
+| **下一步动作** | Phase 3：自建 public_cloud runtime 池 / worker 实现；Desktop 主进程 RuntimeHost/StreamAdapter 执行模型为后续独立范围 |
 
 ---
 
@@ -185,6 +185,7 @@
 | 2026-05-29 | UI-ALIGN-001 | 闭环：critique→refine→polish→audit 全链完成；commits beb9825 + 1fe7b7d；audit 15/20 PASS；type-check 通过；P0 数据链路未受影响；P1 a11y gaps 残留 |
 | 2026-05-29 | P0-END-TO-END-PRODUCT-FLOW | mobile-pwa.spec.ts fixture 迁移完成：Supabase cookie → Auth.js ensureP0StorageState；4/4 tests PASS |
 | 2026-05-29 | P1-RT | Agent Runtime 规划完成（ralph-20260529-150000）：analyze→scope-gate→roadmap→plan 全链；scope_verdict=large；7 tasks/3 waves；**止步 plan**（跨三子系统，按约束不 execute） |
-| 2026-05-29 | P1-RT | **架构修订（revised plan，止步未 execute）**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），非 optional provider。新增架构合同 `P1-RUNTIME-GATEWAY.md`；roadmap M:P1-RT 重写为 Gateway 模型（public_cloud + user_local 两类 endpoint）；D-003 从「是否需 provider」重定义为「Gateway 部署基座选型」，Gateway 实体不再 deferred；Phase 1 改为 contract+DB+routing/event，可执行不要求真实部署 |
+| 2026-05-29 | P1-RT | **架构修订（revised plan，止步未 execute）**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），非 optional provider。新增架构合同 `P1-RUNTIME-GATEWAY.md`；roadmap M:P1-RT 重写为 Gateway 模型（public_cloud + user_local 两类 endpoint）；D-003 从「是否需 provider」重定义为「全部自建」，Gateway 实体不再 deferred；Phase 1 改为 contract+DB+routing/event，可执行不要求真实部署 |
+| 2026-05-29 | P1-RT | **基础设施自建决策**：Postgres 使用官方镜像/自管部署，Redis 使用官方 Redis 或开源替代自部署，Runtime Gateway/worker 自建；禁止 Supabase/Fly/Neon/Upstash 等包装平台作为产品依赖 |
 | 2026-05-29 | P1-RUNTIME-GATEWAY | **Phase 1 execute + 验收完成**（ralph-20260529-170344）：shared 7 事件类型 + 5 张 gateway 表幂等迁移（P0 不变）+ gateway 抽象（去 minimal_adapter）+ /api/chat 按 endpoint 路由 + session 落库；verify-p1-runtime-gateway.ts 真实 DB 12 passed/0 failed/1 skip；落库 probe 读回 + secret 脱敏；tsc exit 0；review verdict=PASS（critical/high/medium=0）；治理门禁覆盖 |
 | 2026-05-29 | P1-RT-PHASE2 | **Phase 2 execute + 验收完成**（ralph-20260529-194146）：device-channel-store 连接生命周期单点 upsert device_runtime_channels（ws-gateway addConnection/close/心跳超时 hook）+ gateway invoke user_local 分支 tunnel 事件闭环（tunnel_connected/tunnel_disconnected/local_runtime_offline，曾连接后断开经 channel.connected_at 判定）+ RuntimeErrorCode 集中 packages/shared 并替换内联字符串（DEVICE_OFFLINE/endpoint_unavailable 字面值不变保 P0 兼容）；verify-p1-rt-phase2.ts 真实 DB 13 passed/0 failed/0 skip；Phase 1 回归 12 passed/0 failed/1 skip；packages/shared + apps/web tsc exit 0 |

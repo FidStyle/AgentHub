@@ -339,7 +339,7 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 | 1 | Scope | P1 Agent Runtime 三子系统完整部署 | macro analyze conclusions |
 | 2 | Strategy | Progressive — Phase 1 解除 /api/chat stub 限制优先 | conclusions.recommendation |
 | 3 | Phase 拆分 | 3 phase（HostedRuntimeAdapter / Desktop 增强 / Cloud Adapter） | conclusions.subsystems |
-| 4 | 凭证边界 | Cloud runtime 服务选型 deferred 到 Phase 3 plan | D-003 |
+| 4 | 基础设施边界 | Cloud runtime / DB / cache 等基础设施默认自建，不依赖 Supabase/Fly/Neon/Upstash 等包装平台 | D-003 |
 | 5 | 不回改 | P0-END-TO-END / UI-ALIGN-001 / mobile fixture 已 closeout | boundary_contract |
 
 ## Milestone: P1-RT — Cloud Runtime Gateway（架构修订 Revised）
@@ -349,7 +349,7 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 > 本 milestone 止步于 **revised plan/recommendation**，等待确认后再 execute。
 
 **核心模型**：Cloud Runtime Gateway 统一承载两类 runtime endpoint：
-- `public_cloud`：AgentHub 官方公共 runtime 池（部署基座 = D-003）
+- `public_cloud`：AgentHub 官方公共 runtime 池（部署基座 = 自建 Gateway / worker）
 - `user_local`：用户 Desktop 本地 runtime，经 gateway relay/tunnel 暴露（复用现有 `/ws/device`）
 
 Web/Mobile 永不直连本地端口，统一请求 gateway；`/api/chat` 按 endpoint 路由 → gateway 决定 public_cloud 还是转发 user_local。
@@ -375,18 +375,18 @@ Web/Mobile 永不直连本地端口，统一请求 gateway；`/api/chat` 按 end
   3. 统一 RuntimeErrorCode 枚举（替代 Desktop exitCode 数字 + Web 'DEVICE_OFFLINE' 字符串），向后兼容
   4. 集成/E2E 验证 tunnel 状态 + 错误码
 
-##### Phase 3: public cloud runtime pool 部署基座选型与实现
-**Goal**: public_cloud runtime 池的部署基座选型与真实实现
+##### Phase 3: 自建 public cloud runtime pool 实现
+**Goal**: public_cloud runtime 池在自建 Gateway / worker 基座上的真实实现
 **Depends on**: Phase 1（gateway 契约统一）
-**Open Decision (D-003)**: **Cloud Gateway 部署基座选型：Modal / Fly / 自建 / 其他** — 进入 Phase 3 plan 前需用户决策
+**Decision (D-003)**: **全部自建** — 不采用 Modal/Fly 等托管运行平台；Postgres/Redis 等基础设施使用官方镜像或开源实现自部署
 **Success Criteria**:
-  1. public_cloud runtime 池连接选定部署基座
+  1. public_cloud runtime 池连接自建 Gateway / worker 基座
   2. 凭证边界隔离 + 超时/重试策略
   3. E2E 或集成测试覆盖（需 staging 或 mock）
 
 ## Scope Decisions（修订）
 
 - **In scope**: Cloud Runtime Gateway 契约、两类 endpoint 路由、DB 状态记录、统一事件语义、user_local tunnel、错误码
-- **Deferred (D-003)**: 仅 **public_cloud runtime 池的部署基座选型**（Modal/Fly/自建/其他）→ Phase 3
+- **Resolved (D-003)**: public_cloud runtime 池和基础设施走自建路线；Supabase/Fly/Neon/Upstash 等包装平台不进入当前实现路线
 - **不再 deferred**: Cloud Gateway 实体本身（必需）
 - **Out of scope**: P0/UI-ALIGN-001/mobile fixture 已闭环代码；Desktop 本地 RuntimeHost/StreamAdapter/DeviceChannel 进程主链路改写；实际 execute（本 roadmap 止步 revised plan）

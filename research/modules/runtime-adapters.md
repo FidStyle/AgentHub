@@ -61,7 +61,7 @@ OpenCode 这类 Runtime 可能采用 HTTP/SSE server-style 接入。P0 需要在
   - `user_local`：用户自己的 Desktop 本地 Claude Code/Codex Runtime，经 Gateway relay/tunnel 暴露给 Web/Mobile。
 - Web/Mobile 不直连用户本机 IP/端口，也不直接访问 Desktop 本地监听端口；所有 runtime 请求先进入 Gateway。
 - Desktop 本地 Runtime 可以监听本地端口或由 Desktop main 启动子进程，但必须通过 Gateway 建立 device/channel/tunnel 才能被 Web/Mobile 使用。
-- D-003 只阻塞 public_cloud 部署基座选型（Modal/Fly/自建/其他），不阻塞 Gateway 实体、DB 模型和事件语义。
+- D-003 已决策为自建 public_cloud runtime worker/pool；Fly/Modal 等托管运行平台不进入 AgentHub Runtime 路线。该决策不阻塞 Gateway 实体、DB 模型和事件语义。
 
 权威合同：`research/contracts/P1-RUNTIME-GATEWAY.md`。后续实现若与本文旧表述冲突，以该合同为准。
 

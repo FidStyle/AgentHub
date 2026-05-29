@@ -32,7 +32,7 @@
 | user_local 可达性 | 无法被 Web/Mobile 访问 | 经 gateway tunnel relay 暴露 |
 | Web/Mobile→runtime | adapter 直连 | 统一请求 gateway，永不直连本地端口 |
 | HostedRuntimeAdapter | 直连真实服务 | 重定义为 **gateway 客户端契约** |
-| D-003 | 是否需 cloud provider / 服务选型 | **Gateway 部署基座选型**（Modal/Fly/自建/其他），仅 public_cloud 池部署 deferred |
+| D-003 | 是否需 cloud provider / 服务选型 | 当时重定义为 Gateway 部署基座选型；后续已进一步决策为全部自建 |
 | Gateway 实体 | 未建模 | **不再 deferred，是 Phase 1 核心** |
 
 ## 与现有代码的衔接（已核实）
@@ -47,7 +47,7 @@
 
 - **Phase 1**（可执行，无需 D-003）：Gateway contract + DB model（runtime_endpoints / runtime_sessions / runtime_logs / device_runtime_channels / runtime_capabilities）+ routing/event semantics。HostedRuntimeAdapter→gateway 客户端；`/api/chat` 按 endpoint 路由；统一事件语义。**不要求真实部署平台。**
 - **Phase 2**（依赖 P1）：Desktop local runtime tunnel/channel 正式接入 gateway；channel 持久化；错误码统一。
-- **Phase 3**（blocked by D-003）：public cloud runtime 池部署基座选型与实现。
+- **Phase 3**（D-003 后续已决策为自建）：自建 public cloud runtime worker/pool 实现。
 
 详见 `research/contracts/P1-RUNTIME-GATEWAY.md` §2-§5（DB 实体、事件语义、Phase 验收标准、D-003 重定义）。
 
@@ -70,4 +70,6 @@
 
 1. 确认修订后的 Cloud Runtime Gateway 架构模型与 Phase 1 范围。
 2. 确认后 `/maestro-plan` 细化 Phase 1（Gateway contract + DB + 路由/事件语义）→ 进入 execute。
-3. Phase 3 待 D-003「Gateway 部署基座选型」决策。
+3. Phase 3 按 D-003 自建路线规划 public_cloud runtime worker/pool。
+
+> 后续决策（2026-05-29）：D-003 已进一步确认固定为全部自建。AgentHub 不采用 Supabase/Fly/Neon/Upstash 等包装型托管平台作为产品依赖；本报告中的“选型”表述仅保留为历史过程。

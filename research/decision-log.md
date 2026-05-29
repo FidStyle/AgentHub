@@ -115,6 +115,38 @@ AgentHub 必须有 **Cloud Runtime Gateway / Relay** 实体：
 ### 影响
 
 - `research/contracts/P1-RUNTIME-GATEWAY.md` 成为 P1 Runtime 权威合同。
-- D-003 从“是否需要 cloud provider”重定义为“Cloud Gateway 部署基座选型：Modal / Fly / 自建 / 其他”。
+- D-003 从“是否需要 cloud provider”重定义为“全部自建：Cloud Gateway / runtime worker / DB / cache 使用官方镜像或开源实现自部署”。
 - HostedRuntimeAdapter 不再表示“直连某个云端服务”，而是 Gateway 客户端/契约边界。
-- Phase 1 可先实现 Gateway 契约、DB 实体、路由和事件语义；public_cloud 真实部署和 provider 选型进入后续 Phase。
+- Phase 1 可先实现 Gateway 契约、DB 实体、路由和事件语义；public_cloud 自建 worker/pool 实现进入后续 Phase。
+
+---
+
+## DEC-005: 基础设施默认自建，拒绝包装型托管平台依赖
+
+| 字段 | 内容 |
+|------|------|
+| **日期** | 2026-05-29 |
+| **决策者** | joytion |
+| **状态** | ✅ 已确认 |
+| **FR-ID** | FR-RUNTIME-001, FR-DEVICE-001, NFR-SEC-001, NFR-OBS-001 |
+
+### 决策
+
+AgentHub 的核心基础设施默认自建，不使用 Supabase、Fly、Neon、Upstash、Vercel Postgres、PlanetScale、Railway、Render、Firebase、Clerk/Auth0 等包装型托管平台作为产品依赖。
+
+允许的路线：
+
+- PostgreSQL：官方 Postgres 镜像、本地 Docker、自管服务器或自管集群。
+- Redis/cache/queue：官方 Redis 或开源替代产品自部署。
+- Runtime Gateway / worker：AgentHub 自建服务。
+- Auth：Auth.js v5 + GitHub OAuth + 自管 Postgres session。
+
+### 理由
+
+AgentHub 不做依赖别人服务能力的平台。数据库、认证、Runtime、队列和日志都应可由用户或项目方自行部署、迁移和审计。
+
+### 影响
+
+- 新增依赖前必须检查是否为包装型托管平台 SDK。
+- 若只是使用开源协议或官方客户端（例如 `pg`、官方 Redis client），可以接受。
+- 已存在的历史 `.workflow/scratch`、归档报告保留审计轨迹；active docs 和后续实现必须遵守本决策。
