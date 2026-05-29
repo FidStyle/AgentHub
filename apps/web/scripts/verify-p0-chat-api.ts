@@ -81,7 +81,7 @@ async function main() {
   const doneEvt = localEvents.find(e => e.type === 'done')
   assert(!!doneEvt, 'SSE 包含 done 事件')
 
-  // 3. 创建 cloud workspace + session → runtime_status (minimal_adapter)
+  // 3. 创建 cloud workspace + session → runtime_status (gateway 路由)
   console.log('[3/4] cloud workspace → runtime_status')
   const wsCloudRes = await apiFetch('/api/workspaces', {
     method: 'POST',

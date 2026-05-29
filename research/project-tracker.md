@@ -122,6 +122,23 @@
 
 ---
 
+### P1-RUNTIME-GATEWAY
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（里程碑 P1-RT，Phase 1） |
+| **FR-ID** | FR-RT-001（Cloud Runtime Gateway 契约） |
+| **对应计划** | `PLN-20260529-p1-rt-gateway-phase1`（4 tasks / 2 waves） |
+| **合同路径** | `research/contracts/P1-RUNTIME-GATEWAY.md`（权威，revised）；`.trellis/spec/cross-layer/runtime-gateway-contract.md` |
+| **当前状态** | ✅ **Phase 1 全部完成，验证通过（2026-05-29）**：Gateway contract + DB 模型（5 表幂等）+ /api/chat 按 endpoint 路由 + 统一事件语义 + session 落库；review verdict=PASS |
+| **目标** | Cloud Runtime Gateway 统一承载 public_cloud + user_local 两类 endpoint；Web/Mobile 统一经 gateway 不直连本地端口；DB 状态记录 + 统一事件语义；本阶段不要求真实 provider 部署 |
+| **验收方式** | type-check exit 0；DB 迁移幂等性验证 PASS；/api/chat 集成测试覆盖新路由/事件/落库；review verdict != BLOCK；治理门禁 P1-RUNTIME-GATEWAY |
+| **测试证据** | `apps/web/scripts/verify-p1-runtime-gateway.ts` 对真实 DB **12 passed / 0 failed / 1 skip(PASS)**（DB 二次 apply 幂等 exit 0 + 5 表存在 + P0 sessions/messages 不变 + isLocalNetworkTarget 安全 6/6）；落库 probe 写 runtime_sessions/runtime_logs 读回成功且 secret 脱敏；packages/shared + apps/web tsc exit 0；review.json verdict=PASS（critical/high/medium=0）；execution-report `research/execution-reports/p1-runtime-gateway-phase1-execution-report.md` |
+| **阻塞问题** | 无（Phase 1 范围内）；public_cloud 池部署基座选型 D-003 属 Phase 3 |
+| **下一步动作** | Phase 2：Desktop local runtime tunnel 接入 gateway；Phase 3：D-003 部署基座决策后 public_cloud 池部署 |
+
+---
+
 ## P2 任务
 
 （暂无登记）
@@ -152,3 +169,4 @@
 | 2026-05-29 | P0-END-TO-END-PRODUCT-FLOW | mobile-pwa.spec.ts fixture 迁移完成：Supabase cookie → Auth.js ensureP0StorageState；4/4 tests PASS |
 | 2026-05-29 | P1-RT | Agent Runtime 规划完成（ralph-20260529-150000）：analyze→scope-gate→roadmap→plan 全链；scope_verdict=large；7 tasks/3 waves；**止步 plan**（跨三子系统，按约束不 execute） |
 | 2026-05-29 | P1-RT | **架构修订（revised plan，止步未 execute）**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），非 optional provider。新增架构合同 `P1-RUNTIME-GATEWAY.md`；roadmap M:P1-RT 重写为 Gateway 模型（public_cloud + user_local 两类 endpoint）；D-003 从「是否需 provider」重定义为「Gateway 部署基座选型」，Gateway 实体不再 deferred；Phase 1 改为 contract+DB+routing/event，可执行不要求真实部署 |
+| 2026-05-29 | P1-RUNTIME-GATEWAY | **Phase 1 execute + 验收完成**（ralph-20260529-170344）：shared 7 事件类型 + 5 张 gateway 表幂等迁移（P0 不变）+ gateway 抽象（去 minimal_adapter）+ /api/chat 按 endpoint 路由 + session 落库；verify-p1-runtime-gateway.ts 真实 DB 12 passed/0 failed/1 skip；落库 probe 读回 + secret 脱敏；tsc exit 0；review verdict=PASS（critical/high/medium=0）；治理门禁覆盖 |

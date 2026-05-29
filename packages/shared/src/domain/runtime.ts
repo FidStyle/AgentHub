@@ -1,7 +1,21 @@
 import type { ExecutionDomain } from './workspace'
 
-export type RuntimeType = 'hosted' | 'claude_code' | 'codex'
+export type RuntimeType = 'hosted' | 'claude_code' | 'codex' | 'opencode'
 export type RuntimeSessionStatus = 'idle' | 'running' | 'completed' | 'failed'
+
+export type RuntimeEndpointKind = 'public_cloud' | 'user_local'
+export type RuntimeEndpointStatus = 'available' | 'offline' | 'unconfigured'
+export type RuntimeRunStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type DeviceRuntimeChannelStatus = 'connected' | 'disconnected'
+
+export interface RuntimeEndpoint {
+  id: string
+  userId?: string
+  kind: RuntimeEndpointKind
+  runtimeType: RuntimeType
+  deviceId?: string
+  status: RuntimeEndpointStatus
+}
 
 export interface RuntimeBinding {
   id: string

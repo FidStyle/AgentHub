@@ -38,26 +38,26 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder()
   const encode = (data: object) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
 
-  if (ws.execution_domain === 'local_desktop') {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encode({ type: 'runtime_status', status: 'DEVICE_OFFLINE', message: 'Desktop 连接器离线' }))
-        controller.enqueue(encode({ type: 'done' }))
-        controller.close()
-      },
-    })
-    return new Response(stream, {
-      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
-    })
-  }
-
+  // Both cloud and local_desktop route through the Cloud Runtime Gateway via the adapter.
+  // runtime_sessions / runtime_logs persistence happens inside the gateway. For an offline
+  // local_desktop endpoint the gateway emits local_runtime_offline plus a DEVICE_OFFLINE
+  // runtime_status event so existing P0 client expectations stay compatible.
   const adapter = new HostedRuntimeAdapter()
   const stream = new ReadableStream({
     async start(controller) {
-      for await (const evt of adapter.status()) {
-        controller.enqueue(encode(evt))
+      try {
+        for await (const evt of adapter.invoke({
+          userId: user.id,
+          sessionId,
+          executionDomain: ws.execution_domain,
+          workspaceId: ws.id,
+        })) {
+          controller.enqueue(encode(evt))
+        }
+      } finally {
+        controller.enqueue(encode({ type: 'done' }))
+        controller.close()
       }
-      controller.close()
     },
   })
 

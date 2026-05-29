@@ -25,6 +25,11 @@ const tableNames = new Set([
   'plan_nodes',
   'actions',
   'notifications',
+  'runtime_endpoints',
+  'runtime_sessions',
+  'runtime_logs',
+  'device_runtime_channels',
+  'runtime_capabilities',
 ])
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })

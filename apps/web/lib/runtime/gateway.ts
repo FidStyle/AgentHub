@@ -1,0 +1,141 @@
+import type { ExecutionDomain } from '@agenthub/shared'
+import type { RuntimeGatewayEvent } from '@agenthub/shared'
+import { createClient } from '@/lib/app-db-client'
+import { getConnectionByUserId } from '@/server/device-connections'
+
+type EndpointKind = 'public_cloud' | 'user_local'
+type EndpointStatus = 'available' | 'offline' | 'unconfigured'
+
+export interface ResolvedEndpoint {
+  id: string | null
+  kind: EndpointKind
+  status: EndpointStatus
+  deviceId?: string
+}
+
+export interface RuntimeSessionRecord {
+  id: string
+  endpoint: ResolvedEndpoint
+}
+
+const LOCAL_HOST_PATTERN =
+  /^(localhost|127\.|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i
+
+// Web/Mobile must never target a local IP/port directly — runtime route uses endpointId only.
+export function isLocalNetworkTarget(target: string): boolean {
+  if (!target) return false
+  const host = target.replace(/^[a-z]+:\/\//i, '').split(/[/:]/)[0]
+  return LOCAL_HOST_PATTERN.test(host)
+}
+
+export async function resolveEndpoint(input: {
+  userId: string
+  workspaceId: string
+  executionDomain: ExecutionDomain
+}): Promise<ResolvedEndpoint> {
+  const db = await createClient()
+  const kind: EndpointKind = input.executionDomain === 'local_desktop' ? 'user_local' : 'public_cloud'
+
+  const { data: rows } = await db
+    .from('runtime_endpoints')
+    .select('id, kind, status, device_id')
+    .eq('user_id', input.userId)
+    .eq('kind', kind)
+    .limit(1)
+  const row = Array.isArray(rows) ? rows[0] : rows
+
+  if (!row) {
+    return { id: null, kind, status: kind === 'public_cloud' ? 'unconfigured' : 'offline' }
+  }
+  return {
+    id: row.id,
+    kind,
+    status: row.status as EndpointStatus,
+    deviceId: row.device_id ?? undefined,
+  }
+}
+
+export async function createSession(input: {
+  sessionId: string
+  endpoint: ResolvedEndpoint
+}): Promise<RuntimeSessionRecord> {
+  const db = await createClient()
+  const { data } = await db
+    .from('runtime_sessions')
+    .insert({
+      session_id: input.sessionId,
+      endpoint_id: input.endpoint.id,
+      status: 'idle',
+    })
+    .select('id')
+    .single()
+  return { id: data?.id ?? '', endpoint: input.endpoint }
+}
+
+const SECRET_KEY_PATTERN = /(key|token|secret|password|authorization|env)/i
+
+function redact(payload: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(payload)) {
+    out[k] = SECRET_KEY_PATTERN.test(k) ? '[REDACTED]' : v
+  }
+  return out
+}
+
+export async function persistRuntimeEvent(
+  runtimeSessionId: string,
+  event: RuntimeGatewayEvent,
+  seq: number,
+): Promise<void> {
+  if (!runtimeSessionId) return
+  const db = await createClient()
+  const { type, ...rest } = event
+  await db.from('runtime_logs').insert({
+    runtime_session_id: runtimeSessionId,
+    event_type: type,
+    payload: redact(rest as Record<string, unknown>),
+    seq,
+  })
+}
+
+async function setSessionStatus(runtimeSessionId: string, status: string): Promise<void> {
+  if (!runtimeSessionId) return
+  const db = await createClient()
+  await db.from('runtime_sessions').update({ status }).eq('id', runtimeSessionId)
+}
+
+export async function* invoke(input: {
+  userId: string
+  runtimeSession: RuntimeSessionRecord
+}): AsyncGenerator<RuntimeGatewayEvent> {
+  const { endpoint } = input.runtimeSession
+  const endpointId = endpoint.id ?? undefined
+
+  yield { type: 'gateway_connected', endpointId: endpoint.id ?? '' }
+
+  if (endpoint.kind === 'public_cloud') {
+    // Provider deployment (D-003) deferred — endpoint stays unconfigured. No fake assistant success.
+    yield { type: 'public_runtime_available', available: false, endpointId }
+    yield { type: 'runtime_status', status: 'endpoint_unavailable', endpointId }
+    yield {
+      type: 'endpoint_unavailable',
+      endpointId,
+      reason: '公共云端 Runtime 尚未配置，请稍后再试或切换到本地 Desktop 运行时',
+    }
+    await setSessionStatus(input.runtimeSession.id, 'failed')
+    return
+  }
+
+  // user_local: relay through Gateway/DeviceChannel; remote clients never touch local ports.
+  const conn = getConnectionByUserId(input.userId)
+  if (!conn) {
+    yield { type: 'local_runtime_offline', endpointId, deviceId: endpoint.deviceId }
+    // Preserve DEVICE_OFFLINE compatibility for P0 tests.
+    yield { type: 'runtime_status', status: 'DEVICE_OFFLINE', endpointId }
+    await setSessionStatus(input.runtimeSession.id, 'failed')
+    return
+  }
+
+  yield { type: 'tunnel_connected', endpointId: endpoint.id ?? '', deviceId: conn.deviceId }
+  yield { type: 'runtime_status', status: 'tunnel_ready', endpointId }
+}

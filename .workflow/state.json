@@ -2,7 +2,7 @@
   "version": "3.1",
   "project_name": "AgentHub",
   "status": "idle",
-  "current_milestone": null,
+  "current_milestone": "P1-RT",
   "current_task_id": null,
   "milestones": [
     {
@@ -283,6 +283,24 @@
       "roadmap_ref": ".workflow/roadmap.md",
       "created_at": "2026-05-25T21:25:08.312154+00:00",
       "completed_at": "2026-05-27T02:00:00Z"
+    },
+    {
+      "id": "P1-RT",
+      "name": "Cloud Runtime Gateway",
+      "type": "standard",
+      "status": "active",
+      "phases": [
+        "Phase 1: Cloud Runtime Gateway contract + DB model + routing/event semantics",
+        "Phase 2: Desktop local runtime tunnel/channel 接入 gateway",
+        "Phase 3: public cloud runtime pool 部署基座选型与实现"
+      ],
+      "phase_slugs": {
+        "1": "01-gateway-contract",
+        "2": "02-desktop-tunnel",
+        "3": "03-public-cloud-pool"
+      },
+      "roadmap_ref": ".workflow/roadmap.md",
+      "created_at": "2026-05-29T09:37:03.399718+00:00"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -663,9 +681,71 @@
       "harvested": false,
       "created_at": "2026-05-29T15:16:00Z",
       "completed_at": "2026-05-29T15:20:00Z"
+    },
+    {
+      "id": "PLN-20260529-p1-rt-gateway-phase1",
+      "type": "plan",
+      "milestone": "P1-RT",
+      "phase": 1,
+      "scope": "phase",
+      "path": "scratch/20260529-plan-p1-rt-gateway-phase1",
+      "status": "completed",
+      "depends_on": [
+        "ANL-20260529-p1-runtime"
+      ],
+      "harvested": false,
+      "created_at": "2026-05-29T09:37:03.399718+00:00",
+      "completed_at": "2026-05-29T09:37:03.399718+00:00"
+    },
+    {
+      "id": "EXC-20260529-p1-rt-gateway-phase1",
+      "type": "execute",
+      "milestone": "P1-RT",
+      "phase": 1,
+      "scope": "phase",
+      "path": "scratch/20260529-plan-p1-rt-gateway-phase1",
+      "status": "completed",
+      "depends_on": [
+        "PLN-20260529-p1-rt-gateway-phase1"
+      ],
+      "harvested": false,
+      "created_at": "2026-05-29T10:05:43Z",
+      "completed_at": "2026-05-29T10:05:43Z"
+    },
+    {
+      "id": "VRF-20260529-p1-rt-gateway-phase1",
+      "type": "verify",
+      "milestone": "P1-RT",
+      "phase": 1,
+      "scope": "phase",
+      "path": "scratch/20260529-plan-p1-rt-gateway-phase1",
+      "status": "completed",
+      "depends_on": [
+        "EXC-20260529-p1-rt-gateway-phase1"
+      ],
+      "harvested": false,
+      "verdict": "PASS",
+      "created_at": "2026-05-29T10:07:14Z",
+      "completed_at": "2026-05-29T10:07:14Z"
+    },
+    {
+      "id": "REV-20260529-p1-rt-gateway-phase1",
+      "type": "review",
+      "milestone": "P1-RT",
+      "phase": 1,
+      "scope": "phase",
+      "path": "scratch/20260529-plan-p1-rt-gateway-phase1",
+      "status": "completed",
+      "depends_on": [
+        "VRF-20260529-p1-rt-gateway-phase1"
+      ],
+      "harvested": false,
+      "verdict": "PASS",
+      "created_at": "2026-05-29T10:11:21Z",
+      "completed_at": "2026-05-29T10:11:21Z"
     }
   ],
-  "last_updated": "2026-05-25T08:36:40.795991+00:00",
+  "last_updated": "2026-05-29T10:11:21Z",
   "accumulated_context": {
     "key_decisions": [
       "Progressive delivery: M5→M6→M7→M8→M9",
@@ -780,7 +860,7 @@
           "phase": 1,
           "path": "scratch/20260523-verify-M5-phase1-auth-db-api",
           "depends_on": "EXC-006",
-          "coverage_score": 1.0,
+          "coverage_score": 1,
           "created_at": "2026-05-23T07:00:00Z"
         },
         {
@@ -859,7 +939,7 @@
           "phase": 1,
           "path": ".workflow/milestones/M6/artifacts/vrf-007-verify/20260523-verify-M6-phase1-im-agent-artifact",
           "depends_on": "EXC-007",
-          "coverage_score": 1.0,
+          "coverage_score": 1,
           "created_at": "2026-05-23T12:22:00Z"
         },
         {
@@ -1035,7 +1115,7 @@
           "status": "passed",
           "path": ".workflow/scratch/20260529-plan-p0-e2e-remaining/verification.json",
           "depends_on": "PLN-20260529-p0-e2e-remaining",
-          "coverage_score": 1.0,
+          "coverage_score": 1,
           "created_at": "2026-05-29T11:30:00Z"
         },
         {
@@ -1058,5 +1138,5 @@
     }
   ],
   "current_phase": 1,
-  "updated_at": "2026-05-29T11:30:00Z"
+  "updated_at": "2026-05-29T10:11:21Z"
 }
