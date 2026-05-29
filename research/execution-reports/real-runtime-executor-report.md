@@ -1,5 +1,6 @@
 # Execution Report — real-runtime-executor (adhoc)
 
+> Task: RT-REAL-EXEC-001
 > Session: ralph-20260530-010200 · Plan: PLN-20260530-real-runtime-executor
 > Date: 2026-05-30 · Milestone: adhoc-real-runtime-executor
 
