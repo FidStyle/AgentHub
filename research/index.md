@@ -1,6 +1,6 @@
 # AgentHub Research 总索引
 
-> 本文件是项目所有研究文档、设计契约、模块调研、任务跟进和执行报告的唯一入口索引。
+> 本文件是项目级研究文档、设计契约、模块调研和跟进入口的索引。它不是流水账；单个 bug、wave 报告和历史证据默认不进入本索引。
 
 ---
 
@@ -46,11 +46,7 @@
 | [regression-ledger.md](./regression-ledger.md) | **回归、缺陷与未完成项台账** — 已完成功能暴露的问题、质量债和关闭条件 |
 | [decision-log.md](./decision-log.md) | 关键产品与技术决策日志 |
 | [maestro-guidance-playbook.md](./maestro-guidance-playbook.md) | Codex 指导 Maestro 开发、路由命令和验收反馈的操作手册 |
-| [execution-reports/](./execution-reports/) | 执行报告（每次迁移/实现前后） |
-| [execution-reports/p0-end-to-end-product-flow-readiness-audit.md](./execution-reports/p0-end-to-end-product-flow-readiness-audit.md) | P0 端到端产品主链路盲验证前准备审计 |
-| [execution-reports/p0-end-to-end-product-flow-blind-verify-report.md](./execution-reports/p0-end-to-end-product-flow-blind-verify-report.md) | P0 端到端产品主链路 Ralph 盲验证结果 |
-| [execution-reports/p1-rt-gateway-revised-plan-report.md](./execution-reports/p1-rt-gateway-revised-plan-report.md) | P1 Runtime Gateway 架构修订报告：Cloud Gateway 必需实体，D-003 重定义 |
-| [execution-reports/web-workspace-ux-regression-registration-report.md](./execution-reports/web-workspace-ux-regression-registration-report.md) | Web Workspace 交互闭环回归登记与治理修正记录 |
+| [execution-reports/](./execution-reports/) | 阶段/里程碑级执行报告目录；不要把每个 report 单独挂到本索引 |
 | [../scripts/verify-governance-gate.sh](../scripts/verify-governance-gate.sh) | Maestro/Ralph 完成前治理门禁脚本 |
 
 ## Prompt 模板
@@ -81,7 +77,7 @@
 
 1. **工作流入口**：新会话必须先按 `ai-workflow-control.md` 判断 Codex、Trellis、Maestro/Ralph 的职责边界。
 2. **共享合同**：中大型任务必须创建或引用 `contracts/<TASK-ID>.md`；Trellis task、Maestro prompt、execution report 和 Codex 验收都必须指向同一份合同。
-3. **跟进义务**：Maestro/Ralph 每完成一个 wave，必须同步更新 `project-tracker.md` 和 `execution-reports/*.md`。没有公开跟进记录，不允许标记任务完成。
+3. **跟进义务**：Maestro/Ralph 每完成一个用户可见阶段或里程碑，必须同步更新 `project-tracker.md` 和对应任务报告；bug/regression 进入 `regression-ledger.md`。没有公开跟进记录，不允许标记任务完成。
 4. **PRD 修订**：如发现 PRD/技术设计与当前计划冲突，只能新增 `prd-amendments/*.md`，不允许直接改业务代码。
-5. **索引维护**：新增研究文档必须同步更新本索引。
+5. **索引维护**：只有长期入口、合同目录、关键当前报告需要同步本索引；碎片 report、单个 bug 记录、历史证据不得进入总索引。
 6. **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 并确认 exit 0。status.json completed 不等于项目完成。

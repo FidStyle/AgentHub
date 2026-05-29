@@ -34,4 +34,4 @@
 ## Technical Notes
 
 - 审计对象优先包括 `apps/web`、`apps/desktop`、`apps/mobile`、`e2e/tests`、`packages/shared`。
-- 进度校正优先落到 `research/project-tracker.md`，必要时新增 `research/execution-reports/*`。
+- 进度校正优先落到 `research/project-tracker.md`；bug/regression/未完成项进入 `research/regression-ledger.md`；只有阶段级审计需要新增或更新 `research/execution-reports/*`。

@@ -72,7 +72,7 @@ Maestro/Ralph 说“完成”时，Codex 必须核对：
 1. `git status --short`：没有遗漏的相关改动；如有无关用户改动，必须说明并隔离。
 2. `git log -3 --oneline`：最新提交对应本 wave 或本任务。
 3. `research/project-tracker.md`：任务状态、测试证据、下一步动作已更新。
-4. `research/execution-reports/`：本 wave 或本任务报告已补齐。
+4. `research/execution-reports/`：本任务阶段级报告已补齐；wave 级细节优先追加到同一报告或 `.workflow/` 产物，不能为每个小问题新建碎片报告。
 5. 测试命令：type-check、unit、E2E、视觉断言按任务范围执行。
 6. `scripts/verify-governance-gate.sh <TASK-ID>`：最终完成前必须 exit 0。
 
@@ -82,7 +82,7 @@ Maestro/Ralph 说“完成”时，Codex 必须核对：
 
 `status.json completed` 只说明 Maestro 状态机完成，不等于项目完成。
 
-Analyze、plan、verify、review 等 artifact-only 阶段也必须提交自己的公开产物。只要写入或修改 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件或代码，就必须精确 `git add` 本阶段相关文件并使用中文 commit。不得把“没有代码改动”作为不提交 research/tracker/report 的理由。
+Analyze、plan、verify、review 等 artifact-only 阶段也必须提交自己的公开产物。只要写入或修改 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件或代码，就必须精确 `git add` 本阶段相关文件并使用中文 commit。不得把“没有代码改动”作为不提交 tracker、ledger、合同、任务报告或 plan 的理由；同时禁止为了满足治理而制造每个 wave/bug 一份的新碎片文档。
 
 ## 后台 Shell 与 Delegate 时间预算
 
@@ -195,7 +195,7 @@ TASK-ID：<任务 ID>
 
 完成标准：
 - research/project-tracker.md 已更新。
-- research/execution-reports/ 已补齐。
+- research/execution-reports/ 阶段级报告已补齐，或问题已归入 research/regression-ledger.md。
 - 测试证据已写入报告。
 - 已运行 bash scripts/verify-governance-gate.sh <TASK-ID> 且 exit 0。
 - 门禁失败时输出 CONCERNS 并停止，不允许 milestone-complete/session complete。

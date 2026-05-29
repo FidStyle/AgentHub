@@ -36,8 +36,8 @@
 
 1. 对应 `research/contracts/<TASK-ID>.md` 的用户链路、数据合同、UI/UX 合同和测试合同已逐项满足。
 2. `research/project-tracker.md` 已同步任务状态、测试证据、阻塞问题和下一步动作。
-3. `research/execution-reports/` 已补齐本 wave 或本任务的执行报告。
-4. lint/type/test/E2E 或本任务声明的验证命令已经真实运行，并把命令与结果写入执行报告。
+3. `research/execution-reports/` 已补齐本任务的阶段级执行报告；wave 级细节优先追加到同一报告或 `.workflow/` 产物，不得默认新建碎片 report。
+4. lint/type/test/E2E 或本任务声明的验证命令已经真实运行，并把命令与结果写入对应任务报告、tracker 或 ledger。
 5. `git status --short` 无未提交或未跟踪文件。
 6. 最近一次 commit 使用中文 message，且只包含本 wave 相关文件。
 7. 最近一次 commit 不包含 `refer_proj/*`、缓存、临时日志或 `.workflow/.maestro/*/status.json`。
@@ -95,23 +95,24 @@ Plan 报告必须包含：
 
 完成一个 wave 后，按顺序执行。这里的 wave 包括 analyze、plan、verify、review、test、governance 修复和 execute；只要产生或修改了 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件、代码或报告，就必须进入提交流程。
 
-1. 更新 `research/project-tracker.md` 对应任务条目。
-2. 新增或更新 `research/execution-reports/<task-or-wave>-report.md`。
-3. 运行本 wave 的验证命令，并把命令、结果、失败项和截图路径写入报告。
-4. 运行 `git status --short`，区分本 wave 改动和既有无关改动。
-5. 精确 `git add` 本 wave 相关文件，禁止 `git add .`。
-6. 使用中文 commit message 提交。
-7. 再次运行 `git status --short`。
-8. 如果仍有无关既有改动，必须在完成输出中列出并说明“非本 wave 产生，未提交”；如果存在本 wave 未提交改动，必须停止并输出 BLOCKED。
-9. 运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`。
-10. 只有脚本 exit 0，才允许进入 verify/review/milestone-complete。
+1. 更新 `research/project-tracker.md` 对应任务条目，或在该 wave 不改变公开状态时说明无需更新。
+2. 更新对应任务的一份阶段级 execution report；禁止为每个 wave 默认新建 `<task-or-wave>-report.md`。
+3. bug、regression、未完成项和不完善项写入 `research/regression-ledger.md`；不要为单个问题创建独立 report。
+4. 运行本 wave 的验证命令，并把命令、结果、失败项和截图路径写入对应任务报告、tracker 或 ledger。
+5. 运行 `git status --short`，区分本 wave 改动和既有无关改动。
+6. 精确 `git add` 本 wave 相关文件，禁止 `git add .`。
+7. 使用中文 commit message 提交。
+8. 再次运行 `git status --short`。
+9. 如果仍有无关既有改动，必须在完成输出中列出并说明“非本 wave 产生，未提交”；如果存在本 wave 未提交改动，必须停止并输出 BLOCKED。
+10. 运行 `bash scripts/verify-governance-gate.sh <TASK-ID>`。
+11. 只有脚本 exit 0，才允许进入 verify/review/milestone-complete。
 
 ### Artifact-only 阶段提交规则
 
 Analyze、plan、verify、review 等非代码阶段也必须提交自己的公开产物：
 
 - `research/project-tracker.md`
-- `research/execution-reports/*.md`
+- 对应任务的一份 `research/execution-reports/*.md`，或明确追加到已有 report / ledger / tracker
 - `research/contracts/*.md`
 - `research/decision-log.md`
 - 必要的 `.workflow/roadmap.md` 或 `.workflow/scratch/*/plan.json`

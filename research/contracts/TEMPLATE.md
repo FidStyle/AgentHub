@@ -149,8 +149,8 @@
 完成前必须满足：
 
 - [ ] `research/project-tracker.md` 已更新。
-- [ ] `research/execution-reports/*.md` 已补齐。
-- [ ] 真实验证命令和结果已写入报告。
+- [ ] 阶段级 execution report 已补齐；bug/regression/未完成项已归入 `research/regression-ledger.md`，不得制造碎片报告。
+- [ ] 真实验证命令和结果已写入对应任务报告、tracker 或 ledger。
 - [ ] 精确 commit，禁止 `git add .`。
 - [ ] 最近 commit 不包含 `refer_proj/*`、缓存、临时日志、`.workflow/.maestro/*/status.json`。
 - [ ] `bash scripts/verify-governance-gate.sh <TASK-ID>` exit 0。

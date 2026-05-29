@@ -27,7 +27,7 @@ Trellis 和 Maestro 不互相吞状态，也不各自发明产品事实。二者
 | Codex | 工作流控制者、技术甲方、架构审查、验收裁判；负责把用户目标转成共享合同，并监督 Trellis/Maestro 按合同执行 | 不把大范围产品实现藏在零散聊天里；不只按局部页面/API 宣称完成 |
 | Trellis | 任务和工程规范系统；把共享合同派生为 `.trellis/tasks/*`、`implement.jsonl`、`check.jsonl` 和 `.trellis/spec/*` | 不作为产品路线图唯一事实源；不直接相信 `.workflow/.maestro/*/status.json` |
 | Maestro/Ralph | 大范围执行系统；按合同进行 analyze、plan、execute、verify、review 和提交 | 不绕过 `research/` 公开总账；不只写 `.workflow/scratch/`；不以 `status.json completed` 代表项目完成 |
-| `research/` | 唯一共享事实和合同层；记录 PRD、技术设计、UX 合同、执行报告、决策和项目状态 | 不存放临时机器状态 |
+| `research/` | 共享事实和合同层；记录 PRD、技术设计、UX 合同、阶段级执行证据、决策和项目状态 | 不存放临时机器状态，不做每个 wave/bug 的碎片流水账 |
 
 ---
 
@@ -165,11 +165,12 @@ Codex 负责：
 2. analyze/plan 不得重写合同，只能提出差异和 amendment。
 3. execute 必须按合同拆 wave。
 4. verify/review 必须按合同的用户链路和门禁检查。
-5. 每个 wave 后更新 `research/project-tracker.md` 和 `research/execution-reports/*.md`。
-6. 每个阶段都必须提交自己的公开产物。Analyze、plan、verify、review、test、governance 修复和 execute 只要修改了 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件或代码，就必须精确 `git add` 本阶段相关文件并使用中文 commit。
-7. 如果工作区已有无关 dirty 文件，Maestro/Ralph 必须在开始前记录 `git status --short` baseline；提交时只提交本阶段相关文件；完成输出必须列出提交后的剩余 dirty 项，并说明哪些是阶段前已有的无关改动。
-8. 禁止用“没有代码改动”作为不提交 `research/project-tracker.md`、`research/execution-reports/*.md`、合同或 plan 的理由。
-9. 禁止提交 `.workflow/.maestro/*/status.json`，也禁止只写 `status.json completed` 后结束。
+5. 每个用户可见阶段或里程碑后更新 `research/project-tracker.md` 与对应任务报告；wave 级细节优先追加到同一报告或保留在 `.workflow/` 产物，不得默认新建碎片 report。
+6. bug、regression、未完成项和不完善项默认登记到 `research/regression-ledger.md`，必要时同步 `project-tracker.md`；不得为每个单点问题新建 execution report。
+7. 每个阶段都必须提交自己的公开产物。Analyze、plan、verify、review、test、governance 修复和 execute 只要修改了 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件或代码，就必须精确 `git add` 本阶段相关文件并使用中文 commit。
+8. 如果工作区已有无关 dirty 文件，Maestro/Ralph 必须在开始前记录 `git status --short` baseline；提交时只提交本阶段相关文件；完成输出必须列出提交后的剩余 dirty 项，并说明哪些是阶段前已有的无关改动。
+9. 禁止用“没有代码改动”作为不提交 tracker、ledger、合同、任务报告或 plan 的理由；但也禁止为满足治理而制造新的碎片文档。
+10. 禁止提交 `.workflow/.maestro/*/status.json`，也禁止只写 `status.json completed` 后结束。
 
 ### 5.7 验收阶段
 
