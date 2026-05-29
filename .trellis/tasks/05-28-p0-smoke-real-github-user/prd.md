@@ -48,5 +48,5 @@
   - `docker/README.md`
   - `package.json`
 - 共享产品原则来源：
-  - `research/ai-workflow-control.md`
+  - `research/workflow/ai-workflow-control.md`
   - `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md`

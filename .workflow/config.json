@@ -52,19 +52,19 @@
       ],
       "docs": [
         "research/index.md",
-        "research/maestro-guidance-playbook.md",
+        "research/workflow/maestro-guidance-playbook.md",
         "research/project-tracker.md",
         "research/decision-log.md",
-        "research/ui-design-system.md",
-        "research/prompts/maestro-execution-governance.md"
+        "research/product/ui-design-system.md",
+        "research/workflow/maestro-execution-governance.md"
       ]
     },
     "categoryDocs": {
       "ui": {
         "docs": [
-          "research/ui-design-system.md",
-          "research/product-design.md",
-          "research/desktop-p0-ui-ux-contract.md"
+          "research/product/ui-design-system.md",
+          "research/product/product-design.md",
+          "research/product/desktop-p0-ui-ux-contract.md"
         ]
       },
       "test": {

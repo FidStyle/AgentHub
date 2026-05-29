@@ -1,6 +1,6 @@
 # 三端 UI 样式与视觉测试规范
 
-> 本规范是 `FR-UI-001` 的实现层合同。任何 Web、Desktop、Mobile/PWA UI 任务开始前都必须读取本文件和 `research/ui-design-system.md`。
+> 本规范是 `FR-UI-001` 的实现层合同。任何 Web、Desktop、Mobile/PWA UI 任务开始前都必须读取本文件和 `research/product/ui-design-system.md`。
 
 ---
 
@@ -182,7 +182,7 @@ export function RuntimeStatusCard() {
 涉及 UI 的 `.trellis/tasks/*/` 必须包含：
 
 - [ ] 绑定业务 `FR-ID` 和 `FR-UI-001`。
-- [ ] 引用 `research/ui-design-system.md` 和本文件。
+- [ ] 引用 `research/product/ui-design-system.md` 和本文件。
 - [ ] 写明参考项目来源，例如 AionUi 聊天分栏或 codeg 权限弹窗。
 - [ ] 写明 codeg/shadcn 是统一视觉母版，其他参考项目只是结构或端侧行为参考。
 - [ ] 测试先行：功能断言、截图断言、布局断言、敏感信息断言。

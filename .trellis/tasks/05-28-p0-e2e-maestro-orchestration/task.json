@@ -23,7 +23,7 @@
   "relatedFiles": [
     "research/contracts/P0-END-TO-END-PRODUCT-FLOW.md",
     "research/execution-reports/p0-end-to-end-product-flow-plan-report.md",
-    "research/maestro-command-reference.md",
+    "research/workflow/maestro-command-reference.md",
     ".trellis/spec/guides/maestro-command-routing.md",
     ".workflow/scratch/20260528-plan-p0-e2e-fix/plan.json"
   ],

@@ -58,7 +58,7 @@
 
 ## 7. Definition of Done
 
-- [ ] Web 工作台符合 `research/ui-design-system.md` 三栏布局。
+- [ ] Web 工作台符合 `research/product/ui-design-system.md` 三栏布局。
 - [ ] 核心组件复用 UI 基础设施。
 - [ ] Web 不能形成独立 AionUi/Arco 视觉皮肤，必须与 Desktop/Mobile 共享 codeg/shadcn 母版。
 - [ ] Web E2E 覆盖功能、截图、布局和敏感信息断言。

@@ -2,7 +2,7 @@
 
 **日期：** 2026-05-25
 **状态：** 已收敛
-**输入来源：** `refer_proj/catlog22__maestro-flow`, `refer_proj/CodeStable`, `research/prd.md`, `research/technical-design.md`, `research/ui-design-system.md`, `research/maestro-automation-assessment.md`, `research/maestro-tdd-quality-gates.md`
+**输入来源：** `refer_proj/catlog22__maestro-flow`, `refer_proj/CodeStable`, `research/prd.md`, `research/architecture/technical-design.md`, `research/product/ui-design-system.md`, `research/maestro-automation-assessment.md`, `research/maestro-tdd-quality-gates.md`
 **覆盖 FR-ID：** `FR-ORCH-001`, `FR-CTX-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-PERM-001`, `FR-RESULT-001`, `FR-UI-001`, `NFR-OBS-001`, `NFR-SEC-001`
 
 ---
@@ -57,7 +57,7 @@ Maestro plan 的成功标准要求每个 task 有 `read_first[]`、`convergence.
 AgentHub 应借鉴为硬规则：
 
 - 每个 `.trellis/tasks/*/` 实现任务必须声明 `FR-ID`、`read_first`、`reference_sources`、测试锚点和收敛标准。
-- 涉及 UI 的任务必须读取 `research/ui-design-system.md`、`.trellis/spec/frontend/ui-style-guidelines.md` 和对应参考项目来源。
+- 涉及 UI 的任务必须读取 `research/product/ui-design-system.md`、`.trellis/spec/frontend/ui-style-guidelines.md` 和对应参考项目来源。
 - 任务没有参考来源时，不允许进入实现阶段。
 
 绑定需求：`FR-UI-001`, `FR-ORCH-001`, `NFR-OBS-001`。
@@ -122,7 +122,7 @@ CodeStable 的 acceptance 会对照 design 核对实现，并回写 architecture
 | CodeStable 概念 | AgentHub 落点 |
 | --- | --- |
 | requirement update/backfill | `research/prd.md` 或 `research/prd-amendments/*.md` |
-| architecture update | `research/technical-design.md` 或 `research/modules/*.md` |
+| architecture update | `research/architecture/technical-design.md` 或 `research/modules/*.md` |
 | feature design | `.trellis/tasks/*/prd.md`、`implement.jsonl` |
 | feature acceptance | `.trellis/tasks/*/check.jsonl`、Phase 4 验收记录 |
 | decision/learning | `.trellis/spec/guides/*.md` 或相关 layer spec |
@@ -174,12 +174,12 @@ PRD amendment 合并后，再更新 `research/prd.md`。小范围明确修订可
 
 | 任务类型 | 必读参考 |
 | --- | --- |
-| UI 基础与组件 | `research/ui-design-system.md`, `.trellis/spec/frontend/ui-style-guidelines.md`, AionUi/codeg/cherry-studio/lobehub 对应参考说明 |
+| UI 基础与组件 | `research/product/ui-design-system.md`, `.trellis/spec/frontend/ui-style-guidelines.md`, AionUi/codeg/cherry-studio/lobehub 对应参考说明 |
 | Web 工作台 | AionUi 聊天/预览分栏、codeg 侧栏/输入框、`research/modules/ui-and-visual-testing.md` |
 | Desktop Connector | AionUi LocalAgents/AgentCard/ChatLayout、cherry-studio 桌面密度、Runtime 配置边界、`research/modules/desktop-connector.md` |
 | Mobile/PWA | lobehub 移动会话布局、`research/modules/client-shells.md` |
-| Orchestrator/自动化 | Maestro-Flow plan/execute/verify 思路、`research/automation-reference-comparison.md` |
-| 需求漂移治理 | CodeStable design/impl/accept 暂停与回写思路、`research/automation-reference-comparison.md` |
+| Orchestrator/自动化 | Maestro-Flow plan/execute/verify 思路、`research/architecture/automation-reference-comparison.md` |
+| 需求漂移治理 | CodeStable design/impl/accept 暂停与回写思路、`research/architecture/automation-reference-comparison.md` |
 
 ---
 
@@ -241,7 +241,7 @@ AgentHub 的全流程自动化参考路线如下：
 
 本文件更新后应与以下文件一同提交：
 
-- `research/technical-design.md`
+- `research/architecture/technical-design.md`
 - `research/README.md`
 - `research/modules/README.md`
 - `.trellis/spec/guides/product-planning-guide.md`

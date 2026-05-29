@@ -17,5 +17,5 @@ Definition of done for this task phase:
 - [x] `research/prd.md` contains a Requirement Registry with unique FR-IDs.
 - [x] Each P0 requirement has acceptance criteria.
 - [x] PRD scope distinguishes P0, P1, and P2/P3.
-- [x] Product design is generated next at `research/product-design.md` and references FR-IDs.
+- [x] Product design is generated next at `research/product/product-design.md` and references FR-IDs.
 - [x] Changes are staged and committed after the user confirms this phase output.

@@ -1,7 +1,7 @@
 # AgentHub Phase 2 模块调研索引
 
 **日期：** 2026-05-25
-**状态：** Phase 2 已收敛，结论已进入 `research/technical-design.md`
+**状态：** Phase 2 已收敛，结论已进入 `research/architecture/technical-design.md`
 
 ---
 
@@ -82,7 +82,7 @@ future apps/mobile-native
 
 ## 5. 已确认结论
 
-以下路线已进入 `research/technical-design.md`，模块文档只保留研究依据：
+以下路线已进入 `research/architecture/technical-design.md`，模块文档只保留研究依据：
 
 1. 三端壳：Next.js + Electron + PWA；后续 Android App 用 Capacitor 包装。
 2. UI 设计系统：`shadcn/ui + Tailwind CSS 4 + lucide-react`，视觉 E2E 使用 Playwright browser projects 与 Playwright Electron 分端覆盖。
@@ -92,4 +92,4 @@ future apps/mobile-native
 6. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。
 7. 自动化执行：参考 Maestro-Flow 的 plan/execute/verify/review/test/fix-loop，但参考 CodeStable 的需求暂停、PRD 反写和验收回写机制防止自动化跑偏。
 
-如果后续实现发现技术设计与模块研究冲突，以 `research/technical-design.md` 为准，再反向修正对应模块文档。
+如果后续实现发现技术设计与模块研究冲突，以 `research/architecture/technical-design.md` 为准，再反向修正对应模块文档。

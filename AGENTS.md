@@ -22,7 +22,7 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 
 # AgentHub Project Workflow
 
-Before guiding or executing non-trivial AgentHub work, read `research/index.md` and `research/ai-workflow-control.md`.
+Before guiding or executing non-trivial AgentHub work, read `research/index.md` and `research/workflow/ai-workflow-control.md`.
 
 Project workflow rule:
 

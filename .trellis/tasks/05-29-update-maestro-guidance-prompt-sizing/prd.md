@@ -13,7 +13,7 @@ Record the local Trellis/Maestro guidance rule that Codex should not default to 
 
 ## Files
 
-- `research/maestro-guidance-playbook.md`
+- `research/workflow/maestro-guidance-playbook.md`
 - `.trellis/spec/guides/maestro-command-routing.md`
 - `.trellis/workflow.md`
 - `.agents/skills/trellis-start/SKILL.md`

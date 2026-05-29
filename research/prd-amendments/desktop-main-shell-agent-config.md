@@ -1,7 +1,7 @@
 # PRD 修订：Desktop 主界面与 Agent 配置中心
 
 **日期：** 2026-05-26
-**状态：** 已采纳，需同步到 `research/prd.md`、`research/product-design.md`、`research/ui-design-system.md` 和 Desktop Trellis 任务
+**状态：** 已采纳，需同步到 `research/prd.md`、`research/product/product-design.md`、`research/product/ui-design-system.md` 和 Desktop Trellis 任务
 **绑定需求：** `FR-DESK-001`, `FR-RUNTIME-001`, `FR-CHAT-001`, `FR-UI-001`
 
 ---

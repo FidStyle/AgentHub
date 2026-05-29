@@ -43,7 +43,7 @@ YYYY-MM-DD-{slug}.md
 **状态：** draft | confirmed | merged | rejected
 **触发任务：** `.trellis/tasks/{task}/`
 **影响 FR-ID：** `FR-xxx-001`
-**相关文档：** `research/prd.md`, `research/product-design.md`, `research/ui-design-system.md`, `research/technical-design.md`
+**相关文档：** `research/prd.md`, `research/product/product-design.md`, `research/product/ui-design-system.md`, `research/architecture/technical-design.md`
 
 ---
 

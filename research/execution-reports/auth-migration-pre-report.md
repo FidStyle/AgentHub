@@ -44,7 +44,7 @@
 - `apps/web/app/api/runtime/invoke/route.ts`
 - `packages/shared/src/database.types.ts`
 - `research/modules/auth-workspace.md`
-- `research/technical-design.md`
+- `research/architecture/technical-design.md`
 
 ### 受影响子系统
 

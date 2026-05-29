@@ -94,7 +94,7 @@ Codex 收到用户目标后先分类：
 
 - 小范围修复：可直接走 Trellis/Codex inline，但仍必须按现有 spec 和测试门禁。
 - 中大型链路：必须先创建或更新 `research/contracts/<TASK-ID>.md`。
-- 用户明确问 Maestro/Ralph：Codex 先读本文件和 `research/maestro-guidance-playbook.md`，输出路由、prompt 或验收意见，不直接改代码。
+- 用户明确问 Maestro/Ralph：Codex 先读本文件和 `research/workflow/maestro-guidance-playbook.md`，输出路由、prompt 或验收意见，不直接改代码。
 
 Codex 只在产品方向不可推断时集中提问。普通技术选择、UI 细节和测试组织应由 Codex 根据合同、PRD、参考项目和现有代码自行判断。
 
@@ -195,10 +195,10 @@ Codex 负责：
 
 1. `AGENTS.md`
 2. `research/index.md`
-3. 本文件：`research/ai-workflow-control.md`
+3. 本文件：`research/workflow/ai-workflow-control.md`
 4. 当前任务对应的 `research/contracts/<TASK-ID>.md`
 5. `research/project-tracker.md`
-6. 若涉及 Maestro：`research/maestro-guidance-playbook.md` 和 `research/prompts/maestro-execution-governance.md`
+6. 若涉及 Maestro：`research/workflow/maestro-guidance-playbook.md` 和 `research/workflow/maestro-execution-governance.md`
 7. 若涉及实现：相关 `.trellis/spec/*` 和 `.trellis/tasks/*`
 
 如果用户只问解释性问题，不必启动任务；但回答必须遵守本文件的角色分工和完成口径。

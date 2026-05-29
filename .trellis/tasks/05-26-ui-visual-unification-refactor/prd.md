@@ -18,7 +18,7 @@
 ## 3. 上游依据
 
 - `research/prd.md`
-- `research/ui-design-system.md`
+- `research/product/ui-design-system.md`
 - `research/ui-phase3-task-plan.md`
 - `research/modules/ui-and-visual-testing.md`
 - `.trellis/spec/frontend/ui-style-guidelines.md`
@@ -39,7 +39,7 @@
 
 ### 必须做
 
-- 先审计当前 Web、Desktop、Mobile/PWA 截图和核心组件，列出与 `research/ui-design-system.md` 的差距。
+- 先审计当前 Web、Desktop、Mobile/PWA 截图和核心组件，列出与 `research/product/ui-design-system.md` 的差距。
 - 建立或修正共享视觉 token：颜色、圆角、边框、阴影、状态色、按钮尺寸、Badge、输入框、消息气泡、状态卡。
 - 确保三端核心页面复用同一组件体系或同一 token，不各自临时堆样式。
 - Web 保持三栏 IM 工作台，但视觉语言统一为 codeg/shadcn。

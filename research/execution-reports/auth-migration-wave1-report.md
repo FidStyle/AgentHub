@@ -11,11 +11,11 @@
 ### TASK-001: 修订 PRD + 技术设计 + 模块研究文档
 
 - `research/prd.md` FR-AUTH-001 已包含 Auth.js v5 约束和本地零依赖要求
-- `research/technical-design.md` §2 Auth 行、§17.1、§20 已更新为 Auth.js v5
+- `research/architecture/technical-design.md` §2 Auth 行、§17.1、§20 已更新为 Auth.js v5
 - `research/modules/auth-workspace.md` §2 推荐、§5 推荐路线、§6 确认项已更新
 
 **收敛验证：**
-- `grep -q 'Auth.js' research/technical-design.md` ✅
+- `grep -q 'Auth.js' research/architecture/technical-design.md` ✅
 - `grep -q '不依赖外部 Auth 服务' research/prd.md` ✅
 - `grep -q 'Auth.js' research/modules/auth-workspace.md` ✅
 

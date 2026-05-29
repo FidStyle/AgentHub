@@ -23,7 +23,7 @@
 
 Codex 每次收到用户转述的 Maestro 反馈后，按以下顺序处理：
 
-1. 读取 `research/ai-workflow-control.md`，判断当前场景属于需求、技术方案、UI、实现、测试、验收、治理修复还是复盘。
+1. 读取 `research/workflow/ai-workflow-control.md`，判断当前场景属于需求、技术方案、UI、实现、测试、验收、治理修复还是复盘。
 2. 对中大型任务确认是否已有 `research/contracts/<TASK-ID>.md`；没有合同则先让 Maestro/Codex 做合同阶段，不直接 execute。
 3. 读取必要的 `research/` 文档，而不是只相信 Maestro summary。
 4. 给出 Maestro 下一步应使用的命令；只在命令本身不足以表达边界时追加短 prompt 或长 prompt。
@@ -114,7 +114,7 @@ Codex 指导 Maestro 时优先输出可直接执行的 `/maestro-*`、`/quality-
 长 prompt 才需要完整包含：
 
 1. 明确的 `TASK-ID` 和绑定 `FR-ID`。
-2. 必读文档：至少包含 `research/ai-workflow-control.md`、`research/index.md`、`research/project-tracker.md`、`research/contracts/<TASK-ID>.md`、相关 PRD/技术/UI 文档。
+2. 必读文档：至少包含 `research/workflow/ai-workflow-control.md`、`research/index.md`、`research/project-tracker.md`、`research/contracts/<TASK-ID>.md`、相关 PRD/技术/UI 文档。
 3. 明确阶段：分析、计划、实现、验证、审查、治理修复之一。
 4. 禁止项：不得 `git add .`，不得提交 `refer_proj/*`、缓存、临时日志和未确认改动。
 5. 完成定义：测试证据、执行报告、tracker、精确 commit、governance gate。
@@ -126,7 +126,7 @@ Codex 指导 Maestro 时优先输出可直接执行的 `/maestro-*`、`/quality-
 Codex 后续为用户生成 Maestro/Ralph 指导时，默认套用以下协议：
 
 1. **先选命令，再决定 prompt 长度**：命令能清楚表达就不给长 prompt；需要额外约束时先给短 prompt；只有复杂或高风险任务才给长 prompt。
-2. **用 Spec 承载长期记忆**：如果本次任务暴露新的反复性规则、质量标准或流程缺口，优先补 `.workflow/specs/*` 或 `research/maestro-guidance-playbook.md`，而不是只在聊天里提醒。
+2. **用 Spec 承载长期记忆**：如果本次任务暴露新的反复性规则、质量标准或流程缺口，优先补 `.workflow/specs/*` 或 `research/workflow/maestro-guidance-playbook.md`，而不是只在聊天里提醒。
 3. **用脚本承载硬判断**：完成与否不得靠 Maestro summary 或 `status.json completed`，必须以 `scripts/verify-governance-gate.sh <TASK-ID>`、git 状态、测试证据和 `research/` 公开总账为准。
 4. **观察后再升级 overlay**：只有当 Maestro/Ralph 在 1-2 次任务中仍然忘记运行门禁、脚本失败仍 complete、手动改 `status.json` 或只写 `.workflow/scratch/` 时，才建议使用 `/maestro-overlay` 或 `/maestro-amend --from-session <id> --scan` 注入命令级补丁。
 5. **最后才考虑改 Maestro 本体**：除非 overlay 不能覆盖、升级后仍重复失效，或用户明确要求维护 Maestro 工具链，否则不直接修改 Maestro 原始命令或执行逻辑。
@@ -167,8 +167,8 @@ TASK-ID：<任务 ID>
 绑定 FR-ID：<FR-ID 列表>
 
 执行前必读：
-- research/prompts/maestro-execution-governance.md
-- research/ai-workflow-control.md
+- research/workflow/maestro-execution-governance.md
+- research/workflow/ai-workflow-control.md
 - .trellis/spec/guides/end-to-end-contract-planning.md
 - research/index.md
 - research/project-tracker.md

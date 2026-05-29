@@ -17,7 +17,7 @@ Web 承担完整工作台，Desktop 承担本地 Connector，Mobile 承担轻量
 
 本设计文档只定义产品信息架构、页面逻辑、核心用户流、组件状态和交互边界。
 
-技术框架、Runtime 接入方式、云端转发协议和持久化方案在 `research/technical-design.md` 中确定。
+技术框架、Runtime 接入方式、云端转发协议和持久化方案在 `research/architecture/technical-design.md` 中确定。
 
 对应需求：`FR-AUTH-001`, `FR-WS-001`, `FR-DEVICE-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001`, `FR-CHAT-001`。
 
@@ -730,7 +730,7 @@ Diff 要求：
 
 ## 12. 与技术设计的交接关系
 
-产品设计中的待定技术问题已在 `research/technical-design.md` 和 `research/modules/*.md` 中收敛。本节保留为产品设计到技术设计的交接索引。
+产品设计中的待定技术问题已在 `research/architecture/technical-design.md` 和 `research/modules/*.md` 中收敛。本节保留为产品设计到技术设计的交接索引。
 
 | 产品问题 | 技术设计结论 | 主章节 |
 | --- | --- | --- |

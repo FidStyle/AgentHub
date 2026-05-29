@@ -26,7 +26,7 @@ Trellis should not create one task per Maestro `TASK-001..006`. Maestro owns tho
 
 ## Requirements
 
-- Generate Maestro/Ralph commands using `research/maestro-command-reference.md` and `.trellis/spec/guides/maestro-command-routing.md`.
+- Generate Maestro/Ralph commands using `research/workflow/maestro-command-reference.md` and `.trellis/spec/guides/maestro-command-routing.md`.
 - For P0, release only Wave 1 / `TASK-001` until Codex reviews evidence.
 - Require Maestro/Ralph to read the research contract, plan report, project tracker, and the relevant `.workflow/scratch` task JSON.
 - Require dirty baseline capture and precise commits for each Maestro wave.
@@ -45,7 +45,7 @@ Do not run `trellis-brainstorm` for this task. The product boundary is already d
 
 Future Maestro/Ralph guidance tasks follow this rule:
 
-- If the user asks a one-off command/prompt question, answer directly using `research/maestro-command-reference.md`; no Trellis task and no brainstorm.
+- If the user asks a one-off command/prompt question, answer directly using `research/workflow/maestro-command-reference.md`; no Trellis task and no brainstorm.
 - If guidance will span multiple turns or multiple Maestro waves, create one Trellis orchestration task bound to the research contract; no per-Maestro-task mirroring.
 - If no research contract exists or product scope is unclear, create/update the contract first and use `trellis-brainstorm` only for unresolved product requirements.
 

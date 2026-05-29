@@ -9,9 +9,9 @@
 先读取这些文档：
 
 - `research/prd.md`
-- `research/product-design.md`
-- `research/ui-design-system.md`
-- `research/automation-reference-comparison.md`
+- `research/product/product-design.md`
+- `research/product/ui-design-system.md`
+- `research/architecture/automation-reference-comparison.md`
 - 涉及 UI Phase 3 时读取 `research/ui-phase3-task-plan.md`
 - 当前活动的 `.trellis/tasks/*/prd.md` 切片
 
@@ -20,12 +20,12 @@
 - [ ] 每个任务都写明它实现的 PRD `FR-ID`。
 - [ ] 每个任务都写明 `read_first` 或等价必读文件，包含 PRD、产品设计、技术设计、相关模块研究和参考项目来源。
 - [ ] 每个任务都写明 `reference_sources` 或等价参考来源；涉及参考项目的任务必须指出 `refer_proj/*` 的具体来源或对应 `research/` 调研文档。
-- [ ] 自动化执行遵循 `research/automation-reference-comparison.md`：Maestro-Flow 负责执行闭环参考，CodeStable 负责需求暂停和验收回写参考。
+- [ ] 自动化执行遵循 `research/architecture/automation-reference-comparison.md`：Maestro-Flow 负责执行闭环参考，CodeStable 负责需求暂停和验收回写参考。
 - [ ] 项目级任务规划已经先写入 `research/`；`.trellis/tasks/*/` 只承载可执行切片。
-- [ ] 涉及 UI 的任务必须额外引用 `FR-UI-001`、`research/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
+- [ ] 涉及 UI 的任务必须额外引用 `FR-UI-001`、`research/product/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
 - [ ] 涉及 UI 的任务必须引用 `research/modules/ui-and-visual-testing.md`，并写明 AionUi、codeg、lobehub、cherry-studio 中采用或不采用的部分。
 - [ ] 涉及 UI Phase 3 的任务必须能追溯到 `research/ui-phase3-task-plan.md` 中的模块、顺序和 Definition of Done。
-- [ ] UI 行为匹配 `research/product-design.md` 中的页面、流程、组件和状态设计。
+- [ ] UI 行为匹配 `research/product/product-design.md` 中的页面、流程、组件和状态设计。
 - [ ] UI 组件基线使用 `shadcn/ui + Tailwind CSS 4 + lucide-react`，不能交付无样式纯 HTML。
 - [ ] UI E2E 同时包含功能断言、截图留存、布局断言和敏感信息断言。
 - [ ] Workspace 执行域明确为 `Cloud Workspace` 或 `Local Desktop Workspace`。
@@ -57,7 +57,7 @@ Phase 2 技术选型还要检查：
 - `验收来源`：正在实现的 PRD 验收标准或产品设计流程。
 - `UI 契约`：如果任务涉及界面，必须写 `FR-UI-001`、参考组件、断点和视觉 E2E 断言。
 - `项目级规划`：如果任务属于某个阶段性规划，必须能追溯到 `research/` 下的对应规划文档。
-- `自动化约束`：必须写明执行闭环、参考项目注入和需求反写规则，来源是 `research/automation-reference-comparison.md`。
+- `自动化约束`：必须写明执行闭环、参考项目注入和需求反写规则，来源是 `research/architecture/automation-reference-comparison.md`。
 - `参考来源`：必须列出实现前要读的 `research/*`、`.trellis/spec/*`、`refer_proj/*` 或任务级研究文档。
 
 如果某个行为无法映射到现有 `FR-ID`，先暂停实现并更新 PRD 或新增 `research/prd-amendments/*.md` 修订记录。
@@ -84,7 +84,7 @@ AgentHub 实现阶段采用两层参考：
 停止后按这个顺序处理：
 
 1. 在当前任务记录触发原因和受影响 `FR-ID`。
-2. 小修订直接更新 `research/prd.md`、`research/technical-design.md` 或 `research/ui-design-system.md`。
+2. 小修订直接更新 `research/prd.md`、`research/architecture/technical-design.md` 或 `research/product/ui-design-system.md`。
 3. 影响范围较大或需要用户确认时，新建 `research/prd-amendments/YYYY-MM-DD-{slug}.md`，写明触发任务、冲突点、建议改动、测试影响和待确认问题。
 4. 回填 `.trellis/tasks/*/prd.md`、`implement.jsonl`、`check.jsonl`，补齐测试与视觉门禁。
 5. 用户确认或文档提交后再恢复实现。
@@ -103,9 +103,9 @@ AgentHub 实现阶段采用两层参考：
 复杂阶段规划必须先沉淀到 `research/`：
 
 - UI Phase 3 规划：`research/ui-phase3-task-plan.md`
-- 技术选型：`research/technical-design.md`
-- UI 设计系统：`research/ui-design-system.md`
-- 自动化执行与需求反写：`research/automation-reference-comparison.md`
+- 技术选型：`research/architecture/technical-design.md`
+- UI 设计系统：`research/product/ui-design-system.md`
+- 自动化执行与需求反写：`research/architecture/automation-reference-comparison.md`
 - 模块调研：`research/modules/*.md`
 
 `.trellis/tasks/*/` 只放可执行切片，包括任务级 `prd.md`、`info.md`、`implement.jsonl`、`check.jsonl` 和 `task.json`。
@@ -158,7 +158,7 @@ AgentHub 实现阶段采用两层参考：
 
 ### 错误：技术设计写得像源码
 
-**症状**：`research/technical-design.md` 包含大量只有实现者才能读懂的 TypeScript interface。
+**症状**：`research/architecture/technical-design.md` 包含大量只有实现者才能读懂的 TypeScript interface。
 
 **修正**：面向评审的技术文档尽量使用中文。用 Mermaid/PlantUML 图、实体表、状态表和 API 表表达架构；精确类型签名在 Phase 3 进入任务文档或代码规范。
 
@@ -166,13 +166,13 @@ AgentHub 实现阶段采用两层参考：
 
 **症状**：页面只有默认 HTML、英文按钮、临时内联样式，没有响应式断点和截图测试。
 
-**修正**：涉及 UI 的任务必须先引用 `FR-UI-001` 和 `research/ui-design-system.md`，并在任务切片中写清功能断言、截图断言、布局断言和敏感信息断言。
+**修正**：涉及 UI 的任务必须先引用 `FR-UI-001` 和 `research/product/ui-design-system.md`，并在任务切片中写清功能断言、截图断言、布局断言和敏感信息断言。
 
 ### 错误：执行时没有实际参考 refer_proj
 
 **症状**：任务描述写了“参考现有项目”，但 `implement.jsonl` 或任务 PRD 没有列出具体参考项目、参考页面、采用点和不采用点。
 
-**修正**：任务必须写入 `reference_sources` 或等价段落。UI 任务至少追溯到 `research/ui-design-system.md`、`research/modules/ui-and-visual-testing.md` 和对应 AionUi/codeg/lobehub/cherry-studio 参考结论；自动化任务至少追溯到 `research/automation-reference-comparison.md`。
+**修正**：任务必须写入 `reference_sources` 或等价段落。UI 任务至少追溯到 `research/product/ui-design-system.md`、`research/modules/ui-and-visual-testing.md` 和对应 AionUi/codeg/lobehub/cherry-studio 参考结论；自动化任务至少追溯到 `research/architecture/automation-reference-comparison.md`。
 
 ### 错误：需求不清还继续实现
 

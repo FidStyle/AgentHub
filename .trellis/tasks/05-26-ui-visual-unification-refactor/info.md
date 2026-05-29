@@ -16,7 +16,7 @@
 
 ## 执行顺序
 
-1. 读取 `research/ui-design-system.md` 第 3 章统一视觉母版。
+1. 读取 `research/product/ui-design-system.md` 第 3 章统一视觉母版。
 2. 审计当前三端截图和页面实现，记录视觉割裂点。
 3. 先补统一母版断言、截图对照和敏感字段断言。
 4. 修正共享 token 和核心组件。

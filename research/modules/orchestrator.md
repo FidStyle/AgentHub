@@ -3,7 +3,7 @@
 **日期：** 2026-05-21  
 **状态：** Draft  
 **覆盖 FR-ID：** `FR-ORCH-001`, `FR-CHAT-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-PERM-001`, `FR-RESULT-001`  
-**相关产品设计：** `research/product-design.md` 第 7、8 章
+**相关产品设计：** `research/product/product-design.md` 第 7、8 章
 
 ---
 
@@ -67,7 +67,7 @@ Plan DAG 是独立研究模块，详细契约集中在 `research/modules/orchest
 | --- | --- | --- |
 | Orchestrator Run 状态机 | `research/modules/orchestrator.md` | 澄清、计划、确认、分派、等待、汇总、失败处理 |
 | Plan DAG 契约 | `research/modules/orchestrator-plan-dag.md` | 节点、依赖、并行 wave、阻塞、失败影响范围、结果汇总 |
-| 技术设计摘要 | `research/technical-design.md` | 面向评审展示统一编排模型，不重复定义完整契约 |
+| 技术设计摘要 | `research/architecture/technical-design.md` | 面向评审展示统一编排模型，不重复定义完整契约 |
 
 P0 结论：Orchestrator 状态机负责推进阶段；Plan DAG 负责计划内部的依赖与并行。用户看到的是计划卡片；后端看到的是可校验、可调度的结构化计划。
 
@@ -135,7 +135,7 @@ AgentHub P0 采用后端状态机 + Plan DAG 托管的 Orchestrator 编排模型
 3. LLM 只生成澄清问题、候选计划内容和总结；系统负责 DAG 校验、状态推进、权限判断和 ready 节点分派。
 4. Direct Role Flow 保留，但当单角色判断任务需要多角色协作时，应请求升级到 Orchestrated Flow。
 
-该结论已进入 `research/technical-design.md` 第 11 章，作为 Phase 3 任务拆分的技术依据。
+该结论已进入 `research/architecture/technical-design.md` 第 11 章，作为 Phase 3 任务拆分的技术依据。
 
 ---
 

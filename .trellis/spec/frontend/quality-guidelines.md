@@ -29,7 +29,7 @@
 - 三端共享概念术语必须一致：工作区、会话、审批、产物、预览、智能体、桌面连接器。
 - 技术产品名可在指代具体技术或命令时保留英文，例如 Vite、Electron、PWA、Codex、Claude Code、Node、`corepack pnpm`。
 - UI 组件基线为 `shadcn/ui + Tailwind CSS 4 + lucide-react`。
-- 任何 UI 任务必须引用 `research/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
+- 任何 UI 任务必须引用 `research/product/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
 - 本地 Runtime 凭证边界必须遵守 `.trellis/spec/cross-layer/runtime-credential-boundary.md`：本地 CLI 只检测原生认证状态，不托管密钥。
 - 关键页面必须有稳定定位点，供 Playwright 功能断言、截图和布局断言使用。
 - 状态 UI 必须覆盖空、加载、失败、未登录、离线、执行中、待审批、成功、重试。
@@ -60,7 +60,7 @@ Playwright 不能只写 `toBeVisible`。核心 UI 至少包含：
 ## 代码审查清单
 
 - [ ] 是否绑定了 PRD 中的业务 `FR-ID`；涉及 UI 时是否绑定 `FR-UI-001`。
-- [ ] 是否遵守 `research/ui-design-system.md` 的三端职责和组件契约。
+- [ ] 是否遵守 `research/product/ui-design-system.md` 的三端职责和组件契约。
 - [ ] 是否复用 shadcn/Tailwind/lucide 基线，避免临时内联样式。
 - [ ] 是否所有用户可见文案都是中文。
 - [ ] 是否没有本地 Runtime API Key、Base URL 或敏感环境变量表单。

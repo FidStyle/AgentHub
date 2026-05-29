@@ -3,7 +3,7 @@
 **日期：** 2026-05-21  
 **状态：** Draft  
 **覆盖 FR-ID：** `FR-DESK-001`, `FR-WS-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-PERM-001`, `FR-NOTIFY-001`  
-**相关产品设计：** `research/product-design.md` 第 5、7、8、9 章
+**相关产品设计：** `research/product/product-design.md` 第 5、7、8、9 章
 
 ---
 

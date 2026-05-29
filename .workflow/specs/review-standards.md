@@ -29,7 +29,7 @@ keywords:
 
 ### UI 设计与组件契约
 
-所有 UI 修改必须遵循 research/ui-design-system.md、research/product-design.md 和相关 UI 契约文档。三端视觉风格必须统一，全局中文。禁止无样式纯 HTML，禁止临时毛坯 UI，禁止把 Runtime API Key 配置暴露为主流程表单；Runtime 配置优先做检测、状态展示和引导。
+所有 UI 修改必须遵循 research/product/ui-design-system.md、research/product/product-design.md 和相关 UI 契约文档。三端视觉风格必须统一，全局中文。禁止无样式纯 HTML，禁止临时毛坯 UI，禁止把 Runtime API Key 配置暴露为主流程表单；Runtime 配置优先做检测、状态展示和引导。
 
 </spec-entry>
 
@@ -49,7 +49,7 @@ keywords:
 
 ### Codex 指导 Maestro 的验收契约
 
-Codex 在本项目中承担技术甲方和验收裁判职责，Maestro/Ralph 承担执行职责。后续所有 Maestro 指导、命令选择、prompt 生成和完成验收必须遵循 `research/maestro-guidance-playbook.md`。当 Maestro 输出与 `research/project-tracker.md`、`research/execution-reports/`、git 提交或治理门禁不一致时，以 `research/` 总账和 `scripts/verify-governance-gate.sh <TASK-ID>` 为准，要求 Maestro 先补闭环，不进入新功能。
+Codex 在本项目中承担技术甲方和验收裁判职责，Maestro/Ralph 承担执行职责。后续所有 Maestro 指导、命令选择、prompt 生成和完成验收必须遵循 `research/workflow/maestro-guidance-playbook.md`。当 Maestro 输出与 `research/project-tracker.md`、`research/execution-reports/`、git 提交或治理门禁不一致时，以 `research/` 总账和 `scripts/verify-governance-gate.sh <TASK-ID>` 为准，要求 Maestro 先补闭环，不进入新功能。
 
 </spec-entry>
 
@@ -74,6 +74,6 @@ Codex 在本项目中承担技术甲方和验收裁判职责，Maestro/Ralph 承
 
 ### Codex 指导 Maestro 的升级策略
 
-Codex 后续为用户生成 Maestro/Ralph prompt 时，必须遵循 `research/maestro-guidance-playbook.md` 的 Prompt 生成规则：先用当前任务 Prompt 明确约束，再依靠 Spec/always-inject 做长期记忆，以 `scripts/verify-governance-gate.sh <TASK-ID>` 作为硬门禁。只有当 Maestro/Ralph 仍反复漏跑门禁、门禁失败却 complete、手动改 `status.json` 或只写 `.workflow/scratch/` 时，才升级到 `/maestro-overlay` 或 `/maestro-amend --from-session <id> --scan`；不得优先直接修改 Maestro 本体执行逻辑。
+Codex 后续为用户生成 Maestro/Ralph prompt 时，必须遵循 `research/workflow/maestro-guidance-playbook.md` 的 Prompt 生成规则：先用当前任务 Prompt 明确约束，再依靠 Spec/always-inject 做长期记忆，以 `scripts/verify-governance-gate.sh <TASK-ID>` 作为硬门禁。只有当 Maestro/Ralph 仍反复漏跑门禁、门禁失败却 complete、手动改 `status.json` 或只写 `.workflow/scratch/` 时，才升级到 `/maestro-overlay` 或 `/maestro-amend --from-session <id> --scan`；不得优先直接修改 Maestro 本体执行逻辑。
 
 </spec-entry>

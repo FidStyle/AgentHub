@@ -7,17 +7,17 @@
 | 1 | Scope | UI Phase 3 全量（三端 UI 重构 + 视觉门禁） | research/ui-phase3-task-plan.md |
 | 2 | Strategy | Progressive (渐进式交付) | 任务依赖链 |
 | 3 | Milestone 数量 | 7 个 milestone (M11-M15 code-complete + M17 验证 + M18 门禁) | 修订：补充验证里程碑 |
-| 4 | Tech stack | shadcn/ui + Tailwind CSS 4 + lucide-react + Playwright | research/ui-design-system.md |
+| 4 | Tech stack | shadcn/ui + Tailwind CSS 4 + lucide-react + Playwright | research/product/ui-design-system.md |
 | 5 | UI 语言 | 全局中文，禁止英文用户文案 | 用户强制约束 |
-| 6 | 设计参考 | codeg/shadcn 是三端统一视觉母版；AionUi、lobehub、cherry-studio 只作结构、密度和端侧行为参考 | research/ui-design-system.md |
-| 7 | 验收标准 | 每个 Milestone 必须通过截图、布局断言、统一视觉母版断言和敏感信息断言 | research/ui-design-system.md §9 |
+| 6 | 设计参考 | codeg/shadcn 是三端统一视觉母版；AionUi、lobehub、cherry-studio 只作结构、密度和端侧行为参考 | research/product/ui-design-system.md |
+| 7 | 验收标准 | 每个 Milestone 必须通过截图、布局断言、统一视觉母版断言和敏感信息断言 | research/product/ui-design-system.md §9 |
 | 8 | 基础复用 | 复用 M5-M10 已完成的功能逻辑，仅重构 UI 层 | state.json M5-M10 completed |
 | 9 | 执行纪律 | TDD 优先 + Phase 4 嵌入每个 wave + 需求不清暂停 | 用户 Maestro 流程约束 |
 | 10 | M11-M16 状态 | 代码已产出但未经 Maestro 验证流程，需补验证 | 用户确认 |
 
 ## Overview
 
-UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-system.md` 设计系统契约，对三端 UI 进行系统性重构。
+UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/product/ui-design-system.md` 设计系统契约，对三端 UI 进行系统性重构。
 
 **当前状态**：M11-M16 代码已产出（设计系统组件、Web 三栏工作台、Desktop Console、Mobile/PWA、lint/type-check 修复），但执行过程未遵循 Maestro 纪律：
 - 未 TDD 优先（先写代码后补测试）
@@ -34,7 +34,7 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 ### 前置检查
 每个任务开始前必须：
 1. 读取 research/prd.md 确认 FR-ID 验收标准
-2. 读取 research/ui-design-system.md 确认设计约束
+2. 读取 research/product/ui-design-system.md 确认设计约束
 3. 读取对应 .trellis/tasks/*/prd.md 确认任务范围
 4. 确认 refer_proj 参考来源
 5. 确认 codeg/shadcn 是三端统一视觉母版，其他参考项目只提供结构或端侧行为
@@ -110,7 +110,7 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 #### Phase Details
 
 ##### Phase 1: 设计系统 TDD 验证
-**Goal**: 确认 packages/ui 组件符合 research/ui-design-system.md 所有约束
+**Goal**: 确认 packages/ui 组件符合 research/product/ui-design-system.md 所有约束
 **Depends on**: M11-M15 code-complete
 **Requirements**: FR-UI-001, FR-DEVICE-001
 **Trellis Task**: 05-25-ui-foundation-design-system
@@ -253,7 +253,7 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 **Requirements**: FR-UI-001, FR-RUNTIME-001
 **refer_proj**: codeg (shadcn token), AionUi (agent card icon slot)
 **Success Criteria**:
-  1. packages/ui/src/globals.css token 值对齐 research/ui-design-system.md §4.2 hex 色板
+  1. packages/ui/src/globals.css token 值对齐 research/product/ui-design-system.md §4.2 hex 色板
   2. BrandIcon 组件导出 GitHub/Codex/ClaudeCode/OpenCode SVG
   3. RuntimeIcon 组件按 runtimeKind 选择对应品牌图标
   4. 三端 import @agenthub/ui 后可直接使用品牌图标

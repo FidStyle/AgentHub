@@ -4,7 +4,7 @@
 
 ## Source Of Truth
 
-- Generated command reference: `research/maestro-command-reference.md`
+- Generated command reference: `research/workflow/maestro-command-reference.md`
 - Export script: `scripts/export-maestro-command-reference.mjs`
 - Raw catalog: `.claude/skills/maestro-help/index/catalog.json`
 - Raw command frontmatter: `.claude/commands/*.md`
@@ -17,7 +17,7 @@ node scripts/export-maestro-command-reference.mjs
 
 ## Routing Rules
 
-- Use `argument-hint` from `research/maestro-command-reference.md` instead of guessing command syntax from memory.
+- Use `argument-hint` from `research/workflow/maestro-command-reference.md` instead of guessing command syntax from memory.
 - Prefer a bare command when the command and recent context already express the next step clearly.
 - Add a short prompt only when scope boundaries, blockers, deferred items, or completion evidence need to be explicit.
 - Use a long copyable prompt only for medium/large contract handoff, risky execute steps, dirty worktrees, governance failures, repeated Maestro misses, unclear product scope, or when the user asks for one.
@@ -46,12 +46,12 @@ Do not instruct Maestro/Ralph to continue broad P0 execute unless a new P0 block
 
 Required references for P0 Maestro guidance:
 
-- `research/ai-workflow-control.md`
+- `research/workflow/ai-workflow-control.md`
 - `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md`
 - `research/execution-reports/p0-e2e-remaining-verification-report.md`
 - `research/project-tracker.md`
 - `.workflow/scratch/20260529-plan-p0-e2e-remaining/verification.json`
-- `research/maestro-command-reference.md`
+- `research/workflow/maestro-command-reference.md`
 
 ## Wrong Vs Correct
 

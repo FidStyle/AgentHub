@@ -4,7 +4,7 @@
 **日期：** 2026-05-26
 **状态：** Draft  
 **版本：** 0.2
-**上游文档：** `research/prd.md`, `research/product-design.md`, `research/technical-design.md`  
+**上游文档：** `research/prd.md`, `research/product/product-design.md`, `research/architecture/technical-design.md`  
 **绑定需求：** `FR-UI-001`, `FR-DEVICE-001`, `FR-WEB-001`, `FR-DESK-001`, `FR-MOB-001`, `FR-CHAT-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-PERM-001`
 
 ---

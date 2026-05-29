@@ -38,7 +38,7 @@ keywords:
 
 ### UI 修改必须遵循设计系统
 
-所有 UI 修改必须遵循 research/ui-design-system.md 中定义的三端 UI 设计系统、组件契约和视觉 E2E 门禁。不允许引入未在设计系统中定义的组件模式或违反视觉母版契约。
+所有 UI 修改必须遵循 research/product/ui-design-system.md 中定义的三端 UI 设计系统、组件契约和视觉 E2E 门禁。不允许引入未在设计系统中定义的组件模式或违反视觉母版契约。
 
 </spec-entry>
 

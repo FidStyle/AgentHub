@@ -16,7 +16,7 @@
 |------|------|
 | `scripts/verify-governance-gate.sh` | 增强完成前治理门禁：检查干净工作区、公开跟进表、执行报告、中文 commit、禁止提交路径和最近 commit 文件清单 |
 | `scripts/check-governance-gate.sh` | 兼容别名，转发到 `verify-governance-gate.sh`，避免旧 Prompt 或 Spec 调用失败 |
-| `research/prompts/maestro-execution-governance.md` | 新增 Maestro/Ralph 执行治理 Prompt |
+| `research/workflow/maestro-execution-governance.md` | 新增 Maestro/Ralph 执行治理 Prompt |
 | `research/index.md` | 增加门禁脚本和治理 Prompt 索引 |
 | `research/README.md` | 增加 scripts 目录说明和完成门禁规则 |
 | `.workflow/specs/review-standards.md` | 统一脚本名称，明确 `check-governance-gate.sh` 只是兼容别名 |
@@ -29,7 +29,7 @@
 |------|------|
 | `bash -n scripts/verify-governance-gate.sh` | 通过 |
 | `bash -n scripts/check-governance-gate.sh` | 通过 |
-| `maestro spec injection always --docs research/prompts/maestro-execution-governance.md --keywords gate,治理门禁,status.json --categories review,test` | 通过，治理 Prompt 已进入 always-inject |
+| `maestro spec injection always --docs research/workflow/maestro-execution-governance.md --keywords gate,治理门禁,status.json --categories review,test` | 通过，治理 Prompt 已进入 always-inject |
 
 ## 门禁行为说明
 
@@ -45,13 +45,13 @@ bash scripts/verify-governance-gate.sh <TASK-ID>
 
 ## 后续使用要求
 
-1. 所有实现类任务的 Prompt 必须引用 `research/prompts/maestro-execution-governance.md`。
+1. 所有实现类任务的 Prompt 必须引用 `research/workflow/maestro-execution-governance.md`。
 2. Maestro/Ralph 不得手动编辑 `.workflow/.maestro/*/status.json` 绕过门禁。
 3. 门禁失败时必须输出 `CONCERNS`，并先补 `research/project-tracker.md`、`research/execution-reports/`、测试证据和中文 commit。
 
 ## 2026-05-27 补充：Codex 指导协议固化
 
-本次补充把 Codex 后续指导 Maestro/Ralph 的默认逻辑固化到 `research/maestro-guidance-playbook.md` 和 `.workflow/specs/review-standards.md`：
+本次补充把 Codex 后续指导 Maestro/Ralph 的默认逻辑固化到 `research/workflow/maestro-guidance-playbook.md` 和 `.workflow/specs/review-standards.md`：
 
 1. 默认先用 Prompt 约束当前任务。
 2. 用 Spec / always-inject 保存长期规则。

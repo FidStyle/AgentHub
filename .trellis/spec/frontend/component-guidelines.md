@@ -1,6 +1,6 @@
 # 组件规范
 
-> AgentHub 前端组件的实现方式。涉及 UI 的任务还必须读取 `./ui-style-guidelines.md` 和 `research/ui-design-system.md`。
+> AgentHub 前端组件的实现方式。涉及 UI 的任务还必须读取 `./ui-style-guidelines.md` 和 `research/product/ui-design-system.md`。
 
 ---
 

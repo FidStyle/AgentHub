@@ -6,7 +6,7 @@ import path from 'node:path'
 const repoRoot = process.cwd()
 const catalogPath = path.join(repoRoot, '.claude/skills/maestro-help/index/catalog.json')
 const commandsDir = path.join(repoRoot, '.claude/commands')
-const outputPath = path.join(repoRoot, 'research/maestro-command-reference.md')
+const outputPath = path.join(repoRoot, 'research/workflow/maestro-command-reference.md')
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))

@@ -3,7 +3,7 @@
 **日期：** 2026-05-21  
 **状态：** Draft  
 **覆盖 FR-ID：** `FR-WEB-001`, `FR-MOB-001`, `FR-CHAT-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-NOTIFY-001`  
-**相关产品设计：** `research/product-design.md` 第 4、6、8、9 章
+**相关产品设计：** `research/product/product-design.md` 第 4、6、8、9 章
 
 ---
 

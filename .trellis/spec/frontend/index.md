@@ -6,7 +6,7 @@
 
 ## 概览
 
-本目录包含前端开发规范。涉及 UI 的任务必须先读取 `research/ui-design-system.md` 和本目录中的样式、组件、质量规范。
+本目录包含前端开发规范。涉及 UI 的任务必须先读取 `research/product/ui-design-system.md` 和本目录中的样式、组件、质量规范。
 
 ---
 

@@ -3,7 +3,7 @@
 **日期：** 2026-05-21  
 **状态：** Draft  
 **覆盖 FR-ID：** `FR-AUTH-001`, `FR-WS-001`, `FR-DEVICE-001`, `FR-PERM-001`  
-**相关产品设计：** `research/product-design.md` 第 3、7、9 章
+**相关产品设计：** `research/product/product-design.md` 第 3、7、9 章
 
 ---
 

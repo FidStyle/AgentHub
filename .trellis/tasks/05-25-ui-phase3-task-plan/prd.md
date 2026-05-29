@@ -9,9 +9,9 @@
 ## 2. 上游依据
 
 - `research/prd.md`
-- `research/product-design.md`
-- `research/ui-design-system.md`
-- `research/technical-design.md`
+- `research/product/product-design.md`
+- `research/product/ui-design-system.md`
+- `research/architecture/technical-design.md`
 - `research/modules/ui-and-visual-testing.md`
 - `.trellis/spec/frontend/ui-style-guidelines.md`
 - `.trellis/spec/frontend/component-guidelines.md`
@@ -54,7 +54,7 @@
 - [ ] Phase 4 前置修正任务 `05-26-ui-visual-unification-refactor` 已具备 `prd.md`、`info.md`、`implement.jsonl`、`check.jsonl`。
 - [ ] 每个子任务显式引用 `FR-UI-001` 和对应业务 `FR-ID`。
 - [ ] 每个子任务包含 TDD/视觉 E2E 规划。
-- [ ] 每个子任务明确引用 `research/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
+- [ ] 每个子任务明确引用 `research/product/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
 - [ ] 三端统一视觉母版已写入任务约束，不允许各端分别复刻不同参考项目视觉皮肤。
 - [ ] 进入 Phase 4 前已完成 `.trellis/tasks/05-26-desktop-main-shell-agent-config-refactor/` 和 `.trellis/tasks/05-26-ui-visual-unification-refactor/`，或确认当前实现无需对应修正任务。
 - [ ] 任务拆分已提交到 Git。

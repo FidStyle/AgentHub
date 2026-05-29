@@ -46,7 +46,7 @@
 
 - [ ] 基础组件不依赖大段内联样式。
 - [ ] 组件默认文案为中文。
-- [ ] 状态组件覆盖 `research/ui-design-system.md` 第 6 章状态。
+- [ ] 状态组件覆盖 `research/product/ui-design-system.md` 第 6 章状态。
 - [ ] Runtime 本地凭证边界在组件层可测。
 
 ## 6. Definition of Done

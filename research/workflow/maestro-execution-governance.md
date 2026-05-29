@@ -8,12 +8,12 @@
 
 开始前必须读取：
 
-1. `research/ai-workflow-control.md`
+1. `research/workflow/ai-workflow-control.md`
 2. `research/index.md`
 3. `research/project-tracker.md`
 4. `research/decision-log.md`
 5. `research/prd.md`
-6. `research/technical-design.md`
+6. `research/architecture/technical-design.md`
 7. `.workflow/specs/review-standards.md`
 8. `.workflow/specs/test-conventions.md`
 
@@ -24,9 +24,9 @@
 
 涉及 UI 时额外读取：
 
-1. `research/ui-design-system.md`
-2. `research/product-design.md`
-3. `research/desktop-p0-ui-ux-contract.md`
+1. `research/product/ui-design-system.md`
+2. `research/product/product-design.md`
+3. `research/product/desktop-p0-ui-ux-contract.md`
 
 ---
 

@@ -3,7 +3,7 @@
 **日期：** 2026-05-21  
 **状态：** Draft  
 **覆盖 FR-ID：** `FR-RUNTIME-001`, `FR-AGENT-001`, `FR-CTX-001`, `FR-DESK-001`, `FR-RESULT-001`, `FR-PERM-001`  
-**相关产品设计：** `research/product-design.md` 第 7、8 章
+**相关产品设计：** `research/product/product-design.md` 第 7、8 章
 
 ---
 

@@ -17,10 +17,10 @@
 
 - `research/prd.md`
 - `research/prd-amendments/desktop-main-shell-agent-config.md`
-- `research/desktop-p0-ui-ux-contract.md`
-- `research/product-design.md`
-- `research/ui-design-system.md`
-- `research/technical-design.md`
+- `research/product/desktop-p0-ui-ux-contract.md`
+- `research/product/product-design.md`
+- `research/product/ui-design-system.md`
+- `research/architecture/technical-design.md`
 - `.trellis/spec/frontend/ui-style-guidelines.md`
 - `.trellis/tasks/05-25-desktop-connector-console-ui/prd.md`
 

@@ -112,7 +112,7 @@ Ralph 的结构化结论：
 
 所有修复任务必须继续引用：
 
-- `research/ai-workflow-control.md`
+- `research/workflow/ai-workflow-control.md`
 - `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md`
 - 本报告
 
