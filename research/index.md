@@ -49,6 +49,7 @@
 | [execution-reports/p0-end-to-end-product-flow-readiness-audit.md](./execution-reports/p0-end-to-end-product-flow-readiness-audit.md) | P0 端到端产品主链路盲验证前准备审计 |
 | [execution-reports/p0-end-to-end-product-flow-blind-verify-report.md](./execution-reports/p0-end-to-end-product-flow-blind-verify-report.md) | P0 端到端产品主链路 Ralph 盲验证结果 |
 | [execution-reports/p1-rt-gateway-revised-plan-report.md](./execution-reports/p1-rt-gateway-revised-plan-report.md) | P1 Runtime Gateway 架构修订报告：Cloud Gateway 必需实体，D-003 重定义 |
+| [execution-reports/web-workspace-ux-regression-registration-report.md](./execution-reports/web-workspace-ux-regression-registration-report.md) | Web Workspace 交互闭环回归登记与治理修正记录 |
 | [../scripts/verify-governance-gate.sh](../scripts/verify-governance-gate.sh) | Maestro/Ralph 完成前治理门禁脚本 |
 
 ## Prompt 模板

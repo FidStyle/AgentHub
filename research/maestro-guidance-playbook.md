@@ -76,6 +76,10 @@ Maestro/Ralph 说“完成”时，Codex 必须核对：
 5. 测试命令：type-check、unit、E2E、视觉断言按任务范围执行。
 6. `scripts/verify-governance-gate.sh <TASK-ID>`：最终完成前必须 exit 0。
 
+额外硬规则：完成一个功能后，不能立即默认推进下一个功能。必须先检查同一产品面是否存在未关闭的 regression / quality debt，尤其是用户已经能看到的 UI/UX 点击语义、鉴权后入口、真实 DB/API/session 闭环、消息发送和刷新持久化。若存在这类问题，下一步默认是修复和补测试，而不是继续开发新能力。
+
+对 UI/UX 或工作台类功能，review/verify 不能只接受“组件存在”“按钮可见”“页面无横向滚动”。必须至少验证关键按钮有 handler、点击后产生真实状态/API 变化、错误态可见、刷新后数据仍在；否则只能标记 `DONE_WITH_CONCERNS` 或 `BLOCKED`，不得进入 milestone complete。
+
 `status.json completed` 只说明 Maestro 状态机完成，不等于项目完成。
 
 Analyze、plan、verify、review 等 artifact-only 阶段也必须提交自己的公开产物。只要写入或修改 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件或代码，就必须精确 `git add` 本阶段相关文件并使用中文 commit。不得把“没有代码改动”作为不提交 research/tracker/report 的理由。

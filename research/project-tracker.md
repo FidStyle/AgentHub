@@ -50,6 +50,20 @@
 | **阻塞问题** | P1 残留：a11y 对比度/焦点环/aria-label 缺失（非 P0 blocker）；Mobile React 版本兼容性（预存问题） |
 | **下一步动作** | P1 a11y 修复（独立任务）；本任务闭环 |
 
+### WEB-WORKSPACE-UX-001: Web Workspace 真实交互闭环回归
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 regression（阻塞继续扩大 Web 工作台功能面） |
+| **绑定 FR-ID** | FR-WEB-001, FR-WS-001, FR-CHAT-001, FR-UI-001 |
+| **来源** | 用户验真样本（2026-05-30）：登录后访问 `/workspace/:id`，页面视觉存在但感觉无法点击/无法测试功能 |
+| **当前状态** | 🔴 待修复登记（2026-05-30）：代码审查确认交互闭环缺口存在，尚未进入修复执行 |
+| **问题摘要** | `/workspace/[id]` 未读取 URL workspace id；Sidebar 默认选第一个 workspace；“新建会话”按钮无 `onClick`；点击 session 只设置 id、不拉取 messages；发送消息只写 `/api/messages`，未走 `/api/chat` runtime/agent 链路 |
+| **验收方式** | 使用 Auth.js 测试登录态（`TEST_AUTH_STORAGE_STATE` 或 `TEST_AUTH_COOKIE`），真实浏览器验证：直接打开 `/workspace/:id` → 当前 workspace 被选中 → 新建 session 落库并选中 → 点击 session 拉取消息 → 发送消息走 `/api/chat` 并展示 runtime/agent 状态或明确错误态 → reload 后 session/message 持久化 |
+| **测试证据** | 待补：Playwright E2E 必须断言真实 API/DB 行为结果，不能只检查按钮可见；补充组件/Store 测试覆盖 create/select/fetch/send |
+| **阻塞问题** | 当前 `RT-WORKER-HARDEN-001` Ralph session 正在 review 阶段；该 runtime session 的边界明确排除 UI 层，不能混入本修复 |
+| **下一步动作** | 完成/暂停 runtime harden 后，启动 `WEB-WORKSPACE-UX-001` 修复 Ralph session；修复完成前不继续扩大 Web Workspace 新功能 |
+
 ### AUTH-MIG-001: 认证路线迁移 Auth.js → Auth.js v5
 
 | 字段 | 内容 |
@@ -227,3 +241,4 @@
 | 2026-05-29 | P1-RT | **里程碑完成（milestone-audit + milestone-complete）**：三 phase verify+review 均 PASS；milestone-audit PASS（0 critical/0 high，跨 phase 集成无契约冲突）；真实 infra 回归 Phase 3 16/16 + Phase 2 13/13，apps/web + packages/shared tsc exit 0；10 个 artifact 归档至 milestone_history + `.workflow/milestones/P1-RT/`（audit-report/summary/roadmap-snapshot）；current_milestone 置空（standalone 里程碑无 roadmap 后继）；治理门禁 exit 0 |
 | 2026-05-30 | RT-REAL-EXEC-001 | **真实可插拔 RuntimeExecutor 接入完成**（ralph-20260530-010200）：executor.ts 新增 CliRuntimeExecutor（spawn claude/codex CLI，readline 流式 stdout→chunk）+ ExecutorUnavailableError（ENOENT/spawn 失败 code=executor_unavailable，禁假成功）+ stderr 仅 drain 不外发（凭证隔离）；runtime-worker.ts createExecutor 工厂按 RUNTIME_EXECUTOR env 选择，默认 FakeExecutor（gateway 零回归）；executor.test.ts 7/7 pass（unavailable/凭证隔离/Fake 回归/失败事件/工厂）；verify 6 truths VERIFIED 0 gaps；review PASS 0 blocking；apps/web tsc exit 0；治理门禁 exit 0；未改 Gateway 总架构，无托管平台依赖，无真实付费调用 |
 | 2026-05-30 | RT-REAL-EXEC-001 | **adhoc 里程碑完成归档**（milestone-complete）：5 个 artifact（analyze/plan/execute/verify/review）移入 milestone_history；scratch 归档至 `.workflow/milestones/adhoc-real-runtime-executor/`（audit-report PASS / summary）；current_milestone 置空，status=idle（adhoc 无后继）；ralph-20260530-010200 全 13 步闭环 |
+| 2026-05-30 | WEB-WORKSPACE-UX-001 | 用户验真发现 Web Workspace 详情页“看得到但不好点/不可测”；代码审查确认 `/workspace/[id]`、新建会话、session 选中拉消息、发送 `/api/chat` 链路存在交互闭环缺口。已登记为 P0 regression，并补充“先稳定已完成功能，再推进新功能”治理规则 |
