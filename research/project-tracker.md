@@ -109,16 +109,16 @@
 | 字段 | 内容 |
 |------|------|
 | **优先级** | P1 |
-| **FR-ID** | FR-RT-001（HostedRuntimeAdapter）、FR-RT-002（Desktop 增强）、FR-RT-003（Cloud Adapter） |
-| **对应计划** | macro analyze `ANL-20260529-p1-runtime` + roadmap `RDM-20260529-p1-runtime`（M:P1-RT 3 phase）+ plan `PLN-20260529-p1-runtime`（7 tasks / 3 waves） |
-| **合同路径** | `.workflow/scratch/20260529-analyze-p1-runtime/conclusions.json`、`.workflow/scratch/20260529-plan-p1-runtime/plan.json` |
-| **当前状态** | 🔄 规划完成（2026-05-29），**止步于 plan**：scope_verdict=large（跨三子系统，估 3-5 工作日）；按用户约束不进入 execute |
-| **目标** | HostedRuntimeAdapter stub→real、local_desktop/cloud 执行语义、凭证边界、错误码、DB 状态记录、E2E 验收 |
-| **方案摘要** | 拆 3 phase：P1 = HostedRuntimeAdapter + runtime_sessions/logs DB（可独立验收，解除 /api/chat stub）；P2 = Desktop 错误码统一 + session 持久化 + 凭证刷新；P3 = CloudRuntimeAdapter（需选型决策） |
-| **验收方式** | 本阶段：conclusions.json 含 scope_verdict + plan.json 含 tasks[]+waves[]；execute 阶段（未启动）按各 phase Success Criteria |
-| **测试证据** | analyze: `conclusions.json`（scope_verdict=large, 6 维评分, 3 子系统拆分）；plan: `plan.json`（7 tasks, 3 waves, open_decisions D-003/D-005）；ralph session `ralph-20260529-150000` 全 step + sub-goal G1/G2 confirmed |
-| **阻塞问题** | D-003 Cloud runtime 服务选型（Modal/Fly/自建）未决 → Wave 3 blocked；D-005 Phase 执行顺序待用户确认 |
-| **下一步动作** | 用户确认 Phase 优先级（建议先做 Phase 1 独立验收）+ D-003 选型 → 之后 `/maestro-plan {phase}` 细化进入 execute |
+| **FR-ID** | FR-RT-001（Cloud Runtime Gateway 契约）、FR-RT-002（user_local tunnel）、FR-RT-003（public_cloud 池部署） |
+| **对应计划** | macro analyze `ANL-20260529-p1-runtime` + roadmap `RDM-20260529-p1-runtime`（架构已修订）+ **架构合同 `research/contracts/P1-RUNTIME-GATEWAY.md`（revised）** |
+| **合同路径** | `research/contracts/P1-RUNTIME-GATEWAY.md`（权威，revised）；`.workflow/scratch/20260529-analyze-p1-runtime/conclusions.json`（旧模型，已被合同取代） |
+| **当前状态** | 🔄 **架构修订完成（2026-05-29），止步于 revised plan**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），非 optional provider；旧「直连真实服务」模型作废。**不进入 execute**，等待确认 |
+| **目标** | Cloud Runtime Gateway 统一承载 public_cloud + user_local 两类 endpoint；Web/Mobile 统一经 gateway，不直连本地端口；DB 状态记录 + 统一事件语义 |
+| **方案摘要** | 修订为 3 phase：P1 = Gateway contract + DB model（runtime_endpoints/sessions/logs/device_runtime_channels/capabilities）+ routing/event semantics，可执行不要求真实部署；P2 = Desktop local runtime tunnel 接入 gateway；P3 = public_cloud 池部署基座选型（D-003） |
+| **验收方式** | 本阶段：架构合同 + roadmap + tracker + report 同步；execute（未启动）按各 phase Success Criteria（见合同 §4） |
+| **测试证据** | 架构合同 `research/contracts/P1-RUNTIME-GATEWAY.md`；roadmap M:P1-RT 已修订；execution-report `research/execution-reports/p1-rt-gateway-revised-plan-report.md`；现有 gateway 雏形 `apps/web/server/ws-gateway.ts` + `device-connections.ts`（`/ws/device`） |
+| **阻塞问题** | **D-003 重定义**：从「是否需要 cloud provider」改为「Cloud Gateway 部署基座选型 Modal/Fly/自建/其他」，仅 public_cloud 池部署（Phase 3）deferred；Gateway 实体本身不再 deferred |
+| **下一步动作** | 用户确认修订后架构模型 + Phase 1 范围 → 之后 `/maestro-plan` 细化 Phase 1（Gateway contract + DB + 路由/事件）进入 execute；Phase 3 待 D-003 部署基座决策 |
 
 ---
 
@@ -151,3 +151,4 @@
 | 2026-05-29 | UI-ALIGN-001 | 闭环：critique→refine→polish→audit 全链完成；commits beb9825 + 1fe7b7d；audit 15/20 PASS；type-check 通过；P0 数据链路未受影响；P1 a11y gaps 残留 |
 | 2026-05-29 | P0-END-TO-END-PRODUCT-FLOW | mobile-pwa.spec.ts fixture 迁移完成：Supabase cookie → Auth.js ensureP0StorageState；4/4 tests PASS |
 | 2026-05-29 | P1-RT | Agent Runtime 规划完成（ralph-20260529-150000）：analyze→scope-gate→roadmap→plan 全链；scope_verdict=large；7 tasks/3 waves；**止步 plan**（跨三子系统，按约束不 execute） |
+| 2026-05-29 | P1-RT | **架构修订（revised plan，止步未 execute）**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），非 optional provider。新增架构合同 `P1-RUNTIME-GATEWAY.md`；roadmap M:P1-RT 重写为 Gateway 模型（public_cloud + user_local 两类 endpoint）；D-003 从「是否需 provider」重定义为「Gateway 部署基座选型」，Gateway 实体不再 deferred；Phase 1 改为 contract+DB+routing/event，可执行不要求真实部署 |

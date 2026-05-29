@@ -342,41 +342,51 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 | 4 | 凭证边界 | Cloud runtime 服务选型 deferred 到 Phase 3 plan | D-003 |
 | 5 | 不回改 | P0-END-TO-END / UI-ALIGN-001 / mobile fixture 已 closeout | boundary_contract |
 
-## Milestone: P1-RT — Agent Runtime 完整部署
+## Milestone: P1-RT — Cloud Runtime Gateway（架构修订 Revised）
 
-##### Phase 1: HostedRuntimeAdapter stub→real + DB schema
-**Goal**: HostedRuntimeAdapter 从 minimal stub 升级为真实云端连接，新增 runtime_sessions/runtime_logs 表持久化执行状态
-**Depends on**: 无（可独立验收，解除 /api/chat cloud 路径 stub 限制）
-**Key Files**: `apps/web/lib/runtime/hosted-adapter.ts`, `apps/web/app/api/chat/route.ts`, `docker/postgres/*.sql`
+> **修订（2026-05-29）**：用户澄清 Cloud Runtime Gateway 是必需实体（FRP 式 relay），不是 optional provider。
+> 取代旧模型「HostedRuntimeAdapter 直连真实云端服务」。架构合同见 `research/contracts/P1-RUNTIME-GATEWAY.md`。
+> 本 milestone 止步于 **revised plan/recommendation**，等待确认后再 execute。
+
+**核心模型**：Cloud Runtime Gateway 统一承载两类 runtime endpoint：
+- `public_cloud`：AgentHub 官方公共 runtime 池（部署基座 = D-003）
+- `user_local`：用户 Desktop 本地 runtime，经 gateway relay/tunnel 暴露（复用现有 `/ws/device`）
+
+Web/Mobile 永不直连本地端口，统一请求 gateway；`/api/chat` 按 endpoint 路由 → gateway 决定 public_cloud 还是转发 user_local。
+
+##### Phase 1: Cloud Runtime Gateway contract + DB model + routing/event semantics
+**Goal**: 建立 gateway 契约、DB 实体与路由/事件语义，HostedRuntimeAdapter 重定义为 gateway 客户端。**不要求真实部署平台。**
+**Depends on**: 无（可独立验收，无需 D-003）
+**Key Files**: `apps/web/lib/runtime/hosted-adapter.ts`, `apps/web/app/api/chat/route.ts`, `apps/web/lib/schema/runtime.ts`, `docker/postgres/p0-test-schema.sql`, `packages/shared/src/protocol/runtime-event.ts`
 **Success Criteria**:
-  1. HostedRuntimeAdapter 连接真实 runtime 服务并 streaming text_delta/tool 事件
-  2. runtime_sessions 表记录 session 状态（idle/running/completed/failed）
-  3. /api/chat cloud 路径返回真实响应而非 'minimal_adapter'
-  4. 集成测试覆盖 cloud 执行链路
+  1. DB 实体落库（幂等，不影响 P0 表）：`runtime_endpoints` / `runtime_sessions` / `runtime_logs` / `device_runtime_channels` / `runtime_capabilities`
+  2. HostedRuntimeAdapter 重构为 gateway 客户端契约：按 endpoint.kind 路由；public_cloud 未配置时明确返回 `endpoint_unavailable`/`public_runtime_available=false`，不连真实平台
+  3. `/api/chat` 按 workspace execution_domain / selected endpoint 路由到 gateway 逻辑（user_local 走现有 device relay，cloud 走 public_cloud 占位路由），runtime_sessions 落库
+  4. 统一事件语义：`gateway_connected` / `runtime_status` / `public_runtime_available` / `endpoint_unavailable` / `local_runtime_offline` / `tunnel_connected` / `tunnel_disconnected`（定义在 shared 协议；保留 `DEVICE_OFFLINE` 兼容）
+  5. type-check 通过 + `/api/chat` 集成测试覆盖新路由/事件/落库 + DB 迁移幂等性验证
 
-##### Phase 2: Desktop Local Runtime 增强
-**Goal**: 统一错误码体系 + session 状态持久化 + 凭证刷新
-**Depends on**: Phase 1（共享错误码枚举 + runtime_sessions schema）
-**Key Files**: `apps/desktop/src/main/runtime/*.ts`, `packages/shared/src/runtime/*.ts`
+##### Phase 2: Desktop local runtime tunnel/channel 接入 gateway
+**Goal**: Desktop 本地 runtime 经 gateway 建立 device/channel/tunnel；channel 状态持久化；错误码统一
+**Depends on**: Phase 1（gateway 契约 + schema + 事件）
+**Key Files**: `apps/web/server/ws-gateway.ts`, `apps/web/server/device-connections.ts`, `apps/web/lib/device-gateway-client.ts`, `packages/shared/src/runtime/*.ts`（不改 Desktop 进程主链路，除非类型必须兼容）
 **Success Criteria**:
-  1. 统一 RuntimeErrorCode 枚举（替代 Desktop exitCode 数字 + Web 'DEVICE_OFFLINE' 字符串）
-  2. Desktop runtime session 状态写入 DB
-  3. 凭证刷新机制（RuntimeConfigStore 扩展）
-  4. Desktop E2E（需 Electron 构建）验证错误码 + 持久化
+  1. user_local endpoint 经 `/ws/device` tunnel 接入 gateway，`device_runtime_channels` 持久化连接态
+  2. `local_runtime_offline` / `tunnel_connected` / `tunnel_disconnected` 事件闭环
+  3. 统一 RuntimeErrorCode 枚举（替代 Desktop exitCode 数字 + Web 'DEVICE_OFFLINE' 字符串），向后兼容
+  4. 集成/E2E 验证 tunnel 状态 + 错误码
 
-##### Phase 3: Cloud Adapter（新建）
-**Goal**: 独立 CloudRuntimeAdapter 连接外部 runtime 服务，凭证隔离 + 超时重试
-**Depends on**: Phase 1（HostedRuntimeAdapter 接口统一）
-**Key Files**: 新建 `apps/web/lib/runtime/cloud-adapter.ts`
-**Open Decision**: Cloud runtime 服务选型（Modal / Fly / 自建）— 进入 Phase 3 plan 前需用户决策
+##### Phase 3: public cloud runtime pool 部署基座选型与实现
+**Goal**: public_cloud runtime 池的部署基座选型与真实实现
+**Depends on**: Phase 1（gateway 契约统一）
+**Open Decision (D-003)**: **Cloud Gateway 部署基座选型：Modal / Fly / 自建 / 其他** — 进入 Phase 3 plan 前需用户决策
 **Success Criteria**:
-  1. CloudRuntimeAdapter 实现 RuntimeAdapter 接口
-  2. 凭证边界隔离（API key 管理方案）
-  3. 超时 + 重试策略
-  4. E2E 或集成测试覆盖 cloud adapter（需 staging 或 mock）
+  1. public_cloud runtime 池连接选定部署基座
+  2. 凭证边界隔离 + 超时/重试策略
+  3. E2E 或集成测试覆盖（需 staging 或 mock）
 
-## Scope Decisions
+## Scope Decisions（修订）
 
-- **In scope**: 三子系统 runtime 连接、DB 状态记录、错误码、凭证边界、E2E 验收标准
-- **Deferred**: Cloud runtime 服务选型（Phase 3 plan 决策）
-- **Out of scope**: P0/UI-ALIGN-001 已闭环代码、实际 execute（本 roadmap 止步 plan）
+- **In scope**: Cloud Runtime Gateway 契约、两类 endpoint 路由、DB 状态记录、统一事件语义、user_local tunnel、错误码
+- **Deferred (D-003)**: 仅 **public_cloud runtime 池的部署基座选型**（Modal/Fly/自建/其他）→ Phase 3
+- **不再 deferred**: Cloud Gateway 实体本身（必需）
+- **Out of scope**: P0/UI-ALIGN-001/mobile fixture 已闭环代码；Desktop 本地 RuntimeHost/StreamAdapter/DeviceChannel 进程主链路改写；实际 execute（本 roadmap 止步 revised plan）
