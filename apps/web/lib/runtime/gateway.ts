@@ -129,9 +129,15 @@ export async function* invoke(input: {
       endpointId: endpoint.id ?? undefined,
       prompt: input.userMessage ?? '',
     })
+    let failed = false
     for await (const raw of subscribeEvents(input.runtimeSession.id)) {
-      yield raw as RuntimeGatewayEvent
+      const evt = raw as RuntimeGatewayEvent
+      if (evt.type === 'runtime_failed') failed = true
+      yield evt
     }
+    // subscribeEvents returns on terminal event OR dual-timeout sentinel; either
+    // runtime_failed path must land the session as failed (never silently complete).
+    if (failed) await setSessionStatus(input.runtimeSession.id, 'failed')
     return
   }
 

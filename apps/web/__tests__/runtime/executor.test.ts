@@ -9,6 +9,9 @@ vi.mock('../../lib/runtime/redis-client', () => ({
   publishEvent: async (id: string, event: Record<string, unknown>) => { published.push({ id, event }) },
   isCancelled: async () => false,
   dequeue: async () => null,
+  setHeartbeat: async () => {},
+  clearHeartbeat: async () => {},
+  isAlive: async () => true,
 }))
 
 vi.mock('../../lib/app-db-client', () => ({
