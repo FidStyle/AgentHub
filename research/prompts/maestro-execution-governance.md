@@ -77,6 +77,17 @@ Plan 报告必须包含：
 5. 禁止只写 `.workflow/scratch/` 内部记录而不更新 `research/` 公开总账。
 6. 禁止在产品运行时使用 mock 主链路数据假装完成真实数据库/API/权限流程。
 7. 禁止未经 plan anti-pattern review 就进入 execute。
+8. 禁止让后台 shell、delegate、watcher、dev server 或 test runner 无时间预算地长期阻塞会话。
+
+## 后台执行时间预算
+
+执行后台 shell、delegate、长轮询测试或 watcher 时必须遵守：
+
+1. 启动前说明预期用途和大致时间预算；常规 review/decision delegate 超过 3-5 分钟无实质输出时必须主动检查。
+2. 超时后不得继续空等；必须查看进程/日志/当前 step 状态，并选择继续、降级为本地判定、终止相关进程，或输出 BLOCKED。
+3. 如果清理进程，只能清理本 step 启动或明确相关的残留进程；不要误杀用户无关服务。
+4. Review/verify 已有足够代码和测试证据时，可以停止等待 delegate，直接本地写入 `review.json`、`verification.json` 或执行报告。
+5. 完成输出必须列出是否还有残留后台进程；若存在，说明归属和处理理由。
 
 ---
 

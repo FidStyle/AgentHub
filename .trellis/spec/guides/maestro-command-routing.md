@@ -25,6 +25,7 @@ node scripts/export-maestro-command-reference.mjs
 - Use `/maestro-ralph status` to inspect the latest Ralph session.
 - Use `/maestro-ralph continue` when a Ralph session exists and should resume from current state.
 - Use `/maestro-ralph-execute -y` only when a Ralph execution loop already exists and the current step should advance.
+- When guiding Ralph through review, decision, or audit steps, include a shell/delegate time budget if the previous step stalled: do not wait indefinitely; after 3-5 minutes without useful output, inspect processes/logs, stop the related background task if needed, and proceed with local evidence or mark BLOCKED.
 - Use direct pipeline commands only when the stage is already known:
   - `/maestro-analyze ...`
   - `/maestro-plan ...`

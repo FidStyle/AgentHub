@@ -80,6 +80,16 @@ Maestro/Ralph 说“完成”时，Codex 必须核对：
 
 Analyze、plan、verify、review 等 artifact-only 阶段也必须提交自己的公开产物。只要写入或修改 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json`、测试文件或代码，就必须精确 `git add` 本阶段相关文件并使用中文 commit。不得把“没有代码改动”作为不提交 research/tracker/report 的理由。
 
+## 后台 Shell 与 Delegate 时间预算
+
+Maestro/Ralph 执行后台 shell、delegate、长轮询测试或 watcher 时，必须设置明确时间预算，不能无限等待：
+
+1. 常规 review/decision delegate 若 3-5 分钟无实质输出，应主动检查进程、日志和当前 step 状态。
+2. 长测试或构建必须先说明预期耗时；超过预期时应输出当前证据并决定继续、降级为本地判定，或停止并标记 BLOCKED。
+3. 发现残留 `maestro`、`delegate`、`tsx`、`node`、dev server 或 test runner 后台进程时，必须列出并清理与本 step 相关的残留进程，不能让会话空等。
+4. Decision 节点不应为了等待 delegate 而阻塞整条链；已有足够证据时可本地评估并写入 review/verify artifact。
+5. 完成输出必须说明是否存在仍在运行的后台进程；存在无关既有进程时要标明“不属于本 step”。
+
 ---
 
 ## Prompt 生成规则
