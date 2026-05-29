@@ -1,9 +1,9 @@
 {
   "version": "3.1",
   "project_name": "AgentHub",
-  "status": "in-progress",
-  "current_milestone": "adhoc-worker-harden",
-  "current_task_id": "RT-WORKER-HARDEN-001",
+  "status": "idle",
+  "current_milestone": null,
+  "current_task_id": null,
   "milestones": [
     {
       "id": "M1",
@@ -322,7 +322,7 @@
       "id": "adhoc-worker-harden",
       "type": "adhoc",
       "name": "Ad-hoc: worker-harden (liveness + 订阅超时 + 脱敏)",
-      "status": "active",
+      "status": "completed",
       "phases": [
         1
       ],
@@ -330,7 +330,8 @@
         "1": "standalone"
       },
       "roadmap_ref": null,
-      "created_at": "2026-05-30T01:35:00Z"
+      "created_at": "2026-05-30T01:35:00Z",
+      "completed_at": "2026-05-30T04:35:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -685,25 +686,9 @@
       "harvested": false,
       "created_at": "2026-05-29T15:05:00Z",
       "completed_at": "2026-05-29T15:10:00Z"
-    },
-    {
-      "id": "ANL-20260530-rt-worker-harden",
-      "type": "analyze",
-      "milestone": "adhoc-worker-harden",
-      "path": ".workflow/scratch/20260530-analyze-rt-worker-harden",
-      "created_at": "2026-05-30T01:35:00Z",
-      "status": "completed"
-    },
-    {
-      "id": "PLN-20260530-rt-worker-harden",
-      "type": "plan",
-      "milestone": "adhoc-worker-harden",
-      "path": ".workflow/scratch/20260530-plan-rt-worker-harden",
-      "created_at": "2026-05-30T01:40:00Z",
-      "status": "completed"
     }
   ],
-  "last_updated": "2026-05-29T10:11:21Z",
+  "last_updated": "2026-05-30T04:35:00Z",
   "accumulated_context": {
     "key_decisions": [
       "Progressive delivery: M5→M6→M7→M8→M9",
@@ -1301,6 +1286,31 @@
           "status": "completed",
           "verdict": "PASS",
           "created_at": "2026-05-30T01:16:00Z"
+        }
+      ]
+    },
+    {
+      "id": "adhoc-worker-harden",
+      "name": "Ad-hoc: worker-harden (liveness + 订阅超时 + 脱敏)",
+      "status": "completed",
+      "completed_at": "2026-05-30T04:35:00Z",
+      "archive_path": "milestones/adhoc-worker-harden/",
+      "archived_artifacts": [
+        {
+          "id": "ANL-20260530-rt-worker-harden",
+          "type": "analyze",
+          "milestone": "adhoc-worker-harden",
+          "path": ".workflow/scratch/20260530-analyze-rt-worker-harden",
+          "created_at": "2026-05-30T01:35:00Z",
+          "status": "completed"
+        },
+        {
+          "id": "PLN-20260530-rt-worker-harden",
+          "type": "plan",
+          "milestone": "adhoc-worker-harden",
+          "path": ".workflow/scratch/20260530-plan-rt-worker-harden",
+          "created_at": "2026-05-30T01:40:00Z",
+          "status": "completed"
         }
       ]
     }
