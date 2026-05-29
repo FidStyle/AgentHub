@@ -324,3 +324,59 @@ UI Phase 3 基于已完成的 M5-M10 功能基础，按照 `research/ui-design-s
 | M16: Lint/Type 修复 | completed | 1/1 | ✓ |
 | M17: TDD 验证补全 | active | 0/3 | 当前里程碑 |
 | M18: 全量三端 E2E 视觉门禁 | planned | 0/1 | 依赖 M17 |
+
+---
+
+# Roadmap: P1 Agent Runtime 完整部署
+
+> 独立 P1 initiative。来源：`scratch/20260529-analyze-p1-runtime/conclusions.json`（scope_verdict=large）。
+> 本 roadmap 止步于 plan/recommendation，不进入 execute。
+
+## Roadmap Decisions
+
+| # | Decision | Choice | Source |
+|---|----------|--------|--------|
+| 1 | Scope | P1 Agent Runtime 三子系统完整部署 | macro analyze conclusions |
+| 2 | Strategy | Progressive — Phase 1 解除 /api/chat stub 限制优先 | conclusions.recommendation |
+| 3 | Phase 拆分 | 3 phase（HostedRuntimeAdapter / Desktop 增强 / Cloud Adapter） | conclusions.subsystems |
+| 4 | 凭证边界 | Cloud runtime 服务选型 deferred 到 Phase 3 plan | D-003 |
+| 5 | 不回改 | P0-END-TO-END / UI-ALIGN-001 / mobile fixture 已 closeout | boundary_contract |
+
+## Milestone: P1-RT — Agent Runtime 完整部署
+
+##### Phase 1: HostedRuntimeAdapter stub→real + DB schema
+**Goal**: HostedRuntimeAdapter 从 minimal stub 升级为真实云端连接，新增 runtime_sessions/runtime_logs 表持久化执行状态
+**Depends on**: 无（可独立验收，解除 /api/chat cloud 路径 stub 限制）
+**Key Files**: `apps/web/lib/runtime/hosted-adapter.ts`, `apps/web/app/api/chat/route.ts`, `docker/postgres/*.sql`
+**Success Criteria**:
+  1. HostedRuntimeAdapter 连接真实 runtime 服务并 streaming text_delta/tool 事件
+  2. runtime_sessions 表记录 session 状态（idle/running/completed/failed）
+  3. /api/chat cloud 路径返回真实响应而非 'minimal_adapter'
+  4. 集成测试覆盖 cloud 执行链路
+
+##### Phase 2: Desktop Local Runtime 增强
+**Goal**: 统一错误码体系 + session 状态持久化 + 凭证刷新
+**Depends on**: Phase 1（共享错误码枚举 + runtime_sessions schema）
+**Key Files**: `apps/desktop/src/main/runtime/*.ts`, `packages/shared/src/runtime/*.ts`
+**Success Criteria**:
+  1. 统一 RuntimeErrorCode 枚举（替代 Desktop exitCode 数字 + Web 'DEVICE_OFFLINE' 字符串）
+  2. Desktop runtime session 状态写入 DB
+  3. 凭证刷新机制（RuntimeConfigStore 扩展）
+  4. Desktop E2E（需 Electron 构建）验证错误码 + 持久化
+
+##### Phase 3: Cloud Adapter（新建）
+**Goal**: 独立 CloudRuntimeAdapter 连接外部 runtime 服务，凭证隔离 + 超时重试
+**Depends on**: Phase 1（HostedRuntimeAdapter 接口统一）
+**Key Files**: 新建 `apps/web/lib/runtime/cloud-adapter.ts`
+**Open Decision**: Cloud runtime 服务选型（Modal / Fly / 自建）— 进入 Phase 3 plan 前需用户决策
+**Success Criteria**:
+  1. CloudRuntimeAdapter 实现 RuntimeAdapter 接口
+  2. 凭证边界隔离（API key 管理方案）
+  3. 超时 + 重试策略
+  4. E2E 或集成测试覆盖 cloud adapter（需 staging 或 mock）
+
+## Scope Decisions
+
+- **In scope**: 三子系统 runtime 连接、DB 状态记录、错误码、凭证边界、E2E 验收标准
+- **Deferred**: Cloud runtime 服务选型（Phase 3 plan 决策）
+- **Out of scope**: P0/UI-ALIGN-001 已闭环代码、实际 execute（本 roadmap 止步 plan）
