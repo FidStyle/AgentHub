@@ -2,7 +2,7 @@
   "version": "3.1",
   "project_name": "AgentHub",
   "status": "idle",
-  "current_milestone": null,
+  "current_milestone": "adhoc-real-runtime-executor",
   "current_task_id": null,
   "milestones": [
     {
@@ -302,6 +302,20 @@
       "roadmap_ref": ".workflow/roadmap.md",
       "created_at": "2026-05-29T09:37:03.399718+00:00",
       "completed_at": "2026-05-29T16:36:19.489294+00:00"
+    },
+    {
+      "id": "adhoc-real-runtime-executor",
+      "type": "adhoc",
+      "name": "Ad-hoc: real-runtime-executor",
+      "status": "active",
+      "phases": [
+        1
+      ],
+      "phase_slugs": {
+        "1": "standalone"
+      },
+      "roadmap_ref": null,
+      "created_at": "2026-05-30T01:10:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -656,6 +670,50 @@
       "harvested": false,
       "created_at": "2026-05-29T15:05:00Z",
       "completed_at": "2026-05-29T15:10:00Z"
+    },
+    {
+      "id": "ANL-20260530-real-runtime-executor",
+      "type": "analyze",
+      "scope": "macro",
+      "phase": null,
+      "milestone": "adhoc-real-runtime-executor",
+      "path": "scratch/20260530-analyze-real-runtime-executor",
+      "status": "completed",
+      "created_at": "2026-05-30T01:05:00Z"
+    },
+    {
+      "id": "PLN-20260530-real-runtime-executor",
+      "type": "plan",
+      "scope": "standalone",
+      "phase": null,
+      "milestone": "adhoc-real-runtime-executor",
+      "path": "scratch/20260530-plan-real-runtime-executor",
+      "status": "completed",
+      "created_at": "2026-05-30T01:10:00Z",
+      "source_artifact_ref": "analyze:ANL-20260530-real-runtime-executor"
+    },
+    {
+      "id": "EXC-20260530-real-runtime-executor",
+      "type": "execute",
+      "scope": "standalone",
+      "phase": null,
+      "milestone": "adhoc-real-runtime-executor",
+      "path": "scratch/20260530-plan-real-runtime-executor",
+      "status": "completed",
+      "created_at": "2026-05-30T01:12:00Z",
+      "source_artifact_ref": "plan:PLN-20260530-real-runtime-executor"
+    },
+    {
+      "id": "VRF-20260530-real-runtime-executor",
+      "type": "verify",
+      "scope": "standalone",
+      "phase": null,
+      "milestone": "adhoc-real-runtime-executor",
+      "path": "scratch/20260530-plan-real-runtime-executor",
+      "status": "completed",
+      "created_at": "2026-05-30T01:14:00Z",
+      "passed": true,
+      "source_artifact_ref": "execute:EXC-20260530-real-runtime-executor"
     }
   ],
   "last_updated": "2026-05-29T10:11:21Z",

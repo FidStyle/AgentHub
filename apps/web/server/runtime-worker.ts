@@ -1,6 +1,14 @@
 import { createClient } from '../lib/app-db-client'
-import { FakeExecutor, type RuntimeExecutor } from '../lib/runtime/executor'
+import { CliRuntimeExecutor, FakeExecutor, type CliRuntimeType, type RuntimeExecutor } from '../lib/runtime/executor'
 import { dequeue, publishEvent, isCancelled, type RuntimeJob } from '../lib/runtime/redis-client'
+
+// Selects the executor from env. Default is FakeExecutor so existing gateway tests and local
+// runs need no real CLI. RUNTIME_EXECUTOR=real opts into the pluggable CLI executor.
+export function createExecutor(): RuntimeExecutor {
+  if (process.env.RUNTIME_EXECUTOR !== 'real') return new FakeExecutor()
+  const runtimeType: CliRuntimeType = process.env.RUNTIME_CLI === 'codex' ? 'codex' : 'claude_code'
+  return new CliRuntimeExecutor({ runtimeType, cwd: process.env.RUNTIME_CWD })
+}
 
 type Terminal = 'completed' | 'cancelled' | 'failed'
 
@@ -54,11 +62,12 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor = ne
 
 async function main(): Promise<void> {
   console.log('[runtime-worker] started, consuming queue...')
+  const executor = createExecutor()
   while (true) {
     const job = await dequeue(5)
     if (!job) continue
     try {
-      await processJob(job)
+      await processJob(job, executor)
     } catch (err) {
       console.error('[runtime-worker] job error', err)
     }
