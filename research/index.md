@@ -13,6 +13,7 @@
 | [prd-amendments/](./prd-amendments/) | PRD 增补修订（不直接改 prd.md） |
 | [contracts/](./contracts/) | **共享任务合同** — Trellis 与 Maestro/Ralph 的唯一协作接口 |
 | [contracts/P0-END-TO-END-PRODUCT-FLOW.md](./contracts/P0-END-TO-END-PRODUCT-FLOW.md) | P0 MVP 端到端产品主链路合同与验真样本 |
+| [contracts/P1-RUNTIME-GATEWAY.md](./contracts/P1-RUNTIME-GATEWAY.md) | P1 Cloud Runtime Gateway 架构合同：必需云端 relay，统一 public_cloud 与 user_local runtime |
 
 ## 技术设计
 
@@ -47,6 +48,7 @@
 | [execution-reports/](./execution-reports/) | 执行报告（每次迁移/实现前后） |
 | [execution-reports/p0-end-to-end-product-flow-readiness-audit.md](./execution-reports/p0-end-to-end-product-flow-readiness-audit.md) | P0 端到端产品主链路盲验证前准备审计 |
 | [execution-reports/p0-end-to-end-product-flow-blind-verify-report.md](./execution-reports/p0-end-to-end-product-flow-blind-verify-report.md) | P0 端到端产品主链路 Ralph 盲验证结果 |
+| [execution-reports/p1-rt-gateway-revised-plan-report.md](./execution-reports/p1-rt-gateway-revised-plan-report.md) | P1 Runtime Gateway 架构修订报告：Cloud Gateway 必需实体，D-003 重定义 |
 | [../scripts/verify-governance-gate.sh](../scripts/verify-governance-gate.sh) | Maestro/Ralph 完成前治理门禁脚本 |
 
 ## Prompt 模板

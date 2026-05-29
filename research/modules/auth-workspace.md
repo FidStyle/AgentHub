@@ -48,7 +48,8 @@ type WorkspaceExecutionDomain = 'cloud' | 'local_desktop';
 | Session 继承 Workspace 执行域 | Session 不单独选择 Cloud/Local |
 | Role Agent Runtime 必须匹配执行域 | Cloud Workspace 不可绑定本地 Claude Code/Codex |
 | Action 执行位置必须匹配执行域 | Cloud 走云端执行，Local Desktop 走 Desktop Connector |
-| Web/Mobile 是控制端而不是本地执行端 | 用户可以在 Web/Mobile 发起会影响本地 Workspace 的消息、审批和 Action；本地文件读写、命令执行和 Runtime 调用只由在线 Desktop Connector 执行 |
+| Web/Mobile 是控制端而不是本地执行端 | 用户可以在 Web/Mobile 发起会影响本地 Workspace 的消息、审批和 Action；本地文件读写、命令执行和 Runtime 调用必须经 Cloud Runtime Gateway 转发到在线 Desktop Connector 执行 |
+| 本地 Runtime 不暴露给 Web/Mobile 直连 | Local Desktop Workspace 的 `user_local` runtime endpoint 只通过 Cloud Runtime Gateway + Desktop DeviceChannel/tunnel 暴露 |
 
 对应需求：`FR-WS-001`, `FR-RUNTIME-001`, `FR-ACTION-001`。
 
@@ -76,7 +77,7 @@ P0 推荐：
 
 - Auth：Auth.js v5 + GitHub OAuth Provider。本地开发仅需 GitHub OAuth App credentials + local Postgres，不依赖 external BaaS 控制台。
 - DB：PostgreSQL（生产可用 Postgres，本地开发用 local Postgres），Workspace/Session/Role Agent/Action/Pending Approval 使用统一用户 ID。
-- Workspace 执行域：数据库字段强约束 + 服务层校验 + UI 禁用不合法选择。
+- Workspace 执行域：数据库字段强约束 + 服务层校验 + UI 禁用不合法选择；P1 Runtime Gateway 中，`cloud` 默认路由 `public_cloud` endpoint，`local_desktop` 默认路由 `user_local` endpoint。
 - Desktop 绑定：一次性设备绑定码，绑定后获得 device token。
 - 本地目录权限：Desktop 只暴露用户选择的 workspace root；后端只保存目录标识和展示名，不保存任意可写路径能力。
 

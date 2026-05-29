@@ -189,7 +189,7 @@ Claude Code 和 Codex 在本产品中不是简单的文本生成 API。
 - [ ] Desktop 提供本地 Agent 会话/运行态入口：用户可以从已检测到的本地 Claude Code/Codex 或绑定的 Role Agent 进入轻量对话视图，查看本地 Runtime 流式输出、执行状态和最近消息，并发送与当前 Local Desktop Workspace 相关的轻量指令。
 - [ ] Mobile 提供轻量 IM、任务进度、审批和预览。
 - [ ] Web 和 Mobile 可以作为 Local Desktop Workspace 的控制端发送消息、审批和 Action 指令，但本地文件读写、命令执行和 Runtime 调用必须落在已认证且在线的 Desktop Connector。
-- [ ] 系统不能在没有已认证 Desktop Connector 的情况下声称可以控制用户本地 Workspace，也不能把 Web/Mobile 进程作为本地文件或本地端口访问入口。
+- [ ] 系统不能在没有已认证 Desktop Connector 的情况下声称可以控制用户本地 Workspace，也不能把 Web/Mobile 进程作为本地文件或本地端口访问入口；远端访问用户本地 Runtime 必须统一经 Cloud Runtime Gateway relay/tunnel 转发。
 
 **依赖：** FR-AUTH-001, FR-WS-001。
 

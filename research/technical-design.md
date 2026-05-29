@@ -40,7 +40,7 @@ P0 技术目标：
 | DB | Postgres | `FR-WS-001`, `FR-CHAT-001`, `FR-RESULT-001` |
 | Realtime | database-backed realtime 订阅消息、事件、审批状态 | `FR-CHAT-001`, `FR-NOTIFY-001` |
 | Desktop 通道 | `DeviceChannel` 接口，P0 实现为 Desktop 主动 WebSocket 长连接 | `FR-DEVICE-001`, `FR-DESK-001`, `NFR-SEC-001` |
-| Runtime Adapter | Hosted Runtime、Claude Code CLI Adapter、Codex CLI Adapter | `FR-RUNTIME-001`, `FR-AGENT-001`, `FR-CTX-001` |
+| Runtime Gateway / Adapter | Cloud Runtime Gateway 必需实体 + Runtime Adapter；Gateway 统一承载 `public_cloud` 官方 runtime 池和 `user_local` Desktop tunnel runtime | `FR-RUNTIME-001`, `FR-AGENT-001`, `FR-CTX-001`, `FR-DEVICE-001` |
 | Action/CLI Adapter | 统一 `ActionRequest`，P0 支持 preview/test/build/shell，deploy 仅保留兼容字段 | `FR-ACTION-001`, `FR-PERM-001`, `FR-RESULT-001` |
 | Orchestrator | 后端状态机托管 + Plan DAG；LLM 只生成澄清、候选计划、总结内容，系统负责 DAG 校验和 ready 节点调度 | `FR-ORCH-001`, `FR-CTX-001`, `FR-PERM-001`, `FR-RESULT-001` |
 
@@ -106,7 +106,8 @@ flowchart LR
   Backend[Next.js 后端/BFF\nOrchestrator + Policy]
   DeviceGateway[设备网关\nWebSocket]
   DesktopMain[Electron Main\n设备通道 + 运行时宿主 + 本地执行器]
-  Hosted[云端托管 Runtime]
+  RuntimeGateway[Cloud Runtime Gateway\n统一入口 + relay]
+  PublicRuntime[public_cloud\n官方 Runtime 池]
   Claude[本地 Claude Code CLI]
   Codex[本地 Codex CLI]
   CloudFS[云端项目目录]
@@ -120,8 +121,10 @@ flowchart LR
   DesktopMain --> DeviceGateway
   DeviceGateway --> Backend
   Backend --> external BaaS
-  Backend --> Hosted
-  Hosted --> CloudFS
+  Backend --> RuntimeGateway
+  RuntimeGateway --> PublicRuntime
+  PublicRuntime --> CloudFS
+  RuntimeGateway --> DeviceGateway
   DesktopMain --> Claude
   DesktopMain --> Codex
   DesktopMain --> LocalFS
@@ -131,8 +134,8 @@ flowchart LR
 
 - Web 是完整工作台，Mobile PWA 是同一 Web 应用的轻量入口。
 - Desktop 是 Connector，不复制三栏工作台。
-- Cloud Workspace 的 Action 和 Runtime 只在云端项目目录执行。
-- Local Desktop Workspace 的 Action 和 Runtime 只通过在线 Desktop Connector 执行。
+- Cloud Workspace 的 Action 和 Runtime 通过 Cloud Runtime Gateway 路由到 `public_cloud` 官方 Runtime 池，在云端项目目录执行。
+- Local Desktop Workspace 的 Action 和 Runtime 也统一从 Cloud Runtime Gateway 入口进入，再经 Desktop 主动建立的 DeviceChannel/tunnel 转发到用户本机 Runtime；Web/Mobile 不直连本地端口。
 - Web/Mobile 是控制端，可以对 Cloud Workspace 或 Local Desktop Workspace 发送消息、审批和 Action 指令；但本地文件读写、命令执行和 Runtime 调用只能由 Desktop Connector 落地。
 - Web/Mobile 进程不承载本地文件执行能力，也不通过浏览器、手机或用户电脑端口绕过 Desktop Connector。
 
@@ -148,9 +151,11 @@ flowchart LR
 | --- | --- | --- |
 | 执行域 | Cloud Workspace | 平台云端项目目录 + Hosted Runtime |
 | 执行域 | Local Desktop Workspace | Desktop Connector 授权的本地目录 + 本地 Claude Code/Codex |
-| Runtime | Hosted Runtime | 平台托管角色 Runtime |
-| Runtime | Claude Code | Desktop Connector 调用本机 Claude Code CLI |
-| Runtime | Codex | Desktop Connector 调用本机 Codex CLI |
+| Runtime Endpoint | `public_cloud` | AgentHub 官方公共 Runtime 池，经 Cloud Runtime Gateway 暴露 |
+| Runtime Endpoint | `user_local` | 用户自己的 Desktop 本地 Runtime，经 Cloud Runtime Gateway relay/tunnel 暴露 |
+| Runtime | Hosted Runtime | 平台托管角色 Runtime，属于 `public_cloud` endpoint |
+| Runtime | Claude Code | Desktop Connector 调用本机 Claude Code CLI，属于 `user_local` endpoint |
+| Runtime | Codex | Desktop Connector 调用本机 Codex CLI，属于 `user_local` endpoint |
 | Runtime | OpenCode | P1/P2 预留，不进入 P0 |
 
 ### 5.2 强约束
@@ -161,7 +166,8 @@ flowchart LR
 | Session 继承 Workspace 执行域 | `sessions.execution_domain` 由 Workspace 派生或冗余快照，不允许用户单独选择 |
 | Role Agent Runtime 必须匹配 Workspace | 创建/更新 `role_agent_runtime_bindings` 时执行 policy 校验 |
 | Action 执行位置必须匹配 Workspace | `actions.execution_domain` 由 Workspace 赋值，Executor 只按该字段路由 |
-| Runtime session 不能跨域复用 | `runtime_sessions` 唯一键包含 `execution_domain` |
+| Runtime session 不能跨域复用 | `runtime_sessions` 唯一键包含 `execution_domain` 和 `endpoint_id` |
+| Web/Mobile 不直连本地 Runtime | 所有 runtime 请求先进入 Cloud Runtime Gateway；`user_local` 再通过 Desktop tunnel 转发 |
 | 本地路径只能在授权 root 内 | Desktop main 对所有 path 做 resolve + root containment check |
 
 ### 5.3 运行时路由
@@ -171,16 +177,17 @@ flowchart TD
   A[Runtime 或 Action 请求] --> B{请求执行域是否等于 Workspace 执行域}
   B -- 否 --> X[阻断: EXECUTION_DOMAIN_MISMATCH]
   B -- 是 --> C{Workspace 类型}
-  C -- Cloud Workspace --> D[Cloud Executor / Hosted Runtime]
-  C -- Local Desktop Workspace --> E{Desktop Connector 是否在线}
-  E -- 否 --> Y[阻断: DEVICE_OFFLINE]
-  E -- 是 --> F[Desktop Connector 执行本地 Runtime 或 Action]
+  C -- Cloud Workspace --> D[Cloud Runtime Gateway\npublic_cloud endpoint]
+  C -- Local Desktop Workspace --> E[Cloud Runtime Gateway\nuser_local endpoint]
+  E --> F{Desktop tunnel 是否在线}
+  F -- 否 --> Y[阻断: local_runtime_offline / DEVICE_OFFLINE]
+  F -- 是 --> G[Desktop Connector 执行本地 Runtime 或 Action]
 ```
 
 阻断规则：
 
-- `cloud` Workspace 不能绑定 `claude_code` 或 `codex`。
-- `local_desktop` Workspace 不能绑定 `hosted` Runtime。
+- `cloud` Workspace 默认绑定 `public_cloud` endpoint，不能绕过 Gateway 直接绑定用户本机 `claude_code` 或 `codex`。
+- `local_desktop` Workspace 默认绑定 `user_local` endpoint，不能绕过 Gateway 从 Web/Mobile 直连本地端口。
 - Local Desktop Workspace 在 Desktop Connector 离线时可以聊天和查看历史，但不能执行 Runtime 或 Action。
 
 对应需求：`FR-WS-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-DESK-001`, `NFR-SEC-001`。
@@ -372,17 +379,27 @@ sequenceDiagram
 
 ---
 
-## 10. Runtime Adapter 设计
+## 10. Runtime Gateway 与 Adapter 设计
+
+### 10.0 Cloud Runtime Gateway 是必需实体
+
+P1 起，Runtime 路由的权威合同是 `research/contracts/P1-RUNTIME-GATEWAY.md`。Cloud Runtime Gateway 不是 optional provider，而是 Web/Mobile/Desktop 访问 Runtime 的统一入口和 relay：
+
+- `public_cloud` endpoint：AgentHub 官方公共 Claude Code/Codex Runtime 池；部署基座选型（Modal/Fly/自建/其他）属于 D-003，仅阻塞真实公共池部署，不阻塞 Gateway 契约。
+- `user_local` endpoint：用户自己的 Desktop 本地 Claude Code/Codex Runtime；Desktop 监听本地端口或子进程，但必须通过云端 Gateway 建立 DeviceChannel/tunnel，供 Web/Mobile 间接访问。
+- Web/Mobile 永不保存或访问用户本机 IP/端口；所有请求先进 Gateway，再由 Gateway 路由到 `public_cloud` 或 `user_local`。
+- HostedRuntimeAdapter 应实现 Gateway 客户端/契约边界，不应被实现成“直连某个云端服务”的孤立 adapter。
 
 ### 10.1 Adapter 分层
 
 | 层 | 职责 |
 | --- | --- |
+| Cloud Runtime Gateway | 统一入口、endpoint 路由、runtime session/log 持久化、public_cloud 与 user_local 二级路由 |
 | Runtime Detector | 检测 CLI/服务是否存在、版本、认证状态、能力声明 |
 | Process/Transport Layer | launch、stdin、stdout、stderr、cancel、restart、timeout、HTTP/SSE |
 | Runtime Parser | 把 Claude/Codex 原始输出映射成 `RuntimeEvent` |
 | Runtime Session Store | 记录 AgentHub session 与 native session identity 的绑定 |
-| Runtime Host | 按 Workspace 执行域把请求路由到 Hosted Runtime 或 Desktop main |
+| Runtime Host | 在 Gateway 路由结果内执行 public_cloud 或 user_local 的具体 Runtime 调用 |
 
 对应需求：`FR-RUNTIME-001`, `FR-DESK-001`, `FR-CTX-001`, `FR-PERM-001`。
 

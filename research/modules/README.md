@@ -32,7 +32,7 @@
 | Auth/Workspace | Auth.js + GitHub OAuth + Postgres | 同时解决登录、DB、Realtime 基础设施 |
 | IM/Realtime | database-backed realtime | 与 Auth/DB 统一，足够支撑消息、审批、状态同步 |
 | Desktop Connector | Electron + DeviceChannel 接口 + WebSocket 主实现 | Node 主进程适合本地 CLI、文件、进程能力；WebSocket 适合远程控制和状态回传 |
-| Runtime Adapter | Claude Code/Codex 均走 CLI 子进程 Adapter | 满足 native session resume/continue 的核心产品差异 |
+| Runtime Gateway / Adapter | Cloud Runtime Gateway 必需实体 + Claude Code/Codex Adapter；Gateway 统一承载 public_cloud 官方池与 user_local Desktop tunnel | 满足 Web/Mobile 统一访问、用户本地 Runtime 云端转发、native session resume/continue 的核心产品差异 |
 | Action/CLI | preview/test/build/shell 统一 ActionRequest | 覆盖 Demo，同时给未来部署发布留扩展点 |
 | Orchestrator | 后端状态机托管 + Plan DAG，LLM 生成候选计划和总结，系统校验依赖并调度 ready nodes | 保证可解释、可审批、可测试，并满足并行调度、失败降级和 handoff |
 | 自动化执行治理 | Maestro-Flow 作为执行闭环参考，CodeStable 作为需求暂停与验收回写参考 | 既能自动推进 plan/execute/verify/test，又能在需求不清、UI 契约缺失或参考项目冲突时停下来反写 PRD |
@@ -88,7 +88,7 @@ future apps/mobile-native
 2. UI 设计系统：`shadcn/ui + Tailwind CSS 4 + lucide-react`，视觉 E2E 使用 Playwright browser projects 与 Playwright Electron 分端覆盖。
 3. Auth/DB/Realtime：P0 使用 external BaaS 作为基础设施。
 4. Desktop 通道：`DeviceChannel` 作为接口，P0 直接使用 WebSocket 实现。
-5. Runtime Adapter：Claude Code/Codex P0 都必须走 CLI 子进程，不用普通 API 模拟。
+5. Runtime Gateway / Adapter：P1 起 Cloud Runtime Gateway 是必需实体；public_cloud 官方 runtime 池和 user_local Desktop 本地 runtime 都必须经 Gateway 暴露。Claude Code/Codex 本地执行仍走 CLI 子进程，不用普通 API 模拟。
 6. Orchestrator：后端状态机托管，Plan DAG 作为结构化计划，LLM 只负责内容生成。
 7. 自动化执行：参考 Maestro-Flow 的 plan/execute/verify/review/test/fix-loop，但参考 CodeStable 的需求暂停、PRD 反写和验收回写机制防止自动化跑偏。
 

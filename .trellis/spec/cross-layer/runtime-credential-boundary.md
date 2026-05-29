@@ -13,6 +13,7 @@
 ```typescript
 type RuntimeKind = 'hosted' | 'claude_code' | 'codex';
 type ExecutionDomain = 'cloud' | 'local_desktop';
+type RuntimeEndpointKind = 'public_cloud' | 'user_local';
 type RuntimeAuthStatus = 'unknown' | 'authenticated' | 'auth_required' | 'unavailable';
 
 interface RuntimeDetectionResult {
@@ -32,6 +33,7 @@ interface RuntimeBinding {
   roleAgentId: string;
   runtimeKind: RuntimeKind;
   executionDomain: ExecutionDomain;
+  endpointKind: RuntimeEndpointKind;
   detectionSnapshot: RuntimeDetectionResult;
 }
 ```
@@ -39,6 +41,7 @@ interface RuntimeBinding {
 ### 3. 契约
 
 - 本地 `claude_code` / `codex` 绑定只允许保存 `runtimeKind`、`executionDomain`、`cliPath`、`version`、`authStatus`、`capabilities`、诊断码和 native session 绑定。
+- 本地 `claude_code` / `codex` 绑定属于 `user_local` endpoint。远端 Web/Mobile 只能通过 Cloud Runtime Gateway + Desktop DeviceChannel/tunnel 访问它，不能保存或访问用户本机 IP/端口。
 - 禁止在本地 Runtime 绑定、Role Agent 配置、Workspace、Session、Message、Runtime Event 中保存原始 `ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`GEMINI_API_KEY`、`*_BASE_URL` 或等价密钥/中转地址。
 - Web 配置页只能展示检测状态、版本、登录状态、能力声明、修复引导和 Runtime 选择。P0 不做 App 内代登录、设备码轮询或 OAuth 代理。
 - Desktop Connector 可以继承当前进程环境执行用户本机 CLI，但不得把敏感环境变量回传到 Web 或后端。
@@ -54,6 +57,7 @@ interface RuntimeBinding {
 | 用户点击未登录 Runtime 的修复入口 | 展示本机命令/文档引导，不启动 App 内登录代理 |
 | Workspace 是 `cloud` 但绑定本地 Runtime | `EXECUTION_DOMAIN_MISMATCH` |
 | Workspace 是 `local_desktop` 但 Desktop Connector 离线 | `DEVICE_OFFLINE` |
+| Web/Mobile 试图提交用户本机 IP/端口作为 runtime endpoint | `LOCAL_ENDPOINT_DIRECT_ACCESS_FORBIDDEN` |
 | Runtime 执行事件包含疑似密钥值 | 写入前脱敏，测试中断言不落库 |
 
 ### 5. 正常/基线/错误用例
@@ -80,6 +84,7 @@ await saveRuntimeBinding({
   roleAgentId,
   runtimeKind: 'codex',
   executionDomain: 'local_desktop',
+  endpointKind: 'user_local',
   env: {
     OPENAI_API_KEY: userInputApiKey,
     OPENAI_BASE_URL: userInputBaseUrl,
@@ -97,6 +102,7 @@ await saveRuntimeBinding({
   roleAgentId,
   runtimeKind: 'codex',
   executionDomain: 'local_desktop',
+  endpointKind: 'user_local',
   detectionSnapshot: detection,
 });
 ```
