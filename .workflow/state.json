@@ -714,6 +714,17 @@
       "created_at": "2026-05-30T01:14:00Z",
       "passed": true,
       "source_artifact_ref": "execute:EXC-20260530-real-runtime-executor"
+    },
+    {
+      "id": "REV-20260530-real-runtime-executor",
+      "type": "review",
+      "scope": "standalone",
+      "phase": null,
+      "milestone": "adhoc-real-runtime-executor",
+      "path": "scratch/20260530-plan-real-runtime-executor",
+      "status": "completed",
+      "verdict": "PASS",
+      "created_at": "2026-05-30T01:16:00Z"
     }
   ],
   "last_updated": "2026-05-29T10:11:21Z",

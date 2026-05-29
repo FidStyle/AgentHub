@@ -173,6 +173,23 @@
 
 ---
 
+### RT-REAL-EXEC-001: 真实可插拔 RuntimeExecutor 接入
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（P1-RT 后续独立范围，adhoc 里程碑 `adhoc-real-runtime-executor`） |
+| **FR-ID** | FR-RT-001 延伸（真实 executor 接入，不改 Gateway 总架构） |
+| **对应计划** | `PLN-20260530-real-runtime-executor`（2 tasks / 2 waves，源自 `ANL-20260530-real-runtime-executor`） |
+| **合同/决策** | 复用 RuntimeExecutor 接口（L1 零接口改动）；CLI 不可用返回 executor_unavailable（L5 禁假成功）；凭证仅经 env 注入不外发（L6）；默认 FakeExecutor 保证 gateway 零回归（L3） |
+| **当前状态** | ✅ **全部完成，验证通过（2026-05-30）**：CliRuntimeExecutor spawn claude/codex CLI 流式 stdout→chunk；ENOENT/spawn 失败→ExecutorUnavailableError(code=executor_unavailable)；stderr 仅 drain 不外发；createExecutor 工厂按 RUNTIME_EXECUTOR env 选择，默认 FakeExecutor；verify 6 truths 全 VERIFIED / review PASS / test 7-7 pass |
+| **目标** | 在不改 Gateway 总架构前提下，新增真实可插拔 executor（claude/codex CLI），保留 FakeExecutor 作测试 executor，CLI 不可用明确失败，凭证安全隔离 |
+| **验收方式** | apps/web tsc exit 0；executor.test.ts 7/7 pass；gateway 零回归（git stash 基线对照预存失败一致）；grep 收敛条件全过；治理门禁 RT-REAL-EXEC-001 exit 0 |
+| **测试证据** | `apps/web/__tests__/runtime/executor.test.ts` 7 passed / 7（S1-S7：unavailable/凭证隔离/Fake 回归/失败事件/工厂选择）；verification.json passed=true 6 truths VERIFIED 0 gaps；review.json verdict=PASS 0 blocking；execution-report `research/execution-reports/real-runtime-executor-report.md` |
+| **阻塞问题** | 无。Deferred（非本期）：真实端到端 CLI 会话（需凭证+付费，D1）；结构化输出解析（D3） |
+| **下一步动作** | milestone-complete 归档；真实端到端 CLI 会话验证 + worker 池接入为后续独立范围 |
+
+---
+
 ## P2 任务
 
 （暂无登记）
@@ -208,3 +225,4 @@
 | 2026-05-29 | P1-RT-PHASE2 | **Phase 2 execute + 验收完成**（ralph-20260529-194146）：device-channel-store 连接生命周期单点 upsert device_runtime_channels（ws-gateway addConnection/close/心跳超时 hook）+ gateway invoke user_local 分支 tunnel 事件闭环（tunnel_connected/tunnel_disconnected/local_runtime_offline，曾连接后断开经 channel.connected_at 判定）+ RuntimeErrorCode 集中 packages/shared 并替换内联字符串（DEVICE_OFFLINE/endpoint_unavailable 字面值不变保 P0 兼容）；verify-p1-rt-phase2.ts 真实 DB 13 passed/0 failed/0 skip；Phase 1 回归 12 passed/0 failed/1 skip；packages/shared + apps/web tsc exit 0 |
 | 2026-05-29 | P1-RT-PHASE3 | **Phase 3 execute + 验收完成**（ralph-20260529-220000）：自建 docker compose 栈（postgres:15.3+redis:7.2+node worker 官方镜像）+ redis-client 封装（enqueue/dequeue BRPOP/pub-sub/cancel 控制键）+ RuntimeExecutor 接口/FakeExecutor 流式 + worker processJob 状态机（running→completed/cancelled/failed，落 runtime_sessions/runtime_logs seq）+ gateway public_cloud 分支接入队列+订阅事件流转 SSE + cancelRuntimeSession（REDIS 未配保留 endpoint_unavailable 占位，user_local 未改）；verify-p1-rt-phase3.ts 真实 Postgres+Redis 16 passed/0 failed/0 skip（调度/流式/落库+seq/取消/失败 5 类语义）；Phase 2 回归 13 passed/0 failed/0 skip；apps/web tsc exit 0；compose config exit 0；banned-platform 扫描 clean；review verdict=PASS（critical/high=0） |
 | 2026-05-29 | P1-RT | **里程碑完成（milestone-audit + milestone-complete）**：三 phase verify+review 均 PASS；milestone-audit PASS（0 critical/0 high，跨 phase 集成无契约冲突）；真实 infra 回归 Phase 3 16/16 + Phase 2 13/13，apps/web + packages/shared tsc exit 0；10 个 artifact 归档至 milestone_history + `.workflow/milestones/P1-RT/`（audit-report/summary/roadmap-snapshot）；current_milestone 置空（standalone 里程碑无 roadmap 后继）；治理门禁 exit 0 |
+| 2026-05-30 | RT-REAL-EXEC-001 | **真实可插拔 RuntimeExecutor 接入完成**（ralph-20260530-010200）：executor.ts 新增 CliRuntimeExecutor（spawn claude/codex CLI，readline 流式 stdout→chunk）+ ExecutorUnavailableError（ENOENT/spawn 失败 code=executor_unavailable，禁假成功）+ stderr 仅 drain 不外发（凭证隔离）；runtime-worker.ts createExecutor 工厂按 RUNTIME_EXECUTOR env 选择，默认 FakeExecutor（gateway 零回归）；executor.test.ts 7/7 pass（unavailable/凭证隔离/Fake 回归/失败事件/工厂）；verify 6 truths VERIFIED 0 gaps；review PASS 0 blocking；apps/web tsc exit 0；治理门禁 exit 0；未改 Gateway 总架构，无托管平台依赖，无真实付费调用 |
