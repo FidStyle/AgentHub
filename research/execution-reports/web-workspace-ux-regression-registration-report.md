@@ -20,6 +20,7 @@
 
 ## 已完成的治理修正
 
+- 新增 `research/regression-ledger.md`，作为 bug / 未完成项 / 不完善项的长期台账，并登记 `REG-20260530-001`。
 - `research/project-tracker.md` 新增 `WEB-WORKSPACE-UX-001`，标记为 P0 regression。
 - `research/ai-workflow-control.md` 新增“已完成功能优先修复原则”。
 - `research/maestro-guidance-playbook.md` 补充完成后不得直接推进新功能，必须先检查未关闭 regression / quality debt。
