@@ -12,7 +12,7 @@ export interface RuntimeIconProps {
 const runtimeToBrand: Record<RuntimeKind, BrandKind> = {
   claude_code: 'claude-code',
   codex: 'codex',
-  opencode: 'agenthub',
+  opencode: 'opencode',
   github: 'github',
 }
 
