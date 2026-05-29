@@ -205,6 +205,23 @@
 
 ---
 
+### RT-WORKER-HARDEN-001: Runtime worker 硬化（liveness + 订阅超时 + 统一脱敏）
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（P1-RT / RT-REAL-EXEC-001 后续独立范围，adhoc 里程碑 `adhoc-worker-harden`） |
+| **FR-ID** | FR-RT-001 延伸（runtime 健壮性 + 凭证隔离，不改 Gateway 总架构） |
+| **对应计划** | `PLN-20260530-rt-worker-harden`（3 tasks / 2 waves，源自 `ANL-20260530-rt-worker-harden`） |
+| **合同/决策** | RuntimeExecutor 接口零改动（L1）；超时/失联禁假成功，落 failed + emit runtime_failed（L5）；凭证经统一 redact 不外发（L6）；纯 Redis 心跳键不新增 DB schema（L3）；默认 FakeExecutor + 路由分支语义不变保证零回归 |
+| **当前状态** | ✅ **全部完成，验证通过（2026-05-30）**：G1 worker 周期心跳（TTL 默认 30s）+ reclaimDeadSession 失联回收 failed；G2 subscribeEvents 空闲 60s/总 600s 双超时（env 可配）产出 runtime_failed 并释放订阅；G3 共享 redact（key 名 + 值级 sk-/Bearer/AKIA 等）接入 worker log() 与 gateway persist 两路径。verify PASS（G1/G2/G3 全 VERIFIED 0 gaps）/ review PASS / 三道 gate + goal-audit 全 proceed |
+| **目标** | 在不改 Gateway 总架构前提下，硬化 runtime：worker 卡死会话可被回收、订阅永不永久阻塞、runtime_logs 不落明文密钥 |
+| **验收方式** | apps/web tsc exit 0；runtime suite 18/18 pass；gateway 零回归（git stash 基线对照 7 个预存失败一致）；治理门禁 RT-WORKER-HARDEN-001 exit 0 |
+| **测试证据** | runtime suite 18/18 passed：`redact.test.ts` 5/5 + `liveness.test.ts` 4/4 + `subscribe-timeout.test.ts` 2/2 + `executor.test.ts` 7/7（回归复绿）；verification.json verdict=PASS G1/G2/G3 全 VERIFIED 0 gaps confidence 92/high；review.json verdict=PASS spec ALL_MET severity 全 0；execution-report `research/execution-reports/rt-worker-harden-report.md` |
+| **阻塞问题** | 无。UAT 以 cold-start 冒烟替代（后端 runtime 硬化无 UI 面，auto_mode 无交互测试者）；7 个全量套件失败为预先存在（缺 DATABASE_URL），与本任务无关 |
+| **下一步动作** | milestone-complete 归档；worker 池接入与真实端到端会话验证为后续独立范围 |
+
+---
+
 ## P2 任务
 
 （暂无登记）
@@ -243,3 +260,5 @@
 | 2026-05-30 | RT-REAL-EXEC-001 | **真实可插拔 RuntimeExecutor 接入完成**（ralph-20260530-010200）：executor.ts 新增 CliRuntimeExecutor（spawn claude/codex CLI，readline 流式 stdout→chunk）+ ExecutorUnavailableError（ENOENT/spawn 失败 code=executor_unavailable，禁假成功）+ stderr 仅 drain 不外发（凭证隔离）；runtime-worker.ts createExecutor 工厂按 RUNTIME_EXECUTOR env 选择，默认 FakeExecutor（gateway 零回归）；executor.test.ts 7/7 pass（unavailable/凭证隔离/Fake 回归/失败事件/工厂）；verify 6 truths VERIFIED 0 gaps；review PASS 0 blocking；apps/web tsc exit 0；治理门禁 exit 0；未改 Gateway 总架构，无托管平台依赖，无真实付费调用 |
 | 2026-05-30 | RT-REAL-EXEC-001 | **adhoc 里程碑完成归档**（milestone-complete）：5 个 artifact（analyze/plan/execute/verify/review）移入 milestone_history；scratch 归档至 `.workflow/milestones/adhoc-real-runtime-executor/`（audit-report PASS / summary）；current_milestone 置空，status=idle（adhoc 无后继）；ralph-20260530-010200 全 13 步闭环 |
 | 2026-05-30 | WEB-WORKSPACE-UX-001 | 用户验真发现 Web Workspace 详情页“看得到但不好点/不可测”；代码审查确认 `/workspace/[id]`、新建会话、session 选中拉消息、发送 `/api/chat` 链路存在交互闭环缺口。已登记为 P0 regression，并补充“先稳定已完成功能，再推进新功能”治理规则 |
+| 2026-05-30 | RT-WORKER-HARDEN-001 | **三项 runtime 硬化完成**（ralph-20260530-013000）：G1 worker liveness（redis-client 心跳键 setHeartbeat/isAlive/clearHeartbeat，TTL 默认 30s + runtime-worker reclaimDeadSession 失联落 failed + emit runtime_failed，禁假 completed）；G2 subscribeEvents 空闲 60s/总 600s 双超时（env 可配）产出 runtime_failed 哨兵 + finally 释放 timer/订阅/连接，gateway 落 failed；G3 共享 redact（key 名 + 值级 sk-/ghp_/xoxb-/AKIA/Bearer）接入 worker log() 与 gateway persist；redact 5/5 + liveness 4/4 + subscribe-timeout 2/2 + executor 7/7 回归 = 18/18；verify PASS（G1/G2/G3 VERIFIED 0 gaps）/ review PASS / 三道 gate + goal-audit 全 proceed；apps/web tsc exit 0；commits 14d0c73 + 7fd9633；未改 Gateway 总架构，无 DB schema 迁移 |
+| 2026-05-30 | RT-WORKER-HARDEN-001 | **adhoc 里程碑完成归档**（milestone-complete）：execution-report 与 tracker 完成登记；治理门禁 RT-WORKER-HARDEN-001 校验；ralph-20260530-013000 全 13 步闭环 |
