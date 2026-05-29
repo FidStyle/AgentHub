@@ -1,6 +1,7 @@
 import { createClient } from '../lib/app-db-client'
 import { CliRuntimeExecutor, FakeExecutor, type CliRuntimeType, type RuntimeExecutor } from '../lib/runtime/executor'
 import { dequeue, publishEvent, isCancelled, type RuntimeJob } from '../lib/runtime/redis-client'
+import { redact } from '../lib/runtime/redact'
 
 // Selects the executor from env. Default is FakeExecutor so existing gateway tests and local
 // runs need no real CLI. RUNTIME_EXECUTOR=real opts into the pluggable CLI executor.
@@ -24,7 +25,7 @@ async function setStatus(runtimeSessionId: string, status: string, terminal = fa
 async function log(runtimeSessionId: string, eventType: string, payload: Record<string, unknown>, seq: number): Promise<void> {
   if (!runtimeSessionId) return
   const db = await createClient()
-  await db.from('runtime_logs').insert({ runtime_session_id: runtimeSessionId, event_type: eventType, payload, seq })
+  await db.from('runtime_logs').insert({ runtime_session_id: runtimeSessionId, event_type: eventType, payload: redact(payload), seq })
 }
 
 // Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.

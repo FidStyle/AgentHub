@@ -5,6 +5,7 @@ import { createClient } from '@/lib/app-db-client'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { getChannelByDevice, markChannelConnected } from './device-channel-store'
 import { enqueue, subscribeEvents, setCancel } from './redis-client'
+import { redact } from './redact'
 
 type EndpointKind = 'public_cloud' | 'user_local'
 type EndpointStatus = 'available' | 'offline' | 'unconfigured'
@@ -73,16 +74,6 @@ export async function createSession(input: {
     .select('id')
     .single()
   return { id: data?.id ?? '', endpoint: input.endpoint }
-}
-
-const SECRET_KEY_PATTERN = /(key|token|secret|password|authorization|env)/i
-
-function redact(payload: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(payload)) {
-    out[k] = SECRET_KEY_PATTERN.test(k) ? '[REDACTED]' : v
-  }
-  return out
 }
 
 export async function persistRuntimeEvent(
