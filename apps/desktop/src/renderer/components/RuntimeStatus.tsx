@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getRuntimeApi } from '../utils/electron-api'
 
 interface RuntimeInfo {
   type: string
@@ -17,9 +18,18 @@ export function RuntimeStatus() {
 
   const detectRuntimes = async () => {
     setLoading(true)
-    const result = await window.electronAPI.runtime.detect()
-    setRuntimes(result)
-    setLoading(false)
+    try {
+      const runtimeApi = getRuntimeApi()
+      if (!runtimeApi) {
+        setRuntimes([])
+        return
+      }
+
+      const result = await runtimeApi.detect()
+      setRuntimes(result)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const runtimeLabels: Record<string, string> = {
@@ -67,7 +77,9 @@ export function RuntimeStatus() {
           </div>
         ))}
         {runtimes.length === 0 && !loading && (
-          <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>未检测到可用 Runtime</span>
+          <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            {getRuntimeApi() ? '未检测到可用 Runtime' : '桌面预加载未连接，请通过 Electron 桌面窗口检测'}
+          </span>
         )}
       </div>
     </div>

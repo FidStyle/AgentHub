@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     root: 'src/renderer',
+    base: './',
     define: {
       'import.meta.env.APP_BASE_URL': JSON.stringify(env.APP_BASE_URL ?? ''),
     },

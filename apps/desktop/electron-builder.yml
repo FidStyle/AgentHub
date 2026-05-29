@@ -1,0 +1,27 @@
+appId: com.agenthub.desktop
+productName: AgentHub
+asar: true
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+extraMetadata:
+  main: dist/main/main/index.js
+
+protocols:
+  - name: AgentHub Desktop Link
+    schemes:
+      - agenthub
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dir
+
+dmg:
+  sign: false

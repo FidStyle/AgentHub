@@ -4,7 +4,10 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "dev:web": "pnpm --filter @agenthub/web dev",
-    "dev:desktop": "pnpm --filter @agenthub/desktop exec concurrently -k -n web,desktop \"pnpm --filter @agenthub/web dev\" \"wait-on http://localhost:3000 && pnpm --filter @agenthub/desktop dev:app\"",
+    "dev:desktop": "pnpm --filter @agenthub/desktop exec concurrently -k -n web,desktop \"pnpm --filter @agenthub/web dev\" \"wait-on tcp:3000 && pnpm --filter @agenthub/desktop dev:app\"",
+    "release:web": "pnpm --filter @agenthub/web build",
+    "release:desktop:mac": "pnpm --filter @agenthub/desktop dist:mac",
+    "release:local": "pnpm release:web && pnpm release:desktop:mac",
     "env:p0:db:up": "docker compose -f docker/docker-compose.p0-test.yml up -d postgres",
     "env:p0:db:down": "docker compose -f docker/docker-compose.p0-test.yml down",
     "env:p0:seed": "pnpm --filter @agenthub/web exec tsx scripts/setup-p0-test-db.ts",

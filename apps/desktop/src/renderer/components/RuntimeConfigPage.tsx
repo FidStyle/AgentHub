@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import '../globals.css'
+import { getRuntimeApi } from '../utils/electron-api'
 
 interface RuntimeInfo {
   type: string
@@ -31,9 +32,18 @@ export function RuntimeConfigPage() {
 
   const detectRuntimes = async () => {
     setLoading(true)
-    const result = await window.electronAPI.runtime.detect()
-    setRuntimes(result)
-    setLoading(false)
+    try {
+      const runtimeApi = getRuntimeApi()
+      if (!runtimeApi) {
+        setRuntimes([])
+        return
+      }
+
+      const result = await runtimeApi.detect()
+      setRuntimes(result)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) {
@@ -56,8 +66,10 @@ export function RuntimeConfigPage() {
         ))}
         {runtimes.length === 0 && (
           <div className="rounded-lg border border-border bg-card p-6 text-center" data-testid="state-card-runtime-not-installed">
-            <p className="text-sm font-medium mb-1">未检测到任何 Runtime</p>
-            <p className="text-xs text-muted-foreground">请安装 Claude Code 或 Codex CLI 后重新检测</p>
+            <p className="text-sm font-medium mb-1">{getRuntimeApi() ? '未检测到任何 Runtime' : '桌面预加载未连接'}</p>
+            <p className="text-xs text-muted-foreground">
+              {getRuntimeApi() ? '请安装 Claude Code 或 Codex CLI 后重新检测' : '请通过 Electron 桌面窗口使用 Runtime 检测；浏览器 5173 仅用于调试渲染界面。'}
+            </p>
           </div>
         )}
       </div>

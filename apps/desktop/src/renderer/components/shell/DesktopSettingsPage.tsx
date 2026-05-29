@@ -4,8 +4,8 @@ import { useDesktopAuth } from '../../hooks/useDesktopAuth'
 import { useOpenWebWorkspace } from '../../hooks/useOpenWebWorkspace'
 
 export function DesktopSettingsPage() {
-  const { deviceName, userName, connectionState, webWorkspaceError, authError } = useConsoleStore()
-  const { handleGitHubLogin } = useDesktopAuth()
+  const { deviceName, userName, connectionState, webWorkspaceError, authError, user } = useConsoleStore()
+  const { handleGitHubLogin, handleLogout } = useDesktopAuth()
   const { openWebWorkspace } = useOpenWebWorkspace()
 
   return (
@@ -19,7 +19,14 @@ export function DesktopSettingsPage() {
             <h3 className="text-sm font-medium mb-2">账号</h3>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{userName}</span>
-              <Button variant="outline" size="sm" data-auth-action="github-login" onClick={handleGitHubLogin}>GitHub 登录</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                data-auth-action={user ? 'logout' : 'github-login'}
+                onClick={user ? handleLogout : handleGitHubLogin}
+              >
+                {user ? '退出登录' : 'GitHub 登录'}
+              </Button>
             </div>
             {authError && (
               <p className="text-xs text-destructive mt-2">{authError}</p>
@@ -32,9 +39,12 @@ export function DesktopSettingsPage() {
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt className="text-muted-foreground">设备名</dt>
               <dd>{deviceName}</dd>
-              <dt className="text-muted-foreground">连接状态</dt>
-              <dd>{connectionState === 'connected' ? '在线' : '离线'}</dd>
+              <dt className="text-muted-foreground">设备通道</dt>
+              <dd>{connectionState === 'connected' ? '在线' : '未连接'}</dd>
             </dl>
+            <p className="mt-2 text-xs text-muted-foreground">
+              设备通道用于本机 Runtime 和后端之间的 WebSocket 通信，和 GitHub 账号登录是两个状态。
+            </p>
           </CardContent>
         </Card>
         <Card data-testid="desktop-settings-item-workspace">

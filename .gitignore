@@ -3,6 +3,8 @@
 node_modules/
 .pnpm-store/
 dist/
+release/
+apps/desktop/release/
 .next/
 .env.local
 *.tsbuildinfo

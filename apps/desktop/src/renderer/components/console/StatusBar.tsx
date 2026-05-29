@@ -3,11 +3,11 @@ import { useConsoleStore } from '../../store/console-store'
 import { useOpenWebWorkspace } from '../../hooks/useOpenWebWorkspace'
 
 const stateMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'success' | 'warning' }> = {
-  connected: { label: '在线', variant: 'success' },
-  connecting: { label: '连接中', variant: 'warning' },
-  disconnected: { label: '离线', variant: 'destructive' },
-  reconnecting: { label: '重连中', variant: 'warning' },
-  authenticating: { label: '鉴权中', variant: 'secondary' },
+  connected: { label: '设备通道在线', variant: 'success' },
+  connecting: { label: '设备通道连接中', variant: 'warning' },
+  disconnected: { label: '设备通道未连接', variant: 'destructive' },
+  reconnecting: { label: '设备通道重连中', variant: 'warning' },
+  authenticating: { label: '设备通道鉴权中', variant: 'secondary' },
 }
 
 export function StatusBar() {

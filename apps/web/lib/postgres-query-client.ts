@@ -32,7 +32,14 @@ const tableNames = new Set([
   'runtime_capabilities',
 ])
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+let pool: Pool | null = null
+
+function getPool() {
+  if (!pool) {
+    pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  }
+  return pool
+}
 
 function quoteIdent(value: string) {
   return `"${value.replace(/"/g, '""')}"`
@@ -210,7 +217,7 @@ class LocalQueryBuilder<T = LooseData> implements AppQueryBuilder<T> {
       params.push(this.limitCount)
       sql += ` LIMIT $${params.length}`
     }
-    const result = await pool.query(sql, params)
+    const result = await getPool().query(sql, params)
     const data = this.wantsSingle ? (result.rows[0] ?? null) : result.rows
     return { data: data as T, error: null }
   }
@@ -232,7 +239,7 @@ class LocalQueryBuilder<T = LooseData> implements AppQueryBuilder<T> {
     let sql = `INSERT INTO ${tableSql(this.table)} (${columns.map(quoteIdent).join(', ')}) VALUES ${valuesSql.join(', ')}`
     if (this.returningColumns) sql += ` RETURNING ${columnsSql(this.returningColumns)}`
 
-    const result = await pool.query(sql, params)
+    const result = await getPool().query(sql, params)
     const data = this.returningColumns ? (this.wantsSingle ? (result.rows[0] ?? null) : result.rows) : null
     return { data: data as T, error: null }
   }
@@ -249,7 +256,7 @@ class LocalQueryBuilder<T = LooseData> implements AppQueryBuilder<T> {
     sql += this.buildWhere(params)
     if (this.returningColumns) sql += ` RETURNING ${columnsSql(this.returningColumns)}`
 
-    const result = await pool.query(sql, params)
+    const result = await getPool().query(sql, params)
     const data = this.returningColumns ? (this.wantsSingle ? (result.rows[0] ?? null) : result.rows) : null
     return { data: data as T, error: null }
   }
@@ -260,7 +267,7 @@ class LocalQueryBuilder<T = LooseData> implements AppQueryBuilder<T> {
     sql += this.buildWhere(params)
     if (this.returningColumns) sql += ` RETURNING ${columnsSql(this.returningColumns)}`
 
-    const result = await pool.query(sql, params)
+    const result = await getPool().query(sql, params)
     const data = this.returningColumns ? (this.wantsSingle ? (result.rows[0] ?? null) : result.rows) : null
     return { data: data as T, error: null }
   }

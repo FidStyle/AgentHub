@@ -1,24 +1,61 @@
 import { useEffect, useRef } from 'react'
 import { useConsoleStore } from '../store/console-store'
+import { clearSavedDeviceToken, connectDesktopDeviceChannel } from '../utils/device-channel-client'
 import { checkWebServiceAvailable, getWebUrl, WEB_BASE_URL } from '../utils/web-urls'
+
+type BindStatusResponse = {
+  bound: boolean
+  user?: {
+    id: string
+    name: string | null
+    email: string | null
+    image: string | null
+  }
+  device?: {
+    id: string
+    name: string
+    type: string
+    online: boolean
+    device_token: string
+    created_at: string
+  }
+}
 
 export function useDesktopAuth() {
   const { setAuthError, setUser } = useConsoleStore()
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const confirmBindStatus = async (code: string) => {
+    const res = await fetch(getWebUrl(`/api/devices/bind-status?code=${encodeURIComponent(code)}`))
+    if (!res.ok) return false
+
+    const data = await res.json() as BindStatusResponse
+    if (data.bound && data.user) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+      setUser(data.user)
+      setAuthError(null)
+      if (data.device?.device_token) {
+        await connectDesktopDeviceChannel(data.device.device_token)
+      }
+      return true
+    }
+
+    return false
+  }
+
   useEffect(() => {
     const unsubscribe = window.electronAPI?.auth?.onDeviceBind(async ({ code }) => {
-      if (pollingRef.current) clearInterval(pollingRef.current)
       try {
-        const res = await fetch(getWebUrl(`/api/devices/bind-status?code=${encodeURIComponent(code)}`))
-        if (res.ok) {
-          const data = await res.json()
-          if (data.bound && data.user) setUser(data.user)
-        }
-      } catch { /* deep link bind confirmation failed, polling will catch it */ }
+        await confirmBindStatus(code)
+      } catch {
+        pollBindStatus(code)
+      }
     })
     return () => { unsubscribe?.() }
-  }, [setUser])
+  }, [setUser, setAuthError])
 
   const handleGitHubLogin = async () => {
     setAuthError(null)
@@ -42,7 +79,19 @@ export function useDesktopAuth() {
     }
   }
 
+  const handleLogout = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+    setUser(null)
+    setAuthError(null)
+    clearSavedDeviceToken()
+    void window.electronAPI?.deviceChannel?.disconnect()
+  }
+
   const pollBindStatus = (code: string) => {
+    if (pollingRef.current) clearInterval(pollingRef.current)
     let elapsed = 0
     pollingRef.current = setInterval(async () => {
       elapsed += 2000
@@ -52,16 +101,10 @@ export function useDesktopAuth() {
         return
       }
       try {
-        const res = await fetch(getWebUrl(`/api/devices/bind-status?code=${code}`))
-        if (!res.ok) return
-        const data = await res.json()
-        if (data.bound && data.user) {
-          if (pollingRef.current) clearInterval(pollingRef.current)
-          setUser(data.user)
-        }
+        await confirmBindStatus(code)
       } catch { /* ignore polling errors */ }
     }, 2000)
   }
 
-  return { handleGitHubLogin }
+  return { handleGitHubLogin, handleLogout }
 }

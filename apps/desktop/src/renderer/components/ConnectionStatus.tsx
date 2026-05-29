@@ -1,38 +1,14 @@
 import { useState, useEffect } from 'react'
 
-declare global {
-  interface Window {
-    electronAPI: {
-      platform: string
-      versions: { node: string; chrome: string; electron: string }
-      runtime: {
-        detect: () => Promise<Array<{ type: string; available: boolean; version: string | null; authenticated: boolean }>>
-        cached: () => Promise<Array<{ type: string; available: boolean; version: string | null; authenticated: boolean }>>
-      }
-      runtimeConfig: {
-        get: () => Promise<Record<string, { enabled: boolean; authMode: string; env: Record<string, string>; nativeConfig: Record<string, unknown> }>>
-        save: (type: string, config: { enabled: boolean; authMode: string; env: Record<string, string>; nativeConfig: Record<string, unknown> }) => Promise<boolean>
-        test: (type: string) => Promise<{ ok: boolean; version?: string; error?: string }>
-      }
-      deviceChannel: {
-        connect: (config: { gatewayUrl: string; deviceToken: string }) => Promise<void>
-        disconnect: () => Promise<void>
-        getState: () => Promise<string>
-        onStateChanged: (callback: (state: string) => void) => void
-      }
-      auth: {
-        onDeviceBind: (callback: (data: { code: string }) => void) => (() => void) | undefined
-      }
-    }
-  }
-}
-
 export function ConnectionStatus() {
   const [state, setState] = useState<string>('disconnected')
 
   useEffect(() => {
-    window.electronAPI.deviceChannel.getState().then(setState)
-    window.electronAPI.deviceChannel.onStateChanged(setState)
+    const deviceChannel = window.electronAPI?.deviceChannel
+    if (!deviceChannel) return
+
+    deviceChannel.getState().then(setState)
+    deviceChannel.onStateChanged(setState)
   }, [])
 
   const stateLabels: Record<string, { text: string; color: string }> = {

@@ -11,7 +11,16 @@ function createAdminClient() {
 }
 
 export function setupWebSocketGateway(server: Server) {
-  const wss = new WebSocketServer({ server, path: '/ws/device' })
+  const wss = new WebSocketServer({ noServer: true })
+
+  server.on('upgrade', (req, socket, head) => {
+    const pathname = new URL(req.url ?? '/', 'http://localhost').pathname
+    if (pathname !== '/ws/device') return
+
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req)
+    })
+  })
 
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     let authenticated = false

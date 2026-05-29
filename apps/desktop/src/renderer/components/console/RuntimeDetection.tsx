@@ -1,6 +1,7 @@
 import { Card, CardHeader, CardTitle, CardContent, Button, StateCard } from '@agenthub/ui'
 import { useConsoleStore } from '../../store/console-store'
 import { useEffect } from 'react'
+import { getRuntimeApi } from '../../utils/electron-api'
 
 const runtimeLabels: Record<string, { label: string; loginCmd: string }> = {
   claude_code: { label: 'Claude Code', loginCmd: 'claude login' },
@@ -12,9 +13,18 @@ export function RuntimeDetection() {
 
   const detect = async () => {
     setRuntimeLoading(true)
-    const result = await window.electronAPI.runtime.detect()
-    setRuntimes(result)
-    setRuntimeLoading(false)
+    try {
+      const runtimeApi = getRuntimeApi()
+      if (!runtimeApi) {
+        setRuntimes([])
+        return
+      }
+
+      const result = await runtimeApi.detect()
+      setRuntimes(result)
+    } finally {
+      setRuntimeLoading(false)
+    }
   }
 
   useEffect(() => { detect() }, [])
@@ -26,6 +36,8 @@ export function RuntimeDetection() {
   if (runtimes.length === 0) {
     return (
       <StateCard variant="runtime-not-installed"
+        title={getRuntimeApi() ? undefined : '桌面预加载未连接'}
+        description={getRuntimeApi() ? undefined : '请通过 Electron 桌面窗口使用 Runtime 检测；浏览器 5173 仅用于调试渲染界面。'}
         action={<Button variant="outline" size="sm" onClick={detect}>重新检测</Button>} />
     )
   }

@@ -22,7 +22,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     disconnect: () => ipcRenderer.invoke('device-channel:disconnect'),
     getState: () => ipcRenderer.invoke('device-channel:state'),
     onStateChanged: (callback: (state: string) => void) => {
-      ipcRenderer.on('device-channel:state-changed', (_e, state: string) => callback(state))
+      const handler = (_e: Electron.IpcRendererEvent, state: string) => callback(state)
+      ipcRenderer.on('device-channel:state-changed', handler)
+      return () => { ipcRenderer.removeListener('device-channel:state-changed', handler) }
     },
   },
   auth: {

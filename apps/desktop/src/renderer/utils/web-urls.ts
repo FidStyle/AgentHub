@@ -15,6 +15,15 @@ export function getWebUrl(pathname: string) {
   return `${WEB_BASE_URL}${path}`
 }
 
+export function getDeviceGatewayUrl() {
+  const url = new URL(WEB_BASE_URL)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  url.pathname = '/ws/device'
+  url.search = ''
+  url.hash = ''
+  return url.toString()
+}
+
 export async function checkWebServiceAvailable() {
   try {
     await fetch(WEB_BASE_URL, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })

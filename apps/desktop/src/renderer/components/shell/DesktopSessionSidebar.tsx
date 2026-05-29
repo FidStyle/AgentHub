@@ -12,9 +12,9 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 
 export function DesktopSessionSidebar() {
-  const { workspaceDirs, approvals, connectionState, currentPage, navigateTo, authError } = useConsoleStore()
-  const { handleGitHubLogin } = useDesktopAuth()
-  const stateLabel = connectionState === 'connected' ? '在线' : '离线'
+  const { workspaceDirs, approvals, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
+  const { handleGitHubLogin, handleLogout } = useDesktopAuth()
+  const channelStateLabel = connectionState === 'connected' ? '设备通道在线' : '设备通道未连接'
 
   return (
     <aside data-testid="desktop-session-sidebar" className="flex flex-col w-56 border-r border-border bg-card h-full">
@@ -29,16 +29,20 @@ export function DesktopSessionSidebar() {
         <SidebarItem testId="desktop-nav-settings" label="设置" page="settings" currentPage={currentPage} onNavigate={navigateTo} />
       </nav>
       <div className="px-3 py-2 border-t border-border flex flex-col gap-2">
-        <button data-auth-action="github-login" onClick={handleGitHubLogin} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 w-full text-left">
+        <button
+          data-auth-action={user ? 'logout' : 'github-login'}
+          onClick={user ? handleLogout : handleGitHubLogin}
+          className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 w-full text-left"
+        >
           <Github className="h-3.5 w-3.5" />
-          GitHub 登录
+          {user ? '退出登录' : 'GitHub 登录'}
         </button>
         {authError && (
           <p className="text-xs text-destructive px-2.5">{authError}</p>
         )}
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${connectionState === 'connected' ? 'bg-success' : 'bg-destructive'}`} />
-          <span className="text-xs text-muted-foreground">{stateLabel}</span>
+          <span className="text-xs text-muted-foreground">{channelStateLabel}</span>
         </div>
       </div>
     </aside>
