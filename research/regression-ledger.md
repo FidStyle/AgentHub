@@ -118,14 +118,15 @@
 | --- | --- |
 | **类型** | unfinished / UX |
 | **优先级** | P1 |
-| **状态** | `open` |
+| **状态** | `closed`（2026-05-31，`ARTIFACT-PANEL-DATA-001` 修复并验证：三 Tab 接真实数据，假空态消除） |
 | **关联 FR/PRD** | `FR-WEB-001`, `FR-UI-001`；`P0-END-TO-END-PRODUCT-FLOW.md` §3.1.10（三栏含 Artifact/Context/Agents） |
-| **关联任务/合同** | `PRODUCT-UAT-GAP-AUDIT-001`；`P0-END-TO-END-PRODUCT-FLOW` |
+| **关联任务/合同** | `PRODUCT-UAT-GAP-AUDIT-001` / `PRODUCT-REALITY-GAP-AUDIT-001`(PRGA-005)（发现）→ `ARTIFACT-PANEL-DATA-001`（修复闭环） |
 | **影响功能面** | Web workspace 右栏「产物 / 上下文 / Agents」三 Tab |
 | **发现方式** | PRODUCT-UAT-GAP-AUDIT-001 真实浏览器 + 代码核对 |
 | **证据** | `apps/web/components/workspace/ArtifactPanel.tsx` 三 Tab 全硬编码 `StateCard variant="empty"`、无任何 fetch；同 workspace `/api/role-agents` 返回非空（含「架构师」），但「Agents」Tab 恒显「暂无 Agent」 |
 | **关闭条件** | Agents Tab 呈现真实 `role_agents`；产物/上下文接对应数据源或显式标注 P1 未实现范围；补面板数据一致性断言（非仅 `toBeVisible`） |
-| **下一步** | `ARTIFACT-PANEL-DATA-001`(P1) |
+| **关闭证据** | `ARTIFACT-PANEL-DATA-001`（2026-05-31）：`ArtifactPanel.tsx` 删除三个硬编码恒空 `StateCard`，改 AgentsTab 读 `useSessionStore().activeWorkspaceId` → `fetch GET /api/role-agents?workspace_id` 按 snake_case 渲染 `name/role_type/capabilities/is_orchestrator`；ContextTab+OutputTab 共用 `useSessionMessages()` 读 `GET /api/messages?session_id`，上下文筛 `is_pinned||metadata` 非空、产物筛 `message_type∈{plan_card,result_card}||metadata.artifact`；空态仅真实 fetch 为空时显示（`loaded && length===0`），未选 workspace/session 与 error 单独显式态；`data-testid` artifact-agents/artifact-context/artifact-output；**编排 Tab `<OrchestratorPanel />` 保留**（向后兼容 WEB-ORCHESTRATOR-UI-001）；无 mock/硬编码假空态。E2E `e2e/tests/web/artifact-panel-data.spec.ts` 真实 API 播种 role agent+session+pinned 上下文+result_card 产物（非 `page.route` mock）→ 切三 Tab 断言真实数据文本（非仅 `toBeVisible`）+ 交叉校验 `GET /api/role-agents`。`pnpm --filter @agenthub/web type-check` exit 0；`build` exit 0（`/workspace/[id]` 7.68 kB）；`playwright test artifact-panel-data --list` → 1 test。⚠️ E2E 实跑需真实 Supabase DB（`TEST_AUTH_COOKIE`+`TEST_WORKSPACE_ID`），CI 无真实 DB → `test.skip` 标 DEFERRED 保留断言骨架（与 REG-20260531-010 GUI/DB DEFERRED 一致） |
+| **下一步** | 已关闭（`ARTIFACT-PANEL-DATA-001`）；遗留 E2E 门禁缺陷见 REG-20260531-011（P1，含 `artifact.spec.ts` 假数据），独立处理 |
 
 ### REG-20260530-008 — 默认 `apps/web/.env.local` 指向 Supabase 占位符、真实用户跑不通主链路（审计建议 005）
 
