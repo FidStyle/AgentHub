@@ -366,7 +366,24 @@
 | **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_p0_test` + 真实 Auth.js session；几何断言（越界/裁切/遮挡/横滚/变形），禁止 `toBeVisible` 充数 |
 | **测试证据** | `research/execution-reports/floating-ui-uat-audit-001-report.md` + `floating-ui-uat-audit-001-findings.json`（14 findings：D1×3 high / O1 medium / 其余 ok）+ `e2e/tests/web/floating-ui-uat-audit.spec.ts`（只读审计 spec）+ `e2e/artifacts/floating-ui-uat-audit/*.png`（三视口截图证据） |
 | **阻塞问题** | 无（审计任务，发现项已转 REG-20260531-002/003 待 FIX-D1/FIX-O1 后续 execute） |
-| **下一步动作** | GAP-001 → `FIX-D1`（high）；GAP-002 → `FIX-O1`（medium）；本审计任务关闭 |
+| **下一步动作** | GAP-001 → `FIX-D1`（high，✅ 已由 FLOATING-UI-FIX-D1-001 关闭）；GAP-002 → `FIX-O1`（medium，待办）；本审计任务关闭 |
+
+---
+
+### FLOATING-UI-FIX-D1-001: workspace selector 下拉越界且无内部滚动修复（GAP-001 / REG-20260531-002）
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（high 缺陷修复；核心导航入口，3 视口复现） |
+| **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260531-002`（high → ✅ closed 2026-05-31） |
+| **当前状态** | ✅ 完成（2026-05-31）：`Sidebar.tsx` workspace 下拉从裸 `absolute z-10` 改为 portal 浮层——抽出 `WorkspaceDropdown`（与 Tooltip 母版 `TooltipContent` 同构）`createPortal` 到 body + `computeDropdown` flip/clamp + `maxHeight`(≤60%vh)+`overflow-y-auto` 内部滚动 + `z-50` + document `pointerdown` 外部关闭。真实浏览器三视口 **3 passed**，D1 high→ok。 |
+| **目标** | workspace 下拉不再越界/撑高页面，长列表内部滚动；3 视口 floating bbox 在视口内、无横滚；不碰 workspace 切换业务逻辑 |
+| **方案摘要** | 复用 packages/ui Tooltip 母版 portal+clamp 模式（R1/R2/R3/R8），按下拉语义补 R4 size/max-height+内部滚动；外部关闭用 pointerdown 监听而非全屏 backdrop（避免拦截 trigger 二次点击） |
+| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_p0_test` + 真实 Auth.js session；D1 段升级为几何硬门禁（floating bbox 在视口内 + bottom≤vh + 无横滚 + symptoms 空），禁止 `toBeVisible` |
+| **测试证据** | `research/execution-reports/floating-ui-fix-d1-001-report.md` + `floating-ui-uat-audit-001-findings.json`（D1×3 ok，severity `ok×13/medium×1`）+ `e2e/tests/web/floating-ui-uat-audit.spec.ts`（D1 硬断言）+ `e2e/artifacts/floating-ui-uat-audit/*-D1-workspace-dropdown.png`（下拉有界+内部滚动） |
+| **阻塞问题** | 无。结转 concern：`apps/web` 全量 tsc 的 pre-existing dual `@types/react` 冲突（`ReactPortal`，母版 tooltip 同款），本修复同源同类 +1，非新缺陷，E2E/SWC 不受影响，属 DEV-ENV 范畴范围外 |
+| **下一步动作** | 关闭。剩余浮层：FIX-O1（REG-20260531-003，medium）/ FIX-D2（role picker 预防项）按需另起 |
 
 ---
 
@@ -417,3 +434,4 @@
 | 2026-05-30 | ROLE-CHAT-RUNTIME-DELIVER-001 | ✅ 完成（commit `eed577f`）：Web @架构师真实回复链路修复，关闭 REG-20260530-006 **Web GAP-001**——gateway public_cloud 改用 endpoint status/id + 活跃 worker 在线键门控、无 worker/unconfigured 立即短路明确中文错误态（<2s）、非回显 ScriptedRealExecutor、两条默认不可跳过 E2E。verify passed=true/review PASS/UAT 2/2/milestone-audit PASS。Mobile GAP-002 保留 open，转 `MOBILE-CHAT-DELIVER-001`(P0)。归档 `.workflow/milestones/adhoc-role-chat-runtime-deliver/` |
 | 2026-05-31 | UI-TOOLTIP-POSITION-001 | ✅ 完成（ralph-20260531-000642）：packages/ui Tooltip 重写 portal-to-body + computePosition flip/shift + max-w-[16rem] break-words（移除 whitespace-nowrap）+ 保留 role=tooltip/aria-describedby + hover/focus 双触发；IconButton 透传 tooltipSide/tooltipAlign 零破坏向后兼容。真实浏览器 E2E 6/6 passed（1440/1280/768 × web-desktop+web-tablet），boundingBox 在 viewport 内 + 无横滚 + 未遮挡断言。verify passed=true gaps=[]/review PASS（0 critical/blocking）/test 6/6/milestone-audit PASS；四道 gate + goal-audit 全 proceed；关闭 REG-20260531-001，归档 `.workflow/milestones/M-adhoc-20260531-ui-tooltip-position/` |
 | 2026-05-31 | FLOATING-UI-UAT-AUDIT-001 | ✅ 只读浮层/Overlay 真实浏览器几何审计完成（analyze→reference-extract→audit→verify，不 execute/不修复）：refer_proj（cherry-studio/lobehub/AionUi/claudecodeui）提炼 R1–R11 浮层规则写入 Reference Findings；真实浏览器三视口（1440/1280/768）几何审计 3/3 passed，14 findings。发现 GAP-001(high) workspace 下拉越界无滚动 ×3 视口、GAP-002(medium) 移动 artifact 抽屉无 backdrop；T1 tooltip 母版无回归。登记 REG-20260531-002(high)/003(medium)。产物：report + findings.json + 只读审计 spec |
+| 2026-05-31 | FLOATING-UI-FIX-D1-001 | ✅ 修复 GAP-001/REG-20260531-002（workspace 下拉越界+无内部滚动）：`Sidebar.tsx` 抽出 `WorkspaceDropdown`（同构 Tooltip 母版）portal-to-body + `computeDropdown` flip/clamp + `maxHeight`(≤60%vh)+`overflow-y-auto` + `z-50` + pointerdown 外部关闭；业务逻辑零改动。审计 spec D1 段升级为几何硬门禁。真实浏览器三视口 **3 passed**，D1 high→ok（floating 高 ~4400→540/480/540，bottom 全在视口内），findings `ok×13/medium×1`（剩 medium=O1 范围外），无回归。关闭 REG-20260531-002。结转 pre-existing dual @types/react tsc 冲突（同源+1，非新缺陷） |

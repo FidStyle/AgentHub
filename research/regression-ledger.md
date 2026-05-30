@@ -32,14 +32,15 @@
 | --- | --- |
 | **类型** | bug / UI 浮层定位 |
 | **优先级** | high（核心导航入口，3 视口复现） |
-| **状态** | `open` |
+| **状态** | `closed`（2026-05-31，FLOATING-UI-FIX-D1-001 修复并真实浏览器验证通过） |
 | **关联 FR/PRD** | `FR-WEB-001`, `FR-UI-001`；`research/product/ui-design-system.md`（浮层定位） |
-| **关联任务/合同** | `FLOATING-UI-UAT-AUDIT-001`；母版 `UI-TOOLTIP-POSITION-001`（packages/ui Tooltip 已 portal+flip+max-width 的正向对照） |
+| **关联任务/合同** | `FLOATING-UI-UAT-AUDIT-001`（发现）→ `FLOATING-UI-FIX-D1-001`（修复闭环）；母版 `UI-TOOLTIP-POSITION-001`（packages/ui Tooltip portal+flip+max-width 正向对照） |
 | **影响功能面** | `apps/web/components/workspace/Sidebar.tsx` 工作区切换下拉（裸 `absolute left-2 right-2 top-full`，无 portal/flip/max-height，`z-10`） |
 | **发现方式** | FLOATING-UI-UAT-AUDIT-001 真实浏览器（Chromium）+ 真实 DB(`agenthub_p0_test`) + 真实 Auth.js session 几何审计（`e2e/tests/web/floating-ui-uat-audit.spec.ts`，非 `toBeVisible`） |
 | **证据** | `research/execution-reports/floating-ui-uat-audit-001-findings.json` D1×3 视口：floating 263×4358/4394/4430，bottom 4418/4454/4490 远超 vh(900/800/900)，无内部滚动；截图 `e2e/artifacts/floating-ui-uat-audit/{1440x900,1280x800,768x900}-D1-workspace-dropdown.png` |
 | **关闭条件** | FIX-D1：workspace 下拉 portal-to-body + flip/shift（参考 Tooltip `computePosition`）+ `max-h` 内部 `overflow-y-auto` 滚动 + z-index 提升至 popover 层；3 视口 floating bbox 完整落在视口内、超长列表内部滚动而非撑高页面、不引发横滚（几何断言，非 `toBeVisible`） |
-| **下一步** | `FIX-D1`（execute；本审计任务只读不修复） |
+| **关闭证据** | FLOATING-UI-FIX-D1-001（2026-05-31）：`Sidebar.tsx` 抽出 `WorkspaceDropdown` portal-to-body + `computeDropdown` flip/clamp + `maxHeight`(≤60%vh)+`overflow-y-auto` + `z-50` + pointerdown 外部关闭。真实浏览器三视口 **3 passed**，D1 floating 高 540/480/540（修复前 ~4400）、bottom 588/528/588 全在视口内、symptoms 空、severity=ok。findings.json `ok×13/medium×1`（剩 medium=O1/REG-003，范围外）。报告 `research/execution-reports/floating-ui-fix-d1-001-report.md` |
+| **下一步** | 已关闭。预防项 FIX-D2（role picker，REG 暂未登记）/ FIX-O1（REG-20260531-003）按需另起 |
 
 ### REG-20260531-003 — 移动 artifact 抽屉无 backdrop / 无点击外部关闭（FLOATING-UI-UAT-AUDIT-001 GAP-002）
 

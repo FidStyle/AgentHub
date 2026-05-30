@@ -1,6 +1,6 @@
 {
   "task": "FLOATING-UI-UAT-AUDIT-001",
-  "generatedAt": "2026-05-30T17:48:38.076Z",
+  "generatedAt": "2026-05-30T18:27:48.124Z",
   "method": "real browser (Chromium) + real DB (agenthub_p0_test) + real Auth.js session",
   "viewports": [
     "1440x900",
@@ -21,19 +21,16 @@
         "height": 32
       },
       "floatingBox": {
-        "x": 8,
-        "y": 60,
-        "width": 263,
-        "height": 4358
+        "x": 12,
+        "y": 48,
+        "width": 255,
+        "height": 540
       },
-      "symptoms": [
-        "下越界 (bottom=4418 > vh=900)",
-        "下拉底部超出视口且无内部滚动"
-      ],
-      "severity": "high",
-      "reference": "R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)",
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1(portal)/R2(flip)/R4(max-h+内部滚动)/R8(z-50)",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-D1-workspace-dropdown.png",
-      "suggestedTask": "FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升"
+      "suggestedTask": "无（FIX-D1 已修复，回归确认）"
     },
     {
       "id": "D2",
@@ -106,19 +103,16 @@
         "height": 32
       },
       "floatingBox": {
-        "x": 8,
-        "y": 60,
-        "width": 263,
-        "height": 4394
+        "x": 12,
+        "y": 48,
+        "width": 255,
+        "height": 480
       },
-      "symptoms": [
-        "下越界 (bottom=4454 > vh=800)",
-        "下拉底部超出视口且无内部滚动"
-      ],
-      "severity": "high",
-      "reference": "R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)",
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1(portal)/R2(flip)/R4(max-h+内部滚动)/R8(z-50)",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-D1-workspace-dropdown.png",
-      "suggestedTask": "FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升"
+      "suggestedTask": "无（FIX-D1 已修复，回归确认）"
     },
     {
       "id": "D2",
@@ -191,19 +185,16 @@
         "height": 32
       },
       "floatingBox": {
-        "x": 8,
-        "y": 60,
-        "width": 263,
-        "height": 4430
+        "x": 12,
+        "y": 48,
+        "width": 255,
+        "height": 540
       },
-      "symptoms": [
-        "下越界 (bottom=4490 > vh=900)",
-        "下拉底部超出视口且无内部滚动"
-      ],
-      "severity": "high",
-      "reference": "R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)",
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1(portal)/R2(flip)/R4(max-h+内部滚动)/R8(z-50)",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-D1-workspace-dropdown.png",
-      "suggestedTask": "FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升"
+      "suggestedTask": "无（FIX-D1 已修复，回归确认）"
     },
     {
       "id": "D2",

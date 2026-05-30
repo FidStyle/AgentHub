@@ -16,6 +16,9 @@ import { ensureP0StorageState } from '../../helpers/auth-state'
  *
  * 只读：不修改产品代码。观察结果（含越界/裁切/遮挡判定）写入 findings JSON 供报告引用。
  * 禁止用 toBeVisible 代替几何断言——本 spec 的所有判定均基于 boundingBox 几何。
+ *
+ * FIX-D1（REG-20260531-002 / GAP-001）已修复后，D1 段升级为回归硬门禁：除记录 finding 外，
+ * 追加几何硬断言（floating bbox 在视口内 + bottom 不超视口 + 无横滚），守护 D1 从 high 回到 pass。
  */
 
 type Box = { x: number; y: number; width: number; height: number }
@@ -203,9 +206,18 @@ for (const vp of VIEWPORTS) {
           id: 'D1', viewport: vp.name, target: 'workspace selector 下拉', selector: dropSel,
           triggerBox, floatingBox, symptoms,
           severity: symptoms.length === 0 ? 'ok' : severity,
-          reference: 'R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)', screenshot: sshot,
-          suggestedTask: 'FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升',
+          reference: 'R1(portal)/R2(flip)/R4(max-h+内部滚动)/R8(z-50)', screenshot: sshot,
+          suggestedTask: symptoms.length === 0 ? '无（FIX-D1 已修复，回归确认）' : 'FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升',
         })
+        // FIX-D1 回归硬门禁（REG-20260531-002 / GAP-001）：修复后下拉必须 portal+flip+max-height，
+        // floating bbox 完整落在视口内、bottom 不超视口（max-height 内部滚动而非撑高）、不引发横滚。
+        // 几何断言，禁止 toBeVisible 充数；任一症状即 fail，守护 D1 从 high 回到 pass。
+        expect(visible, `${vp.name} D1 workspace 下拉应渲染`).toBeTruthy()
+        expect(floatingBox, `${vp.name} D1 floatingBox 应可测`).not.toBeNull()
+        expect(symptoms, `${vp.name} D1 应无越界/裁切/横滚症状（实测: ${symptoms.join('; ') || '无'}）`).toEqual([])
+        if (floatingBox) {
+          expect(floatingBox.y + floatingBox.height, `${vp.name} D1 下拉底部不得超出视口`).toBeLessThanOrEqual(vp.height + 1)
+        }
         await page.locator(triggerSel).click().catch(() => {})
         // 移动态：关闭下拉后再关抽屉，避免 drawer 覆盖主区 composer 拦截后续点击
         if (isMobile) await page.locator('[data-testid="sidebar-backdrop"]').click().catch(() => {})
