@@ -32,7 +32,7 @@
 | **方案摘要** | 建立端到端产品合同；登记身份连续性、Workspace 创建闭环、三端 UX 一致性为验真样本；禁止把已知根因直接喂给执行者 |
 | **验收方式** | 盲验证必须基于合同自行发现主链路断点；后续实现必须使用真实 DB/API/session 并覆盖 Web/Desktop/Mobile E2E |
 | **测试证据** | DB smoke: `research/execution-reports/p0-end-to-end-product-flow-real-db-smoke-report.md`；/api/chat: `tsx scripts/verify-p0-chat-api.ts` 11/11 PASS；Web E2E: `npx playwright test tests/web/p0-main-flow.spec.ts` 4/4 PASS；Mobile Auth: `npx playwright test tests/web/p0-mobile-auth.spec.ts` 4/4 PASS；Desktop API: `npx playwright test tests/desktop/p0-auth-flow.spec.ts` 1/1 PASS + 1 skip（需 Electron 构建）；视觉断言: assertNoHorizontalScroll + assertNoElementOverlap PASS |
-| **阻塞问题** | **REG-20260530-006（P0 blocker）已全部关闭**：Web GAP-001 由 `ROLE-CHAT-RUNTIME-DELIVER-001`(commit `eed577f`)、Mobile GAP-002 由 `MOBILE-CHAT-DELIVER-001`(commit 待提交) 关闭。残留 Agent Runtime 完整部署（P1）+ Artifact 面板真实数据 REG-20260530-007/008（P1）。「FakeExecutor 回显 ≠ Agent 链路成功」原则保留，禁止再以单测/E2E 视觉断言冒充产品完成。 |
+| **阻塞问题** | **REG-20260530-006（P0 blocker）已全部关闭**：Web GAP-001 由 `ROLE-CHAT-RUNTIME-DELIVER-001`(commit `eed577f`)、Mobile GAP-002 由 `MOBILE-CHAT-DELIVER-001`(commit `3b8029f`) 关闭。残留 Agent Runtime 完整部署（P1）+ Artifact 面板真实数据 REG-20260530-007/008（P1）。「FakeExecutor 回显 ≠ Agent 链路成功」原则保留，禁止再以单测/E2E 视觉断言冒充产品完成。 |
 | **下一步动作** | Web + Mobile 真实回复链路均已解除阻塞（`ROLE-CHAT-RUNTIME-DELIVER-001` + `MOBILE-CHAT-DELIVER-001`）；Agent Runtime 完整部署（P1）；REG-20260530-007/008（P1）跟进 |
 
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复
@@ -176,11 +176,12 @@
 | **优先级** | P0 blocker |
 | **绑定 FR-ID** | FR-CHAT-001, FR-MOB-001, FR-RUNTIME-001 |
 | **来源** | PRODUCT-UAT-GAP-AUDIT-001（REG-20260530-006 GAP-002） |
-| **当前状态** | ✅ 完成（2026-05-31 `MOBILE-CHAT-DELIVER-001`，commit 待提交）：Mobile `/m/sessions/:id` 发送从纯 `/api/messages` 写库改为走统一 `/api/chat` runtime SSE 链路（与 Web 一致），消费 `runtime_output` deltas 累积可见 agent 回复；解析 session→workspace→role-agents，默认架构师 orchestrator 角色上下文（发送按钮在 `defaultRole` 解析前门控，附 role badge）；runtime 终态事件映射明确中文系统提示，绝不静默仅存用户消息。附带修复 `apps/web/app/api/sessions/[id]/route.ts`（自研 postgres-query-client 不支持 `workspaces!inner` 嵌套 select，改为 plain select + 独立 owner_id 归属校验 403）。新增真实浏览器移动视口 E2E（iPhone 14 390×844，真实 DB + auth）：route 监听断言 `POST /api/chat` 被调用 + 有 worker→可见非 echo 回复+架构师 badge+reload 双向持久化 / 无 worker→立即明确中文错误态+reload 无误存 badge（非仅 `toBeVisible`）。verify passed=true（G1/G2/G3 VERIFIED）、review PASS（0 findings）、UAT 双 regime 各 1 passed、type-check exit 0。关闭 REG-20260530-006 **Mobile GAP-002**。 |
+| **当前状态** | ✅ 完成（2026-05-31 `MOBILE-CHAT-DELIVER-001`，commit `3b8029f`）：Mobile `/m/sessions/:id` 发送从纯 `/api/messages` 写库改为走统一 `/api/chat` runtime SSE 链路（与 Web 一致），消费 `runtime_output` deltas 累积可见 agent 回复；解析 session→workspace→role-agents，默认架构师 orchestrator 角色上下文（发送按钮在 `defaultRole` 解析前门控，附 role badge）；runtime 终态事件映射明确中文系统提示，绝不静默仅存用户消息。附带修复 `apps/web/app/api/sessions/[id]/route.ts`（自研 postgres-query-client 不支持 `workspaces!inner` 嵌套 select，改为 plain select + 独立 owner_id 归属校验 403）。新增真实浏览器移动视口 E2E（iPhone 14 390×844，真实 DB + auth）：route 监听断言 `POST /api/chat` 被调用 + 有 worker→可见非 echo 回复+架构师 badge+reload 双向持久化 / 无 worker→立即明确中文错误态+reload 无误存 badge（非仅 `toBeVisible`）。verify passed=true（G1/G2/G3 VERIFIED）、review PASS（0 findings）、UAT 双 regime 各 1 passed、type-check exit 0。关闭 REG-20260530-006 **Mobile GAP-002**。 |
 | **缺陷台账** | `research/regression-ledger.md#reg-20260530-006` |
 | **目标** | Mobile `/m/sessions/:id` 发送闭环：与 Web 一致触发 runtime/Agent，或在轻量端明确「需在 Web 端继续」文案，消除「只写库、永无回复」假成功 |
 | **方案摘要** | `apps/web/app/m/sessions/[sessionId]/page.tsx` `send()` 改走与 Web 一致的 `/api/chat` runtime 链路（合同 §3.1.8/§6 三端共享状态语义），并补 Mobile 发送后回复/错误态 E2E |
 | **验收方式** | Mobile 真实浏览器：发送后出现 agent 回复或明确错误态；E2E 断言「发送后用户目标达成或明确错误态」 |
+| **测试证据** | E2E `npx playwright test e2e/tests/mobile/mobile-chat-deliver.spec.ts --project=mobile-pwa`（真实 DB + auth）：`RUNTIME_E2E=1` 1 passed（有 worker→`POST /api/chat 200` + 可见非 echo 回复 + 架构师 badge + reload 双向持久化）+ `RUNTIME_E2E_NOWORKER=1` 1 passed（无 worker→立即明确中文错误态 + reload 无误存 badge），route 监听断言 `/api/chat` 被调用，非仅 `toBeVisible`；verification-final.json passed=true（G1/G2/G3 VERIFIED，0 gaps）；review.json verdict=PASS（0 findings，5 维度 PASS）；UAT `.workflow/scratch/20260531-plan-mobile-chat-deliver-001/uat.md` 双 regime 4 场景全 PASS；`pnpm --filter @agenthub/web type-check` exit 0；commit `3b8029f` |
 | **阻塞问题** | 无（已关闭） |
 | **下一步动作** | 闭环，无后续动作（REG-20260530-006 整体 closed） |
 
