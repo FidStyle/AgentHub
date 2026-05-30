@@ -335,6 +335,22 @@
 | **阻塞问题** | 无（首跑环境竞争 EADDRINUSE + 共享单用户数据竞争，属既有 `REG-20260530-002` P1，清理残留进程后干净复跑通过） |
 | **下一步动作** | 关闭，归档 adhoc milestone |
 
+### UI-TOOLTIP-POSITION-001: 全局 Tooltip 定位/变形修复（packages/ui 共享层）+ 真实浏览器 E2E
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（UI 可用性 / 无障碍） |
+| **绑定 FR-ID** | FR-UI-001 |
+| **来源** | Ralph session `ralph-20260531-000642` |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260531-001`（已关闭） |
+| **当前状态** | ✅ 全部完成（2026-05-31 验证通过）：Tooltip portal-to-body + 自动 flip/shift + max-width 换行，桌面 1440/1280 + 移动 768 hover/focus 五触发点 boundingBox 在 viewport 内、未裁切、未遮挡、不变形、无横滚；保留 aria/role 语义，IconButton 向后兼容零破坏。 |
+| **目标** | 在 shared UI 层统一修复 Tooltip 边缘/overflow 容器/移动端错位裁切变形，真实浏览器 E2E 守护 |
+| **方案摘要** | `tooltip.tsx` 重写：`createPortal` 到 body + `computePosition`（fits/flip/clamp）+ `max-w-[16rem] break-words`（移除 `whitespace-nowrap`）+ `role=tooltip`/`aria-describedby` + hover/focus 双触发；`icon-button.tsx` 新增可选 `tooltipSide`/`tooltipAlign` 透传（5 调用点回退默认，零破坏）；无新增运行时依赖 |
+| **验收方式** | Playwright 真实浏览器（web-desktop+web-tablet，1440/1280/768）；tooltip boundingBox 几何断言（viewport 内 + max-width + 不遮挡 + 无横滚），hover+focus 双触发；禁止仅 `toBeVisible` |
+| **测试证据** | `cd e2e && npx playwright test tests/web/ui-tooltip-position.spec.ts`（真实 web dev server + P0 postgres + 真实 auth cookie）→ **6 passed**（1440/1280/768 × web-desktop+web-tablet）；verification.json PASS（passed=true, gaps=[], packages/ui tsc exit 0）+ review.json PASS（0 critical/0 blocking）+ test-results.json 6/6；执行报告 `research/execution-reports/ui-tooltip-position-001-report.md` |
+| **阻塞问题** | 无（结转 concern：768 toggle-artifact 被空态面板层叠覆盖属超范围响应式布局；apps/web full build 受 pre-existing dual @types/react 冲突，E2E dev 模式未受阻） |
+| **下一步动作** | 关闭，归档 adhoc milestone |
+
 ---
 
 ## P2 任务
@@ -382,3 +398,4 @@
 | 2026-05-30 | P0-END-TO-END-PRODUCT-FLOW | 复审标注：多 Agent 协作回复核心价值在真实用户态不可达，补登 REG-20260530-006 阻塞项 |
 | 2026-05-30 | ROLE-CHAT-RUNTIME-DELIVER-001 / MOBILE-CHAT-DELIVER-001 / ARTIFACT-PANEL-DATA-001 / DEV-ENV-BOOTSTRAP-001 | 新增 4 条后续修复任务（前两项 P0、后两项 P1），来源 PRODUCT-UAT-GAP-AUDIT-001 |
 | 2026-05-30 | ROLE-CHAT-RUNTIME-DELIVER-001 | ✅ 完成（commit `eed577f`）：Web @架构师真实回复链路修复，关闭 REG-20260530-006 **Web GAP-001**——gateway public_cloud 改用 endpoint status/id + 活跃 worker 在线键门控、无 worker/unconfigured 立即短路明确中文错误态（<2s）、非回显 ScriptedRealExecutor、两条默认不可跳过 E2E。verify passed=true/review PASS/UAT 2/2/milestone-audit PASS。Mobile GAP-002 保留 open，转 `MOBILE-CHAT-DELIVER-001`(P0)。归档 `.workflow/milestones/adhoc-role-chat-runtime-deliver/` |
+| 2026-05-31 | UI-TOOLTIP-POSITION-001 | ✅ 完成（ralph-20260531-000642）：packages/ui Tooltip 重写 portal-to-body + computePosition flip/shift + max-w-[16rem] break-words（移除 whitespace-nowrap）+ 保留 role=tooltip/aria-describedby + hover/focus 双触发；IconButton 透传 tooltipSide/tooltipAlign 零破坏向后兼容。真实浏览器 E2E 6/6 passed（1440/1280/768 × web-desktop+web-tablet），boundingBox 在 viewport 内 + 无横滚 + 未遮挡断言。verify passed=true gaps=[]/review PASS（0 critical/blocking）/test 6/6/milestone-audit PASS；四道 gate + goal-audit 全 proceed；关闭 REG-20260531-001，归档 `.workflow/milestones/M-adhoc-20260531-ui-tooltip-position/` |

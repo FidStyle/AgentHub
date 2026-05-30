@@ -91,6 +91,22 @@
 
 ## 关闭记录
 
+### REG-20260531-001 — 全局 Tooltip 边缘/overflow 容器/移动端错位裁切变形（由 UI-TOOLTIP-POSITION-001 修复关闭）
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | UI layout / a11y regression |
+| **优先级** | P1 |
+| **状态** | `closed` |
+| **关联 FR/PRD** | `FR-UI-001` |
+| **关联任务/合同** | `UI-TOOLTIP-POSITION-001`（`research/project-tracker.md` 同名条目 + `research/execution-reports/ui-tooltip-position-001-report.md`）；Ralph session `ralph-20260531-000642` |
+| **影响功能面** | workspace 全部 IconButton（新建会话 / @角色 / 发送 / 打开侧栏 / 切换面板）的 Tooltip 在桌面 1440/1280 + 移动 768 的定位/换行/裁切 |
+| **发现方式** | packages/ui Tooltip 代码核对 + 真实浏览器 E2E（旧 `absolute bottom-full left-1/2 -translate-x-1/2 + whitespace-nowrap` 被 overflow 容器裁切、边缘越界、长文案横向拉伸变形） |
+| **证据** | 修复前：`tooltip.tsx` 绝对定位 + `whitespace-nowrap` → 被祖先 overflow 裁切 + viewport 边缘越界 + 变形/可能横滚。修复后：`createPortal` 到 body + `computePosition`（fits/flip/clamp）+ `max-w-[16rem] break-words`；`e2e/tests/web/ui-tooltip-position.spec.ts` 真实浏览器 6/6 passed（1440/1280/768 × web-desktop+web-tablet），boundingBox 在 viewport 内 + 无横滚 + 未遮挡断言；verification.json passed=true gaps=[]、review.json PASS（0 critical/blocking）、test-results.json 6/6 |
+| **关闭条件（已满足）** | Tooltip portal 不被 overflow 裁切、自动 flip/shift 不越界、max-width 换行不变形、不遮挡触发按钮、无横向滚动；hover+focus 双触发保留 role=tooltip/aria-describedby；shared UI 层统一修复无逐按钮补丁；E2E boundingBox 几何断言（非仅 `toBeVisible`） |
+| **关闭时间** | 2026-05-31 |
+| **结转 concern（不阻塞）** | 768 `toggle-artifact-btn` 被 artifact 空态面板层叠覆盖（响应式三栏布局问题，超出 tooltip 范围，右边缘断言条件跳过，左边缘 open-sidebar 已覆盖 flip/shift）；apps/web full build 受 pre-existing dual @types/react 冲突（E2E dev 模式未受阻） |
+
 ### REG-20260530-009 — Web workspace 三栏布局移动失稳 + 按钮位置/交互几何断言缺失（由 WEB-WORKSPACE-LAYOUT-UAT-001 修复关闭）
 
 | 字段 | 内容 |

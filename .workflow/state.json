@@ -1644,8 +1644,70 @@
           "status": "completed"
         }
       ]
+    },
+    {
+      "milestone": "M-adhoc-20260531-ui-tooltip-position",
+      "completed_at": "2026-05-31T01:13:21Z",
+      "artifacts": [
+        {
+          "id": "EXC-ui-tooltip-position-2026-05-31",
+          "type": "execute",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260531-ui-tooltip-position",
+          "phase": null,
+          "path": "20260531-verify-ui-tooltip-position",
+          "created_at": "2026-05-30T16:44:32Z",
+          "issue_id": "UI-TOOLTIP-POSITION-001",
+          "status": "completed"
+        },
+        {
+          "id": "VRF-ui-tooltip-position-2026-05-31",
+          "type": "verify",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260531-ui-tooltip-position",
+          "phase": null,
+          "path": "20260531-verify-ui-tooltip-position",
+          "depends_on": [
+            "EXC-ui-tooltip-position-2026-05-31"
+          ],
+          "passed": true,
+          "created_at": "2026-05-30T16:46:06Z",
+          "issue_id": "UI-TOOLTIP-POSITION-001",
+          "status": "completed"
+        },
+        {
+          "id": "REV-ui-tooltip-position-2026-05-31",
+          "type": "review",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260531-ui-tooltip-position",
+          "phase": null,
+          "path": "20260531-review-ui-tooltip-position",
+          "depends_on": [
+            "VRF-ui-tooltip-position-2026-05-31"
+          ],
+          "verdict": "PASS",
+          "created_at": "2026-05-30T16:51:56Z",
+          "issue_id": "UI-TOOLTIP-POSITION-001",
+          "status": "completed"
+        },
+        {
+          "id": "TEST-ui-tooltip-position-2026-05-31",
+          "type": "test",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260531-ui-tooltip-position",
+          "phase": null,
+          "path": "20260531-review-ui-tooltip-position/.tests",
+          "depends_on": [
+            "REV-ui-tooltip-position-2026-05-31"
+          ],
+          "verdict": "PASS",
+          "created_at": "2026-05-30T17:09:19Z",
+          "issue_id": "UI-TOOLTIP-POSITION-001",
+          "status": "completed"
+        }
+      ]
     }
   ],
   "current_phase": 1,
-  "updated_at": "2026-05-30T14:08:38Z"
+  "updated_at": "2026-05-31T01:13:21Z"
 }

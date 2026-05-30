@@ -8,6 +8,8 @@ export interface IconButtonProps extends Omit<ButtonProps, 'size'> {
   label: string
   showTooltip?: boolean
   size?: 'default' | 'sm' | 'lg'
+  tooltipSide?: 'top' | 'bottom' | 'left' | 'right'
+  tooltipAlign?: 'start' | 'center' | 'end'
 }
 
 const sizeMap = { default: 'icon', sm: 'icon', lg: 'icon' } as const
@@ -18,6 +20,8 @@ export function IconButton({
   label,
   showTooltip = true,
   size = 'default',
+  tooltipSide,
+  tooltipAlign,
   className,
   ...props
 }: IconButtonProps) {
@@ -34,5 +38,9 @@ export function IconButton({
   )
 
   if (!showTooltip) return btn
-  return <Tooltip content={label}>{btn}</Tooltip>
+  return (
+    <Tooltip content={label} side={tooltipSide} align={tooltipAlign}>
+      {btn}
+    </Tooltip>
+  )
 }
