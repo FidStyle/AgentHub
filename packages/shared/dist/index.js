@@ -18,11 +18,33 @@ var FR_IDS = {
   NOTIFY_001: "FR-NOTIFY-001"
 };
 
+// src/constants/colors.ts
+var colors = {
+  primary: "hsl(222.2, 47.4%, 11.2%)",
+  primaryForeground: "hsl(210, 40%, 98%)",
+  muted: "hsl(210, 40%, 96.1%)",
+  mutedForeground: "hsl(215.4, 16.3%, 46.9%)",
+  border: "hsl(214.3, 31.8%, 91.4%)",
+  background: "hsl(0, 0%, 100%)",
+  card: "hsl(0, 0%, 100%)",
+  success: "hsl(142, 71%, 45%)",
+  destructive: "hsl(0, 84.2%, 60.2%)",
+  accent: "hsl(210, 40%, 96.1%)"
+};
+
 // src/runtime/adapter.ts
 var DEFAULT_ORCHESTRATOR_CONFIG = {
   maxConcurrent: 3,
   defaultRuntime: "claude_code",
   approvalRequired: (risk) => risk === "critical" || risk === "high"
+};
+
+// src/runtime/error-codes.ts
+var RuntimeErrorCode = {
+  DEVICE_OFFLINE: "DEVICE_OFFLINE",
+  ENDPOINT_UNAVAILABLE: "endpoint_unavailable",
+  PUBLIC_RUNTIME_UNCONFIGURED: "public_runtime_unconfigured",
+  TUNNEL_DISCONNECTED: "tunnel_disconnected"
 };
 
 // src/protocol/frames.ts
@@ -64,7 +86,9 @@ export {
   DEFAULT_ORCHESTRATOR_CONFIG,
   DEFAULT_POLICIES,
   FR_IDS,
+  RuntimeErrorCode,
   SeqGenerator,
+  colors,
   parseFrame,
   serializeFrame
 };

@@ -101,3 +101,20 @@ export class FakeExecutor implements RuntimeExecutor {
     }
   }
 }
+
+// ScriptedRealExecutor: streams a fixed, recognizable reply that does NOT echo the prompt. Unlike
+// FakeExecutor (which echoes input), this stands in for a real executor's produced output — used to
+// validate the full enqueue→worker→DB delivery path with a deterministic, non-echo reply where a
+// paid CLI isn't desirable. The reply is configurable via RUNTIME_SCRIPT_REPLY.
+export class ScriptedRealExecutor implements RuntimeExecutor {
+  async *execute(job: ExecutorJob): AsyncIterable<ExecutorChunk> {
+    const reply = process.env.RUNTIME_SCRIPT_REPLY ?? '已收到你的请求，这是运行时执行器返回的回复。'
+    const segments = reply.match(/.{1,8}/gu) ?? [reply]
+    for (let i = 0; i < segments.length; i++) {
+      if (job.fail && i === Math.floor(segments.length / 2)) {
+        throw new Error('ScriptedRealExecutor injected failure')
+      }
+      yield { delta: segments[i] }
+    }
+  }
+}

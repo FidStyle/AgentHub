@@ -5,6 +5,7 @@ const QUEUE_KEY = 'agenthub:runtime:queue'
 const eventChannel = (id: string) => `agenthub:runtime:events:${id}`
 const cancelKey = (id: string) => `agenthub:runtime:cancel:${id}`
 const heartbeatKey = (id: string) => `agenthub:runtime:hb:${id}`
+const workerAliveKey = 'agenthub:runtime:worker:alive'
 
 // subscribeEvents dual-timeout (env-configurable, with defaults). idle = max gap
 // between two events; total = absolute lifetime of one subscription. Either tripping
@@ -137,4 +138,24 @@ export async function clearHeartbeat(runtimeSessionId: string): Promise<void> {
   if (!runtimeSessionId) return
   const r = await getRedis()
   await r.del(heartbeatKey(runtimeSessionId))
+}
+
+// Worker presence: a running worker refreshes a short-TTL global key each loop. The gateway checks
+// it before enqueueing — a missing key means no consumer is alive, so the request must short-circuit
+// to an explicit error instead of enqueueing a job that would hang until the idle timeout.
+export async function setWorkerAlive(
+  ttlSec = Number(process.env.RUNTIME_WORKER_PRESENCE_TTL_SEC ?? 15),
+): Promise<void> {
+  const r = await getRedis()
+  await r.set(workerAliveKey, String(Date.now()), { EX: ttlSec })
+}
+
+export async function isWorkerAlive(): Promise<boolean> {
+  const r = await getRedis()
+  return (await r.exists(workerAliveKey)) === 1
+}
+
+export async function clearWorkerAlive(): Promise<void> {
+  const r = await getRedis()
+  await r.del(workerAliveKey)
 }

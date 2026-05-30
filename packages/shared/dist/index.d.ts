@@ -66,8 +66,20 @@ interface RoleAgent {
     allowOrchestration: boolean;
 }
 
-type RuntimeType = 'hosted' | 'claude_code' | 'codex';
+type RuntimeType = 'hosted' | 'claude_code' | 'codex' | 'opencode';
 type RuntimeSessionStatus = 'idle' | 'running' | 'completed' | 'failed';
+type RuntimeEndpointKind = 'public_cloud' | 'user_local';
+type RuntimeEndpointStatus = 'available' | 'offline' | 'unconfigured';
+type RuntimeRunStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
+type DeviceRuntimeChannelStatus = 'connected' | 'disconnected';
+interface RuntimeEndpoint {
+    id: string;
+    userId?: string;
+    kind: RuntimeEndpointKind;
+    runtimeType: RuntimeType;
+    deviceId?: string;
+    status: RuntimeEndpointStatus;
+}
 interface RuntimeBinding {
     id: string;
     workspaceId: string;
@@ -142,6 +154,20 @@ declare const FR_IDS: {
 };
 type FrId = (typeof FR_IDS)[keyof typeof FR_IDS];
 
+declare const colors: {
+    readonly primary: "hsl(222.2, 47.4%, 11.2%)";
+    readonly primaryForeground: "hsl(210, 40%, 98%)";
+    readonly muted: "hsl(210, 40%, 96.1%)";
+    readonly mutedForeground: "hsl(215.4, 16.3%, 46.9%)";
+    readonly border: "hsl(214.3, 31.8%, 91.4%)";
+    readonly background: "hsl(0, 0%, 100%)";
+    readonly card: "hsl(0, 0%, 100%)";
+    readonly success: "hsl(142, 71%, 45%)";
+    readonly destructive: "hsl(0, 84.2%, 60.2%)";
+    readonly accent: "hsl(210, 40%, 96.1%)";
+};
+type ColorToken = keyof typeof colors;
+
 interface RuntimeAdapter {
     type: RuntimeType;
     execute(command: string, cwd: string): Promise<RuntimeResult>;
@@ -159,6 +185,69 @@ interface OrchestratorConfig {
     approvalRequired: (riskLevel: string) => boolean;
 }
 declare const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig;
+
+interface RuntimeGatewayInvokeInput {
+    workspaceId: string;
+    sessionId: string;
+    roleAgentId?: string;
+    executionDomain: ExecutionDomain;
+    endpointId: string;
+    endpointKind: RuntimeEndpointKind;
+    userMessage: string;
+    cwd?: string;
+}
+type RuntimeGatewayEvent = {
+    type: 'gateway_connected';
+    endpointId: string;
+} | {
+    type: 'runtime_status';
+    status: string;
+    endpointId?: string;
+} | {
+    type: 'public_runtime_available';
+    available: boolean;
+    endpointId?: string;
+} | {
+    type: 'endpoint_unavailable';
+    endpointId?: string;
+    reason: string;
+} | {
+    type: 'local_runtime_offline';
+    endpointId?: string;
+    deviceId?: string;
+} | {
+    type: 'tunnel_connected';
+    endpointId: string;
+    deviceId: string;
+} | {
+    type: 'tunnel_disconnected';
+    endpointId: string;
+    deviceId: string;
+} | {
+    type: 'runtime_output';
+    delta: string;
+    endpointId?: string;
+} | {
+    type: 'runtime_completed';
+    endpointId?: string;
+    summary?: string;
+} | {
+    type: 'runtime_failed';
+    endpointId?: string;
+    error: string;
+} | {
+    type: 'runtime_cancelled';
+    endpointId?: string;
+    reason?: string;
+};
+
+declare const RuntimeErrorCode: {
+    readonly DEVICE_OFFLINE: "DEVICE_OFFLINE";
+    readonly ENDPOINT_UNAVAILABLE: "endpoint_unavailable";
+    readonly PUBLIC_RUNTIME_UNCONFIGURED: "public_runtime_unconfigured";
+    readonly TUNNEL_DISCONNECTED: "tunnel_disconnected";
+};
+type RuntimeErrorCode = (typeof RuntimeErrorCode)[keyof typeof RuntimeErrorCode];
 
 type FrameType = 'auth' | 'connected' | 'heartbeat' | 'heartbeat_ack' | 'request' | 'response' | 'event';
 interface BaseFrame {
@@ -368,4 +457,4 @@ interface ContextPackage {
     created_at: string;
 }
 
-export { type ActionRequest, type ActionStatus, type ActionType, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCompletedEvent, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeResult, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, parseFrame, serializeFrame };
+export { type ActionRequest, type ActionStatus, type ActionType, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, colors, parseFrame, serializeFrame };

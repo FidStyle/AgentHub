@@ -1,16 +1,20 @@
 import { createClient } from '../lib/app-db-client'
-import { CliRuntimeExecutor, FakeExecutor, type CliRuntimeType, type RuntimeExecutor } from '../lib/runtime/executor'
-import { dequeue, publishEvent, isCancelled, setHeartbeat, isAlive, clearHeartbeat, type RuntimeJob } from '../lib/runtime/redis-client'
+import { CliRuntimeExecutor, FakeExecutor, ScriptedRealExecutor, type CliRuntimeType, type RuntimeExecutor } from '../lib/runtime/executor'
+import { dequeue, publishEvent, isCancelled, setHeartbeat, isAlive, clearHeartbeat, setWorkerAlive, clearWorkerAlive, type RuntimeJob } from '../lib/runtime/redis-client'
 import { redact } from '../lib/runtime/redact'
 
 const HEARTBEAT_TTL_SEC = Number(process.env.RUNTIME_HEARTBEAT_TTL_SEC ?? 30)
 
-// Selects the executor from env. Default is FakeExecutor so existing gateway tests and local
-// runs need no real CLI. RUNTIME_EXECUTOR=real opts into the pluggable CLI executor.
+// Selects the executor from env. Default is FakeExecutor so existing gateway tests and local runs
+// need no real CLI. RUNTIME_EXECUTOR=real opts into the pluggable CLI executor; =script uses the
+// deterministic non-echo ScriptedRealExecutor for delivery-path validation without a paid CLI.
 export function createExecutor(): RuntimeExecutor {
-  if (process.env.RUNTIME_EXECUTOR !== 'real') return new FakeExecutor()
-  const runtimeType: CliRuntimeType = process.env.RUNTIME_CLI === 'codex' ? 'codex' : 'claude_code'
-  return new CliRuntimeExecutor({ runtimeType, cwd: process.env.RUNTIME_CWD })
+  if (process.env.RUNTIME_EXECUTOR === 'real') {
+    const runtimeType: CliRuntimeType = process.env.RUNTIME_CLI === 'codex' ? 'codex' : 'claude_code'
+    return new CliRuntimeExecutor({ runtimeType, cwd: process.env.RUNTIME_CWD })
+  }
+  if (process.env.RUNTIME_EXECUTOR === 'script') return new ScriptedRealExecutor()
+  return new FakeExecutor()
 }
 
 type Terminal = 'completed' | 'cancelled' | 'failed'
@@ -88,7 +92,16 @@ export async function reclaimDeadSession(runtimeSessionId: string, endpointId?: 
 async function main(): Promise<void> {
   console.log('[runtime-worker] started, consuming queue...')
   const executor = createExecutor()
+  const shutdown = async () => {
+    await clearWorkerAlive().catch(() => {})
+    process.exit(0)
+  }
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
   while (true) {
+    // Refresh the global presence key each loop (interval 5s < TTL 15s) so the gateway can tell a
+    // live worker from none before enqueueing.
+    await setWorkerAlive()
     const job = await dequeue(5)
     if (!job) continue
     try {

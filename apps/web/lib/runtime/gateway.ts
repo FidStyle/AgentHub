@@ -4,7 +4,7 @@ import { RuntimeErrorCode } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { getChannelByDevice, markChannelConnected } from './device-channel-store'
-import { enqueue, subscribeEvents, setCancel } from './redis-client'
+import { enqueue, subscribeEvents, setCancel, isWorkerAlive } from './redis-client'
 import { redact } from './redact'
 
 type EndpointKind = 'public_cloud' | 'user_local'
@@ -112,17 +112,23 @@ export async function* invoke(input: {
   yield { type: 'gateway_connected', endpointId: endpoint.id ?? '' }
 
   if (endpoint.kind === 'public_cloud') {
-    // public_cloud routes through the self-hosted gateway worker pool (D-003). When Redis is
-    // unreachable the endpoint stays unconfigured — no fake assistant success.
-    if (!process.env.REDIS_URL) {
+    // public_cloud routes through the self-hosted gateway worker pool (D-003). Gate on the resolved
+    // endpoint status/id AND a live worker presence key — never on REDIS_URL alone. An unconfigured
+    // endpoint or an enqueue with no consumer would otherwise hang until the idle timeout, so both
+    // cases short-circuit to an explicit Chinese error without enqueueing (no fake assistant success).
+    const emitUnavailable = async function* (reason: string): AsyncGenerator<RuntimeGatewayEvent> {
       yield { type: 'public_runtime_available', available: false, endpointId }
       yield { type: 'runtime_status', status: RuntimeErrorCode.ENDPOINT_UNAVAILABLE, endpointId }
-      yield {
-        type: 'endpoint_unavailable',
-        endpointId,
-        reason: '公共云端 Runtime 尚未配置，请稍后再试或切换到本地 Desktop 运行时',
-      }
+      yield { type: 'endpoint_unavailable', endpointId, reason }
       await setSessionStatus(input.runtimeSession.id, 'failed')
+    }
+
+    if (endpoint.status === 'unconfigured' || endpoint.id === null) {
+      yield* emitUnavailable('公共云端 Runtime 尚未配置，请稍后再试或切换到本地 Desktop 运行时')
+      return
+    }
+    if (!process.env.REDIS_URL || !(await isWorkerAlive())) {
+      yield* emitUnavailable('Runtime 执行器未就绪，请稍后再试或切换到本地 Desktop 运行时')
       return
     }
 
