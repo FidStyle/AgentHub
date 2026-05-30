@@ -8,17 +8,24 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
+  // The local Postgres query client builds raw SQL and does not support PostgREST embedded
+  // selects, so ownership is verified with a separate workspace lookup (same pattern as
+  // /api/messages) instead of a `workspaces!inner(...)` join.
   const { data, error } = await db
     .from('sessions')
-    .select('*, workspaces!inner(owner_id)')
+    .select('*')
     .eq('id', id)
     .single()
 
   if (error || !data) return NextResponse.json({ error: '会话不存在' }, { status: 404 })
-  const row = data as { workspaces?: { owner_id: string } }
-  if (row.workspaces?.owner_id !== user.id) {
-    return NextResponse.json({ error: '无权限' }, { status: 403 })
-  }
+
+  const { data: ws } = await db
+    .from('workspaces')
+    .select('id')
+    .eq('id', (data as unknown as { workspace_id: string }).workspace_id)
+    .eq('owner_id', user.id)
+    .single()
+  if (!ws) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
   return NextResponse.json(data)
 }
