@@ -74,6 +74,60 @@ export async function assertUsesUnifiedVisualSystem(page: Page) {
   expect(result.hasInlineStyleAbuse, 'Page has excessive inline styles bypassing the design system').toBe(false)
 }
 
+async function boxOf(page: Page, selector: string) {
+  const box = await page.locator(selector).first().boundingBox()
+  expect(box, `Element ${selector} has no bounding box (not rendered/visible)`).not.toBeNull()
+  return box!
+}
+
+/** rightSel 必须位于 leftSel 右侧（rightSel.left >= leftSel.right - tolerance）。 */
+export async function assertRightOf(page: Page, rightSel: string, leftSel: string, tolerance = 2) {
+  const right = await boxOf(page, rightSel)
+  const left = await boxOf(page, leftSel)
+  expect(right.x, `${rightSel} 应在 ${leftSel} 右侧`).toBeGreaterThanOrEqual(left.x + left.width - tolerance)
+}
+
+/** sel 必须紧贴 anchorSel 的指定边（间距 <= maxGap），且水平方向有重叠（对齐）。 */
+export async function assertAdjacent(
+  page: Page,
+  sel: string,
+  anchorSel: string,
+  edge: 'above' | 'below',
+  maxGap = 12,
+) {
+  const el = await boxOf(page, sel)
+  const anchor = await boxOf(page, anchorSel)
+  const gap = edge === 'above' ? anchor.y - (el.y + el.height) : el.y - (anchor.y + anchor.height)
+  expect(gap, `${sel} 应紧贴 ${anchorSel} ${edge}（gap=${gap}）`).toBeGreaterThanOrEqual(-1)
+  expect(gap, `${sel} 与 ${anchorSel} 间距过大（gap=${gap} > ${maxGap}）`).toBeLessThanOrEqual(maxGap)
+  const overlapX = Math.min(el.x + el.width, anchor.x + anchor.width) - Math.max(el.x, anchor.x)
+  expect(overlapX, `${sel} 应与 ${anchorSel} 水平对齐`).toBeGreaterThan(0)
+}
+
+/** childSel 完全落在 containerSel 几何范围内（不超出/不错位）。 */
+export async function assertWithinContainer(page: Page, childSel: string, containerSel: string, tolerance = 2) {
+  const child = await boxOf(page, childSel)
+  const container = await boxOf(page, containerSel)
+  expect(child.x, `${childSel} 左边超出 ${containerSel}`).toBeGreaterThanOrEqual(container.x - tolerance)
+  expect(child.y, `${childSel} 顶边超出 ${containerSel}`).toBeGreaterThanOrEqual(container.y - tolerance)
+  expect(child.x + child.width, `${childSel} 右边超出 ${containerSel}`).toBeLessThanOrEqual(container.x + container.width + tolerance)
+  expect(child.y + child.height, `${childSel} 底边超出 ${containerSel}`).toBeLessThanOrEqual(container.y + container.height + tolerance)
+}
+
+/** sel 渲染宽度必须 >= minPx（中栏聊天区最小可用宽度守卫）。 */
+export async function assertMinWidth(page: Page, selector: string, minPx: number) {
+  const box = await boxOf(page, selector)
+  expect(box.width, `${selector} 宽度 ${box.width} 小于最小可用宽度 ${minPx}`).toBeGreaterThanOrEqual(minPx)
+}
+
+/** a 与 b 几何上不重叠（任一维度分离即可）。 */
+export async function assertNotOverlapping(page: Page, aSel: string, bSel: string) {
+  const a = await boxOf(page, aSel)
+  const b = await boxOf(page, bSel)
+  const overlaps = a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+  expect(overlaps, `${aSel} 不应遮挡 ${bSel}`).toBe(false)
+}
+
 export type Surface = 'web' | 'desktop' | 'mobile'
 
 const CROSS_SURFACE_DIR = path.resolve(__dirname, '../artifacts/cross-surface')

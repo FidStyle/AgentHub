@@ -319,6 +319,22 @@
 | **阻塞问题** | 无 |
 | **下一步动作** | 进入 analyze/plan |
 
+### WEB-WORKSPACE-LAYOUT-UAT-001: Web workspace 按钮位置/排版/交互可用性修复 + 真实浏览器布局 UAT
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0（三栏移动失稳）+ P1（按钮几何/行为断言） |
+| **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
+| **来源** | ANL-web-workspace-layout-uat-2026-05-30（RC1-RC6）；Ralph session `ralph-20260530-223110` |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260530-009`（已关闭） |
+| **当前状态** | ✅ 全部完成（2026-05-30 验证通过）：三栏桌面 1440×900/1280×800 + 移动 768 稳定（无横滚 + 中栏 ≥480 + 不重叠）；6 类按钮 boundingBox 几何 + onClick 真实结果断言；向后兼容业务逻辑零改。 |
+| **目标** | 修 Web workspace 三栏布局/按钮位置/入口排版与交互可用性，真实浏览器 UAT 守护，错误布局必失败 |
+| **方案摘要** | `WorkspaceShell.tsx` 响应式 `lg:grid-cols-[280px_minmax(480px,1fr)_320px]` + `overflow-x-hidden` + 移动抽屉/overlay；`visual-assertions.ts` 新增 5 个 boundingBox 几何断言；`web-workspace-layout-uat.spec.ts` 3 视口真实截图 + 几何 + 点击行为断言（禁止仅 `toBeVisible`、禁止 baseline 截图对比） |
+| **验收方式** | Playwright 真实浏览器 3 视口；boundingBox 几何 + 点击真实结果断言；错误布局测试必失败 |
+| **测试证据** | `playwright test --config=e2e/playwright.config.ts --project=web-desktop web-workspace-layout-uat.spec.ts` → **3 passed (6.5s)**（真实 localhost:3000 + P0 postgres + 真实 auth cookie）；证据图 `e2e/artifacts/web-workspace-layout/{desktop-1440x900,desktop-1280x800,narrow-768}.png`；verification.json PASS + review.json PASS（0 high）+ uat.md 3/3；执行报告 `research/execution-reports/web-workspace-layout-uat-001-report.md` |
+| **阻塞问题** | 无（首跑环境竞争 EADDRINUSE + 共享单用户数据竞争，属既有 `REG-20260530-002` P1，清理残留进程后干净复跑通过） |
+| **下一步动作** | 关闭，归档 adhoc milestone |
+
 ---
 
 ## P2 任务

@@ -91,6 +91,21 @@
 
 ## 关闭记录
 
+### REG-20260530-009 — Web workspace 三栏布局移动失稳 + 按钮位置/交互几何断言缺失（由 WEB-WORKSPACE-LAYOUT-UAT-001 修复关闭）
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | UI layout / UX regression + test-gap |
+| **优先级** | P0（RC1 三栏移动失稳）+ P1（RC2-RC6 按钮几何/行为断言缺失） |
+| **状态** | `closed` |
+| **关联 FR/PRD** | `FR-WEB-001`, `FR-UI-001`；`P0-END-TO-END-PRODUCT-FLOW.md`（Web workspace 三栏可用性） |
+| **关联任务/合同** | 由 `WEB-WORKSPACE-LAYOUT-UAT-001` 修复关闭（`research/project-tracker.md` 同名条目 + `research/execution-reports/web-workspace-layout-uat-001-report.md`） |
+| **影响功能面** | Web `/workspace/:id` 三栏布局（桌面 1440×900/1280×800 + 移动 768）、新建会话/workspace 切换/@角色/发送/Artifact 面板入口位置与点击行为 |
+| **发现方式** | WEB-WORKSPACE-LAYOUT-UAT-001 analyze 阶段真实浏览器 + 代码核对（ANL-web-workspace-layout-uat-2026-05-30，RC1-RC6） |
+| **证据** | 修复前：`WorkspaceShell.tsx:14` 固定 `grid-cols-[280px_1fr_320px]` 无断点 → 移动横向溢出 + 三栏挤压不可用；按钮位置正确但无 boundingBox 几何 + 点击真实结果联合断言。修复后：响应式 `lg:grid-cols-[280px_minmax(480px,1fr)_320px]` + `overflow-x-hidden` + 移动抽屉/overlay；`e2e/tests/web/web-workspace-layout-uat.spec.ts` 3 视口真实浏览器 3 passed (6.5s)，boundingBox 几何 + 点击行为断言；verification.json PASS、review.json PASS（0 high）、uat.md 3/3 |
+| **关闭条件（已满足）** | 三栏桌面 + 移动稳定（无横滚 + 中栏 ≥480 + 三栏不重叠）；6 类按钮 boundingBox 几何 + onClick 真实结果断言（非仅 `toBeVisible`、非 baseline 截图对比）；错误布局测试必失败 |
+| **关闭时间** | 2026-05-30 |
+
 ### REG-20260530-003 — ROLE-CHAT-CORE-001 可见 agent 回复 + 角色 Badge deferred（重定级 P0 后关闭）
 
 | 字段 | 内容 |

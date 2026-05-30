@@ -82,13 +82,14 @@ function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
 
   return (
     <div data-testid="message-composer" className="flex flex-col gap-2 p-4 border-t border-border">
-      <div className="flex items-center gap-2">
+      <div data-testid="composer-toolbar" className="flex items-center gap-2">
         <div className="relative">
           <IconButton
             icon={AtSign}
             label="提及角色"
             variant="ghost"
             size="sm"
+            data-testid="mention-role-btn"
             disabled={!activeSessionId}
             onClick={() => setPickerOpen((v) => !v)}
           />
@@ -133,15 +134,16 @@ function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
         )}
         <IconButton icon={Paperclip} label="附件" variant="ghost" size="sm" disabled={!activeSessionId} />
       </div>
-      <div className="flex gap-2">
+      <div data-testid="composer-input-row" className="flex gap-2">
         <Input
+          data-testid="composer-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
           placeholder={selectedRole ? `@${selectedRole.name} 输入消息...` : '输入消息...'}
           disabled={!activeSessionId || sending}
         />
-        <IconButton icon={Send} label={sending ? '发送中...' : '发送'} onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending} />
+        <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending} />
       </div>
     </div>
   )
@@ -158,7 +160,7 @@ export function ChatPanel({ onTogglePanel }: { onTogglePanel: () => void }) {
         <h2 className="text-sm font-semibold">
           {activeSession?.title ?? '选择一个会话'}
         </h2>
-        <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" onClick={onTogglePanel} />
+        <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
       </div>
       <MessageList roleAgents={roleAgents} />
       <MessageComposer roleAgents={roleAgents} />

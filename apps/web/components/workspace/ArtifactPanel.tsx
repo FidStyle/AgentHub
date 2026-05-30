@@ -23,7 +23,7 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
             </Button>
           ))}
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose}>
+        <Button variant="ghost" size="sm" data-testid="artifact-close-btn" onClick={onClose}>
           关闭
         </Button>
       </div>

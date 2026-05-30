@@ -52,7 +52,7 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         </button>
         {wsOpen && (
-          <div className="absolute left-2 right-2 top-full mt-1 z-10 rounded-md border border-border bg-card shadow-md">
+          <div data-testid="workspace-dropdown" className="absolute left-2 right-2 top-full mt-1 z-10 rounded-md border border-border bg-card shadow-md">
             {workspaces.map(ws => (
               <button
                 key={ws.id}
@@ -68,12 +68,13 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
           </div>
         )}
       </div>
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <h2 className="text-xs font-semibold text-muted-foreground">会话</h2>
+      <div data-testid="session-header" className="flex items-center justify-between px-4 py-2 border-b border-border">
+        <h2 data-testid="session-header-title" className="text-xs font-semibold text-muted-foreground">会话</h2>
         <IconButton
           icon={Plus}
           label="新建会话"
           size="sm"
+          data-testid="new-session-btn"
           disabled={!activeWorkspaceId}
           onClick={() => activeWorkspaceId && createSession(activeWorkspaceId)}
         />
