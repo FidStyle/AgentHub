@@ -1,0 +1,252 @@
+{
+  "audit_id": "PRODUCT-REALITY-GAP-AUDIT-001",
+  "audit_date": "2026-05-31",
+  "audit_type": "product-reality-gap (假交互/占位/技术通过但用户目标未达成)",
+  "audit_mode": "read-only (只审计不修复)",
+  "scope": [
+    "apps/web",
+    "apps/desktop",
+    "apps/mobile",
+    "packages/ui",
+    "packages/shared",
+    "e2e",
+    "apps/web/__tests__"
+  ],
+  "method": "静态代码扫描 + 链路追踪 + 与既有 PRODUCT-UAT-GAP-AUDIT-001 账本对账。受限项：Desktop GUI / 真实浏览器 UAT 在本次 CLI 环境未实际拉起（见 blocked），P0 代码级证据均已主进程逐文件核验。",
+  "verification_note": "所有 P0 finding 的代码位置均由主进程 Read 工具直接打开核验，非仅 subagent 摘要。",
+  "summary": {
+    "total": 11,
+    "P0": 5,
+    "P1": 4,
+    "P2": 2,
+    "new": 7,
+    "already_tracked": 4
+  },
+  "findings": [
+    {
+      "id": "PRGA-001",
+      "platform": "mobile",
+      "surface": "Mobile (React Native) 聊天发送",
+      "user_expectation": "在原生 Mobile App 发送消息后，由真实 Agent runtime 处理并返回回复",
+      "actual_behavior": "handleSend 只 setMessages 本地数组，硬编码 session_id='mobile-sess-1'，并用 setTimeout(500ms) 推入 `[Agent] 收到: \"<原文>\"` 回显。无任何网络请求。",
+      "code_location": "apps/mobile/src/screens/ChatScreen.tsx:13-50 (App.tsx:5 渲染此屏)",
+      "why_fake": "纯 local state + 定时器回显，完全不调用 /api/chat 或任何 runtime；'Agent 回复'是字符串模板拼接用户原文。符合红线『发送只显示到列表 + 无真实链路』。",
+      "severity": "P0",
+      "status": "new",
+      "relation": "区别于 REG-20260530-006 GAP-002（那是 apps/web/app/m/ PWA 路由，已由 MOBILE-CHAT-DELIVER-001 修复）；本条是从未被审计的原生 RN App apps/mobile/。",
+      "suggested_fix_task_id": "MOBILE-RN-CHAT-RUNTIME-001",
+      "missing_test_assertion": "断言发送触发真实 /api/chat（或 runtime client）调用；断言回复非『收到: 用户原文』回显；无 worker 时断言明确错误态；移除硬编码 session_id。"
+    },
+    {
+      "id": "PRGA-002",
+      "platform": "desktop",
+      "surface": "Desktop 本地 Agent 会话 — 输入指令发送",
+      "user_expectation": "在桌面端输入指令后，本地 Claude Code / Codex runtime 真正执行该指令",
+      "actual_behavior": "handleSend 只调用 addActivity({ status:'success', message: `[${agent.name}] ${input}` })，把输入回显到活动列表并硬编码 status='success'。不触发任何 IPC / spawn / runtime。",
+      "code_location": "apps/desktop/src/renderer/components/shell/DesktopAgentSession.tsx:14-20",
+      "why_fake": "renderer 层完全未连接 main 进程已有的 StreamAdapter.spawn / DeviceChannel runtime_invoke；输入仅写入 console-store 本地数组并伪造成功态。符合红线『addActivity echo』。",
+      "severity": "P0",
+      "status": "new",
+      "relation": "历史问题『Desktop 输入只 addActivity echo』确认至今仍存在，未登记修复任务。",
+      "suggested_fix_task_id": "DESKTOP-SESSION-RUNTIME-001",
+      "missing_test_assertion": "断言发送后真实 runtime IPC（runtime_invoke / runtime:execute）被调用；断言活动条目状态来自真实执行结果而非硬编码 success；断言收到 runtime 输出。"
+    },
+    {
+      "id": "PRGA-003",
+      "platform": "desktop",
+      "surface": "Desktop 诊断 / 继续 / 重试 / 停止 控制按钮",
+      "user_expectation": "诊断→runtime 诊断；继续→恢复任务；重试→重跑失败任务；停止→中止运行中任务",
+      "actual_behavior": "四个按钮只有 disabled={!selectedAgent}，没有任何 onClick；选中 Agent 后点击也不发生任何事。",
+      "code_location": "apps/desktop/src/renderer/components/shell/DesktopAgentSession.tsx:73-76",
+      "why_fake": "纯视觉占位按钮，无处理函数，无 runtime_cancel / diagnose / retry IPC。符合红线『按钮点击只 local state（此处连 state 都不改）无真实结果』。",
+      "severity": "P0",
+      "status": "new",
+      "suggested_fix_task_id": "DESKTOP-SESSION-CONTROLS-001",
+      "missing_test_assertion": "点击每个按钮断言对应 IPC（diagnose/resume/retry/cancel）被调用并产生 runtime 效果。"
+    },
+    {
+      "id": "PRGA-004",
+      "platform": "web",
+      "surface": "Web Orchestrator 计划/动作 UI（PlanCard / ActionCard）",
+      "user_expectation": "在 Web 工作台看到 Agent 生成的计划、节点进度、待审批动作及风险等级，并能审批",
+      "actual_behavior": "PlanCard.tsx / ActionCard.tsx 组件已实现但 grep 全仓 0 引用，从未被任何页面渲染。WorkspaceShell 只渲染 Sidebar/ChatPanel/ArtifactPanel，无 Plans/Actions 区域。",
+      "code_location": "apps/web/components/orchestrator/PlanCard.tsx + ActionCard.tsx（零引用）；apps/web/components/workspace/WorkspaceShell.tsx（无编排区）",
+      "why_fake": "后端 /api/plans、/api/actions、/api/plans/[id]/confirm、/api/actions/[id]/approve 全部可用，但 Web 主界面完全不展示，编排→审批→执行闭环对 Web 用户不可达。符合红线『面板/能力存在但永远不接数据/不渲染』。",
+      "severity": "P0",
+      "status": "new",
+      "suggested_fix_task_id": "WEB-ORCHESTRATOR-UI-001",
+      "missing_test_assertion": "创建计划后断言 Web workspace 可见 PlanCard；创建高风险动作后断言 ActionCard 出现且审批按钮调用 /api/actions/[id]/approve 并改变真实状态。"
+    },
+    {
+      "id": "PRGA-005",
+      "platform": "web",
+      "surface": "Web Artifact 面板（产物 / 上下文 / Agents 三 Tab）",
+      "user_expectation": "右栏三 Tab 展示 Agent 产物、会话上下文、参与会话的 Role Agent 真实数据",
+      "actual_behavior": "三 Tab 全部硬编码 StateCard variant='empty' 空态文案，无任何 useState 之外的数据获取，永久空态。",
+      "code_location": "apps/web/components/workspace/ArtifactPanel.tsx:31-39",
+      "why_fake": "即使存在 /api/role-agents（Agents Tab 可复用）与 messages 表（产物可派生），面板从不查询任何数据源。符合红线『Tab 永远空态不接数据』。",
+      "severity": "P0",
+      "status": "already_tracked_underrated",
+      "relation": "已登记为 ARTIFACT-PANEL-DATA-001 / REG-20260530-007/008，但定级 P1；本审计认为右栏是核心工作台面三分之一，恒空壳误导性强，建议升 P0。",
+      "suggested_fix_task_id": "ARTIFACT-PANEL-DATA-001",
+      "missing_test_assertion": "Agents Tab 断言内容与 /api/role-agents 真实返回一致；产物 Tab 在 agent 产出后断言非空且内容匹配 DB；去掉 page.route mock。"
+    },
+    {
+      "id": "PRGA-006",
+      "platform": "runtime",
+      "surface": "默认运行态的 Agent 回复内容真实性",
+      "user_expectation": "用户 @架构师 发送后收到真实 LLM 思考输出",
+      "actual_behavior": "worker 默认 executor = FakeExecutor（runtime-worker.ts:17），逐词回显用户 prompt；RUNTIME_EXECUTOR=script → ScriptedRealExecutor 固定串『已收到你的请求，这是运行时执行器返回的回复。』；仅 RUNTIME_EXECUTOR=real + 已装认证 CLI 才走真实 LLM。dev/E2E/docker 默认均非 real。",
+      "code_location": "apps/web/server/runtime-worker.ts:8-17；apps/web/lib/runtime/executor.ts:92-120",
+      "why_fake": "技术链路（200+SSE+落 sender_type=agent）可全通过，但默认产出是回显或固定模板，非真实 Agent 能力。符合红线『FakeExecutor 回显只能标测试态』。注意：这是已知并文档化的原则（tracker 已写『FakeExecutor 回显≠完成』），本条为再确认+量化，非冒充未知缺口。",
+      "severity": "P1",
+      "status": "already_tracked",
+      "relation": "对应 tracker『Agent Runtime 完整部署 P1』+ REG-20260530-006 备注；原则已立，缺真实 real-executor 端到端验证。",
+      "suggested_fix_task_id": "RUNTIME-REAL-EXECUTOR-E2E-001",
+      "missing_test_assertion": "新增 RUNTIME_EXECUTOR=real 的端到端冒烟（断言回复既非用户输入回显、又非固定脚本串）；现有 E2E 应显式断言『不应在生产默认下出现脚本串』。"
+    },
+    {
+      "id": "PRGA-007",
+      "platform": "test",
+      "surface": "E2E artifact.spec.ts — Artifact 面板门禁",
+      "user_expectation": "门禁应验证右栏接真实数据",
+      "actual_behavior": "beforeEach 全程 page.route fulfill mock；测试只断言 toBeVisible / getByText，无真实 API 或 DB 内容断言。即使面板是空壳也 green pass。",
+      "code_location": "e2e/tests/artifact.spec.ts:40-85",
+      "why_gate_defect": "mock 伪造数据 + 表层可见断言，无法挡住 PRGA-005 的恒空态。符合红线『只测 toBeVisible』。",
+      "severity": "P1",
+      "status": "new",
+      "suggested_fix_task_id": "TEST-ARTIFACT-REAL-DATA-001",
+      "missing_test_assertion": "去 page.route mock，走真实 /api/role-agents，断言面板内容与真实返回一致。",
+      "why_fake": "mock 伪造数据 + 表层可见断言，无法挡住 PRGA-005 的恒空态。符合红线『只测 toBeVisible』。"
+    },
+    {
+      "id": "PRGA-008",
+      "platform": "test",
+      "surface": "E2E messaging.spec.ts — 消息发送门禁",
+      "user_expectation": "门禁应验证 agent 回复可见、非回显、reload 持久化",
+      "actual_behavior": "page.route mock /api/chat 返回硬编码 SSE『你好！我是 Agent。』；只断言用户消息气泡可见，不断言 agent 回复，无 reload 验证。",
+      "code_location": "e2e/tests/messaging.spec.ts:39-58",
+      "why_gate_defect": "直接伪造 SSE 响应体（比 FakeExecutor 更假），且不验证核心交付（agent 回复）。符合红线『只测用户消息落库/可见』。",
+      "severity": "P1",
+      "status": "new",
+      "suggested_fix_task_id": "TEST-MESSAGING-REAL-CHAT-001",
+      "missing_test_assertion": "去 /api/chat mock；断言 route 真实调用 + agent 回复非空非 echo + role badge + reload 双向持久化。",
+      "why_fake": "直接伪造 SSE 响应体（比 FakeExecutor 更假），且不验证核心交付（agent 回复）。符合红线『只测用户消息落库/可见』。"
+    },
+    {
+      "id": "PRGA-009",
+      "platform": "test",
+      "surface": "E2E workspace.spec.ts — Workspace CRUD 门禁",
+      "user_expectation": "门禁应验证创建/列表真实落库与归属",
+      "actual_behavior": "page.route mock /api/workspaces；只断言文本可见与 waitForURL，不验证 DB 落库与归属。",
+      "code_location": "e2e/tests/workspace.spec.ts:9-55",
+      "why_gate_defect": "mock 数据掩盖空库/无权限/不存在等真实边界。",
+      "severity": "P2",
+      "status": "new",
+      "suggested_fix_task_id": "TEST-WORKSPACE-REAL-CRUD-001",
+      "missing_test_assertion": "去 mock；创建后查 DB 有记录；列表与真实 API 一致；导航目标归属当前用户。",
+      "why_fake": "mock 数据掩盖空库/无权限/不存在等真实边界。"
+    },
+    {
+      "id": "PRGA-010",
+      "platform": "test",
+      "surface": "E2E p0-main-flow.spec.ts — P0 主链路门禁",
+      "user_expectation": "完整链路含 agent 回复 + reload 持久化",
+      "actual_behavior": "if(await el.isVisible()) 条件保护包裹核心断言，元素不可见即静默跳过；发送 test 只断言无横滚/不重叠，无 agent 回复/reload 断言。",
+      "code_location": "e2e/tests/web/p0-main-flow.spec.ts:12-71",
+      "why_gate_defect": "条件保护=变相默认 skip 核心断言；/api/chat 返回 500 也 green pass。符合红线『条件跳过关键用户结果』。",
+      "severity": "P1",
+      "status": "new",
+      "suggested_fix_task_id": "TEST-P0-FLOW-REAL-ASSERT-001",
+      "missing_test_assertion": "移除所有 isVisible 条件保护；强制断言发送成功 + agent 回复（或明确错误态）+ reload 持久化。",
+      "why_fake": "条件保护=变相默认 skip 核心断言；/api/chat 返回 500 也 green pass。符合红线『条件跳过关键用户结果』。"
+    },
+    {
+      "id": "PRGA-011",
+      "platform": "web",
+      "surface": "遗留 apps/web/components/chat/ChatPanel.tsx（英文占位 + 死代码）",
+      "user_expectation": "—（组件未被引用）",
+      "actual_behavior": "含英文 placeholder='Input message...' / 'Send'，grep 全仓 0 引用；新版 workspace/ChatPanel.tsx 已替代。",
+      "code_location": "apps/web/components/chat/ChatPanel.tsx:162,171",
+      "why_fake": "死代码 + 违反中文 UI 规范；若被误引用会渲染英文界面。",
+      "severity": "P2",
+      "status": "new",
+      "suggested_fix_task_id": "WEB-LEGACY-CHAT-CLEANUP-001",
+      "missing_test_assertion": "删除未引用目录；CI 加未引用组件检测（可选）。"
+    }
+  ],
+  "whitelist_real": [
+    "Web 消息发送 → /api/chat → HostedRuntimeAdapter → gateway → Redis 队列 → worker → SSE（链路真实，仅 executor 默认为假，见 PRGA-006）",
+    "Web Session/Workspace CRUD + 归属校验（/api/sessions, /api/workspaces 真实落库）",
+    "Web @角色 Role Agent 提及（/api/role-agents 真实 + roleAgentId 持久化）",
+    "Web PWA /m/sessions/[id] 发送走 /api/chat（MOBILE-CHAT-DELIVER-001 已修，区别于 PRGA-001 的 RN App）",
+    "Gateway 短路：endpoint unconfigured / 无 worker → 明确中文 endpoint_unavailable 错误态（非静默）",
+    "Desktop main 进程 RuntimeDetector / StreamAdapter.spawn / DeviceChannel / RuntimeConfigStore（真实实现，但 renderer 未连接，见 PRGA-002）",
+    "单测 chat.test.ts AT-005/AT-006（断言 runtime_completed + sender_type=agent，no-fake-success）、gateway-gating / liveness / subscribe-timeout / executor.test（真实断言）",
+    "Mobile PWA E2E mobile-chat-deliver.spec.ts、role-chat-uat-reply.spec.ts、布局/tooltip/floating-ui 几何审计 spec（真实断言）"
+  ],
+  "fix_backlog_ranked": [
+    {
+      "task_id": "MOBILE-RN-CHAT-RUNTIME-001",
+      "severity": "P0",
+      "finding": "PRGA-001"
+    },
+    {
+      "task_id": "DESKTOP-SESSION-RUNTIME-001",
+      "severity": "P0",
+      "finding": "PRGA-002"
+    },
+    {
+      "task_id": "DESKTOP-SESSION-CONTROLS-001",
+      "severity": "P0",
+      "finding": "PRGA-003"
+    },
+    {
+      "task_id": "WEB-ORCHESTRATOR-UI-001",
+      "severity": "P0",
+      "finding": "PRGA-004"
+    },
+    {
+      "task_id": "ARTIFACT-PANEL-DATA-001",
+      "severity": "P0(升级)",
+      "finding": "PRGA-005"
+    },
+    {
+      "task_id": "RUNTIME-REAL-EXECUTOR-E2E-001",
+      "severity": "P1",
+      "finding": "PRGA-006"
+    },
+    {
+      "task_id": "TEST-ARTIFACT-REAL-DATA-001",
+      "severity": "P1",
+      "finding": "PRGA-007"
+    },
+    {
+      "task_id": "TEST-MESSAGING-REAL-CHAT-001",
+      "severity": "P1",
+      "finding": "PRGA-008"
+    },
+    {
+      "task_id": "TEST-P0-FLOW-REAL-ASSERT-001",
+      "severity": "P1",
+      "finding": "PRGA-010"
+    },
+    {
+      "task_id": "TEST-WORKSPACE-REAL-CRUD-001",
+      "severity": "P2",
+      "finding": "PRGA-009"
+    },
+    {
+      "task_id": "WEB-LEGACY-CHAT-CLEANUP-001",
+      "severity": "P2",
+      "finding": "PRGA-011"
+    }
+  ],
+  "blocked": [
+    {
+      "item": "真实浏览器 UAT (localhost:3000 Web + Desktop renderer GUI + Mobile route) 实际点击/输入录制",
+      "reason": "本次 CLI 审计环境未拉起 dev server 与 Electron GUI；P0 代码级证据已逐文件 Read 核验，但用户态截图未采集。",
+      "follow_up": "建议后续在可运行环境补真实浏览器/GUI UAT 截图，特别是 PRGA-001（RN App）需 Metro/模拟器、PRGA-002/003 需 Electron renderer。"
+    }
+  ]
+}

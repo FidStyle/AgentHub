@@ -28,6 +28,37 @@
 >
 > ✅ **build blocker 闭环（2026-05-31，WEB-BUILD-REACT-TYPES-001）**：此前在多份报告中以 carried-over concern 形式滚动的「`apps/web` 全量 tsc 的 pre-existing dual `@types/react` 冲突」已正式升级为 build blocker **REG-20260531-004** 并关闭——根因为 pnpm 把 mobile 的 `@types/react@18` hoist 进虚拟仓库根污染 web 编译图，已在 `.npmrc` 用 `hoist-pattern` 排除根治，web build/type-check + ui type-check 全绿。
 
+### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | fake-interaction / unfinished（假交互 + 占位 + 未渲染） |
+| **优先级** | **P0**（多个用户入口下「Agent 真正执行 / 编排闭环」核心价值未达成） |
+| **状态** | `open` |
+| **关联 FR/PRD** | `FR-CHAT-001`, `FR-RUNTIME-001`, `FR-DESKTOP-001`, `FR-MOBILE-001`, `FR-UI-001` |
+| **关联任务/合同** | 发现于 `PRODUCT-REALITY-GAP-AUDIT-001`（只读审计；`research/execution-reports/product-reality-gap-audit-001-report.md` + `product-reality-gap-audit-001-findings.json`）。建议修复任务：`MOBILE-RN-CHAT-RUNTIME-001`、`DESKTOP-SESSION-RUNTIME-001`、`DESKTOP-SESSION-CONTROLS-001`、`WEB-ORCHESTRATOR-UI-001` |
+| **影响功能面** | (PRGA-001) 原生 Mobile App 聊天发送；(PRGA-002) Desktop 本地 Agent 会话输入指令；(PRGA-003) Desktop 诊断/继续/重试/停止控制；(PRGA-004) Web 编排计划/动作/审批 UI |
+| **发现方式** | 静态代码扫描 + 链路追踪，P0 代码位置由审计主进程逐文件 Read 核验（2026-05-31）。⚠️ 真实用户态截图 DEFERRED（CLI 环境未拉起 dev server/Electron/RN Metro，见报告 §2 BLOCKED） |
+| **证据** | PRGA-001 `apps/mobile/src/screens/ChatScreen.tsx:13-50`（`setTimeout` 回显 `[Agent] 收到: "<原文>"`，无网络请求，硬编码 `session_id='mobile-sess-1'`）；PRGA-002 `apps/desktop/src/renderer/components/shell/DesktopAgentSession.tsx:14-20`（`handleSend` 只 `addActivity({status:'success'})` echo，renderer 未连 main 进程 `StreamAdapter.spawn`/`DeviceChannel`）；PRGA-003 同文件 `:73-76`（四按钮无 `onClick`）；PRGA-004 `apps/web/components/orchestrator/PlanCard.tsx`+`ActionCard.tsx` 全仓 grep 零引用，`WorkspaceShell` 无编排区，后端 `/api/plans`+`/api/actions` 可用却无界面入口 |
+| **与既有账本关系** | 区别于已关闭的 REG-20260530-006：GAP-002 修复的是 `apps/web/app/m/` PWA 路由（`MOBILE-CHAT-DELIVER-001`），**原生 `apps/mobile/` RN App、Desktop 本地会话、Web 编排 UI 三面从未被审计/修复**。「FakeExecutor 回显≠完成」原则在本三面同样适用 |
+| **关闭条件** | 各 surface 发送/点击触发真实 runtime/IPC/API 并产生可观测业务结果（非 local state / echo / 硬编码 success）；编排 UI 真实渲染计划/动作并审批生效；各自补真实断言 E2E（非仅 `toBeVisible`/HTTP 200）；report + tracker + 中文 commit 闭环 |
+| **下一步** | 按 P0 排序修复，不得以测试态/视觉断言冒充完成；修复前基线见只读锚点 `e2e/tests/web/product-reality-gap-audit.spec.ts` |
+
+### REG-20260531-011 — E2E 门禁缺陷：核心功能 spec 全程 mock 主链路 + 只断言表层（PRODUCT-REALITY-GAP-AUDIT-001）
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | test-gap / 门禁缺陷 |
+| **优先级** | P1（artifact/messaging/p0-main-flow 为 P0 功能面，但其 spec 不挡假交互） |
+| **状态** | `open` |
+| **关联 FR/PRD** | `FR-CHAT-001`, `FR-WEB-001`, `FR-UI-001` |
+| **关联任务/合同** | 发现于 `PRODUCT-REALITY-GAP-AUDIT-001`。建议修复任务：`TEST-ARTIFACT-REAL-DATA-001`、`TEST-MESSAGING-REAL-CHAT-001`、`TEST-WORKSPACE-REAL-CRUD-001`、`TEST-P0-FLOW-REAL-ASSERT-001` |
+| **影响功能面** | (PRGA-007) `e2e/tests/artifact.spec.ts`；(PRGA-008) `e2e/tests/messaging.spec.ts`；(PRGA-009) `e2e/tests/workspace.spec.ts`；(PRGA-010) `e2e/tests/web/p0-main-flow.spec.ts` |
+| **发现方式** | 测试层静态扫描 + 主进程 grep 核验（2026-05-31） |
+| **证据** | `artifact.spec.ts:41-83` 全程 `page.route` fulfill 伪造 sessions/messages/role-agents，4 test 只 `toBeVisible`（且断言的 Plan/Result/Artifact Detail 文案与当前恒空态 `ArtifactPanel.tsx` 不符——测试green 但产品空壳）；`messaging.spec.ts:39` mock `/api/chat`，行 57 只断言用户消息气泡 `.bg-blue-500`，**从不断言 agent 回复**；`workspace.spec.ts:9-55` 全 mock 只 `toBeVisible`；`p0-main-flow.spec.ts:12-71` 用 `if (await x.isVisible())` 条件保护跳过核心断言、无 reload 验证 |
+| **关闭条件** | 移除主链路 `page.route` mock 改真实 API/DB；断言 agent 回复非空非 echo + reload 持久化；移除条件保护；与既有「好测试」白名单（`role-chat-uat-reply.spec.ts`/`mobile-chat-deliver.spec.ts`/`chat.test.ts` AT-005/006）对齐标准 |
+| **下一步** | 与 REG-20260531-010 修复同步更新对应 spec；修复前基线见 `e2e/tests/web/product-reality-gap-audit.spec.ts` |
+
 ### REG-20260531-002 — workspace selector 下拉越界且无内部滚动（FLOATING-UI-UAT-AUDIT-001 GAP-001）
 
 | 字段 | 内容 |
