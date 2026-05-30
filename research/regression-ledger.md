@@ -25,6 +25,8 @@
 > REG-20260530-001（Web Workspace 真实交互闭环缺口）与 ROLE-CHAT-CORE-001 可见 agent 回复 deferred 项（重定级 REG-20260530-003）已在 `RUNTIME_E2E=1` + worker(FakeExecutor) 下复验并移入「关闭记录」。
 >
 > ⚠️ **更正（2026-05-30，PRODUCT-UAT-GAP-AUDIT-001）**：REG-20260530-003 的「关闭」仅在 `RUNTIME_E2E=1` + FakeExecutor 下成立；真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 对话仍 0 可见回复。该过早关闭的产品缺口由新登记的 **REG-20260530-006** 接管，REG-20260530-003 的「closed」仅代表「测试态 FakeExecutor 回环已建立」，不代表产品目标达成。当前未关闭项：P1 test-infra REG-20260530-002 + 本次审计新增 REG-20260530-006(P0，**Web GAP-001 已由 `ROLE-CHAT-RUNTIME-DELIVER-001`/commit `eed577f` 关闭；仅余 Mobile GAP-002 转 `MOBILE-CHAT-DELIVER-001` P0**)/007(P1)/008(P1)。
+>
+> ✅ **build blocker 闭环（2026-05-31，WEB-BUILD-REACT-TYPES-001）**：此前在多份报告中以 carried-over concern 形式滚动的「`apps/web` 全量 tsc 的 pre-existing dual `@types/react` 冲突」已正式升级为 build blocker **REG-20260531-004** 并关闭——根因为 pnpm 把 mobile 的 `@types/react@18` hoist 进虚拟仓库根污染 web 编译图，已在 `.npmrc` 用 `hoist-pattern` 排除根治，web build/type-check + ui type-check 全绿。
 
 ### REG-20260531-002 — workspace selector 下拉越界且无内部滚动（FLOATING-UI-UAT-AUDIT-001 GAP-001）
 
@@ -104,6 +106,22 @@
 | **关闭条件** | 提供可复现的本地真实 DB/Redis env（或 `dev:full` 自动指向 p0/dev DB）；补「默认入口启动 → 登录 → 主链路可用」冒烟 |
 | **下一步** | `DEV-ENV-BOOTSTRAP-001`(P1) |
 
+
+### REG-20260531-004 — `@agenthub/web` build 被 dual `@types/react`（mobile 18 / web-ui-desktop 19）阻断（build blocker，已关闭）
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | build blocker / monorepo 依赖解析（dual `@types/react`） |
+| **优先级** | P0 build blocker（`pnpm --filter @agenthub/web build` 直接 exit 1，发布主链路 `release:web` 不可用） |
+| **状态** | `closed`（2026-05-31，WEB-BUILD-REACT-TYPES-001 修复并 build/type-check 全绿） |
+| **关联 FR/PRD** | `FR-WEB-001`；发布/构建工具链 |
+| **关联任务/合同** | `WEB-BUILD-REACT-TYPES-001`（修复闭环）；此前以 carried-over concern 形式散见于 `FLOATING-UI-FIX-D1-001` / `UI-TOOLTIP-POSITION-001` / `WEB-WORKSPACE-LAYOUT-UAT-001` 报告（“pre-existing dual @types/react 冲突，同源同类 +1”），本次正式升级为独立 build blocker 并关闭 |
+| **影响功能面** | `apps/web` 全量 `next build` / `tsc --noEmit`：`app/m/preview/page.tsx`(`Suspense`)、`components/chat/ChatPanel.tsx`(`ReactMarkdown`)、`components/workspace/Sidebar.tsx`(`WorkspaceDropdown`/`createPortal`)、`packages/ui/src/components/tooltip.tsx`(`TooltipContent`/`createPortal`) 全部 TS2786 |
+| **发现方式** | `pnpm --filter @agenthub/web build` 复现；`tsc --traceResolution` 定位 |
+| **根因** | TS ambient `@types` 发现把两份 `@types/react` 同时纳入 web 编译图：`apps/web/node_modules/@types/react`=19.2.15（正确）+ pnpm hoist 到 `node_modules/.pnpm/node_modules/@types/react`=18.3.29（mobile 锁定版，泄漏）。React 18 `ReactPortal.children` 必填、React 19 可选，两份 `React.ReactNode` 结构不兼容 → 所有 `Suspense`/portal/`ReactMarkdown` JSX 报错。根因非 `Suspense`、非业务代码 |
+| **关闭条件** | 在依赖解析层根治（不用 `any`/cast/`skipLibCheck`/关闭类型检查）：`pnpm --filter @agenthub/web build` exit 0 + `pnpm --filter @agenthub/web type-check` exit 0 + `packages/ui` type-check exit 0 + 目标冲突类型全消除 + mobile React 18 隔离保持 |
+| **关闭证据** | WEB-BUILD-REACT-TYPES-001（2026-05-31）：根 `.npmrc` 增 `hoist-pattern[]=!@types/react` / `!@types/react-dom`，剔除 pnpm 虚拟仓库根裸副本；`pnpm install` 后 `node_modules/.pnpm/node_modules/@types/react` 消失。web build exit 0 / web type-check exit 0 / ui type-check exit 0 / desktop type-check exit 0、残留 ReactNode/ReactPortal/Suspense/Tooltip/createPortal/TS2786 = 0；`pnpm -r list @types/react`：web/ui/desktop=19.2.15、mobile=18.3.29（隔离保持）。报告 `research/execution-reports/web-build-react-types-001-report.md` |
+| **下一步** | 已关闭。后续如新增包，遵循同一 `@types/react` 非 hoist 隔离约定（每个 workspace 经自身直接依赖解析版本） |
 
 ### REG-20260530-002 — Web E2E 共享单用户并行 worker 数据污染（既有套件脆弱性）
 

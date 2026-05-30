@@ -387,6 +387,23 @@
 
 ---
 
+### WEB-BUILD-REACT-TYPES-001: 修复 `@agenthub/web` build 失败的 dual `@types/react` 类型冲突
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 build blocker（`pnpm --filter @agenthub/web build` 直接 exit 1，发布主链路 `release:web` 不可用） |
+| **绑定 FR-ID** | FR-WEB-001 |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260531-004`（build blocker → ✅ closed 2026-05-31；由历史 carried-over concern 升级） |
+| **当前状态** | ✅ 完成（2026-05-31）：根因为 pnpm 把 mobile 的 `@types/react@18.3.29` hoist 进虚拟仓库根 `node_modules/.pnpm/node_modules/@types/react`，经 `react-markdown` 等 root 依赖的 ambient `@types` 上溯污染 web(React 19) 编译图，两份 `React.ReactNode`（v18 `ReactPortal.children` 必填 vs v19 可选）结构不兼容 → `Suspense`/`ReactMarkdown`/`Sidebar` portal/`Tooltip` 全部 TS2786。修复：根 `.npmrc` 增 `hoist-pattern[]=!@types/react` / `!@types/react-dom` 排除虚拟仓库根裸副本 + `pnpm install`。各 workspace 经自身直接依赖软链解析版本，mobile 隔离 18、web/ui/desktop 用 19。 |
+| **目标** | `pnpm --filter @agenthub/web build` exit 0；保持 mobile 类型隔离；不用 `any`/cast/`skipLibCheck`/关闭类型检查绕过 |
+| **方案摘要** | 在依赖解析层根治：pnpm `hoist-pattern` 排除 `@types/react`/`@types/react-dom`，杜绝跨版本裸副本被 TS ambient 发现；不触碰任何业务/UI 源码 |
+| **验收方式** | `pnpm --filter @agenthub/web build` / `type-check` 真实执行取退出码 + `tsc --noEmit` 残留冲突类型 grep + `pnpm -r list @types/react` 隔离核验 |
+| **测试证据** | `pnpm --filter @agenthub/web build` **exit 0**（`/m/preview` 等路由成功 prerender）；`pnpm --filter @agenthub/web type-check` **exit 0**；`packages/ui` type-check **exit 0**；`apps/desktop` type-check **exit 0**；残留 `ReactNode`/`ReactPortal`/`Suspense`/`Tooltip`/`createPortal`/TS2786 **= 0**；hoist 后 `node_modules/.pnpm/node_modules/@types/react` 消失；`pnpm -r list @types/react` web/ui/desktop=19.2.15、mobile=18.3.29。报告 `research/execution-reports/web-build-react-types-001-report.md` |
+| **阻塞问题** | 无。dual `@types/react` 已由 carried-over concern 升级为 build blocker（REG-20260531-004）并关闭 |
+| **下一步动作** | 关闭。后续新增包遵循同一 `@types/react` 非 hoist 隔离约定 |
+
+---
+
 ## P2 任务
 
 （暂无登记）
@@ -435,3 +452,4 @@
 | 2026-05-31 | UI-TOOLTIP-POSITION-001 | ✅ 完成（ralph-20260531-000642）：packages/ui Tooltip 重写 portal-to-body + computePosition flip/shift + max-w-[16rem] break-words（移除 whitespace-nowrap）+ 保留 role=tooltip/aria-describedby + hover/focus 双触发；IconButton 透传 tooltipSide/tooltipAlign 零破坏向后兼容。真实浏览器 E2E 6/6 passed（1440/1280/768 × web-desktop+web-tablet），boundingBox 在 viewport 内 + 无横滚 + 未遮挡断言。verify passed=true gaps=[]/review PASS（0 critical/blocking）/test 6/6/milestone-audit PASS；四道 gate + goal-audit 全 proceed；关闭 REG-20260531-001，归档 `.workflow/milestones/M-adhoc-20260531-ui-tooltip-position/` |
 | 2026-05-31 | FLOATING-UI-UAT-AUDIT-001 | ✅ 只读浮层/Overlay 真实浏览器几何审计完成（analyze→reference-extract→audit→verify，不 execute/不修复）：refer_proj（cherry-studio/lobehub/AionUi/claudecodeui）提炼 R1–R11 浮层规则写入 Reference Findings；真实浏览器三视口（1440/1280/768）几何审计 3/3 passed，14 findings。发现 GAP-001(high) workspace 下拉越界无滚动 ×3 视口、GAP-002(medium) 移动 artifact 抽屉无 backdrop；T1 tooltip 母版无回归。登记 REG-20260531-002(high)/003(medium)。产物：report + findings.json + 只读审计 spec |
 | 2026-05-31 | FLOATING-UI-FIX-D1-001 | ✅ 修复 GAP-001/REG-20260531-002（workspace 下拉越界+无内部滚动）：`Sidebar.tsx` 抽出 `WorkspaceDropdown`（同构 Tooltip 母版）portal-to-body + `computeDropdown` flip/clamp + `maxHeight`(≤60%vh)+`overflow-y-auto` + `z-50` + pointerdown 外部关闭；业务逻辑零改动。审计 spec D1 段升级为几何硬门禁。真实浏览器三视口 **3 passed**，D1 high→ok（floating 高 ~4400→540/480/540，bottom 全在视口内），findings `ok×13/medium×1`（剩 medium=O1 范围外），无回归。关闭 REG-20260531-002。结转 pre-existing dual @types/react tsc 冲突（同源+1，非新缺陷） |
+| 2026-05-31 | WEB-BUILD-REACT-TYPES-001 | ✅ 修复 `@agenthub/web` `next build` 失败的 dual `@types/react` 冲突（build blocker）：`tsc --traceResolution` 定位根因为 pnpm 把 mobile `@types/react@18.3.29` hoist 进虚拟仓库根 `node_modules/.pnpm/node_modules/@types/react`，经 root 依赖（`react-markdown` 等）ambient `@types` 上溯污染 web(React 19) 编译图，v18 `ReactPortal.children` 必填致两份 `ReactNode` 不兼容 → `Suspense`/`ReactMarkdown`/`Sidebar` portal/`Tooltip` 全 TS2786。修复：根 `.npmrc` 增 `hoist-pattern[]=!@types/react`/`!@types/react-dom` 剔除裸副本（不用 any/cast/skipLibCheck）+ `pnpm install`。web build exit 0 / web type-check exit 0 / ui type-check exit 0 / desktop type-check exit 0、残留冲突类型=0、mobile 隔离 18 / web-ui-desktop 19 保持。把历史 carried-over concern 升级为 build blocker REG-20260531-004 并关闭。报告 `web-build-react-types-001-report.md` |
