@@ -18,7 +18,7 @@ export default defineConfig({
     {
       name: 'web-desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
-      testMatch: ['web/**', 'web-workbench.spec.ts', 'design-system.spec.ts', 'workspace.spec.ts'],
+      testMatch: ['web/**', 'web-workbench.spec.ts', 'design-system.spec.ts', 'workspace.spec.ts', 'artifact.spec.ts', 'messaging.spec.ts'],
     },
     {
       name: 'web-tablet',
