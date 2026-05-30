@@ -16,6 +16,7 @@ export interface RuntimeJob {
   runtimeSessionId: string
   endpointId?: string
   prompt: string
+  systemPrompt?: string
   fail?: boolean
 }
 

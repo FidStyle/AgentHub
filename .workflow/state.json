@@ -332,6 +332,21 @@
       "roadmap_ref": null,
       "created_at": "2026-05-30T01:35:00Z",
       "completed_at": "2026-05-30T04:35:00Z"
+    },
+    {
+      "id": "adhoc-role-chat-core",
+      "type": "adhoc",
+      "name": "Ad-hoc: 角色对话链路 (ROLE-CHAT-CORE-001)",
+      "status": "completed",
+      "phases": [
+        1
+      ],
+      "phase_slugs": {
+        "1": "standalone"
+      },
+      "roadmap_ref": null,
+      "created_at": "2026-05-30T05:55:00Z",
+      "completed_at": "2026-05-30T09:13:19Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -1311,6 +1326,52 @@
           "path": ".workflow/scratch/20260530-plan-rt-worker-harden",
           "created_at": "2026-05-30T01:40:00Z",
           "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "adhoc-role-chat-core",
+      "name": "Ad-hoc: 角色对话链路 (ROLE-CHAT-CORE-001)",
+      "status": "completed",
+      "completed_at": "2026-05-30T09:13:19Z",
+      "archive_path": "milestones/adhoc-role-chat-core/",
+      "archived_artifacts": [
+        {
+          "id": "ANL-role-chat-core",
+          "type": "analyze",
+          "scope": "macro",
+          "status": "completed",
+          "path": "scratch/20260530-analyze-role-chat-core",
+          "milestone": "adhoc-role-chat-core",
+          "created_at": "2026-05-30T05:49:00Z"
+        },
+        {
+          "id": "PLN-role-chat-core",
+          "type": "plan",
+          "scope": "standalone",
+          "status": "completed",
+          "path": "scratch/20260530-plan-role-chat-core",
+          "milestone": "adhoc-role-chat-core",
+          "source_artifact_ref": "analyze:ANL-role-chat-core",
+          "created_at": "2026-05-30T05:55:00Z"
+        },
+        {
+          "id": "EXC-role-chat-core",
+          "type": "execute",
+          "scope": "standalone",
+          "status": "completed",
+          "path": "scratch/20260530-plan-role-chat-core",
+          "milestone": "adhoc-role-chat-core",
+          "created_at": "2026-05-30T06:05:00Z"
+        },
+        {
+          "id": "VRF-role-chat-core",
+          "type": "verify",
+          "scope": "standalone",
+          "status": "completed",
+          "path": "scratch/20260530-plan-role-chat-core",
+          "milestone": "adhoc-role-chat-core",
+          "created_at": "2026-05-30T06:06:30Z"
         }
       ]
     }

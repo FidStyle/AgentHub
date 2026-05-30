@@ -15,7 +15,7 @@ interface Workspace {
 export function Sidebar() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [wsOpen, setWsOpen] = useState(false)
-  const { activeWorkspaceId, setActiveWorkspace, fetchSessions } = useSessionStore()
+  const { activeWorkspaceId, setActiveWorkspace, fetchSessions, createSession } = useSessionStore()
 
   useEffect(() => {
     fetch('/api/workspaces').then(r => r.json()).then(d => {
@@ -66,7 +66,13 @@ export function Sidebar() {
       </div>
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <h2 className="text-xs font-semibold text-muted-foreground">会话</h2>
-        <IconButton icon={Plus} label="新建会话" size="sm" />
+        <IconButton
+          icon={Plus}
+          label="新建会话"
+          size="sm"
+          disabled={!activeWorkspaceId}
+          onClick={() => activeWorkspaceId && createSession(activeWorkspaceId)}
+        />
       </div>
       <div className="flex-1 overflow-hidden p-2">
         <SessionList />

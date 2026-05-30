@@ -60,6 +60,11 @@ function columnsSql(columns: string | null) {
 
 function normalizeValue(value: unknown) {
   if (value === undefined) return null
+  // jsonb columns: serialize arrays/plain objects to JSON text so node-pg does not
+  // coerce them into Postgres array/record literals (which jsonb rejects).
+  if (Array.isArray(value) || (value !== null && typeof value === 'object' && !(value instanceof Date))) {
+    return JSON.stringify(value)
+  }
   return value
 }
 

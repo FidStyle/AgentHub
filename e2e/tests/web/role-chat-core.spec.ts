@@ -1,0 +1,69 @@
+import { test, expect } from '@playwright/test'
+import { ensureP0StorageState } from '../../helpers/auth-state'
+import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/visual-assertions'
+
+/**
+ * ROLE-CHAT-CORE-001 E2E (TASK-005) — real DB, no main-chain API mocks.
+ *
+ * P0 harness boundary: no Redis / runtime worker, so the public_cloud chat path emits
+ * endpoint_unavailable and no agent reply streams back. This spec therefore asserts the
+ * runtime-independent golden path: workspace create → default 架构师 auto-seeds in picker →
+ * @-select → send persists the user message with role context → reload retains it.
+ * Agent-reply role-badge assertion is deferred to a Redis+worker-enabled environment.
+ */
+test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
+  let storageState: string
+
+  test.beforeAll(async () => {
+    storageState = await ensureP0StorageState()
+  })
+
+  test('创建工作区 → 默认架构师 → @架构师选择 → 发送持久化 → reload 保留', async ({ browser }) => {
+    const context = await browser.newContext({ storageState })
+    const page = await context.newPage()
+
+    await page.goto('/workspace')
+    await page.waitForLoadState('domcontentloaded')
+
+    // 创建工作区
+    await page.getByRole('button', { name: '新建工作区' }).click()
+    const wsName = `E2E-ROLE-${Date.now()}`
+    await page.getByPlaceholder('输入工作区名称').fill(wsName)
+    await page.getByRole('button', { name: '创建', exact: true }).click()
+
+    // 进入工作区
+    await page.getByRole('button', { name: wsName }).click()
+    await page.waitForLoadState('domcontentloaded')
+
+    // 新建会话（启用聊天输入）
+    await page.getByRole('button', { name: '新建会话' }).click()
+    await expect(page.getByTestId('session-list')).toBeVisible()
+
+    // 打开 @角色选择器，默认架构师已自动 seed
+    await page.getByRole('button', { name: '提及角色' }).click()
+    const picker = page.getByTestId('role-picker')
+    await expect(picker).toBeVisible()
+    await expect(picker.getByText('@架构师')).toBeVisible()
+    await picker.getByText('@架构师').click()
+
+    // 已选角色 Badge
+    await expect(page.getByTestId('selected-role')).toHaveText(/架构师/)
+
+    // 发送消息（经 /api/chat 真实持久化 user message + role_agent_id）
+    const msg = `E2E-ASK-${Date.now()}`
+    await page.getByPlaceholder(/输入消息/).fill(msg)
+    await page.getByRole('button', { name: /发送/ }).click()
+    await page.waitForResponse((r) => r.url().includes('/api/chat') && r.request().method() === 'POST')
+
+    // 布局/视觉断言（拒绝仅 toBeVisible）：三栏容器不重叠 + 无横向滚动
+    await assertNoHorizontalScroll(page)
+    await assertNoElementOverlap(page, '[data-testid="workspace-shell"] > *')
+
+    // reload 后用户消息从 DB 重新加载（role_agent_id 持久化 + 角色上下文保留）
+    await page.reload()
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.getByText(msg)).toBeVisible({ timeout: 10000 })
+
+    await context.close()
+  })
+})

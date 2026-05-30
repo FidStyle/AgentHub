@@ -62,6 +62,7 @@ export async function resolveEndpoint(input: {
 export async function createSession(input: {
   sessionId: string
   endpoint: ResolvedEndpoint
+  roleAgentId?: string
 }): Promise<RuntimeSessionRecord> {
   const db = await createClient()
   const { data } = await db
@@ -70,6 +71,7 @@ export async function createSession(input: {
       session_id: input.sessionId,
       endpoint_id: input.endpoint.id,
       status: 'idle',
+      role_agent_id: input.roleAgentId ?? null,
     })
     .select('id')
     .single()
@@ -102,6 +104,7 @@ export async function* invoke(input: {
   userId: string
   runtimeSession: RuntimeSessionRecord
   userMessage?: string
+  systemPrompt?: string
 }): AsyncGenerator<RuntimeGatewayEvent> {
   const { endpoint } = input.runtimeSession
   const endpointId = endpoint.id ?? undefined
@@ -128,6 +131,7 @@ export async function* invoke(input: {
       runtimeSessionId: input.runtimeSession.id,
       endpointId: endpoint.id ?? undefined,
       prompt: input.userMessage ?? '',
+      systemPrompt: input.systemPrompt,
     })
     let failed = false
     for await (const raw of subscribeEvents(input.runtimeSession.id)) {

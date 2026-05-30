@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS public.runtime_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
   endpoint_id uuid REFERENCES public.runtime_endpoints(id) ON DELETE SET NULL,
+  role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL,
   native_session_id text,
   cwd text,
   status text NOT NULL DEFAULT 'idle' CHECK (status IN ('idle','running','completed','failed','cancelled')),

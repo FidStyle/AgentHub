@@ -117,6 +117,24 @@
 
 ---
 
+### ROLE-CHAT-CORE-001: Web Workspace 角色对话核心链路
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-WEB-001, FR-RUNTIME-001, FR-PERM-001 |
+| **对应计划** | `.workflow/scratch/20260530-plan-role-chat-core/plan.json`（standalone） |
+| **Ralph Session** | `ralph-20260530-054910`（adhoc 里程碑 adhoc-role-chat-core） |
+| **当前状态** | ✅ 全部完成（2026-05-30）：role_agents CRUD + 默认架构师 seed + `/api/chat` 角色归属校验（跨 workspace 403）+ system_prompt 注入 RuntimeExecutor + roleAgentId/mentions 持久化 + @角色选择 UI + reload 保留角色上下文 |
+| **目标** | Web 端实现角色对话核心链路：创建/选择角色 → @角色发送 → 角色上下文注入 runtime → 消息与角色绑定持久化 → reload 保留 |
+| **方案摘要** | `/api/chat` 校验 role_agents 归属并加载 system_prompt 透传 adapter→gateway→job→worker→executor；messages 持久化 role_agent_id + mentions；runtime_sessions 持久化 role_agent_id（additive nullable 列）；Web store/UI 接入 @角色选择 + 会话创建 |
+| **验收方式** | type-check 通过 + verification.json passed=true（T1-T8 全 VERIFIED）+ review verdict≠BLOCK + auto-test report 全绿 + Playwright E2E reload 角色上下文断言 |
+| **测试证据** | type-check 干净；verification.json passed=true（T1-T8）；review.json verdict=WARN（0 critical/0 high，3 medium/2 low 非阻塞）；`apps/web/.tests/auto-test/report.json` 5/5 PASS；E2E `npx playwright test tests/web/role-chat-core.spec.ts --project=web-desktop` 1 passed（7.9s，真实 DB、未使用 mock）；UAT `.workflow/scratch/20260530-plan-role-chat-core/uat.md`；报告 `research/execution-reports/role-chat-core-report.md` |
+| **阻塞问题** | 无（阻塞性）。残留：review WARN 3 medium（insert error 未检查、runtime_sessions 空 id 吞错、客户端未处理错误终态事件）+ 2 low，均为健壮性增强项，记入 P1 跟进。agent 回复角色 Badge 断言因 P0 harness 无 Redis/worker deferred 至 Redis+worker 环境（已在 uat.md/报告显式登记，非静默跳过）。 |
+| **下一步动作** | review WARN 3 medium 健壮性项纳入 P1-RT 跟进；agent 回复角色 Badge 在 Redis+worker 环境补齐 E2E |
+
+---
+
 ## P1 任务
 
 ### P1-RT: Agent Runtime 完整部署

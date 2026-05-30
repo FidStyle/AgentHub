@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
-  const { sessionId, content } = await req.json()
+  const { sessionId, content, roleAgentId, mentions } = await req.json()
   if (!sessionId || !content) {
     return Response.json({ error: '缺少 sessionId 或 content' }, { status: 400 })
   }
@@ -29,10 +29,27 @@ export async function POST(req: NextRequest) {
     .single()
   if (!ws) return Response.json({ error: '无权限' }, { status: 403 })
 
+  // When a role is mentioned, it must belong to this workspace. Load its system prompt so the
+  // runtime executes with the role's persona; reject cross-workspace role references.
+  let systemPrompt: string | undefined
+  if (roleAgentId) {
+    const { data: roleAgent } = await db
+      .from('role_agents')
+      .select('workspace_id, system_prompt')
+      .eq('id', roleAgentId)
+      .single()
+    if (!roleAgent || roleAgent.workspace_id !== ws.id) {
+      return Response.json({ error: '角色不存在或无权限' }, { status: 403 })
+    }
+    systemPrompt = roleAgent.system_prompt || undefined
+  }
+
   await db.from('messages').insert({
     session_id: sessionId,
     content,
     sender_type: 'user',
+    role_agent_id: roleAgentId ?? null,
+    metadata: mentions ? { mentions } : null,
   })
 
   const encoder = new TextEncoder()
@@ -52,6 +69,8 @@ export async function POST(req: NextRequest) {
           executionDomain: ws.execution_domain,
           workspaceId: ws.id,
           userMessage: content,
+          systemPrompt,
+          roleAgentId: roleAgentId ?? undefined,
         })) {
           controller.enqueue(encode(evt))
         }

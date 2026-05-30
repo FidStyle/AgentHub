@@ -14,6 +14,7 @@ export const runtimeSessions = pgTable('runtime_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   sessionId: uuid('session_id').notNull(),
   endpointId: uuid('endpoint_id'),
+  roleAgentId: uuid('role_agent_id'),
   nativeSessionId: text('native_session_id'),
   cwd: text('cwd'),
   status: text('status').notNull().default('idle'),

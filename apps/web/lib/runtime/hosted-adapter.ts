@@ -12,16 +12,27 @@ export class HostedRuntimeAdapter {
     executionDomain: ExecutionDomain
     workspaceId: string
     userMessage?: string
+    systemPrompt?: string
+    roleAgentId?: string
   }): AsyncGenerator<RuntimeGatewayEvent> {
     const endpoint = await resolveEndpoint({
       userId: input.userId,
       workspaceId: input.workspaceId,
       executionDomain: input.executionDomain,
     })
-    const runtimeSession = await createSession({ sessionId: input.sessionId, endpoint })
+    const runtimeSession = await createSession({
+      sessionId: input.sessionId,
+      endpoint,
+      roleAgentId: input.roleAgentId,
+    })
 
     let seq = 0
-    for await (const event of invoke({ userId: input.userId, runtimeSession, userMessage: input.userMessage })) {
+    for await (const event of invoke({
+      userId: input.userId,
+      runtimeSession,
+      userMessage: input.userMessage,
+      systemPrompt: input.systemPrompt,
+    })) {
       await persistRuntimeEvent(runtimeSession.id, event, seq++)
       yield event
     }

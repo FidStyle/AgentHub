@@ -13,6 +13,7 @@ export interface Message {
   role: 'user' | 'agent'
   content: string
   createdAt: string
+  roleAgentId: string | null
 }
 
 interface SessionState {
@@ -25,8 +26,9 @@ interface SessionState {
   setActiveSession: (id: string) => void
   setActiveWorkspace: (id: string) => void
   fetchSessions: (workspaceId: string) => Promise<void>
+  createSession: (workspaceId: string) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string, roleAgentId?: string) => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -57,9 +59,35 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         lastMessage: '',
         updatedAt: s.updated_at || s.created_at || '',
       }))
-      set({ sessions, activeWorkspaceId: workspaceId, loading: false })
+      set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: sessions[0]?.id ?? null, loading: false })
+      if (sessions[0]) get().fetchMessages(sessions[0].id)
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
+    }
+  },
+
+  createSession: async (workspaceId) => {
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        set({ error: body.error || res.statusText })
+        return
+      }
+      const s = await res.json()
+      const session: Session = {
+        id: s.id,
+        title: s.name || '新会话',
+        lastMessage: '',
+        updatedAt: s.updated_at || s.created_at || '',
+      }
+      set((state) => ({ sessions: [session, ...state.sessions], activeSessionId: session.id, messages: [] }))
+    } catch (e) {
+      set({ error: (e as Error).message })
     }
   },
 
@@ -79,6 +107,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         role: m.sender_type === 'user' ? 'user' : 'agent',
         content: m.content,
         createdAt: m.created_at || '',
+        roleAgentId: (m.role_agent_id as string | null) ?? null,
       }))
       set({ messages, loading: false })
     } catch (e) {
@@ -86,7 +115,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  sendMessage: async (content) => {
+  sendMessage: async (content, roleAgentId) => {
     const { activeSessionId, messages } = get()
     if (!activeSessionId) return
 
@@ -96,28 +125,76 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       role: 'user',
       content,
       createdAt: new Date().toISOString(),
+      roleAgentId: roleAgentId ?? null,
     }
     set({ messages: [...messages, optimistic] })
 
     try {
-      const res = await fetch('/api/messages', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: activeSessionId, content, sender_type: 'user' }),
+        body: JSON.stringify({
+          sessionId: activeSessionId,
+          content,
+          roleAgentId: roleAgentId ?? null,
+          mentions: roleAgentId ? [roleAgentId] : null,
+        }),
       })
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
         set({ error: body.error || res.statusText })
         return
       }
-      const saved = await res.json()
-      set({
-        messages: get().messages.map((m) =>
-          m.id === optimistic.id
-            ? { id: saved.id, sessionId: saved.session_id, role: 'user', content: saved.content, createdAt: saved.created_at }
-            : m
-        ),
-      })
+
+      // Stream the SSE runtime events, accumulating runtime_output deltas into one agent reply
+      // tagged with the responding role so the UI can show which role answered.
+      const replyId = `reply-${Date.now()}`
+      let reply = ''
+      let replyCreated = false
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      const upsertReply = () => {
+        set((state) => {
+          if (!replyCreated) {
+            replyCreated = true
+            return {
+              messages: [
+                ...state.messages,
+                {
+                  id: replyId,
+                  sessionId: activeSessionId,
+                  role: 'agent',
+                  content: reply,
+                  createdAt: new Date().toISOString(),
+                  roleAgentId: roleAgentId ?? null,
+                } as Message,
+              ],
+            }
+          }
+          return {
+            messages: state.messages.map((m) => (m.id === replyId ? { ...m, content: reply } : m)),
+          }
+        })
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const frames = buffer.split('\n\n')
+        buffer = frames.pop() ?? ''
+        for (const frame of frames) {
+          const line = frame.trim()
+          if (!line.startsWith('data:')) continue
+          const evt = JSON.parse(line.slice(5).trim()) as { type?: string; delta?: string }
+          if (evt.type === 'runtime_output' && evt.delta) {
+            reply += evt.delta
+            upsertReply()
+          }
+        }
+      }
     } catch (e) {
       set({ error: (e as Error).message })
     }

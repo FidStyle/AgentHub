@@ -45,7 +45,10 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor = ne
   await emit({ type: 'runtime_status', status: 'running', endpointId: job.endpointId })
 
   try {
-    for await (const chunk of executor.execute({ prompt: job.prompt, fail: job.fail })) {
+    // Prepend the role's system prompt (when present) so the executor runs with the role persona.
+    // Absent systemPrompt keeps the prompt unchanged — no behaviour change for existing jobs.
+    const prompt = job.systemPrompt ? `${job.systemPrompt}\n\n${job.prompt}` : job.prompt
+    for await (const chunk of executor.execute({ prompt, fail: job.fail })) {
       if (await isCancelled(id)) {
         await setStatus(id, 'cancelled', true)
         await clearHeartbeat(id)
