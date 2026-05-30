@@ -407,6 +407,21 @@
       "roadmap_ref": null,
       "created_at": "2026-05-30T14:31:10Z",
       "completed_at": "2026-05-30T14:42:00Z"
+    },
+    {
+      "id": "M-adhoc-20260531-mobile-rn-chat-runtime",
+      "name": "Ad-hoc: Mobile RN 聊天接真实 runtime（PRGA-001）",
+      "type": "adhoc",
+      "status": "completed",
+      "phases": [
+        1
+      ],
+      "phase_slugs": {
+        "1": "standalone"
+      },
+      "roadmap_ref": null,
+      "created_at": "2026-05-31T05:49:39.179273",
+      "completed_at": "2026-05-31T05:49:39.179273"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -1764,6 +1779,36 @@
           "created_at": "2026-05-31T05:24:00Z"
         }
       ]
+    },
+    {
+      "milestone": "M-adhoc-20260531-mobile-rn-chat-runtime",
+      "completed_at": "2026-05-31T05:49:39.179273",
+      "type": "adhoc",
+      "issue_id": "MOBILE-RN-CHAT-RUNTIME-001",
+      "artifacts": [
+        {
+          "id": "ANL-mobile-rn-chat-runtime",
+          "type": "analyze",
+          "path": ".workflow/scratch/20260531-analyze-mobile-rn-chat-runtime"
+        },
+        {
+          "id": "PLN-mobile-rn-chat-runtime",
+          "type": "plan",
+          "path": ".workflow/scratch/20260531-plan-P1-mobile-rn-chat-runtime"
+        },
+        {
+          "id": "VRF-mobile-rn-chat-runtime",
+          "type": "verify",
+          "path": ".workflow/scratch/20260531-plan-P1-mobile-rn-chat-runtime/verification.json"
+        },
+        {
+          "id": "REV-mobile-rn-chat-runtime",
+          "type": "review",
+          "path": ".workflow/scratch/20260531-plan-P1-mobile-rn-chat-runtime/review.json"
+        }
+      ],
+      "commit": "ccb0044",
+      "governance_gate": "pass"
     }
   ],
   "current_phase": 1,
