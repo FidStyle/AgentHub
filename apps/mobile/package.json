@@ -6,7 +6,8 @@
   "scripts": {
     "start": "expo start",
     "type-check": "echo 'skip: RN type-check requires Expo environment'",
-    "build": "echo 'mobile build: expo export handled separately'"
+    "build": "echo 'mobile build: expo export handled separately'",
+    "test": "vitest run"
   },
   "dependencies": {
     "@agenthub/shared": "workspace:*",
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "typescript": "^5.4.0",
-    "@types/react": "^18.2.0"
+    "@types/react": "^18.2.0",
+    "vitest": "^3.0.0"
   }
 }

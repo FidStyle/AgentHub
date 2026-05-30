@@ -63,6 +63,21 @@
 | **阻塞问题** | 真实 Electron GUI 用户态截图 DEFERRED（CLI 环境无 GUI/显示），与 REG-20260531-010 一致；renderer 行为已由 jsdom 测试覆盖 |
 | **下一步动作** | 关闭 REG-20260531-010 的 PRGA-002/003；剩余 PRGA-001（Mobile RN）+ PRGA-004（Web 编排 UI）仍 open，待后续 P0 任务 |
 
+### MOBILE-RN-CHAT-RUNTIME-001: 原生 Mobile RN 聊天接真实 runtime（修 PRGA-001）
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0（部分关闭 REG-20260531-010 的 PRGA-001） |
+| **绑定 FR-ID** | FR-MOBILE-001, FR-CHAT-001, FR-RUNTIME-001 |
+| **对应计划** | Ralph session `ralph-20260531-053429`（analyze→plan→execute→verify→review→goal-audit→milestone-complete） |
+| **当前状态** | ✅ 完成（2026-05-31）：原生 `apps/mobile` ChatScreen 从 `setTimeout` 回显假交互改为真实 `/api/chat` runtime 链路。删除 `setTimeout` 回显 + 硬编码 `session_id='mobile-sess-1'` + `[Agent] 收到:` echo。新增 `src/lib/config.ts`（`getRuntimeConfig` 读 `EXPO_PUBLIC_API_BASE_URL`/`EXPO_PUBLIC_SESSION_ID`/`EXPO_PUBLIC_AUTH_TOKEN`，任一缺失 → `configured=false` + `missing[]`）；新增 `src/lib/chatClient.ts`（`sendChat` 用 `XMLHttpRequest`（RN 无 `res.body.getReader`）POST `{base}/api/chat`，`Authorization: Bearer`，增量解析 SSE `RuntimeGatewayEvent`，累积 `runtime_output.delta` 为单条 agent 回复，终端态 `endpoint_unavailable/local_runtime_offline/tunnel_disconnected/runtime_failed` 映射中文通知，HTTP 非 2xx → `onError`，**无任何本地回显**）。`ChatScreen.tsx`：`configured=false` → 禁用发送 + 输入框 + 中文配置/登录引导错误态（列出缺失 env 键），不展示假聊天；`configured=true` → `handleSend` 调 `sendChat` 流式渲染 agent 回复、system 通知、error 错误态，发送中禁用输入/按钮，会话内真实消息保留。 |
+| **目标** | 原生 Mobile 聊天发送走真实后端 runtime，收 SSE 输出展示 agent 回复；无 auth/session/runtime 时禁用发送 + 明确配置/登录提示，绝不假成功 |
+| **验收方式** | RN 逻辑层可运行测试（vitest，避免引入重型 RN 渲染栈）：发送不再产生本地 echo（onDelta 仅来自真实 runtime_output + 断言 POST 真实 sessionId 非硬编码）；成功路径累积真实 delta 为单条回复；失败路径 HTTP 非 2xx → onError 中文 + runtime_failed → 中文通知，reply 不伪造。非仅存在性/`toBeVisible` 断言 |
+| **测试证据** | `apps/mobile/src/lib/__tests__/chatClient.test.ts` **5 passed**（① onDelta 只来自 runtime_output 非输入回显 + 断言 send POST `sessionId:'sess-real'`/`content` / ② deltas 累积为 `'Hello World'` 单条 reply、零通知 / ③ HTTP 503 → onError 中文错误、reply='' / ③b runtime_failed → 中文通知、reply='' / config 缺 env → configured=false）；`pnpm --filter @agenthub/shared build` ESM+DTS success；ChatScreen `grep setTimeout\|mobile-sess-1\|收到:` → CLEAN。审计锚点 PRGA-001 应反转为修复后事实 |
+| **阻塞问题** | 真实设备/模拟器 GUI 截图 DEFERRED（CLI 环境无 Metro/GUI），与 REG-20260531-010 一致；逻辑层链路已由 vitest 覆盖。跨端真实消息持久拉取（GET /api/messages）out-of-scope（同一 auth 缺口限制） |
+| **下一步动作** | 部分关闭 REG-20260531-010 的 PRGA-001（partial close）；剩余 PRGA-004（Web 编排 UI）仍 open，待 `WEB-ORCHESTRATOR-UI-001`（P0） |
+
+
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复
 
 | 字段 | 内容 |
