@@ -2,7 +2,7 @@
   "version": "3.1",
   "project_name": "AgentHub",
   "status": "idle",
-  "current_milestone": null,
+  "current_milestone": "M-adhoc-20260530-web-workspace-ux",
   "current_task_id": null,
   "milestones": [
     {
@@ -347,6 +347,21 @@
       "roadmap_ref": null,
       "created_at": "2026-05-30T05:55:00Z",
       "completed_at": "2026-05-30T09:13:19Z"
+    },
+    {
+      "id": "M-adhoc-20260530-web-workspace-ux",
+      "name": "WEB-WORKSPACE-UX-001 交互回归修复",
+      "type": "adhoc",
+      "status": "completed",
+      "phases": [
+        1
+      ],
+      "phase_slugs": {
+        "1": "standalone"
+      },
+      "roadmap_ref": null,
+      "created_at": "2026-05-30T17:42:00Z",
+      "completed_at": "2026-05-30T18:15:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -1372,6 +1387,51 @@
           "path": "scratch/20260530-plan-role-chat-core",
           "milestone": "adhoc-role-chat-core",
           "created_at": "2026-05-30T06:06:30Z"
+        }
+      ]
+    },
+    {
+      "milestone": "M-adhoc-20260530-web-workspace-ux",
+      "completed_at": "2026-05-30T18:15:00Z",
+      "artifacts": [
+        {
+          "id": "PLN-web-workspace-ux",
+          "type": "plan",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260530-web-workspace-ux",
+          "phase": null,
+          "path": "20260530-plan-web-workspace-ux",
+          "title": "WEB-WORKSPACE-UX-001 Web Workspace 真实交互回归修复",
+          "status": "completed",
+          "created_at": "2026-05-30T17:42:00Z",
+          "archived_path": "milestones/M-adhoc-20260530-web-workspace-ux/artifacts/20260530-plan-web-workspace-ux"
+        },
+        {
+          "id": "EXC-web-workspace-ux",
+          "type": "execute",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260530-web-workspace-ux",
+          "phase": null,
+          "path": "20260530-plan-web-workspace-ux",
+          "title": "WEB-WORKSPACE-UX-001 执行",
+          "status": "completed",
+          "plan_ref": "PLN-web-workspace-ux",
+          "created_at": "2026-05-30T17:50:00Z",
+          "archived_path": "milestones/M-adhoc-20260530-web-workspace-ux/artifacts/20260530-plan-web-workspace-ux"
+        },
+        {
+          "id": "VRF-web-workspace-ux",
+          "type": "verify",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260530-web-workspace-ux",
+          "phase": null,
+          "path": "20260530-plan-web-workspace-ux",
+          "title": "WEB-WORKSPACE-UX-001 验证",
+          "status": "completed",
+          "verdict": "PASS",
+          "plan_ref": "PLN-web-workspace-ux",
+          "created_at": "2026-05-30T18:05:00Z",
+          "archived_path": "milestones/M-adhoc-20260530-web-workspace-ux/artifacts/20260530-plan-web-workspace-ux"
         }
       ]
     }

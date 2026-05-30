@@ -5,7 +5,7 @@ import { Sidebar } from './Sidebar'
 import { ChatPanel } from './ChatPanel'
 import { ArtifactPanel } from './ArtifactPanel'
 
-export function WorkspaceShell() {
+export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
 
   return (
@@ -13,7 +13,7 @@ export function WorkspaceShell() {
       data-testid="workspace-shell"
       className={`grid h-screen ${rightPanelOpen ? 'grid-cols-[280px_1fr_320px]' : 'grid-cols-[280px_1fr]'}`}
     >
-      <Sidebar />
+      <Sidebar workspaceId={workspaceId} />
       <ChatPanel onTogglePanel={() => setRightPanelOpen(!rightPanelOpen)} />
       {rightPanelOpen && <ArtifactPanel onClose={() => setRightPanelOpen(false)} />}
     </div>

@@ -57,13 +57,13 @@
 | **优先级** | P0 regression（阻塞继续扩大 Web 工作台功能面） |
 | **绑定 FR-ID** | FR-WEB-001, FR-WS-001, FR-CHAT-001, FR-UI-001 |
 | **来源** | 用户验真样本（2026-05-30）：登录后访问 `/workspace/:id`，页面视觉存在但感觉无法点击/无法测试功能 |
-| **当前状态** | 🔴 待修复登记（2026-05-30）：代码审查确认交互闭环缺口存在，尚未进入修复执行 |
+| **当前状态** | ✅ 已完成（2026-05-30，验证通过）：URL workspace 选中 / Sidebar 不覆盖 / setActiveSession 拉消息由 `WEB-WORKSPACE-UX-001` 落地，`sendMessage→/api/chat` 与“新建会话” onClick 已由 ROLE-CHAT-CORE-001 修复；web tsc EXIT=0，Playwright E2E 2 passed，post-verify/post-review/post-goal-audit 全通过 |
 | **缺陷台账** | `research/regression-ledger.md#reg-20260530-001--web-workspace-真实交互闭环缺口` |
 | **问题摘要** | `/workspace/[id]` 未读取 URL workspace id；Sidebar 默认选第一个 workspace；“新建会话”按钮无 `onClick`；点击 session 只设置 id、不拉取 messages；发送消息只写 `/api/messages`，未走 `/api/chat` runtime/agent 链路 |
 | **验收方式** | 使用 Auth.js 测试登录态（`TEST_AUTH_STORAGE_STATE` 或 `TEST_AUTH_COOKIE`），真实浏览器验证：直接打开 `/workspace/:id` → 当前 workspace 被选中 → 新建 session 落库并选中 → 点击 session 拉取消息 → 发送消息走 `/api/chat` 并展示 runtime/agent 状态或明确错误态 → reload 后 session/message 持久化 |
-| **测试证据** | 待补：Playwright E2E 必须断言真实 API/DB 行为结果，不能只检查按钮可见；补充组件/Store 测试覆盖 create/select/fetch/send |
-| **阻塞问题** | 当前 `RT-WORKER-HARDEN-001` Ralph session 正在 review 阶段；该 runtime session 的边界明确排除 UI 层，不能混入本修复 |
-| **下一步动作** | 完成/暂停 runtime harden 后，启动 `WEB-WORKSPACE-UX-001` 修复 Ralph session；修复完成前不继续扩大 Web Workspace 新功能 |
+| **测试证据** | `e2e/tests/web/web-workspace-ux.spec.ts` 2 passed（web-desktop + web-tablet，真实 DB，断言 `GET /workspace/:id` → `GET /api/sessions?workspace_id=` → `GET /api/messages?session_id=` → `POST /api/chat 200` + 视觉/布局断言 + reload 持久化）；verification.json verdict=PASS（G1/G2 全 VERIFIED），review.json verdict=PASS（blocking_count=0） |
+| **阻塞问题** | 无 P0；REG-20260530-002（既有 web E2E 共享单用户并行 worker 数据污染，P1）单列 test-infra 任务处理，不阻塞本任务 |
+| **下一步动作** | 治理门禁通过后转入 regression-ledger 关闭记录 |
 
 ### AUTH-MIG-001: 认证路线迁移 Auth.js → Auth.js v5
 

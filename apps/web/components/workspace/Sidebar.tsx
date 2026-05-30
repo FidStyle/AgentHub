@@ -12,7 +12,7 @@ interface Workspace {
   execution_domain: string
 }
 
-export function Sidebar() {
+export function Sidebar({ workspaceId }: { workspaceId?: string }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [wsOpen, setWsOpen] = useState(false)
   const { activeWorkspaceId, setActiveWorkspace, fetchSessions, createSession } = useSessionStore()
@@ -21,13 +21,16 @@ export function Sidebar() {
     fetch('/api/workspaces').then(r => r.json()).then(d => {
       if (Array.isArray(d)) {
         setWorkspaces(d)
-        if (!activeWorkspaceId && d.length > 0) {
-          setActiveWorkspace(d[0].id)
-          fetchSessions(d[0].id)
+        const fromUrl = workspaceId && d.some((w: Workspace) => w.id === workspaceId) ? workspaceId : null
+        // URL 指定的 workspace 优先且权威（含 deep-link 间切换）；否则仅在无选中时回退第一个
+        const target = fromUrl ?? (activeWorkspaceId ? null : (d.length > 0 ? d[0].id : null))
+        if (target && target !== activeWorkspaceId) {
+          setActiveWorkspace(target)
+          fetchSessions(target)
         }
       }
     })
-  }, [])
+  }, [workspaceId])
 
   const activeWs = workspaces.find(w => w.id === activeWorkspaceId)
 
@@ -41,6 +44,7 @@ export function Sidebar() {
     <aside className="flex flex-col h-full border-r border-border bg-card">
       <div className="relative px-3 py-3 border-b border-border">
         <button
+          data-testid="workspace-switcher"
           onClick={() => setWsOpen(!wsOpen)}
           className="flex items-center justify-between w-full rounded-md px-2 py-1.5 text-sm hover:bg-muted"
         >

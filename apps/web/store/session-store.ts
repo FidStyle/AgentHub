@@ -39,7 +39,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   loading: false,
   error: null,
 
-  setActiveSession: (id) => set({ activeSessionId: id }),
+  setActiveSession: (id) => {
+    set({ activeSessionId: id })
+    get().fetchMessages(id)
+  },
 
   setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
 
