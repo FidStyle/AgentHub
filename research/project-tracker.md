@@ -27,13 +27,13 @@
 | **绑定 FR-ID** | FR-AUTH-001, FR-WS-001, FR-DEVICE-001, FR-WEB-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-UI-001, FR-RUNTIME-001, FR-PERM-001 |
 | **对应计划** | Codex 前置合同与验真框架；Ralph blind verify session `ralph-20260528-100000` 已完成；下一步进入修复规划 |
 | **合同路径** | `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md` |
-| **当前状态** | ✅ 端到端验证通过（2026-05-29）：DB/Auth smoke + /api/chat 集成测试 11/11 PASS + Web E2E 4/4 PASS + Mobile Auth E2E 4/4 PASS + Desktop API 链路 1/1 PASS + 视觉断言通过（无横向滚动、容器不重叠）；Desktop IPC 认证闭环已补全 |
+| **当前状态** | ⚠️ 技术验证通过、产品主价值未达成（2026-05-30 PRODUCT-UAT-GAP-AUDIT-001 复审）：DB/Auth smoke + /api/chat 集成测试 11/11 PASS + Web E2E 4/4 PASS + Mobile Auth E2E 4/4 PASS + Desktop API 1/1 PASS + 视觉断言通过；但**多 Agent 协作回复**这一核心价值在真实用户默认入口下不可达（Web 0 可见回复、Mobile 发送只写库不触发 runtime、Artifact 面板恒空壳）。FakeExecutor 回显 ≠ Agent 链路成功。详见 REG-20260530-006/007/008。 |
 | **目标** | 以真实 MVP 用户链路验证项目，而不是用单页、单接口或按钮反馈作为完成依据 |
 | **方案摘要** | 建立端到端产品合同；登记身份连续性、Workspace 创建闭环、三端 UX 一致性为验真样本；禁止把已知根因直接喂给执行者 |
 | **验收方式** | 盲验证必须基于合同自行发现主链路断点；后续实现必须使用真实 DB/API/session 并覆盖 Web/Desktop/Mobile E2E |
 | **测试证据** | DB smoke: `research/execution-reports/p0-end-to-end-product-flow-real-db-smoke-report.md`；/api/chat: `tsx scripts/verify-p0-chat-api.ts` 11/11 PASS；Web E2E: `npx playwright test tests/web/p0-main-flow.spec.ts` 4/4 PASS；Mobile Auth: `npx playwright test tests/web/p0-mobile-auth.spec.ts` 4/4 PASS；Desktop API: `npx playwright test tests/desktop/p0-auth-flow.spec.ts` 1/1 PASS + 1 skip（需 Electron 构建）；视觉断言: assertNoHorizontalScroll + assertNoElementOverlap PASS |
-| **阻塞问题** | BLK-2 ✅ 已解决（Desktop IPC 认证闭环补全 + API 链路验证通过）；BLK-4 ✅ 已解决（Mobile Auth E2E 通过）；BLK-6 ⚠️ 部分解决（/api/chat DEVICE_OFFLINE 错误态验证通过，完整 Runtime 部署 deferred）；BLK-7 ✅ 已解决（三端 E2E 真实浏览器运行） |
-| **下一步动作** | Agent Runtime 完整部署（deferred to P1）；~~mobile-pwa.spec.ts 旧 fixture 迁移~~ ✅ 已完成（2026-05-29） |
+| **阻塞问题** | BLK-2 ✅ 已解决；BLK-4 ✅ 已解决；BLK-6 ⚠️ 部分解决；BLK-7 ✅ 已解决。**新增 REG-20260530-006（P0 blocker）**：Agent 回复主价值在真实用户态不可达 + Mobile 发送无回复 + Artifact 空壳；明确「FakeExecutor 回显 ≠ Agent 链路成功」，禁止再以单测/E2E 视觉断言冒充产品完成。 |
+| **下一步动作** | 修复 REG-20260530-006（`ROLE-CHAT-RUNTIME-DELIVER-001`/`MOBILE-CHAT-DELIVER-001`）解除 Agent 回复主价值阻塞；Agent Runtime 完整部署（P1）；REG-20260530-007/008（P1）跟进 |
 
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复
 
@@ -57,13 +57,13 @@
 | **优先级** | P0 regression（阻塞继续扩大 Web 工作台功能面） |
 | **绑定 FR-ID** | FR-WEB-001, FR-WS-001, FR-CHAT-001, FR-UI-001 |
 | **来源** | 用户验真样本（2026-05-30）：登录后访问 `/workspace/:id`，页面视觉存在但感觉无法点击/无法测试功能 |
-| **当前状态** | ✅ 已完成（2026-05-30，验证通过）：URL workspace 选中 / Sidebar 不覆盖 / setActiveSession 拉消息由 `WEB-WORKSPACE-UX-001` 落地，`sendMessage→/api/chat` 与“新建会话” onClick 已由 ROLE-CHAT-CORE-001 修复；web tsc EXIT=0，Playwright E2E 2 passed，post-verify/post-review/post-goal-audit 全通过 |
-| **缺陷台账** | `research/regression-ledger.md#reg-20260530-001--web-workspace-真实交互闭环缺口` |
+| **当前状态** | ⚠️ 技术链路部分完成、用户目标未达成（2026-05-30 PRODUCT-UAT-GAP-AUDIT-001 复审）：URL workspace 选中 / Sidebar 不覆盖 / setActiveSession 拉消息 / `sendMessage→/api/chat` / “新建会话” onClick 等交互闭环确已接通（web tsc EXIT=0，Playwright E2E 2 passed），但真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 发送后仍 0 可见回复——交互链路通，产品目标未达成。**不得转入关闭记录**，直至 REG-20260530-006 关闭条件满足。 |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260530-001--web-workspace-真实交互闭环缺口`（已关闭）；阻塞项 `research/regression-ledger.md#reg-20260530-006`（P0，真实用户态无可见回复，open） |
 | **问题摘要** | `/workspace/[id]` 未读取 URL workspace id；Sidebar 默认选第一个 workspace；“新建会话”按钮无 `onClick`；点击 session 只设置 id、不拉取 messages；发送消息只写 `/api/messages`，未走 `/api/chat` runtime/agent 链路 |
 | **验收方式** | 使用 Auth.js 测试登录态（`TEST_AUTH_STORAGE_STATE` 或 `TEST_AUTH_COOKIE`），真实浏览器验证：直接打开 `/workspace/:id` → 当前 workspace 被选中 → 新建 session 落库并选中 → 点击 session 拉取消息 → 发送消息走 `/api/chat` 并展示 runtime/agent 状态或明确错误态 → reload 后 session/message 持久化 |
-| **测试证据** | `e2e/tests/web/web-workspace-ux.spec.ts` 2 passed（web-desktop + web-tablet，真实 DB，断言 `GET /workspace/:id` → `GET /api/sessions?workspace_id=` → `GET /api/messages?session_id=` → `POST /api/chat 200` + 视觉/布局断言 + reload 持久化）；verification.json verdict=PASS（G1/G2 全 VERIFIED），review.json verdict=PASS（blocking_count=0） |
-| **阻塞问题** | 无 P0；REG-20260530-002（既有 web E2E 共享单用户并行 worker 数据污染，P1）单列 test-infra 任务处理，不阻塞本任务 |
-| **下一步动作** | 治理门禁通过后转入 regression-ledger 关闭记录 |
+| **测试证据** | `e2e/tests/web/web-workspace-ux.spec.ts` 2 passed（web-desktop + web-tablet，真实 DB，断言 `GET /workspace/:id` → `GET /api/sessions?workspace_id=` → `GET /api/messages?session_id=` → `POST /api/chat 200` + 视觉/布局断言 + reload 持久化）；verification.json verdict=PASS（G1/G2 全 VERIFIED），review.json verdict=PASS（blocking_count=0）。⚠️ 复审反证：`research/execution-reports/product-uat-gap-audit-001-browser-findings.json`（默认入口 `saw_real_agent_reply:false`） |
+| **阻塞问题** | **REG-20260530-006（P0 blocker）**：真实用户默认入口下 @架构师/Agent 无可见回复，由后续任务 `ROLE-CHAT-RUNTIME-DELIVER-001` 解除；REG-20260530-002（既有 web E2E 共享单用户并行 worker 数据污染，P1）单列 test-infra 任务处理 |
+| **下一步动作** | 修复 REG-20260530-006（拆 `ROLE-CHAT-RUNTIME-DELIVER-001`）后才可转入 regression-ledger 关闭记录；当前**保持 open** |
 
 ### AUTH-MIG-001: 认证路线迁移 Auth.js → Auth.js v5
 
@@ -125,13 +125,13 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-WEB-001, FR-RUNTIME-001, FR-PERM-001 |
 | **对应计划** | `.workflow/scratch/20260530-plan-role-chat-core/plan.json`（standalone） |
 | **Ralph Session** | `ralph-20260530-054910`（adhoc 里程碑 adhoc-role-chat-core） |
-| **当前状态** | ✅ 全部完成（2026-05-30）：role_agents CRUD + 默认架构师 seed + `/api/chat` 角色归属校验（跨 workspace 403）+ system_prompt 注入 RuntimeExecutor + roleAgentId/mentions 持久化 + @角色选择 UI + reload 保留角色上下文 |
+| **当前状态** | ⚠️ 技术链路部分完成、用户目标未达成（2026-05-30 PRODUCT-UAT-GAP-AUDIT-001 复审）：role_agents CRUD + 默认架构师 seed + `/api/chat` 角色归属校验 + system_prompt 注入 + roleAgentId/mentions 持久化 + @角色选择 UI + reload 保留角色上下文 等技术切片已落地，但真实用户默认入口（无 worker）下 @架构师发送后**仍 0 可见 agent 回复**。`ROLE-CHAT-UAT-REPLY-001` 的「可见回复」仅在 `RUNTIME_E2E=1` + FakeExecutor 测试态成立，不代表产品目标达成。**不得转入关闭记录**，直至 REG-20260530-006 关闭条件满足。 |
 | **目标** | Web 端实现角色对话核心链路：创建/选择角色 → @角色发送 → 角色上下文注入 runtime → 消息与角色绑定持久化 → reload 保留 |
 | **方案摘要** | `/api/chat` 校验 role_agents 归属并加载 system_prompt 透传 adapter→gateway→job→worker→executor；messages 持久化 role_agent_id + mentions；runtime_sessions 持久化 role_agent_id（additive nullable 列）；Web store/UI 接入 @角色选择 + 会话创建 |
 | **验收方式** | type-check 通过 + verification.json passed=true（T1-T8 全 VERIFIED）+ review verdict≠BLOCK + auto-test report 全绿 + Playwright E2E reload 角色上下文断言 |
 | **测试证据** | type-check 干净；verification.json passed=true（T1-T8）；review.json verdict=WARN（0 critical/0 high，3 medium/2 low 非阻塞）；`apps/web/.tests/auto-test/report.json` 5/5 PASS；E2E `npx playwright test tests/web/role-chat-core.spec.ts --project=web-desktop` 1 passed（7.9s，真实 DB、未使用 mock）；UAT `.workflow/scratch/20260530-plan-role-chat-core/uat.md`；报告 `research/execution-reports/role-chat-core-report.md` |
-| **阻塞问题** | 无（阻塞性）。残留：review WARN 3 medium（insert error 未检查、runtime_sessions 空 id 吞错、客户端未处理错误终态事件）+ 2 low，均为健壮性增强项，记入 P1 跟进。agent 回复角色 Badge 断言因 P0 harness 无 Redis/worker deferred 至 Redis+worker 环境（已在 uat.md/报告显式登记，非静默跳过）。 |
-| **下一步动作** | review WARN 3 medium 健壮性项纳入 P1-RT 跟进；agent 回复角色 Badge 在 Redis+worker 环境补齐 E2E。✅ 已由 `ROLE-CHAT-UAT-REPLY-001`（2026-05-30）关闭：真实 DB+Redis+worker E2E 验证可见 agent 回复 + role badge + reload 双向持久化。 |
+| **阻塞问题** | **REG-20260530-006（P0 blocker）**：真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 0 可见回复——`gateway.ts` 仅以 `REDIS_URL` gating、`unconfigured` 状态从不 gating、无 worker 时空等 idle 超时；`runtime-worker.ts` 默认 FakeExecutor。残留：review WARN 3 medium（insert error 未检查、runtime_sessions 空 id 吞错、客户端未处理错误终态事件）+ 2 low，记入 P1 跟进。 |
+| **下一步动作** | ⛔ 由 REG-20260530-006 阻塞，**不得关闭**。修复任务 `ROLE-CHAT-RUNTIME-DELIVER-001`(P0)：默认入口下有真实 worker → 可见非空带角色回复并落 `messages`；无 worker → gateway 立即短路明确中文错误态（不空等 60s）；可见回复断言改为不可默认跳过的常驻门禁。review WARN 3 medium 纳入 P1-RT。 |
 
 ---
 
@@ -151,6 +151,38 @@
 | **缺陷台账** | `research/regression-ledger.md`（ROLE-CHAT-CORE-001 agent 回复 deferred 重定级 P0 后关闭，见关闭记录） |
 | **阻塞问题** | 无。非阻塞观察：dev harness 首次冷启动偶发 30s badge 超时（Next.js 按需编译 + worker 轮询），预热后连续全绿。 |
 | **下一步动作** | 闭环，无后续动作 |
+
+---
+
+### ROLE-CHAT-RUNTIME-DELIVER-001: Web Agent 回复在真实用户默认入口可达
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 blocker |
+| **绑定 FR-ID** | FR-CHAT-001, FR-WEB-001, FR-RUNTIME-001, FR-UI-001 |
+| **来源** | PRODUCT-UAT-GAP-AUDIT-001（REG-20260530-006 GAP-001） |
+| **当前状态** | 📋 待规划（2026-05-30 登记） |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260530-006` |
+| **目标** | 默认运行入口（无 `RUNTIME_E2E`）下，真实用户 @架构师/Agent 发送后能看到非空带角色回复，或无 worker 时立即明确中文错误态 |
+| **方案摘要** | (a) `dev:full` 默认拉起 worker，或 gateway 在无 worker/`unconfigured` 时立即短路 `endpoint_unavailable`（不空等 60s idle）；(b) 用 `resolveEndpoint` 的 `status/id` 做真实 gating，删除仅以 `REDIS_URL` 判定的死代码；(c) 把 `role-chat-uat-reply` 可见回复断言改为默认入口可达的不可跳过常驻门禁（覆盖「无 worker → 立即明确错误态」「有真实 worker → 可见回复」两路），禁止 `RUNTIME_E2E` 默认 skip 掩盖主链路 |
+| **验收方式** | 默认入口真实浏览器：有真实 worker → 可见非空带角色回复并落 `messages`；无 worker → 立即明确中文错误态（实测 <2s，非 60s 挂起）；可见回复 E2E 不可默认 skip |
+| **阻塞问题** | 无（本任务即解除 REG-20260530-006） |
+| **下一步动作** | 进入 analyze/plan |
+
+### MOBILE-CHAT-DELIVER-001: Mobile 发送走统一 runtime 链路
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 blocker |
+| **绑定 FR-ID** | FR-CHAT-001, FR-MOB-001, FR-RUNTIME-001 |
+| **来源** | PRODUCT-UAT-GAP-AUDIT-001（REG-20260530-006 GAP-002） |
+| **当前状态** | 📋 待规划（2026-05-30 登记） |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260530-006` |
+| **目标** | Mobile `/m/sessions/:id` 发送闭环：与 Web 一致触发 runtime/Agent，或在轻量端明确「需在 Web 端继续」文案，消除「只写库、永无回复」假成功 |
+| **方案摘要** | `apps/web/app/m/sessions/[sessionId]/page.tsx` `send()` 改走与 Web 一致的 `/api/chat` runtime 链路（合同 §3.1.8/§6 三端共享状态语义），并补 Mobile 发送后回复/错误态 E2E |
+| **验收方式** | Mobile 真实浏览器：发送后出现 agent 回复或明确错误态；E2E 断言「发送后用户目标达成或明确错误态」 |
+| **阻塞问题** | 无 |
+| **下一步动作** | 进入 analyze/plan |
 
 ---
 
@@ -257,6 +289,36 @@
 | **阻塞问题** | 无。UAT 以 cold-start 冒烟替代（后端 runtime 硬化无 UI 面，auto_mode 无交互测试者）；7 个全量套件失败为预先存在（缺 DATABASE_URL），与本任务无关 |
 | **下一步动作** | milestone-complete 归档；worker 池接入与真实端到端会话验证为后续独立范围 |
 
+### ARTIFACT-PANEL-DATA-001: Workspace 右栏面板接真实数据
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1 |
+| **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
+| **来源** | PRODUCT-UAT-GAP-AUDIT-001（REG-20260530-007 GAP-003） |
+| **当前状态** | 📋 待规划（2026-05-30 登记） |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260530-007` |
+| **目标** | 右栏「产物/上下文/Agents」三 Tab 呈现真实数据，消除恒静态空态 |
+| **方案摘要** | `apps/web/components/workspace/ArtifactPanel.tsx` Agents Tab 接 `/api/role-agents`；产物/上下文接对应数据源或显式标注 P1 未实现范围；补面板数据一致性断言（非仅 `toBeVisible`） |
+| **验收方式** | 含 role_agents 的 workspace「Agents」Tab 呈现真实角色（含架构师），断言面板内容与真实数据一致 |
+| **阻塞问题** | 无 |
+| **下一步动作** | 进入 analyze/plan |
+
+### DEV-ENV-BOOTSTRAP-001: 默认开发入口可跑通主链路
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1 |
+| **绑定 FR-ID** | FR-WEB-001 |
+| **来源** | PRODUCT-UAT-GAP-AUDIT-001（REG-20260530-008 GAP-004） |
+| **当前状态** | 📋 待规划（2026-05-30 登记） |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260530-008` |
+| **目标** | 真实用户照默认入口 `pnpm dev:web` 启动并登录即可跑通主链路，无需手动切 P0 harness env |
+| **方案摘要** | 提供可复现的本地真实 DB/REDIS env（或 `dev:full` 自动指向 p0/dev DB），替换 `apps/web/.env.local` 的 `your-project.supabase.co` 占位符；补「默认入口启动 → 登录 → 主链路可用」冒烟 |
+| **验收方式** | 默认入口启动 → 登录 → 主链路可用冒烟通过 |
+| **阻塞问题** | 无 |
+| **下一步动作** | 进入 analyze/plan |
+
 ---
 
 ## P2 任务
@@ -299,3 +361,7 @@
 | 2026-05-30 | WEB-WORKSPACE-UX-001 | 用户验真发现 Web Workspace 详情页“看得到但不好点/不可测”；代码审查确认 `/workspace/[id]`、新建会话、session 选中拉消息、发送 `/api/chat` 链路存在交互闭环缺口。已登记为 P0 regression，并补充“先稳定已完成功能，再推进新功能”治理规则 |
 | 2026-05-30 | RT-WORKER-HARDEN-001 | **三项 runtime 硬化完成**（ralph-20260530-013000）：G1 worker liveness（redis-client 心跳键 setHeartbeat/isAlive/clearHeartbeat，TTL 默认 30s + runtime-worker reclaimDeadSession 失联落 failed + emit runtime_failed，禁假 completed）；G2 subscribeEvents 空闲 60s/总 600s 双超时（env 可配）产出 runtime_failed 哨兵 + finally 释放 timer/订阅/连接，gateway 落 failed；G3 共享 redact（key 名 + 值级 sk-/ghp_/xoxb-/AKIA/Bearer）接入 worker log() 与 gateway persist；redact 5/5 + liveness 4/4 + subscribe-timeout 2/2 + executor 7/7 回归 = 18/18；verify PASS（G1/G2/G3 VERIFIED 0 gaps）/ review PASS / 三道 gate + goal-audit 全 proceed；apps/web tsc exit 0；commits 14d0c73 + 7fd9633；未改 Gateway 总架构，无 DB schema 迁移 |
 | 2026-05-30 | RT-WORKER-HARDEN-001 | **adhoc 里程碑完成归档**（milestone-complete）：audit-report PASS（0 critical/0 high）+ summary 写入 `.workflow/milestones/adhoc-worker-harden/`；2 个 artifact（analyze/plan）移入 milestone_history；current_milestone 置空，status=idle（adhoc 无后继）；治理门禁 RT-WORKER-HARDEN-001 exit 0；ralph-20260530-013000 全 13 步闭环 |
+| 2026-05-30 | PRODUCT-UAT-GAP-AUDIT-001 | 只读真实用户主链路缺口审计（真实浏览器 + 真实 DB + 真实 auth）：发现 Web/Mobile Agent 回复在真实用户默认入口不可达、Artifact 面板恒空壳、默认 `.env.local` 占位符。登记 REG-20260530-006(P0)/007(P1)/008(P1)；报告 `research/execution-reports/product-uat-gap-audit-001-report.md` |
+| 2026-05-30 | WEB-WORKSPACE-UX-001 / ROLE-CHAT-CORE-001 | 复审降级：交互/技术链路通过但用户目标（可见 Agent 回复）未达成，状态由「✅ 完成」回退为「⚠️ 技术链路部分完成、用户目标未达成」，阻塞项指向 REG-20260530-006，**不得转入关闭记录**（FakeExecutor 回显 ≠ Agent 链路成功） |
+| 2026-05-30 | P0-END-TO-END-PRODUCT-FLOW | 复审标注：多 Agent 协作回复核心价值在真实用户态不可达，补登 REG-20260530-006 阻塞项 |
+| 2026-05-30 | ROLE-CHAT-RUNTIME-DELIVER-001 / MOBILE-CHAT-DELIVER-001 / ARTIFACT-PANEL-DATA-001 / DEV-ENV-BOOTSTRAP-001 | 新增 4 条后续修复任务（前两项 P0、后两项 P1），来源 PRODUCT-UAT-GAP-AUDIT-001 |

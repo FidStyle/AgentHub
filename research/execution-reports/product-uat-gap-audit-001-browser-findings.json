@@ -1,0 +1,28 @@
+{
+  "runtime_e2e": "0",
+  "findings": [
+    {
+      "id": "env",
+      "workspace_create_status": 201,
+      "wsId": "362e563e-a9ef-4aee-8492-fdc41132fc4e"
+    },
+    {
+      "id": "role-picker",
+      "architect_visible": true
+    },
+    {
+      "id": "cloud-architect-reply",
+      "chat_http_status": 200,
+      "user_message_visible": true,
+      "saw_real_agent_reply": false,
+      "saw_runtime_notice": true,
+      "notice_text": "⚠️ 运行时执行失败，未收到回复",
+      "conclusion": "技术链路有反馈但目标未达成：仅运行时不可用提示（⚠️ 运行时执行失败，未收到回复）"
+    },
+    {
+      "id": "reload-persistence",
+      "user_msg_after_reload": true,
+      "agent_badge_after_reload": false
+    }
+  ]
+}
