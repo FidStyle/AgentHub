@@ -182,6 +182,31 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         })
       }
 
+      // Runtime unavailable/failed terminals must surface a clear status, never silence or a
+      // fake success. Shown as a distinct system notice (no roleAgentId) so it is not mistaken
+      // for a real agent answer.
+      const statusText: Record<string, string> = {
+        endpoint_unavailable: '⚠️ 公共云端 Runtime 未就绪，请稍后再试或切换到本地 Desktop 运行时',
+        local_runtime_offline: '⚠️ 本地 Desktop 运行时离线，未收到回复',
+        tunnel_disconnected: '⚠️ 本地运行时连接已断开，未收到回复',
+        runtime_failed: '⚠️ 运行时执行失败，未收到回复',
+      }
+      const showSystemNotice = (text: string) => {
+        set((state) => ({
+          messages: [
+            ...state.messages,
+            {
+              id: `sys-${Date.now()}`,
+              sessionId: activeSessionId,
+              role: 'agent',
+              content: text,
+              createdAt: new Date().toISOString(),
+              roleAgentId: null,
+            } as Message,
+          ],
+        }))
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -195,6 +220,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if (evt.type === 'runtime_output' && evt.delta) {
             reply += evt.delta
             upsertReply()
+          } else if (evt.type && statusText[evt.type] && !replyCreated) {
+            showSystemNotice(statusText[evt.type])
           }
         }
       }

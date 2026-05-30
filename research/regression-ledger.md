@@ -22,21 +22,7 @@
 
 ## 当前未关闭项
 
-### REG-20260530-001 — Web Workspace 真实交互闭环缺口
-
-| 字段 | 内容 |
-| --- | --- |
-| **类型** | bug / unfinished / UX regression |
-| **优先级** | P0 regression |
-| **状态** | open |
-| **关联 FR/PRD** | `FR-WEB-001`, `FR-WS-001`, `FR-CHAT-001`, `FR-UI-001`; `research/prd.md` 的 Web 工作台、Workspace/Session/Message、Agent 协作主链路 |
-| **关联任务/合同** | `P0-END-TO-END-PRODUCT-FLOW`; `UI-ALIGN-001`; `research/contracts/P0-END-TO-END-PRODUCT-FLOW.md`; tracker 任务 `WEB-WORKSPACE-UX-001` |
-| **影响功能面** | Web 登录后工作台；Workspace 详情页；Session 创建/选择；Message 拉取/发送；`/api/chat` runtime/agent 链路 |
-| **发现方式** | 用户验真样本 + 代码审查 |
-| **证据** | `apps/web/app/(workspace)/workspace/[id]/page.tsx` 未读取 URL workspace id；`apps/web/components/workspace/Sidebar.tsx` 默认选第一个 workspace 且“新建会话”无 `onClick`；`apps/web/store/session-store.ts` 的 `setActiveSession` 不拉消息，`sendMessage` 只写 `/api/messages` 而不走 `/api/chat` |
-| **为什么此前漏掉** | 旧 E2E/验收口径允许“按钮可见/页面存在/布局无横向滚动”通过，没有强制断言真实点击后 API/DB/session/message/runtime 状态变化 |
-| **关闭条件** | 使用 Auth.js 测试登录态打开 `/workspace/:id`，断言 URL workspace 被选中；点击“新建会话”真实 `POST /api/sessions` 并选中新 session；点击 session 真实拉取 `/api/messages`；发送消息走 `/api/chat` 并展示 runtime/agent 状态或明确错误态；reload 后 session/message 持久化；补 Playwright E2E 和必要 store/component 测试 |
-| **下一步** | `WEB-WORKSPACE-UX-001` 已落地剩余三点（URL workspace 选中 / Sidebar 不覆盖 / setActiveSession 拉消息）并补 deep-link E2E（2 passed，含真实 `/api/sessions` `/api/messages` `/api/chat` + 视觉 + reload 断言）；`sendMessage→/api/chat` 与“新建会话” onClick 已由 ROLE-CHAT-CORE-001 修复。待治理门禁通过后转入关闭记录 |
+> REG-20260530-001（Web Workspace 真实交互闭环缺口）与 ROLE-CHAT-CORE-001 可见 agent 回复 deferred 项（重定级 REG-20260530-003）均已修复并移入「关闭记录」。当前仅余 P1 test-infra 项 REG-20260530-002。
 
 ### REG-20260530-002 — Web E2E 共享单用户并行 worker 数据污染（既有套件脆弱性）
 
@@ -55,4 +41,22 @@
 
 ## 关闭记录
 
-暂无。
+### REG-20260530-003 — ROLE-CHAT-CORE-001 可见 agent 回复 + 角色 Badge deferred（重定级 P0 后关闭）
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | unfinished / UX gap |
+| **优先级** | P0 blocker（自 ROLE-CHAT-CORE-001 deferred 项重定级——用户 @角色发送后无可见回复属主链路阻塞，非可选增强） |
+| **状态** | `closed` |
+| **关联 FR/PRD** | `FR-CHAT-001`, `FR-WEB-001`, `FR-RUNTIME-001`, `FR-UI-001` |
+| **关联任务/合同** | 发现于 `ROLE-CHAT-CORE-001`（`research/project-tracker.md` 同名条目 + `research/execution-reports/role-chat-core-report.md#6`）；由 `ROLE-CHAT-UAT-REPLY-001` 修复关闭 |
+| **影响功能面** | Web `/api/chat` 角色对话：@架构师发送后可见 agent 回复 + 角色上下文标识 + reload 持久化 |
+| **发现方式** | 用户验真样本（2026-05-30，localhost:3000 @架构师发送后只见用户消息）+ ROLE-CHAT-CORE-001 报告 §6 显式登记的 deferred 切片 |
+| **为什么重定级** | 原 deferred 理由是「P0 harness 无 Redis/worker」，但可见 agent 回复是角色对话主链路的核心交付，不是可选增强；归类为 P0 blocker 而非延后增强 |
+| **证据** | `cd e2e && RUNTIME_E2E=1 npx playwright test --project=web-desktop web/role-chat-uat-reply.spec.ts web/web-workspace-ux.spec.ts web/role-chat-core.spec.ts` → 3 passed（真实 DB+Redis+worker，无 mock，DB 校验 messages 同含 user+agent 行）；verification.json PASS（5/5）；review.json PASS（0 critical/0 high）；`research/execution-reports/role-chat-uat-reply-001-report.md` |
+| **关闭条件（已满足）** | `/api/chat` 在 `runtime_completed && reply` 非空时落 `sender_type=agent`（no-fake-success）；E2E 拉起 Redis+worker 断言可见回复文本 + role badge + reload 双向持久化；单测 AT-005/AT-006 覆盖正反两路 |
+| **关闭时间** | 2026-05-30 |
+
+### REG-20260530-001 — Web Workspace 真实交互闭环缺口（已关闭）
+
+由 `WEB-WORKSPACE-UX-001`（URL workspace 选中 / Sidebar 不覆盖 / setActiveSession 拉消息 + deep-link E2E）与 `ROLE-CHAT-CORE-001`（`sendMessage→/api/chat`、新建会话 onClick）联合修复，并由 `ROLE-CHAT-UAT-REPLY-001` 在真实 DB+Redis+worker E2E 下端到端复验通过（`web-workspace-ux.spec.ts` 含 `GET /workspace/:id` → `/api/sessions` → `/api/messages` → `POST /api/chat 200` + 视觉 + reload 断言）。关闭时间：2026-05-30。

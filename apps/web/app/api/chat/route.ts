@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
   const adapter = new HostedRuntimeAdapter()
   const stream = new ReadableStream({
     async start(controller) {
+      let reply = ''
+      let completed = false
       try {
         for await (const evt of adapter.invoke({
           userId: user.id,
@@ -72,9 +74,21 @@ export async function POST(req: NextRequest) {
           systemPrompt,
           roleAgentId: roleAgentId ?? undefined,
         })) {
+          if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
+          if (evt.type === 'runtime_completed') completed = true
           controller.enqueue(encode(evt))
         }
       } finally {
+        // Persist the agent reply so reload restores it. Only on a clean completion with
+        // non-empty output — failed/unavailable terminals must not fabricate a success message.
+        if (completed && reply) {
+          await db.from('messages').insert({
+            session_id: sessionId,
+            content: reply,
+            sender_type: 'agent',
+            role_agent_id: roleAgentId ?? null,
+          })
+        }
         controller.enqueue(encode({ type: 'done' }))
         controller.close()
       }

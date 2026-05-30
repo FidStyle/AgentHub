@@ -17,13 +17,19 @@ export async function ensureP0StorageState(): Promise<string> {
     throw new Error(`TEST_AUTH_STORAGE_STATE 指向的文件不存在: ${customPath}`)
   }
 
-  if (process.env.TEST_AUTH_COOKIE) {
+  // TEST_AUTH_COOKIE_VALUE 是裸 session token；TEST_AUTH_COOKIE 是完整 `name=value` 对，
+  // 取末段还原裸 token，避免把 `authjs.session-token=` 前缀写进 cookie value 导致 401。
+  const cookieValue =
+    process.env.TEST_AUTH_COOKIE_VALUE ??
+    (process.env.TEST_AUTH_COOKIE ? process.env.TEST_AUTH_COOKIE.split('=').pop() : undefined)
+
+  if (cookieValue) {
     if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true })
     const state = {
       cookies: [
         {
           name: 'authjs.session-token',
-          value: process.env.TEST_AUTH_COOKIE,
+          value: cookieValue,
           domain: 'localhost',
           path: '/',
           httpOnly: true,

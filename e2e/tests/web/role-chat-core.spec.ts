@@ -59,10 +59,12 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
     await assertNoHorizontalScroll(page)
     await assertNoElementOverlap(page, '[data-testid="workspace-shell"] > *')
 
-    // reload 后用户消息从 DB 重新加载（role_agent_id 持久化 + 角色上下文保留）
+    // reload 后用户消息从 DB 重新加载（role_agent_id 持久化 + 角色上下文保留）。
+    // 启用 worker 时 agent 回复会回显系统提示+问题文本，故按用户气泡(.bg-primary/10)
+    // 精确定位，避免与 agent 回显串味（P0 无 worker 时仍是唯一用户气泡）。
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.getByText(msg)).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
 
     await context.close()
   })

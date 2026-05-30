@@ -131,7 +131,26 @@
 | **验收方式** | type-check 通过 + verification.json passed=true（T1-T8 全 VERIFIED）+ review verdict≠BLOCK + auto-test report 全绿 + Playwright E2E reload 角色上下文断言 |
 | **测试证据** | type-check 干净；verification.json passed=true（T1-T8）；review.json verdict=WARN（0 critical/0 high，3 medium/2 low 非阻塞）；`apps/web/.tests/auto-test/report.json` 5/5 PASS；E2E `npx playwright test tests/web/role-chat-core.spec.ts --project=web-desktop` 1 passed（7.9s，真实 DB、未使用 mock）；UAT `.workflow/scratch/20260530-plan-role-chat-core/uat.md`；报告 `research/execution-reports/role-chat-core-report.md` |
 | **阻塞问题** | 无（阻塞性）。残留：review WARN 3 medium（insert error 未检查、runtime_sessions 空 id 吞错、客户端未处理错误终态事件）+ 2 low，均为健壮性增强项，记入 P1 跟进。agent 回复角色 Badge 断言因 P0 harness 无 Redis/worker deferred 至 Redis+worker 环境（已在 uat.md/报告显式登记，非静默跳过）。 |
-| **下一步动作** | review WARN 3 medium 健壮性项纳入 P1-RT 跟进；agent 回复角色 Badge 在 Redis+worker 环境补齐 E2E |
+| **下一步动作** | review WARN 3 medium 健壮性项纳入 P1-RT 跟进；agent 回复角色 Badge 在 Redis+worker 环境补齐 E2E。✅ 已由 `ROLE-CHAT-UAT-REPLY-001`（2026-05-30）关闭：真实 DB+Redis+worker E2E 验证可见 agent 回复 + role badge + reload 双向持久化。 |
+
+---
+
+### ROLE-CHAT-UAT-REPLY-001: Web 角色对话可见 agent 回复闭环 + UI 可用性 UAT
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0（关闭 ROLE-CHAT-CORE-001 deferred 的可见 agent 回复缺口） |
+| **绑定 FR-ID** | FR-CHAT-001, FR-WEB-001, FR-RUNTIME-001, FR-UI-001 |
+| **对应计划** | `.workflow/scratch/20260530-plan-role-chat-uat-reply/plan.json`（standalone） |
+| **Ralph Session** | `ralph-20260530-190032`（adhoc 里程碑 M-adhoc-20260530-role-chat-uat-reply） |
+| **当前状态** | ✅ 已完成（2026-05-30，验证通过）：`/api/chat` 仅在 `runtime_completed && reply` 非空时以 `sender_type=agent` 落库（no-fake-success）；客户端渲染 runtime 终态提示；E2E 拉起 Redis+worker(FakeExecutor) 端到端验证可见回复 + role badge + reload 双向持久化 |
+| **来源** | 用户验真样本（2026-05-30）：localhost:3000 @架构师发送后只见用户消息、无可见 agent 回复 |
+| **问题摘要** | ROLE-CHAT-CORE-001 在 P0 harness（无 Redis/worker）将可见回复+角色 Badge 断言 deferred；且 `/api/chat` 未持久化 agent 回复，reload 即丢失 |
+| **验收方式** | 真实浏览器 UAT（`RUNTIME_E2E=1` 拉起 Redis+worker）：open `/workspace/:id` → 新建 session → @架构师 → 发送 → 等到可见 agent 回复文本 + role badge → 视觉/布局断言 → reload 后用户+agent 消息都保留 |
+| **测试证据** | `cd e2e && RUNTIME_E2E=1 npx playwright test --project=web-desktop web/role-chat-uat-reply.spec.ts web/web-workspace-ux.spec.ts web/role-chat-core.spec.ts` → 3 passed（真实 DB+Redis+worker，主链路零 mock，DB 校验 messages 同含 user+agent 行）；`npx vitest run __tests__/api/chat.test.ts` chat suite 6/6 PASS（含 AT-005/AT-006 no-fake-success）；verification.json verdict=PASS（5/5 VERIFIED）；review.json verdict=PASS（0 critical/0 high/0 medium/1 low）；报告 `research/execution-reports/role-chat-uat-reply-001-report.md` |
+| **缺陷台账** | `research/regression-ledger.md`（ROLE-CHAT-CORE-001 agent 回复 deferred 重定级 P0 后关闭，见关闭记录） |
+| **阻塞问题** | 无。非阻塞观察：dev harness 首次冷启动偶发 30s badge 超时（Next.js 按需编译 + worker 轮询），预热后连续全绿。 |
+| **下一步动作** | 闭环，无后续动作 |
 
 ---
 

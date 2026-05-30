@@ -18,11 +18,17 @@ import {
 const invokeSpy = vi.fn()
 const insertedMessages: Record<string, unknown>[] = []
 
+// Events the mocked runtime adapter emits; per-test override via setAdapterEvents.
+let adapterEvents: Record<string, unknown>[] = [{ type: 'runtime_output', delta: 'ok' }]
+const setAdapterEvents = (events: Record<string, unknown>[]) => {
+  adapterEvents = events
+}
+
 vi.mock('@/lib/runtime/hosted-adapter', () => ({
   HostedRuntimeAdapter: class {
     async *invoke(input: Record<string, unknown>) {
       invokeSpy(input)
-      yield { type: 'runtime_output', delta: 'ok' }
+      for (const evt of adapterEvents) yield evt
     }
   },
 }))
@@ -67,6 +73,7 @@ describe('POST /api/chat — role-chat-core', () => {
     resetMockClient()
     invokeSpy.mockClear()
     insertedMessages.length = 0
+    setAdapterEvents([{ type: 'runtime_output', delta: 'ok' }])
     setupMockAuth()
   })
 
@@ -119,5 +126,32 @@ describe('POST /api/chat — role-chat-core', () => {
     setupMockClient(createPostgresChain())
     const { status } = await callChat({ content: 'hi' })
     expect(status).toBe(400)
+  })
+
+  it('AT-005 [critical]: clean completion persists the agent reply (sender_type=agent)', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'hello ' },
+      { type: 'runtime_output', delta: 'world' },
+      { type: 'runtime_completed' },
+    ])
+    setupMockClient(chainCapturingInserts())
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: 'hi',
+      roleAgentId: 'agent-001',
+    })
+    expect(status).toBe(200)
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    expect(agentMsg).toBeDefined()
+    expect(agentMsg!.content).toBe('hello world')
+    expect(agentMsg!.role_agent_id).toBe('agent-001')
+  })
+
+  it('AT-006 [critical]: no runtime_completed → agent reply is NOT persisted (no fake success)', async () => {
+    setAdapterEvents([{ type: 'runtime_output', delta: 'partial' }])
+    setupMockClient(chainCapturingInserts())
+    const { status } = await callChat({ sessionId: 'session-001', content: 'hi' })
+    expect(status).toBe(200)
+    expect(insertedMessages.some((m) => m.sender_type === 'agent')).toBe(false)
   })
 })

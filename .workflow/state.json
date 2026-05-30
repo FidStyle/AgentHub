@@ -2,7 +2,7 @@
   "version": "3.1",
   "project_name": "AgentHub",
   "status": "idle",
-  "current_milestone": "M-adhoc-20260530-web-workspace-ux",
+  "current_milestone": null,
   "current_task_id": null,
   "milestones": [
     {
@@ -362,6 +362,21 @@
       "roadmap_ref": null,
       "created_at": "2026-05-30T17:42:00Z",
       "completed_at": "2026-05-30T18:15:00Z"
+    },
+    {
+      "id": "M-adhoc-20260530-role-chat-uat-reply",
+      "name": "Ad-hoc: ROLE-CHAT-UAT-REPLY (真实回复闭环 + UI 可用性 UAT)",
+      "type": "adhoc",
+      "status": "completed",
+      "phases": [
+        1
+      ],
+      "phase_slugs": {
+        "1": "standalone"
+      },
+      "roadmap_ref": null,
+      "created_at": "2026-05-30T19:00:32Z",
+      "completed_at": "2026-05-30T12:20:00Z"
     }
   ],
   "_milestone_schema": "{ id, name, type: 'standard'|'adhoc', status, phases[], phase_slugs{}, roadmap_ref, created_at }",
@@ -1434,8 +1449,76 @@
           "archived_path": "milestones/M-adhoc-20260530-web-workspace-ux/artifacts/20260530-plan-web-workspace-ux"
         }
       ]
+    },
+    {
+      "id": "M-adhoc-20260530-role-chat-uat-reply",
+      "name": "Ad-hoc: ROLE-CHAT-UAT-REPLY (真实回复闭环 + UI 可用性 UAT)",
+      "status": "completed",
+      "completed_at": "2026-05-30T12:20:00Z",
+      "archive_path": "milestones/M-adhoc-20260530-role-chat-uat-reply/",
+      "archived_artifacts": [
+        {
+          "id": "ANL-20260530-role-chat-uat-reply",
+          "type": "analyze",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M-adhoc-20260530-role-chat-uat-reply",
+          "phase": 1,
+          "path": "20260530-analyze-role-chat-uat-reply",
+          "created_at": "2026-05-30T19:05:00Z"
+        },
+        {
+          "id": "PLN-20260530-role-chat-uat-reply",
+          "type": "plan",
+          "scope": "phase",
+          "status": "completed",
+          "milestone": "M-adhoc-20260530-role-chat-uat-reply",
+          "phase": 1,
+          "path": "20260530-plan-role-chat-uat-reply",
+          "source_artifact_ref": "analyze:ANL-20260530-role-chat-uat-reply",
+          "created_at": "2026-05-30T19:10:00Z"
+        },
+        {
+          "id": "EXC-20260530-role-chat-uat-reply",
+          "type": "execute",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260530-role-chat-uat-reply",
+          "phase": 1,
+          "path": "20260530-plan-role-chat-uat-reply",
+          "title": "ROLE-CHAT-UAT-REPLY-001 执行",
+          "status": "completed",
+          "plan_ref": "PLN-20260530-role-chat-uat-reply",
+          "created_at": "2026-05-30T19:30:00Z"
+        },
+        {
+          "id": "VRF-20260530-role-chat-uat-reply",
+          "type": "verify",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260530-role-chat-uat-reply",
+          "phase": 1,
+          "path": "20260530-plan-role-chat-uat-reply",
+          "title": "ROLE-CHAT-UAT-REPLY-001 验证",
+          "status": "completed",
+          "verdict": "PASS",
+          "plan_ref": "PLN-20260530-role-chat-uat-reply",
+          "created_at": "2026-05-30T19:35:00Z"
+        },
+        {
+          "id": "REV-20260530-role-chat-uat-reply",
+          "type": "review",
+          "scope": "standalone",
+          "milestone": "M-adhoc-20260530-role-chat-uat-reply",
+          "phase": 1,
+          "path": "20260530-plan-role-chat-uat-reply",
+          "title": "ROLE-CHAT-UAT-REPLY-001 评审",
+          "status": "completed",
+          "verdict": "PASS",
+          "depends_on": "EXC-20260530-role-chat-uat-reply",
+          "created_at": "2026-05-30T20:05:00Z"
+        }
+      ]
     }
   ],
   "current_phase": 1,
-  "updated_at": "2026-05-29T10:11:21Z"
+  "updated_at": "2026-05-30T20:05:00Z"
 }

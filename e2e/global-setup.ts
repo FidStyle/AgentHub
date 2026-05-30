@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 
 let webProcess: ChildProcess | null = null
+let runtimeWorker: ChildProcess | null = null
 
 const WEB_PORT = 3000
 
@@ -41,11 +42,34 @@ async function globalSetup(_config: FullConfig) {
       }),
   )
 
+  // Real runtime reply path (RUNTIME_E2E=1): bring up Redis + a worker (FakeExecutor) wired to
+  // the same p0 DB, and expose REDIS_URL to the web server so the public_cloud gateway enqueues
+  // jobs the worker consumes. Without this the agent-reply spec self-skips.
+  const runtimeEnv: Record<string, string> = {}
+  if (process.env.RUNTIME_E2E === '1') {
+    const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379'
+    execFileSync(
+      'docker',
+      ['compose', '-f', 'docker/docker-compose.runtime.yml', 'up', '-d', 'redis'],
+      { cwd: rootDir, stdio: 'inherit' },
+    )
+    runtimeEnv.REDIS_URL = redisUrl
+    runtimeWorker = spawn('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'server/runtime-worker.ts'], {
+      cwd: rootDir,
+      env: { ...process.env, ...seededEnv, REDIS_URL: redisUrl },
+      stdio: 'pipe',
+    })
+    runtimeWorker.stdout?.on('data', (d) => process.stdout.write(d))
+    runtimeWorker.stderr?.on('data', (d) => process.stderr.write(d))
+    ;(globalThis as any).__E2E_RUNTIME_WORKER = runtimeWorker
+  }
+
   webProcess = spawn('pnpm', ['dev:web'], {
     cwd: rootDir,
     env: {
       ...process.env,
       ...seededEnv,
+      ...runtimeEnv,
       PORT: String(WEB_PORT),
     },
     stdio: 'pipe',

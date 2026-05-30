@@ -74,10 +74,11 @@ test.describe('WEB-WORKSPACE-UX deep-link 真实交互', () => {
     await assertNoHorizontalScroll(page)
     await assertNoElementOverlap(page, '[data-testid="workspace-shell"] > *')
 
-    // reload 后消息从 DB 重新加载持久化
+    // reload 后消息从 DB 重新加载持久化。agent 回复现也落库（FakeExecutor 回显问题文本），
+    // 故按用户气泡(.bg-primary/10)精确定位用户消息，避免与 agent 回显文本串味。
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.getByText(msg)).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
 
     await context.close()
   })
