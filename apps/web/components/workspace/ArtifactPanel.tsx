@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { Button, StateCard } from '@agenthub/ui'
+import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 
-const TABS = ['产物', '上下文', 'Agents'] as const
+const TABS = ['产物', '编排', '上下文', 'Agents'] as const
 
 export function ArtifactPanel({ onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('产物')
@@ -31,6 +32,7 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
         {activeTab === '产物' && (
           <StateCard variant="empty" title="暂无产物" description="Agent 执行任务后，代码、文件和结果将在此展示" />
         )}
+        {activeTab === '编排' && <OrchestratorPanel />}
         {activeTab === '上下文' && (
           <StateCard variant="empty" title="暂无上下文" description="会话中引用的文件和资源将在此展示" />
         )}
