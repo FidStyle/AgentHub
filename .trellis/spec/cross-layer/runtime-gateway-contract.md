@@ -121,3 +121,82 @@ for await (const event of runtimeGateway.invoke({ runtimeSession, userMessage })
   yield toSse(event);
 }
 ```
+
+## Scenario: Workspace Local Desktop Creation Gate
+
+### 1. Scope / Trigger
+
+- Trigger: Web Workspace or API creates a workspace with `execution_domain='local_desktop'`.
+- Applies to `/api/workspaces`, workspace creation UI, `/api/runtime/status`, and any future mobile/desktop control surface that can create Local Desktop Workspace.
+
+### 2. Signatures
+
+```typescript
+type DesktopStatus = 'connected' | 'disconnected' | 'not_bound';
+type LocalRuntimeStatus = 'ready' | 'unavailable';
+
+interface RuntimeStatusResponse {
+  user: { id: string; name: string | null; email: string | null };
+  desktop: {
+    status: DesktopStatus;
+    connected: boolean;
+    device: { id: string; name: string; last_heartbeat: string | null } | null;
+  };
+  runtime: {
+    status: LocalRuntimeStatus;
+    description: string;
+  };
+}
+```
+
+### 3. Contracts
+
+- Frontend may show a disabled state from `/api/runtime/status`, but backend remains authoritative.
+- `/api/workspaces` MUST reject `execution_domain='local_desktop'` unless the authenticated user has a connected `device_runtime_channels` row for one of their desktop devices.
+- Connected means `devices.user_id = currentUser.id`, `devices.type='desktop'`, and `device_runtime_channels.status='connected'`.
+- Web/Mobile must not use local IP/port to prove local availability. The proof is Gateway DeviceChannel status.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| No desktop device bound | `/api/runtime/status.desktop.status='not_bound'`; local workspace create returns 409 |
+| Desktop exists but no connected channel | status `disconnected`; local workspace create returns 409 |
+| Connected DeviceChannel exists | status `connected`, runtime `ready`; local workspace create may proceed |
+| DB/device status query fails | return 500 with backend error message; do not create workspace |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Web dialog disables Local Desktop creation and backend returns 409 if the Desktop is offline.
+- Base: Cloud workspace creation continues to work without Desktop.
+- Bad: UI lets a user create `local_desktop` workspace while the Desktop connector is offline, producing an unusable workspace.
+
+### 6. Tests Required
+
+- API test or E2E: unauthenticated users still fail auth before state checks.
+- API/E2E: `cloud` workspace creation succeeds without Desktop.
+- API/E2E: `local_desktop` creation without connected `device_runtime_channels` returns 409 with a Chinese actionable message.
+- E2E: workspace status bar displays login, Desktop connection, and local runtime state.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await fetch('/api/workspaces', {
+  method: 'POST',
+  body: JSON.stringify({ name, execution_domain: 'local_desktop' }),
+});
+```
+
+#### Correct
+
+```typescript
+const status = await fetch('/api/runtime/status').then((r) => r.json());
+if (!status.desktop.connected) {
+  showDisabledLocalDesktopState();
+}
+
+// Backend repeats the same gate and returns 409 if the Desktop is not connected.
+await createWorkspace({ name, execution_domain: 'local_desktop' });
+```

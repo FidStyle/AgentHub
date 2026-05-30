@@ -107,6 +107,20 @@
 | **下一步动作** | 关闭 REG-20260530-007 / PRGA-005；遗留 E2E 门禁缺陷（`artifact.spec.ts` 等假数据）见 REG-20260531-011（P1，独立任务） |
 
 
+### TEST-REALITY-GATE-001: E2E 门禁去 mock 接真实主链路（修 PRGA-007/008/009/010 / REG-20260531-011）
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（关闭 REG-20260531-011 / PRGA-007/008/009/010） |
+| **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
+| **当前状态** | ✅ 完成（2026-05-31）：四个「假绿」mock spec 改真实栈集成测试，并实跑全绿。`artifact.spec.ts`（PRGA-007）从全程 `page.route` mock sessions/messages/role-agents 改真实 `POST /api/workspaces+role-agents+sessions+messages` 播种 → 切 Agents/上下文/产物三 Tab 断言真实数据文本（agent 列表项按钮无障碍名定位，规避详情面板/系统提示词 prose 同名 strict-mode 冲突）+ 交叉校验 GET API；`messaging.spec.ts`（PRGA-008）改真实 `@架构师`→发送→`waitForResponse(/api/chat POST)`→断言 agent 回复或明确错误终态→reload 持久化（用户气泡 `.bg-primary/10` 取代失效的 `.bg-blue-500`）；`workspace.spec.ts`（PRGA-009）改真实 `POST /api/workspaces`→交叉校验落库→列表渲染（self-scoped 到唯一命名项 + `scrollIntoViewIfNeeded` 规避长列表 off-screen）→点击导航进 shell，删除 `list[0]`/全局空态等共享 DB 易污染断言；`p0-main-flow.spec.ts`（PRGA-010）删除所有 `if(await x.isVisible())` 静默跳过守卫，硬断言 workspace→session→@角色→发送→回复/错误终态→reload 持久化 + 布局无横向滚动/不重叠。`playwright.config.ts` web-desktop `testMatch` 补 `workspace/artifact/messaging.spec`（此前位于 `tests/` 根目录从不被任何 project 收集——比 mock 更致命的「从不执行」缺口）。审计锚点 `product-reality-gap-audit.spec.ts` 的 PRGA-005/007/008/009/010 反转为修复后事实；顺带反转 PRGA-001（MOBILE-RN-CHAT-RUNTIME-001 已修，`ChatScreen` 用 `sendChat`→`/api/chat` 非 `setTimeout` 回显）/PRGA-004（WEB-ORCHESTRATOR-UI-001 已修，`OrchestratorPanel` 真实引用 PlanCard/ActionCard），消除两个 sibling 任务遗漏未反转的 stale 红锚点。 |
+| **目标** | 核心功能 spec 不得用 mock/`toBeVisible` 假绿；主链路走真实 API/DB/auth/runtime 并断言用户目标终态；环境缺失只能显式 `test.skip` 标 DEFERRED 不能 silent pass |
+| **验收方式** | 真实栈实跑：清 E2E 行 → `source docker/.p0-test.env` → `playwright --project=web-desktop --workers=1`；四 spec + 审计锚点全绿，0 mock 0 silent-skip |
+| **测试证据** | 真实栈实跑 **14 passed**（artifact×2 + messaging×1 + p0-main-flow×2 + workspace×2 + 审计锚点×7，serial，cleaned DB，真实 Supabase/Next API/authjs cookie）；`/api/chat` 实际 compiled+被调用，`/workspace/[id]` 与全部 API 路由由真实 DB 服务；`grep page.route(` → 四 spec CLEAN；审计锚点 regex 校验四 spec `page.request.(post\|get)` / `/api/(workspaces\|chat\|messages\|role-agents\|sessions)` 全 true。运行口令：`docker exec ... psql -c "DELETE FROM workspaces WHERE owner_id='<TEST_USER>' AND name LIKE 'E2E-%'"; set -a; source docker/.p0-test.env; set +a; npx playwright test --config e2e/playwright.config.ts --project=web-desktop --workers=1 tests/artifact.spec.ts tests/messaging.spec.ts tests/workspace.spec.ts tests/web/p0-main-flow.spec.ts tests/web/product-reality-gap-audit.spec.ts` |
+| **阻塞问题** | 端口 3000 被独立运行的 AgentHub 实例（Electron + server.ts）占用、共享同一 seeded DB 形成竞争——已隔离（未杀用户进程，harness 自带 `dev:web` 成功 bind）；RUNTIME_E2E worker-mode（真实 agent 回复路径）本次未实跑，no-worker 错误终态分支已覆盖 → DEFERRED 由 RUNTIME-REAL-EXECUTOR-E2E-001 跟进；真实浏览器/GUI 截图 DEFERRED（CLI 无 GUI） |
+| **下一步动作** | 关闭 REG-20260531-011 / PRGA-007/008/009/010；RUNTIME_E2E worker-mode 实跑见 RUNTIME-REAL-EXECUTOR-E2E-001（P1） |
+
+
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复
 
 | 字段 | 内容 |
@@ -494,6 +508,24 @@
 
 ---
 
+### WORKSPACE-LOCAL-DESKTOP-UAT-001: Web Workspace 与 Desktop 本地连接真实可用性修复
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0（真实用户验收阻塞：Workspace 主入口 + Desktop 本地连接） |
+| **绑定 FR-ID** | FR-WEB-001, FR-WS-001, FR-CHAT-001, FR-RUNTIME-001, FR-DESKTOP-001, FR-DEVICE-001, FR-UI-001 |
+| **共享合同** | `research/contracts/WORKSPACE-LOCAL-DESKTOP-UAT-001.md` |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260531-012`（P0，closed） |
+| **当前状态** | ✅ 完成（2026-05-31）：Web Workspace 状态栏/返回入口、本地 Desktop 创建门禁、Agents CRUD、编排错误细分、附件禁用说明，以及 Desktop `device-channel:connect` IPC fallback 全部落地。 |
+| **目标** | 用户在 `/workspace/:id` 能看到登录/本地连接/runtime 状态，未连接 Desktop 时不能创建不可用本地工作区；当前右栏能管理 Role Agents 并同步 @角色；Desktop 不再暴露 `No handler registered` 低层错误。 |
+| **方案摘要** | 新增 `/api/runtime/status` 真实读取 Auth.js user + devices + device_runtime_channels；`POST /api/workspaces` 对 `local_desktop` 做服务端 409 门禁；`WorkspaceShell` 状态栏 + `CreateWorkspaceDialog` 前端门禁；`ArtifactPanel` Agents Tab 接 `/api/role-agents` CRUD 并派发 `role-agents:changed`；`ChatPanel` 刷新 @角色；`OrchestratorPanel` 显示 plans/actions 具体错误；Desktop 新增 `device-channel-ipc.ts` active/fallback handler 注册单点。 |
+| **验收方式** | 真实 Postgres `agenthub_p0_test` + Auth.js session + Chromium UAT；Web/Desktop type-check；Desktop IPC vitest。 |
+| **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/desktop test -- device-channel-ipc.test.ts` 2 passed；`npx playwright test e2e/tests/web/workspace-local-desktop-uat.spec.ts --config e2e/playwright.config.ts --project=web-desktop --workers=1` 1 passed（6.5s，提升权限后真实 Chromium 通过）。报告 `research/execution-reports/workspace-local-desktop-uat-001-report.md`。 |
+| **阻塞问题** | 无。附件上传后端未实现，按合同诚实禁用并登记为范围外；默认 `.env.local` 引导问题仍归属 DEV-ENV-BOOTSTRAP-001 / REG-20260530-008。 |
+| **下一步动作** | 关闭本任务；如要实现真实附件上传，应另起 `ATTACHMENT-UPLOAD-001` 并定义存储/权限/预览合同。 |
+
+---
+
 ## P2 任务
 
 （暂无登记）
@@ -549,3 +581,5 @@
 | 2026-05-31 | DESKTOP-SESSION-RUNTIME-001 | ✅ 部分关闭 REG-20260531-010（PRGA-002/003）：Desktop 本地 Agent 会话从假交互改真实本地 runtime 执行。`main/index.ts` `setupRuntime()` 激活原死代码 `registerRuntimeIPC()`（`runtime:execute`→`LocalRuntimeAdapter` 真实 `child_process.exec`）；`preload/index.ts` contextBridge 暴露 `runtime.execute/available`；`renderer/utils/electron-api.ts` 补 `RuntimeExecResult` 类型；`DesktopAgentSession.tsx` `handleSend` 改 async 调真实 IPC，按 `exitCode`/catch 写 `success`/`failed` + stdout/stderr 摘要，无 runtime→明确 failed 错误态，删除硬编码 success echo；诊断/继续/重试/停止 改 `disabled`+`title=能力未实现（需远程流式 runtime，见 P1-RT）` 非死按钮。新增 renderer 测试 `apps/desktop/__tests__/desktop-agent-session.test.tsx` **4 passed**（runtime.execute 被调用+真实返回驱动状态 / exitCode≠0 失败态 / 无 runtime 失败态 / 四控制按钮 disabled+原因 title，非 `toBeVisible`），新增 vitest(jsdom)+testing-library 配置；type-check exit 0、build 通过；审计锚点 spec PRGA-002/003 反转为修复后事实。⚠️ Electron GUI 截图仍 DEFERRED。剩 PRGA-001(Mobile RN)/PRGA-004(Web 编排) 仍 open |
 | 2026-05-31 | WEB-ORCHESTRATOR-UI-001 | ✅ 关闭 REG-20260531-010（PRGA-004）→ 全账本（PRGA-001/002/003/004）关闭：Web 编排 UI 从「未上线 + PlanCard/ActionCard 全仓零引用僵尸」改真实面板。新增 `apps/web/components/orchestrator/OrchestratorPanel.tsx`（`'use client'` 读 `useSessionStore().activeSessionId`，并行 `fetch` 真实 `GET /api/plans`+`GET /api/actions`，渲染 PlanCard(onConfirm→`POST /api/plans/:id/confirm`)+ActionCard(onApprove→`POST /api/actions/:id/approve {approved}`)，成功后 re-fetch，未选会话/空/error 显式 StateCard 空态，无 mock/硬编码）；`ArtifactPanel.tsx` TABS 增「编排」渲染 `<OrchestratorPanel />` 消除僵尸。E2E `e2e/tests/web/web-orchestrator-ui.spec.ts`（new）真实 API 播种 plan+high-risk action→切编排 tab→深度断言标题/节点/命令/风险/批准按钮（非 `toBeVisible`）→点批准 `waitForResponse` 真实 approve POST ok→GET 断言 `status=approved` 持久；`type-check` exit 0、`build` success（`/workspace/[id]` 7.18 kB）、`playwright --list` 1 test、`grep PlanCard\|ActionCard` 仅 OrchestratorPanel 引用、反模式扫描 clean。⚠️ E2E 真实运行需 Supabase DB（`TEST_AUTH_COOKIE`+`TEST_SESSION_ID`+`TEST_WORKSPACE_ID`），CI 无真实 DB → `test.skip` DEFERRED 保留断言骨架；GUI 截图 DEFERRED |
 | 2026-05-31 | ARTIFACT-PANEL-DATA-001 | ✅ 关闭 REG-20260530-007 / PRGA-005：Web `ArtifactPanel.tsx` 产物/上下文/Agents 三 Tab 从硬编码 `StateCard empty` 恒空态改接真实数据。AgentsTab 读 `activeWorkspaceId`→`fetch GET /api/role-agents?workspace_id` 按 snake_case 渲染 name/role_type/capabilities/is_orchestrator；ContextTab+OutputTab 共用 `useSessionMessages()` 读 `GET /api/messages?session_id`，上下文筛 `is_pinned||metadata` 非空、产物筛 `message_type∈{plan_card,result_card}||metadata.artifact`；空态仅真实 fetch 为空时显示，未选/error 单独显式态；`data-testid` artifact-agents/context/output；**编排 Tab `<OrchestratorPanel />` 保留**；无 mock/硬编码假空态。E2E `e2e/tests/web/artifact-panel-data.spec.ts`（new）真实 API 播种 role agent+session+pinned 上下文+result_card 产物（非 `page.route` mock）→切三 Tab 断言真实数据文本（非 `toBeVisible`）+交叉校验 `GET /api/role-agents`；`type-check` exit 0、`build` exit 0（`/workspace/[id]` 7.68 kB）、`playwright --list` 1 test、反模式扫描 clean。⚠️ E2E 实跑需真实 Supabase DB（`TEST_AUTH_COOKIE`+`TEST_WORKSPACE_ID`），CI 无真实 DB → `test.skip` DEFERRED 保留断言骨架；GUI 截图 DEFERRED。遗留 `artifact.spec.ts` 等假数据门禁缺陷见 REG-20260531-011（P1，独立） |
+| 2026-05-31 | WORKSPACE-LOCAL-DESKTOP-UAT-001 | ✅ Trellis inline 完成（未使用 Maestro/Ralph）：修复 Web workspace 真实验收缺口（返回“我的工作区”、登录/Desktop/runtime 状态、本地工作区 connected 门禁、Agents CRUD + @角色同步、编排错误细分、附件明确禁用）与 Desktop `device-channel:connect` no-handler fallback。真实 Chromium + Postgres + Auth.js UAT 1 passed（cloud 201、本地未连接 409、Agents create/edit/delete、@同步、无横滚）；Web/Desktop type-check PASS；Desktop IPC unit 2 passed。报告 `workspace-local-desktop-uat-001-report.md`；REG-20260531-012 closed。 |
+| 2026-05-31 | TEST-REALITY-GATE-001 | ✅ 关闭 REG-20260531-011（PRGA-007/008/009/010）：四个「假绿」mock E2E spec 改真实栈集成测试并实跑全绿。`artifact.spec.ts` 从全程 `page.route` 伪造改真实 `POST /api/workspaces+role-agents+sessions+messages` 播种→切 Agents/上下文/产物三 Tab 断言真实数据（agent 列表项按钮无障碍名定位，规避详情面板/系统提示词 prose 同名 strict-mode）+交叉校验 GET API；`messaging.spec.ts` 改真实 `@架构师`→发送→`waitForResponse(/api/chat POST)`→断言回复或明确错误终态→reload 持久化（`.bg-primary/10` 取代失效 `.bg-blue-500`）；`workspace.spec.ts` 改真实 `POST /api/workspaces`→交叉校验落库→self-scoped 列表渲染（`scrollIntoViewIfNeeded`）→点击导航进 shell，删除 `list[0]`/全局空态污染断言；`p0-main-flow.spec.ts` 删除全部 `if(await x.isVisible())` 静默守卫，硬断言 workspace→session→@角色→发送→回复/错误终态→reload+布局无横滚/不重叠。`playwright.config.ts` web-desktop `testMatch` 补 `workspace/artifact/messaging.spec`（此前在 `tests/` 根目录从不被任何 project 收集——比 mock 更致命的「从不执行」缺口）。审计锚点 `product-reality-gap-audit.spec.ts` PRGA-005/007/008/009/010 反转为修复后事实，顺带反转 sibling 任务遗漏的 PRGA-001（MOBILE-RN-CHAT-RUNTIME-001：`ChatScreen` 用 `sendChat`→`/api/chat`）/PRGA-004（WEB-ORCHESTRATOR-UI-001：`OrchestratorPanel` 真实引用卡片）。真实栈实跑 **14 passed**（4 spec 7 test + 审计锚点 7 test，serial，cleaned DB，真实 Supabase/Next API/authjs cookie），`/api/chat` 实际 compiled+被调用，0 mock 0 silent-skip。⚠️ RUNTIME_E2E worker-mode（真实 agent 回复路径）本次仅覆盖 no-worker 错误终态 → DEFERRED 由 `RUNTIME-REAL-EXECUTOR-E2E-001` 跟进；GUI 截图 DEFERRED |

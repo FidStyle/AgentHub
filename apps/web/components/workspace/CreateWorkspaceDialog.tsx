@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useWorkspaceRuntimeStatus } from './useWorkspaceRuntimeStatus'
 
 type ExecutionDomain = 'cloud' | 'local_desktop'
 
@@ -16,11 +17,18 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
   const [domain, setDomain] = useState<ExecutionDomain>('cloud')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const runtimeStatus = useWorkspaceRuntimeStatus()
 
   if (!open) return null
 
+  const localDesktopUnavailable = domain === 'local_desktop' && !runtimeStatus.status?.desktop.connected
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (localDesktopUnavailable) {
+      setError('本地 Desktop 未连接，暂不能创建本地桌面工作区。请先打开 AgentHub Desktop 并完成设备连接。')
+      return
+    }
     setLoading(true)
     setError(null)
     const res = await fetch('/api/workspaces', {
@@ -74,13 +82,27 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
             <option value="cloud">云端执行</option>
             <option value="local_desktop">本地桌面</option>
           </select>
+          <div data-testid="local-desktop-gate" className="mt-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            {runtimeStatus.loading ? (
+              '正在检查本地 Desktop 连接...'
+            ) : runtimeStatus.status?.desktop.connected ? (
+              `本地 Desktop 已连接：${runtimeStatus.status.desktop.device?.name ?? '当前设备'}`
+            ) : (
+              '本地 Desktop 未连接。本地桌面工作区需要先启动 AgentHub Desktop 并完成连接。'
+            )}
+          </div>
         </div>
         {error && <p className="text-destructive text-sm">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded border border-input hover:bg-muted">
             取消
           </button>
-          <button type="submit" disabled={loading || !name} className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={loading || !name || localDesktopUnavailable}
+            title={localDesktopUnavailable ? '请先连接本地 Desktop' : undefined}
+            className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
             {loading ? '创建中...' : '创建'}
           </button>
         </div>

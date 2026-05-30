@@ -31,6 +31,8 @@ async function setupRuntime() {
     runtimeHost.setChannel(deviceChannel)
   } catch (err) {
     console.error('设备通道初始化失败:', err)
+    const { registerUnavailableDeviceChannelHandlers } = await import('./device-channel-ipc')
+    registerUnavailableDeviceChannelHandlers(err instanceof Error ? err.message : '初始化失败')
   }
 }
 

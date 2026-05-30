@@ -33,6 +33,7 @@
 - 本地 Runtime 凭证边界必须遵守 `.trellis/spec/cross-layer/runtime-credential-boundary.md`：本地 CLI 只检测原生认证状态，不托管密钥。
 - 关键页面必须有稳定定位点，供 Playwright 功能断言、截图和布局断言使用。
 - 状态 UI 必须覆盖空、加载、失败、未登录、离线、执行中、待审批、成功、重试。
+- 用户可见的交互控件必须二选一：接入真实行为并验证结果，或显式禁用并给出中文原因（`aria-label`/tooltip/title/可见说明至少一种）。禁止按钮可点击但无效果，尤其是附件、审批、运行时连接、本地工作区创建等主链路入口。
 
 ---
 
@@ -63,6 +64,7 @@ Playwright 不能只写 `toBeVisible`。核心 UI 至少包含：
 - [ ] 是否遵守 `research/product/ui-design-system.md` 的三端职责和组件契约。
 - [ ] 是否复用 shadcn/Tailwind/lucide 基线，避免临时内联样式。
 - [ ] 是否所有用户可见文案都是中文。
+- [ ] 是否所有可见按钮都有真实行为；未实现能力是否显式禁用并说明原因。
 - [ ] 是否没有本地 Runtime API Key、Base URL 或敏感环境变量表单。
 - [ ] 是否覆盖功能断言、截图断言、布局断言和敏感信息断言。
 - [ ] 是否在移动断点下无横向滚动、无遮挡、无文本溢出。

@@ -41,10 +41,17 @@ function useRoleAgents(workspaceId: string | null) {
       setRoleAgents([])
       return
     }
-    fetch(`/api/role-agents?workspace_id=${workspaceId}`)
+    const load = () => fetch(`/api/role-agents?workspace_id=${workspaceId}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data: RoleAgent[]) => setRoleAgents(Array.isArray(data) ? data : []))
       .catch(() => setRoleAgents([]))
+    void load()
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId?: string }>).detail
+      if (!detail?.workspaceId || detail.workspaceId === workspaceId) void load()
+    }
+    window.addEventListener('role-agents:changed', onChanged)
+    return () => window.removeEventListener('role-agents:changed', onChanged)
   }, [workspaceId])
 
   return roleAgents
@@ -166,7 +173,18 @@ function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
             </button>
           </Badge>
         )}
-        <IconButton icon={Paperclip} label="附件" variant="ghost" size="sm" disabled={!activeSessionId} />
+        <IconButton
+          icon={Paperclip}
+          label="附件上传暂未开放"
+          variant="ghost"
+          size="sm"
+          data-testid="attachment-btn"
+          disabled
+          title="附件上传暂未开放"
+        />
+        <span data-testid="attachment-disabled-note" className="text-xs text-muted-foreground">
+          附件暂未开放
+        </span>
       </div>
       <div data-testid="composer-input-row" className="flex gap-2">
         <Input

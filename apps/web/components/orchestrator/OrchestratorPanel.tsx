@@ -9,6 +9,12 @@ import { ActionCard } from './ActionCard'
 
 type PlanWithNodes = Plan & { plan_nodes?: PlanNode[] }
 
+async function responseError(label: string, res: Response) {
+  const body = await res.json().catch(() => ({}))
+  const message = (body as { error?: string }).error || res.statusText || '未知错误'
+  return `${label} 加载失败（${res.status}）：${message}`
+}
+
 export function OrchestratorPanel() {
   const { activeSessionId } = useSessionStore()
   const [plans, setPlans] = useState<PlanWithNodes[]>([])
@@ -24,7 +30,8 @@ export function OrchestratorPanel() {
         fetch(`/api/plans?session_id=${sessionId}`),
         fetch(`/api/actions?session_id=${sessionId}`),
       ])
-      if (!pRes.ok || !aRes.ok) throw new Error('加载编排数据失败')
+      if (!pRes.ok) throw new Error(await responseError('/api/plans', pRes))
+      if (!aRes.ok) throw new Error(await responseError('/api/actions', aRes))
       setPlans(await pRes.json())
       setActions(await aRes.json())
     } catch (e) {
@@ -36,6 +43,11 @@ export function OrchestratorPanel() {
 
   useEffect(() => {
     if (activeSessionId) load(activeSessionId)
+    else {
+      setPlans([])
+      setActions([])
+      setError(null)
+    }
   }, [activeSessionId, load])
 
   const onConfirm = useCallback(

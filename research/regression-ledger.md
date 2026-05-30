@@ -53,14 +53,15 @@
 | --- | --- |
 | **类型** | test-gap / 门禁缺陷 |
 | **优先级** | P1（artifact/messaging/p0-main-flow 为 P0 功能面，但其 spec 不挡假交互） |
-| **状态** | `open` |
+| **状态** | `closed`（2026-05-31，`TEST-REALITY-GATE-001` 修复并真实栈实跑 14 passed） |
 | **关联 FR/PRD** | `FR-CHAT-001`, `FR-WEB-001`, `FR-UI-001` |
-| **关联任务/合同** | 发现于 `PRODUCT-REALITY-GAP-AUDIT-001`。建议修复任务：`TEST-ARTIFACT-REAL-DATA-001`、`TEST-MESSAGING-REAL-CHAT-001`、`TEST-WORKSPACE-REAL-CRUD-001`、`TEST-P0-FLOW-REAL-ASSERT-001` |
+| **关联任务/合同** | 发现于 `PRODUCT-REALITY-GAP-AUDIT-001`。由 `TEST-REALITY-GATE-001` 一次性修复全部四 spec（合并原建议的 4 个子任务） |
 | **影响功能面** | (PRGA-007) `e2e/tests/artifact.spec.ts`；(PRGA-008) `e2e/tests/messaging.spec.ts`；(PRGA-009) `e2e/tests/workspace.spec.ts`；(PRGA-010) `e2e/tests/web/p0-main-flow.spec.ts` |
 | **发现方式** | 测试层静态扫描 + 主进程 grep 核验（2026-05-31） |
 | **证据** | `artifact.spec.ts:41-83` 全程 `page.route` fulfill 伪造 sessions/messages/role-agents，4 test 只 `toBeVisible`（且断言的 Plan/Result/Artifact Detail 文案与当前恒空态 `ArtifactPanel.tsx` 不符——测试green 但产品空壳）；`messaging.spec.ts:39` mock `/api/chat`，行 57 只断言用户消息气泡 `.bg-blue-500`，**从不断言 agent 回复**；`workspace.spec.ts:9-55` 全 mock 只 `toBeVisible`；`p0-main-flow.spec.ts:12-71` 用 `if (await x.isVisible())` 条件保护跳过核心断言、无 reload 验证 |
 | **关闭条件** | 移除主链路 `page.route` mock 改真实 API/DB；断言 agent 回复非空非 echo + reload 持久化；移除条件保护；与既有「好测试」白名单（`role-chat-uat-reply.spec.ts`/`mobile-chat-deliver.spec.ts`/`chat.test.ts` AT-005/006）对齐标准 |
-| **下一步** | 与 REG-20260531-010 修复同步更新对应 spec；修复前基线见 `e2e/tests/web/product-reality-gap-audit.spec.ts` |
+| **关闭证据** | 四 spec 全改真实 `POST /api/workspaces+role-agents+sessions+messages` + `/api/chat` 真实链路；删除所有 `page.route` 与 `if(isVisible)` 守卫；断言真实数据/agent 回复或明确错误终态/reload 持久化；`playwright.config.ts` web-desktop `testMatch` 补齐此前从不被收集的 `workspace/artifact/messaging.spec`。真实栈实跑（cleaned DB + `docker/.p0-test.env` 真实 authjs cookie + 真实 Supabase + Next API）**14 passed**（4 spec 7 test + 审计锚点 7 test），`/api/chat` 实际 compiled+被调用。审计锚点 `product-reality-gap-audit.spec.ts` PRGA-005/007/008/009/010 反转为修复后事实（顺带反转 sibling 任务遗漏的 PRGA-001/004） |
+| **下一步** | 已关闭；RUNTIME_E2E worker-mode（真实 agent 回复路径，本次仅覆盖 no-worker 错误终态）实跑 DEFERRED → `RUNTIME-REAL-EXECUTOR-E2E-001`（P1）；GUI 截图 DEFERRED |
 
 ### REG-20260531-002 — workspace selector 下拉越界且无内部滚动（FLOATING-UI-UAT-AUDIT-001 GAP-001）
 
@@ -142,6 +143,23 @@
 | **证据** | `apps/web/.env.local` 实际值为 `NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co` 占位符，无可用 DB/`REDIS_URL`；审计须改用 `docker/.p0-test.env`（真实 `agenthub_p0_test` Postgres + 真实 auth cookie）才能跑通 |
 | **关闭条件** | 提供可复现的本地真实 DB/Redis env（或 `dev:full` 自动指向 p0/dev DB）；补「默认入口启动 → 登录 → 主链路可用」冒烟 |
 | **下一步** | `DEV-ENV-BOOTSTRAP-001`(P1) |
+
+
+### REG-20260531-012 — Web Workspace 本地连接/Agents/附件/Desktop IPC 真实验收缺口
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / unfinished / real UAT gap |
+| **优先级** | P0 |
+| **状态** | `closed`（2026-05-31，WORKSPACE-LOCAL-DESKTOP-UAT-001 修复并真实浏览器验证通过） |
+| **关联 FR/PRD** | `FR-WEB-001`, `FR-WS-001`, `FR-CHAT-001`, `FR-RUNTIME-001`, `FR-DESKTOP-001`, `FR-DEVICE-001`, `FR-UI-001` |
+| **关联任务/合同** | `WORKSPACE-LOCAL-DESKTOP-UAT-001`；`research/contracts/WORKSPACE-LOCAL-DESKTOP-UAT-001.md`；`.trellis/tasks/05-31-workspace-local-desktop-uat/prd.md` |
+| **影响功能面** | Web `/workspace/:id`、`/workspace` 新建工作区、右栏 Agents/编排/附件、Desktop `device-channel:connect` IPC |
+| **发现方式** | 用户真实 Web 3000/Desktop dev 验收反馈：编排加载失败不可行动、Agents 只有架构师且不能 CRUD、工作区内不能回“我的工作区”、看不到登录/本地连接状态、未连接也可建本地工作区、附件可点无效果、Desktop 报 `No handler registered for 'device-channel:connect'` |
+| **证据** | 代码核对确认：`ArtifactPanel.tsx` Agents 仅列表展示，旧 `DetailPanel.tsx` CRUD 不在当前入口；`CreateWorkspaceDialog.tsx` 无 `local_desktop` connected 门禁；`ChatPanel.tsx` 附件按钮无行为；`OrchestratorPanel.tsx` 泛化错误；Desktop `DeviceChannel` 构造时注册 handler，但初始化失败会让 renderer 收到 Electron 低层 no-handler。 |
+| **关闭条件** | Workspace 内有返回入口和登录/Desktop/runtime 状态；未连接 Desktop 时前后端均阻止 `local_desktop` 创建；Agents Tab 可真实 create/edit/delete 并刷新 @角色；编排 API 错误显示具体状态码/message；附件未实现时明确禁用；Desktop main 即使 DeviceChannel 初始化失败也注册 fallback IPC，避免 no-handler；真实浏览器 UAT 覆盖用户结果。 |
+| **关闭证据** | `WORKSPACE-LOCAL-DESKTOP-UAT-001`（2026-05-31）：新增 `/api/runtime/status`；`POST /api/workspaces` local_desktop connected gate（未连接 409）；`WorkspaceShell` 状态栏 + 返回“我的工作区”；`CreateWorkspaceDialog` 前端门禁；`ArtifactPanel` Agents CRUD；`ChatPanel` 监听 `role-agents:changed` 刷新 @角色；`OrchestratorPanel` 显示 `/api/plans`/`/api/actions` 具体错误；附件按钮禁用并显示“附件暂未开放”；Desktop 新增 `device-channel-ipc.ts` active/fallback handler。验证：Web/Desktop type-check PASS；Desktop IPC unit 2 passed；真实 Chromium UAT `workspace-local-desktop-uat.spec.ts` 1 passed（6.5s，真实 Postgres + Auth.js session，cloud 201、本地未连接 409、Agents create/edit/delete、@同步、无横滚）。报告 `research/execution-reports/workspace-local-desktop-uat-001-report.md` |
+| **下一步** | 已关闭。真实附件上传后端另起 `ATTACHMENT-UPLOAD-001`；默认 dev env 引导仍归 `DEV-ENV-BOOTSTRAP-001` / REG-20260530-008。 |
 
 
 ### REG-20260531-004 — `@agenthub/web` build 被 dual `@types/react`（mobile 18 / web-ui-desktop 19）阻断（build blocker，已关闭）

@@ -1,5 +1,5 @@
 import WebSocket from 'ws'
-import { ipcMain, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 import {
   serializeFrame,
   parseFrame,
@@ -11,6 +11,7 @@ import {
   type RequestFrame,
   type DeviceFrame,
 } from '@agenthub/shared'
+import { registerDeviceChannelHandlers } from './device-channel-ipc'
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'authenticating' | 'connected' | 'reconnecting'
 
@@ -31,15 +32,7 @@ export class DeviceChannel {
   private requestHandlers = new Map<string, (frame: RequestFrame) => void>()
 
   constructor() {
-    this.registerIPC()
-  }
-
-  private registerIPC() {
-    ipcMain.handle('device-channel:connect', (_e, config: DeviceChannelConfig) => {
-      this.connect(config)
-    })
-    ipcMain.handle('device-channel:disconnect', () => this.disconnect())
-    ipcMain.handle('device-channel:state', () => this.state)
+    registerDeviceChannelHandlers(this)
   }
 
   connect(config: DeviceChannelConfig) {

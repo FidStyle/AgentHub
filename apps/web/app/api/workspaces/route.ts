@@ -6,6 +6,32 @@ function hasDatabaseConfig() {
   return Boolean(process.env.DATABASE_URL)
 }
 
+async function hasConnectedDesktopRuntime(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data: devices, error: devicesError } = await db
+    .from('devices')
+    .select('id, type')
+    .eq('user_id', userId)
+
+  if (devicesError) return { ok: false, error: devicesError.message }
+
+  const desktopDevices = ((devices ?? []) as unknown as Array<{ id: string; type: string }>).filter((device) => device.type === 'desktop')
+  if (desktopDevices.length === 0) return { ok: false }
+
+  for (const device of desktopDevices) {
+    const { data: channels, error: channelError } = await db
+      .from('device_runtime_channels')
+      .select('status')
+      .eq('device_id', device.id)
+
+    if (channelError) return { ok: false, error: channelError.message }
+    if (((channels ?? []) as unknown as Array<{ status: string }>).some((channel) => channel.status === 'connected')) {
+      return { ok: true }
+    }
+  }
+
+  return { ok: false }
+}
+
 export async function GET() {
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
@@ -46,6 +72,17 @@ export async function POST(request: Request) {
   }
 
   const db = await createClient()
+  if (execution_domain === 'local_desktop') {
+    const desktop = await hasConnectedDesktopRuntime(db, user.id)
+    if (desktop.error) return NextResponse.json({ error: desktop.error }, { status: 500 })
+    if (!desktop.ok) {
+      return NextResponse.json(
+        { error: '本地 Desktop 未连接，暂不能创建本地桌面工作区。请先打开 AgentHub Desktop 并完成设备连接。' },
+        { status: 409 },
+      )
+    }
+  }
+
   const { data, error } = await db
     .from('workspaces')
     .insert({ owner_id: user.id, name, execution_domain, description: description || '' })

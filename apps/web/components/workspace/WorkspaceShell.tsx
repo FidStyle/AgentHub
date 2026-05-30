@@ -1,15 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Sidebar } from './Sidebar'
 import { ChatPanel } from './ChatPanel'
 import { ArtifactPanel } from './ArtifactPanel'
-import { IconButton } from '@agenthub/ui'
-import { PanelLeft } from 'lucide-react'
+import { Badge, IconButton } from '@agenthub/ui'
+import { ArrowLeft, PanelLeft, RefreshCw } from 'lucide-react'
+import { useWorkspaceRuntimeStatus } from './useWorkspaceRuntimeStatus'
 
 export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [leftPanelOpen, setLeftPanelOpen] = useState(false)
+  const runtimeStatus = useWorkspaceRuntimeStatus()
+  const userLabel = runtimeStatus.status?.user.name ?? runtimeStatus.status?.user.email ?? '未登录'
+  const desktopConnected = runtimeStatus.status?.desktop.connected ?? false
 
   return (
     <div
@@ -49,6 +54,46 @@ export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
             size="sm"
             data-testid="open-sidebar"
             onClick={() => setLeftPanelOpen(true)}
+          />
+          <Link href="/workspace" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            我的工作区
+          </Link>
+        </div>
+        <div
+          data-testid="workspace-status-bar"
+          className="flex min-h-11 flex-wrap items-center gap-2 border-b border-border bg-background px-3 py-2 text-xs"
+        >
+          <Link
+            href="/workspace"
+            className="hidden items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            我的工作区
+          </Link>
+          <Badge variant="secondary" data-testid="workspace-user-status">
+            登录：{userLabel}
+          </Badge>
+          <Badge
+            variant={desktopConnected ? 'success' : 'secondary'}
+            data-testid="workspace-desktop-status"
+          >
+            Desktop：{desktopConnected ? '已连接' : '未连接'}
+          </Badge>
+          <Badge
+            variant={runtimeStatus.status?.runtime.status === 'ready' ? 'success' : 'secondary'}
+            data-testid="workspace-runtime-status"
+          >
+            本地 Runtime：{runtimeStatus.status?.runtime.status === 'ready' ? '可用' : '不可用'}
+          </Badge>
+          {runtimeStatus.error && <span className="text-destructive">{runtimeStatus.error}</span>}
+          <IconButton
+            icon={RefreshCw}
+            label="刷新本地连接状态"
+            variant="ghost"
+            size="sm"
+            data-testid="refresh-runtime-status"
+            onClick={() => runtimeStatus.refresh()}
           />
         </div>
         <ChatPanel onTogglePanel={() => setRightPanelOpen((v) => !v)} />
