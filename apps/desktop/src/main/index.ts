@@ -14,6 +14,9 @@ async function setupRuntime() {
   const { RuntimeHost } = await import('./runtime/runtime-host')
   runtimeHost = new RuntimeHost()
 
+  const { registerRuntimeIPC } = await import('./runtime/ipc')
+  registerRuntimeIPC()
+
   try {
     const { RuntimeConfigStore } = await import('./runtime/runtime-config-store')
     configStore = new RuntimeConfigStore()

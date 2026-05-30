@@ -99,3 +99,13 @@ useEffect(() => {
 **M6**: Replaced setInterval mock with real SSE streaming from /api/chat endpoint.
 **Milestone**: M6
 
+
+### Electron IPC 死代码：handler 注册必须在 main 进程显式调用
+**Owner**: Electron 全栈
+**Pitfall**: `registerRuntimeIPC()`（`runtime:execute` 等 `ipcMain.handle`）已实现却从未被 `main/index.ts` 调用，preload 也未 `contextBridge` 暴露 → renderer `window.electronAPI.runtime.execute` 始终 undefined，假交互被迫硬编码 success echo。修复需三层齐全：main 显式 `registerRuntimeIPC()` + preload `contextBridge` 暴露 + renderer 类型签名，缺一则链路不通。审计时用 grep 反查 handler 是否真的被 wire，不要假设"已实现=已接通"。
+**Milestone**: adhoc-desktop-session-runtime (DESKTOP-SESSION-RUNTIME-001)
+
+### 能力未实现的按钮：disabled + title 原因优于假 onClick
+**Owner**: 前端 UX
+**Pattern**: 当某控制语义（继续/重试/停止 需远程流式 runtime 会话）尚不支持时，按钮应 `disabled` 并加 `title` 说明原因（指向未来 milestone 如 P1-RT），而非挂一个无效果 onClick 制造"可点假交互"。诚实的禁用态比静默失败更可维护，且 renderer 测试可直接断言 disabled+title。
+**Milestone**: adhoc-desktop-session-runtime (DESKTOP-SESSION-RUNTIME-001)

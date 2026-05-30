@@ -5,8 +5,17 @@ export interface RuntimeInfo {
   authenticated: boolean
 }
 
+export interface RuntimeExecResult {
+  exitCode: number
+  stdout: string
+  stderr: string
+  duration: number
+}
+
 interface ElectronRuntimeApi {
   detect: () => Promise<RuntimeInfo[]>
+  execute: (command: string, cwd: string) => Promise<RuntimeExecResult>
+  available: () => Promise<boolean>
 }
 
 interface ElectronApi {

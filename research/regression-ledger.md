@@ -34,7 +34,7 @@
 | --- | --- |
 | **类型** | fake-interaction / unfinished（假交互 + 占位 + 未渲染） |
 | **优先级** | **P0**（多个用户入口下「Agent 真正执行 / 编排闭环」核心价值未达成） |
-| **状态** | `open` |
+| **状态** | `open`（**部分关闭**：PRGA-002/003 Desktop 已修复（`DESKTOP-SESSION-RUNTIME-001`，2026-05-31）；PRGA-001 原生 Mobile RN + PRGA-004 Web 编排 UI 仍 `open`） |
 | **关联 FR/PRD** | `FR-CHAT-001`, `FR-RUNTIME-001`, `FR-DESKTOP-001`, `FR-MOBILE-001`, `FR-UI-001` |
 | **关联任务/合同** | 发现于 `PRODUCT-REALITY-GAP-AUDIT-001`（只读审计；`research/execution-reports/product-reality-gap-audit-001-report.md` + `product-reality-gap-audit-001-findings.json`）。建议修复任务：`MOBILE-RN-CHAT-RUNTIME-001`、`DESKTOP-SESSION-RUNTIME-001`、`DESKTOP-SESSION-CONTROLS-001`、`WEB-ORCHESTRATOR-UI-001` |
 | **影响功能面** | (PRGA-001) 原生 Mobile App 聊天发送；(PRGA-002) Desktop 本地 Agent 会话输入指令；(PRGA-003) Desktop 诊断/继续/重试/停止控制；(PRGA-004) Web 编排计划/动作/审批 UI |
@@ -42,7 +42,8 @@
 | **证据** | PRGA-001 `apps/mobile/src/screens/ChatScreen.tsx:13-50`（`setTimeout` 回显 `[Agent] 收到: "<原文>"`，无网络请求，硬编码 `session_id='mobile-sess-1'`）；PRGA-002 `apps/desktop/src/renderer/components/shell/DesktopAgentSession.tsx:14-20`（`handleSend` 只 `addActivity({status:'success'})` echo，renderer 未连 main 进程 `StreamAdapter.spawn`/`DeviceChannel`）；PRGA-003 同文件 `:73-76`（四按钮无 `onClick`）；PRGA-004 `apps/web/components/orchestrator/PlanCard.tsx`+`ActionCard.tsx` 全仓 grep 零引用，`WorkspaceShell` 无编排区，后端 `/api/plans`+`/api/actions` 可用却无界面入口 |
 | **与既有账本关系** | 区别于已关闭的 REG-20260530-006：GAP-002 修复的是 `apps/web/app/m/` PWA 路由（`MOBILE-CHAT-DELIVER-001`），**原生 `apps/mobile/` RN App、Desktop 本地会话、Web 编排 UI 三面从未被审计/修复**。「FakeExecutor 回显≠完成」原则在本三面同样适用 |
 | **关闭条件** | 各 surface 发送/点击触发真实 runtime/IPC/API 并产生可观测业务结果（非 local state / echo / 硬编码 success）；编排 UI 真实渲染计划/动作并审批生效；各自补真实断言 E2E（非仅 `toBeVisible`/HTTP 200）；report + tracker + 中文 commit 闭环 |
-| **下一步** | 按 P0 排序修复，不得以测试态/视觉断言冒充完成；修复前基线见只读锚点 `e2e/tests/web/product-reality-gap-audit.spec.ts` |
+| **部分关闭证据** | `DESKTOP-SESSION-RUNTIME-001`（2026-05-31）关 PRGA-002/003：`apps/desktop/src/main/index.ts` `setupRuntime()` 激活 `registerRuntimeIPC()`（`runtime:execute`→`LocalRuntimeAdapter` 真实 `child_process.exec`）；`preload/index.ts` 暴露 `runtime.execute/available`；`DesktopAgentSession.tsx` `handleSend` 改 async 调真实 IPC，按 `exitCode`/catch 写 `success`/`failed` + stdout/stderr 摘要，**无 runtime → 明确 failed 错误态**，删除硬编码 success；诊断/继续/重试/停止 改 `disabled`+`title=能力未实现（需远程流式 runtime，见 P1-RT）` 非可点无效果。renderer 测试 `apps/desktop/__tests__/desktop-agent-session.test.tsx` **4 passed**（runtime.execute 被调用且状态来自真实返回 / exitCode≠0 失败态 / 无 runtime 失败态 / 四控制按钮 disabled+原因 title），非 `toBeVisible` 糊弄。type-check + build 通过。⚠️ 真实 Electron 用户态截图仍 DEFERRED（CLI 环境无 GUI） |
+| **下一步** | 按 P0 排序修复 PRGA-001（Mobile RN）+ PRGA-004（Web 编排 UI）；不得以测试态/视觉断言冒充完成；修复前基线见只读锚点 `e2e/tests/web/product-reality-gap-audit.spec.ts` |
 
 ### REG-20260531-011 — E2E 门禁缺陷：核心功能 spec 全程 mock 主链路 + 只断言表层（PRODUCT-REALITY-GAP-AUDIT-001）
 

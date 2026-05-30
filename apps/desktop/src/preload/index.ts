@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runtime: {
     detect: () => ipcRenderer.invoke('runtime:detect'),
     cached: () => ipcRenderer.invoke('runtime:cached'),
+    execute: (command: string, cwd: string) => ipcRenderer.invoke('runtime:execute', command, cwd),
+    available: () => ipcRenderer.invoke('runtime:available'),
   },
   runtimeConfig: {
     get: () => ipcRenderer.invoke('runtime-config:get'),

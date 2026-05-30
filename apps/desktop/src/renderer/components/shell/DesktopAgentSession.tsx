@@ -3,6 +3,9 @@ import { Card, CardContent, Button, Badge, Input } from '@agenthub/ui'
 import { useConsoleStore } from '../../store/console-store'
 import { ActivityPanel } from '../console/ActivityPanel'
 import { ApprovalPanel } from '../console/ApprovalPanel'
+import { getElectronAPI } from '../../utils/electron-api'
+
+const CONTROL_UNAVAILABLE = '能力未实现：需远程流式 runtime 会话（见 P1-RT），本地一次性执行不支持此控制语义'
 
 export function DesktopAgentSession() {
   const { agents, activities, selectedAgent, workspaceDirs, enterSession, addActivity } = useConsoleStore()
@@ -11,12 +14,45 @@ export function DesktopAgentSession() {
   const [input, setInput] = React.useState('')
   const [sending, setSending] = React.useState(false)
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() || !selectedAgent || sending) return
+    const command = input.trim()
+    const cwd = activeWorkspace ?? workspaceDirs[0]?.path ?? '.'
+    const runtime = getElectronAPI()?.runtime
     setSending(true)
-    addActivity({ type: 'action', status: 'success', message: `[${selectedAgent.name}] ${input.trim()}` })
     setInput('')
-    setSending(false)
+
+    if (!runtime || typeof runtime.execute !== 'function') {
+      addActivity({
+        type: 'runtime',
+        status: 'failed',
+        message: `[${selectedAgent.name}] ${command}`,
+        reason: '本地 runtime 不可用：未检测到 Electron runtime 桥接，无法执行指令',
+      })
+      setSending(false)
+      return
+    }
+
+    try {
+      const result = await runtime.execute(command, cwd)
+      const ok = result.exitCode === 0
+      const output = (ok ? result.stdout : result.stderr || result.stdout).trim()
+      addActivity({
+        type: 'runtime',
+        status: ok ? 'success' : 'failed',
+        message: `[${selectedAgent.name}] ${command}${output ? `\n${output.slice(0, 2000)}` : ''}`,
+        reason: ok ? undefined : `退出码 ${result.exitCode}`,
+      })
+    } catch (err) {
+      addActivity({
+        type: 'runtime',
+        status: 'failed',
+        message: `[${selectedAgent.name}] ${command}`,
+        reason: err instanceof Error ? err.message : '执行失败',
+      })
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -70,10 +106,10 @@ export function DesktopAgentSession() {
           <p className="text-xs text-muted-foreground mb-2">请先选择一个已接入的 Agent</p>
         )}
         <div className="flex gap-2 mb-2">
-          <Button size="sm" variant="outline" disabled={!selectedAgent}>诊断</Button>
-          <Button size="sm" variant="outline" disabled={!selectedAgent}>继续</Button>
-          <Button size="sm" variant="outline" disabled={!selectedAgent}>重试</Button>
-          <Button size="sm" variant="destructive" disabled={!selectedAgent}>停止</Button>
+          <Button size="sm" variant="outline" disabled title={CONTROL_UNAVAILABLE}>诊断</Button>
+          <Button size="sm" variant="outline" disabled title={CONTROL_UNAVAILABLE}>继续</Button>
+          <Button size="sm" variant="outline" disabled title={CONTROL_UNAVAILABLE}>重试</Button>
+          <Button size="sm" variant="destructive" disabled title={CONTROL_UNAVAILABLE}>停止</Button>
         </div>
         <div className="flex gap-2">
           <Input
