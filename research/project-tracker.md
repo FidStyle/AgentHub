@@ -387,6 +387,23 @@
 
 ---
 
+### FLOATING-UI-FIX-REMAINING-001: 移动 artifact 抽屉 backdrop（FIX-O1 / REG-20260531-003）+ role picker portal 预防升级（FIX-D2）
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（medium 缺陷修复 FIX-O1 + 预防性 hardening FIX-D2） |
+| **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260531-003`（medium → ✅ closed 2026-05-31） |
+| **当前状态** | ✅ 完成（2026-05-31）：**FIX-O1** `WorkspaceShell.tsx` artifact 移动抽屉补 `artifact-backdrop`（`fixed inset-0 z-20 bg-black/40 lg:hidden`，onClick 关闭）+ 移动顶栏 `z-[25]`（高于 backdrop、低于抽屉，修复 backdrop 拦截 `open-sidebar` 回归），桌面三栏零影响。**FIX-D2** `ChatPanel.tsx` role picker 从裸 `absolute z-10` 预防升级为 portal-to-body——抽出 `RolePicker` `createPortal` 到 body + `computeRolePicker`（上方优先/不足翻下方 flip + clamp）+ `maxHeight`(≤60%vh)+`overflow-y-auto` + `max-w-[320px]`/`break-words` + `z-50` + pointerdown 外部关闭；@角色业务逻辑零改动。真实浏览器三视口 **3 passed**。 |
+| **目标** | artifact 移动抽屉对齐 sidebar drawer（backdrop+点击外部关闭+z 分层）；role picker 浮层不越界/不裁切/不撑横滚/长角色名不撑爆；不回退 FIX-D1、不改 @角色业务逻辑、不影响桌面三栏 |
+| **方案摘要** | 复用 FIX-D1 母版（`Sidebar.tsx` `WorkspaceDropdown`）portal+computeXxx flip/clamp+pointerdown 外部关闭思路；FIX-O1 backdrop 对齐 `sidebar-backdrop` 实现；FIX-D2 按 role-picker 语义补 max-width/break-words |
+| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_p0_test` + 真实 Auth.js session；O1/D2 段升级为几何硬门禁（O1 backdrop 覆盖全视口+点击关闭+z 分层；D2 floating bbox 在视口内+width≤320+无裁切+无横滚），D1 保持 pass，禁止 `toBeVisible` |
+| **测试证据** | `research/execution-reports/floating-ui-fix-remaining-001-report.md` + `floating-ui-uat-audit-001-findings.json`（全 16 ok，O1/D2/D1×3 视口 symptoms 空）+ `e2e/tests/web/floating-ui-uat-audit.spec.ts`（O1/D2 硬断言）+ `e2e/artifacts/floating-ui-uat-audit/*-{O1,D2}-*.png` |
+| **阻塞问题** | 无。此前结转的 pre-existing dual `@types/react` tsc 冲突已由 WEB-BUILD-REACT-TYPES-001（REG-20260531-004）在依赖解析层根治关闭，本任务 web type-check 全绿、无新增类型错误 |
+| **下一步动作** | 关闭。FLOATING-UI-UAT-AUDIT-001 全部 GAP（D1/O1）已闭环，FIX-D2 预防项一并完成 |
+
+---
+
 ### WEB-BUILD-REACT-TYPES-001: 修复 `@agenthub/web` build 失败的 dual `@types/react` 类型冲突
 
 | 字段 | 内容 |
@@ -453,3 +470,4 @@
 | 2026-05-31 | FLOATING-UI-UAT-AUDIT-001 | ✅ 只读浮层/Overlay 真实浏览器几何审计完成（analyze→reference-extract→audit→verify，不 execute/不修复）：refer_proj（cherry-studio/lobehub/AionUi/claudecodeui）提炼 R1–R11 浮层规则写入 Reference Findings；真实浏览器三视口（1440/1280/768）几何审计 3/3 passed，14 findings。发现 GAP-001(high) workspace 下拉越界无滚动 ×3 视口、GAP-002(medium) 移动 artifact 抽屉无 backdrop；T1 tooltip 母版无回归。登记 REG-20260531-002(high)/003(medium)。产物：report + findings.json + 只读审计 spec |
 | 2026-05-31 | FLOATING-UI-FIX-D1-001 | ✅ 修复 GAP-001/REG-20260531-002（workspace 下拉越界+无内部滚动）：`Sidebar.tsx` 抽出 `WorkspaceDropdown`（同构 Tooltip 母版）portal-to-body + `computeDropdown` flip/clamp + `maxHeight`(≤60%vh)+`overflow-y-auto` + `z-50` + pointerdown 外部关闭；业务逻辑零改动。审计 spec D1 段升级为几何硬门禁。真实浏览器三视口 **3 passed**，D1 high→ok（floating 高 ~4400→540/480/540，bottom 全在视口内），findings `ok×13/medium×1`（剩 medium=O1 范围外），无回归。关闭 REG-20260531-002。结转 pre-existing dual @types/react tsc 冲突（同源+1，非新缺陷） |
 | 2026-05-31 | WEB-BUILD-REACT-TYPES-001 | ✅ 修复 `@agenthub/web` `next build` 失败的 dual `@types/react` 冲突（build blocker）：`tsc --traceResolution` 定位根因为 pnpm 把 mobile `@types/react@18.3.29` hoist 进虚拟仓库根 `node_modules/.pnpm/node_modules/@types/react`，经 root 依赖（`react-markdown` 等）ambient `@types` 上溯污染 web(React 19) 编译图，v18 `ReactPortal.children` 必填致两份 `ReactNode` 不兼容 → `Suspense`/`ReactMarkdown`/`Sidebar` portal/`Tooltip` 全 TS2786。修复：根 `.npmrc` 增 `hoist-pattern[]=!@types/react`/`!@types/react-dom` 剔除裸副本（不用 any/cast/skipLibCheck）+ `pnpm install`。web build exit 0 / web type-check exit 0 / ui type-check exit 0 / desktop type-check exit 0、残留冲突类型=0、mobile 隔离 18 / web-ui-desktop 19 保持。把历史 carried-over concern 升级为 build blocker REG-20260531-004 并关闭。报告 `web-build-react-types-001-report.md` |
+| 2026-05-31 | FLOATING-UI-FIX-REMAINING-001 | ✅ 修复 GAP-002/REG-20260531-003（移动 artifact 抽屉无 backdrop）+ 预防升级 FIX-D2（role picker portal）：**FIX-O1** `WorkspaceShell.tsx` 补 `artifact-backdrop`（`fixed inset-0 z-20 bg-black/40 lg:hidden` onClick 关闭）+ 移动顶栏 `z-[25]`（修复 backdrop 拦截 `open-sidebar` 回归，介于 backdrop z-20 与抽屉 z-30 之间），桌面三栏零影响。**FIX-D2** `ChatPanel.tsx` role picker 从裸 `absolute z-10` 升级为 portal-to-body：抽出 `RolePicker` `createPortal` 到 body + `computeRolePicker`（上方优先/翻转 flip+clamp）+ `maxHeight`(≤60%vh)+`overflow-y-auto` + `max-w-[320px]`/`break-words` + `z-50` + pointerdown 外部关闭；@角色业务逻辑（selectedRole/sendMessage roleAgentId）零改动、未回退 FIX-D1。审计 spec O1/D2 段升级为几何硬门禁，D1 保持 pass。真实浏览器三视口 **3 passed**，findings 全 16 ok（O1/D2/D1×3 symptoms 空）。关闭 REG-20260531-003；dual @types/react 冲突已由 REG-20260531-004 根治，web type-check 全绿无新增类型错误。报告 `floating-ui-fix-remaining-001-report.md` |

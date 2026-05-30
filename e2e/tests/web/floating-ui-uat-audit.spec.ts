@@ -144,6 +144,42 @@ for (const vp of VIEWPORTS) {
 
       const isMobile = vp.width < 1024
 
+      // ---- O1（移动）：artifact 抽屉默认开启（rightPanelOpen=true），先审计 backdrop+z 分层+点击关闭，
+      // 再夹起模态抽屉，使后续 T1/D1/D2 在无模态遮罩下交互（modal drawer 必须先 dismiss 才能操作其下层）。
+      if (isMobile) {
+        const o1Sel = '[data-testid="artifact-overlay"]'
+        const backdropSel = '[data-testid="artifact-backdrop"]'
+        const o1Box = await boxOf(page, o1Sel)
+        const backdropBox = await boxOf(page, backdropSel)
+        const o1Symptoms: string[] = []
+        if (o1Box) o1Symptoms.push(...inViewport(o1Box, vp.width, vp.height))
+        if (!backdropBox) o1Symptoms.push('移动态无 backdrop / 无点击外部关闭（对照 sidebar 抽屉有 backdrop）')
+        else if (backdropBox.width < vp.width - 1 || backdropBox.height < vp.height - 1) o1Symptoms.push('backdrop 未覆盖全视口')
+        const zLayers = await page.evaluate(([bSel, oSel]) => {
+          const z = (s: string) => {
+            const el = document.querySelector(s)
+            return el ? parseInt(getComputedStyle(el).zIndex || '0', 10) || 0 : null
+          }
+          return { backdrop: z(bSel), overlay: z(oSel) }
+        }, [backdropSel, o1Sel])
+        if (zLayers.backdrop !== null && zLayers.overlay !== null && zLayers.backdrop >= zLayers.overlay)
+          o1Symptoms.push(`backdrop z(${zLayers.backdrop}) 未低于抽屉 z(${zLayers.overlay})`)
+        const o1Shot = await shot(page, `${vp.name}-O1-artifact-overlay`)
+        record({
+          id: 'O1', viewport: vp.name, target: 'artifact panel overlay（移动抽屉）', selector: o1Sel,
+          triggerBox: null, floatingBox: o1Box, symptoms: o1Symptoms,
+          severity: o1Symptoms.some((s) => s.includes('越界')) ? 'high' : o1Symptoms.length ? 'medium' : 'ok',
+          reference: 'R9（fixed inset + backdrop + 外部关闭 + z 分层）', screenshot: o1Shot,
+          suggestedTask: o1Symptoms.length === 0 ? '无（FIX-O1 已修复，回归确认）' : 'FIX-O1: artifact 移动抽屉补 backdrop + 点击外部关闭 + 与 sidebar 抽屉 z 分层',
+        })
+        // FIX-O1 回归硬门禁（REG-20260531-003）：移动态必须有覆盖全视口 backdrop、z 低于抽屉、点击 backdrop 关闭抽屉。
+        expect(backdropBox, `${vp.name} O1 移动态应有 artifact-backdrop`).not.toBeNull()
+        expect(o1Symptoms, `${vp.name} O1 应无 backdrop/越界/z 分层症状（实测: ${o1Symptoms.join('; ') || '无'}）`).toEqual([])
+        // 点击 backdrop（视口左侧，避开右侧 320px 抽屉）应关闭抽屉
+        await page.mouse.click(Math.round(vp.width * 0.3), Math.round(vp.height / 2))
+        await expect(page.locator(o1Sel), `${vp.name} O1 点击 backdrop 后抽屉应关闭`).toHaveCount(0)
+      }
+
       // ---- T1: tooltip（新建会话按钮）hover + focus ----
       // 移动态左栏在抽屉里，先开抽屉；桌面态左栏常驻。
       if (isMobile) {
@@ -248,9 +284,16 @@ for (const vp of VIEWPORTS) {
             id: 'D2', viewport: vp.name, target: 'role picker @角色', selector: pickerSel,
             triggerBox, floatingBox, symptoms,
             severity: symptoms.length === 0 ? 'ok' : severity,
-            reference: 'R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)', screenshot: sshot,
-            suggestedTask: 'FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升',
+            reference: 'R1(portal)/R2(flip)/R5(max-w+break-words)/R8(z-50)', screenshot: sshot,
+            suggestedTask: symptoms.length === 0 ? '无（FIX-D2 已修复，回归确认）' : 'FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升',
           })
+          // FIX-D2 回归硬门禁：升级后 role picker 必须 portal+flip+clamp，floating bbox 完整落在视口内、
+          // 宽度受 max-width 约束、长角色名 break-words 不撑爆、不引发横滚。几何断言，禁止 toBeVisible 充数。
+          expect(visible, `${vp.name} D2 role picker 应渲染`).toBeTruthy()
+          expect(floatingBox, `${vp.name} D2 floatingBox 应可测`).not.toBeNull()
+          expect(symptoms, `${vp.name} D2 应无越界/超宽/遮挡症状（实测: ${symptoms.join('; ') || '无'}）`).toEqual([])
+          const d2HScroll = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
+          expect(d2HScroll, `${vp.name} D2 打开后不得引发横滚`).toBeFalsy()
           await page.locator(triggerSel).click().catch(() => {})
         } else {
           record({
@@ -265,32 +308,15 @@ for (const vp of VIEWPORTS) {
 
       // ---- O1/O2: 移动抽屉（artifact overlay / sidebar drawer）----
       if (isMobile) {
-        // O1 artifact overlay 默认开启（rightPanelOpen=true）
-        const o1Sel = '[data-testid="artifact-overlay"]'
-        const o1Box = await boxOf(page, o1Sel)
-        const o1Symptoms: string[] = []
-        if (o1Box) {
-          o1Symptoms.push(...inViewport(o1Box, vp.width, vp.height))
-          const hasBackdrop = await page.locator('[data-testid="artifact-backdrop"]').count()
-          if (hasBackdrop === 0) o1Symptoms.push('移动态无 backdrop / 无点击外部关闭（对照 sidebar 抽屉有 backdrop）')
-        }
-        record({
-          id: 'O1', viewport: vp.name, target: 'artifact panel overlay（移动抽屉）', selector: o1Sel,
-          triggerBox: null, floatingBox: o1Box, symptoms: o1Symptoms,
-          severity: o1Symptoms.some((s) => s.includes('越界')) ? 'high' : o1Symptoms.length ? 'medium' : 'ok',
-          reference: 'R9（抽屉缺 backdrop/外部关闭）', screenshot: await shot(page, `${vp.name}-O1-artifact-overlay`),
-          suggestedTask: 'FIX-O1: artifact 移动抽屉补 backdrop + 点击外部关闭 + 与 sidebar 抽屉 z 分层',
-        })
-
-        // O2 sidebar drawer：打开后断言 backdrop 覆盖 + 抽屉在视口内
+        // O1 已在流程开头审计并夹起抽屉；此处仅测 O2 sidebar drawer：打开后断言 backdrop 覆盖 + 抽屉在视口内
         await page.locator('[data-testid="open-sidebar"]').click()
         const o2Sel = '[data-testid="sidebar-region"]'
         const o2Box = await boxOf(page, o2Sel)
-        const backdropBox = await boxOf(page, '[data-testid="sidebar-backdrop"]')
+        const sbBackdropBox = await boxOf(page, '[data-testid="sidebar-backdrop"]')
         const o2Symptoms: string[] = []
         if (o2Box) o2Symptoms.push(...inViewport(o2Box, vp.width, vp.height))
-        if (!backdropBox) o2Symptoms.push('sidebar 抽屉缺 backdrop')
-        else if (backdropBox.width < vp.width - 1 || backdropBox.height < vp.height - 1) o2Symptoms.push('backdrop 未覆盖全视口')
+        if (!sbBackdropBox) o2Symptoms.push('sidebar 抽屉缺 backdrop')
+        else if (sbBackdropBox.width < vp.width - 1 || sbBackdropBox.height < vp.height - 1) o2Symptoms.push('backdrop 未覆盖全视口')
         record({
           id: 'O2', viewport: vp.name, target: 'sidebar drawer（移动抽屉）', selector: o2Sel,
           triggerBox: null, floatingBox: o2Box, symptoms: o2Symptoms,
@@ -299,6 +325,18 @@ for (const vp of VIEWPORTS) {
           suggestedTask: o2Symptoms.length ? 'FIX-O2: sidebar 抽屉 backdrop/越界修复' : '无（实现规范，回归确认）',
         })
         await page.locator('[data-testid="sidebar-backdrop"]').click().catch(() => {})
+      } else {
+        // 桌面态：artifact 抽屉为 static 第三栏，backdrop 应 lg:hidden（display:none，不可见不拦截）
+        const visBackdrop = await page.locator('[data-testid="artifact-backdrop"]:visible').count()
+        const o1Symptoms = visBackdrop > 0 ? ['桌面态不应显示 artifact-backdrop（应 lg:hidden）'] : []
+        record({
+          id: 'O1', viewport: vp.name, target: 'artifact panel overlay（桌面第三栏）', selector: '[data-testid="artifact-overlay"]',
+          triggerBox: null, floatingBox: await boxOf(page, '[data-testid="artifact-overlay"]'), symptoms: o1Symptoms,
+          severity: o1Symptoms.length ? 'medium' : 'ok',
+          reference: 'R9（桌面 lg:static 无可见 backdrop）', screenshot: await shot(page, `${vp.name}-O1-artifact-desktop`),
+          suggestedTask: o1Symptoms.length ? 'FIX-O1: 桌面 backdrop 泄漏' : '无（桌面无可见 backdrop，回归确认）',
+        })
+        expect(visBackdrop, `${vp.name} 桌面态不应显示 artifact-backdrop`).toBe(0)
       }
 
       // 全局：任意浮层操作后不得引发横向滚动（只读记录，不 fail-hard，使审计 findings 完整落盘）

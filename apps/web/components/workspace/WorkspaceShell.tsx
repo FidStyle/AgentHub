@@ -40,7 +40,8 @@ export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
       )}
 
       <div className="min-w-0 flex flex-col h-full">
-        <div className="flex items-center gap-2 border-b border-border p-2 lg:hidden">
+        {/* 移动顶栏（app bar）置于 backdrop(z-20) 之上保证导航入口可点，但低于抽屉(z-30) 使打开的抽屉覆盖顶栏；lg: 隐藏不影响桌面 */}
+        <div className="relative z-[25] flex items-center gap-2 border-b border-border p-2 lg:hidden">
           <IconButton
             icon={PanelLeft}
             label="打开工作区导航"
@@ -55,12 +56,21 @@ export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
 
       {/* 桌面：第三栏；移动：fixed overlay 抽屉，不挤压主聊天区 */}
       {rightPanelOpen && (
-        <div
-          data-testid="artifact-overlay"
-          className="fixed inset-y-0 right-0 z-30 w-[320px] max-w-[85vw] border-l border-border bg-card lg:static lg:z-auto lg:w-auto lg:max-w-none"
-        >
-          <ArtifactPanel onClose={() => setRightPanelOpen(false)} />
-        </div>
+        <>
+          {/* 移动态 backdrop：点击外部关闭，与 sidebar drawer 行为对齐（FIX-O1 / REG-20260531-003）；
+              z-20 低于抽屉 z-30，桌面 lg: 隐藏不影响三栏布局 */}
+          <div
+            data-testid="artifact-backdrop"
+            className="fixed inset-0 z-20 bg-black/40 lg:hidden"
+            onClick={() => setRightPanelOpen(false)}
+          />
+          <div
+            data-testid="artifact-overlay"
+            className="fixed inset-y-0 right-0 z-30 w-[320px] max-w-[85vw] border-l border-border bg-card lg:static lg:z-auto lg:w-auto lg:max-w-none"
+          >
+            <ArtifactPanel onClose={() => setRightPanelOpen(false)} />
+          </div>
+        </>
       )}
     </div>
   )

@@ -50,14 +50,15 @@
 | --- | --- |
 | **类型** | bug / 交互一致性 |
 | **优先级** | medium |
-| **状态** | `open` |
+| **状态** | `closed`（2026-05-31，FLOATING-UI-FIX-REMAINING-001 修复并真实浏览器验证通过） |
 | **关联 FR/PRD** | `FR-WEB-001`, `FR-UI-001`；`research/product/ui-design-system.md`（抽屉/overlay 一致性） |
-| **关联任务/合同** | `FLOATING-UI-UAT-AUDIT-001` |
+| **关联任务/合同** | `FLOATING-UI-UAT-AUDIT-001`（发现）→ `FLOATING-UI-FIX-REMAINING-001`（修复闭环）；母版 `FLOATING-UI-FIX-D1-001`（sidebar drawer backdrop 正向对照） |
 | **影响功能面** | `apps/web/components/workspace/WorkspaceShell.tsx` artifact 移动抽屉（`fixed inset-y-0 right-0`，`z-30`，与 sidebar 抽屉同 z 且无 backdrop） |
 | **发现方式** | FLOATING-UI-UAT-AUDIT-001 真实浏览器 + 真实 DB/auth 几何审计（768×900 视口） |
 | **证据** | `research/execution-reports/floating-ui-uat-audit-001-findings.json` O1@768：fixed 320×900 无 backdrop（对照 sidebar 抽屉有 `sidebar-backdrop`），无点击外部关闭；截图 `e2e/artifacts/floating-ui-uat-audit/768x900-O1-artifact-overlay.png` |
 | **关闭条件** | FIX-O1：artifact 移动抽屉补 `artifact-backdrop`（`fixed inset-0 z-20 lg:hidden`）+ 点击外部关闭 + 与 sidebar 抽屉 z 分层；移动态几何断言通过（存在覆盖全视口 backdrop、点击关闭、与 sidebar 不同 z） |
-| **下一步** | `FIX-O1`（execute；本审计任务只读不修复） |
+| **关闭证据** | FLOATING-UI-FIX-REMAINING-001（2026-05-31）：`WorkspaceShell.tsx` 新增 `artifact-backdrop`（`fixed inset-0 z-20 bg-black/40 lg:hidden`，onClick 关闭）+ 移动顶栏 `z-[25]`（高于 backdrop z-20、低于抽屉 z-30，修复 backdrop 拦截 `open-sidebar` 入口回归）；桌面 `lg:hidden` 三栏零影响。真实浏览器三视口 **3 passed**，O1@768 backdrop 覆盖全视口（width≥vw、height≥vh）、点击 backdrop 抽屉关闭、backdrop z(20)<抽屉 z(30)、桌面 1440/1280 无可见 backdrop；findings.json O1×3 severity=ok、symptoms 空（全 16 ok）。报告 `research/execution-reports/floating-ui-fix-remaining-001-report.md` |
+| **下一步** | 已关闭。同任务预防项 FIX-D2（role picker portal 升级）一并完成，见报告 |
 
 ### REG-20260530-006 — Web/Mobile Agent 回复在真实用户态不可达（审计建议 003，与已关闭 003 区分）
 

@@ -1,6 +1,6 @@
 {
   "task": "FLOATING-UI-UAT-AUDIT-001",
-  "generatedAt": "2026-05-30T18:27:48.124Z",
+  "generatedAt": "2026-05-30T19:19:29.581Z",
   "method": "real browser (Chromium) + real DB (agenthub_p0_test) + real Auth.js session",
   "viewports": [
     "1440x900",
@@ -45,15 +45,15 @@
       },
       "floatingBox": {
         "x": 296,
-        "y": 78,
-        "width": 160,
-        "height": 102
+        "y": 212,
+        "width": 320,
+        "height": 62
       },
       "symptoms": [],
       "severity": "ok",
-      "reference": "R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)",
+      "reference": "R1(portal)/R2(flip)/R5(max-w+break-words)/R8(z-50)",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-D2-role-picker.png",
-      "suggestedTask": "FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升"
+      "suggestedTask": "无（FIX-D2 已修复，回归确认）"
     },
     {
       "id": "GLOBAL-HSCROLL",
@@ -67,6 +67,24 @@
       "reference": "R3/R4（浮层应被 clamp/portal，不撑出横滚）",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-GLOBAL-hscroll.png",
       "suggestedTask": "无（无横滚）"
+    },
+    {
+      "id": "O1",
+      "viewport": "1440x900",
+      "target": "artifact panel overlay（桌面第三栏）",
+      "selector": "[data-testid=\"artifact-overlay\"]",
+      "triggerBox": null,
+      "floatingBox": {
+        "x": 1120,
+        "y": 0,
+        "width": 320,
+        "height": 900
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R9（桌面 lg:static 无可见 backdrop）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-O1-artifact-desktop.png",
+      "suggestedTask": "无（桌面无可见 backdrop，回归确认）"
     },
     {
       "id": "T1",
@@ -127,15 +145,15 @@
       },
       "floatingBox": {
         "x": 296,
-        "y": 78,
-        "width": 160,
-        "height": 102
+        "y": 212,
+        "width": 320,
+        "height": 62
       },
       "symptoms": [],
       "severity": "ok",
-      "reference": "R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)",
+      "reference": "R1(portal)/R2(flip)/R5(max-w+break-words)/R8(z-50)",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-D2-role-picker.png",
-      "suggestedTask": "FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升"
+      "suggestedTask": "无（FIX-D2 已修复，回归确认）"
     },
     {
       "id": "GLOBAL-HSCROLL",
@@ -149,6 +167,24 @@
       "reference": "R3/R4（浮层应被 clamp/portal，不撑出横滚）",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-GLOBAL-hscroll.png",
       "suggestedTask": "无（无横滚）"
+    },
+    {
+      "id": "O1",
+      "viewport": "1280x800",
+      "target": "artifact panel overlay（桌面第三栏）",
+      "selector": "[data-testid=\"artifact-overlay\"]",
+      "triggerBox": null,
+      "floatingBox": {
+        "x": 960,
+        "y": 0,
+        "width": 320,
+        "height": 800
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R9（桌面 lg:static 无可见 backdrop）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-O1-artifact-desktop.png",
+      "suggestedTask": "无（桌面无可见 backdrop，回归确认）"
     },
     {
       "id": "T1",
@@ -209,15 +245,15 @@
       },
       "floatingBox": {
         "x": 16,
-        "y": 119,
-        "width": 160,
-        "height": 102
+        "y": 253,
+        "width": 320,
+        "height": 62
       },
       "symptoms": [],
       "severity": "ok",
-      "reference": "R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)",
+      "reference": "R1(portal)/R2(flip)/R5(max-w+break-words)/R8(z-50)",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-D2-role-picker.png",
-      "suggestedTask": "FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升"
+      "suggestedTask": "无（FIX-D2 已修复，回归确认）"
     },
     {
       "id": "GLOBAL-HSCROLL",
@@ -244,13 +280,11 @@
         "width": 320,
         "height": 900
       },
-      "symptoms": [
-        "移动态无 backdrop / 无点击外部关闭（对照 sidebar 抽屉有 backdrop）"
-      ],
-      "severity": "medium",
-      "reference": "R9（抽屉缺 backdrop/外部关闭）",
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R9（fixed inset + backdrop + 外部关闭 + z 分层）",
       "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-O1-artifact-overlay.png",
-      "suggestedTask": "FIX-O1: artifact 移动抽屉补 backdrop + 点击外部关闭 + 与 sidebar 抽屉 z 分层"
+      "suggestedTask": "无（FIX-O1 已修复，回归确认）"
     },
     {
       "id": "O2",
