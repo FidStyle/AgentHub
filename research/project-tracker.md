@@ -181,7 +181,7 @@
 | **目标** | Mobile `/m/sessions/:id` 发送闭环：与 Web 一致触发 runtime/Agent，或在轻量端明确「需在 Web 端继续」文案，消除「只写库、永无回复」假成功 |
 | **方案摘要** | `apps/web/app/m/sessions/[sessionId]/page.tsx` `send()` 改走与 Web 一致的 `/api/chat` runtime 链路（合同 §3.1.8/§6 三端共享状态语义），并补 Mobile 发送后回复/错误态 E2E |
 | **验收方式** | Mobile 真实浏览器：发送后出现 agent 回复或明确错误态；E2E 断言「发送后用户目标达成或明确错误态」 |
-| **测试证据** | E2E `npx playwright test e2e/tests/mobile/mobile-chat-deliver.spec.ts --project=mobile-pwa`（真实 DB + auth）：`RUNTIME_E2E=1` 1 passed（有 worker→`POST /api/chat 200` + 可见非 echo 回复 + 架构师 badge + reload 双向持久化）+ `RUNTIME_E2E_NOWORKER=1` 1 passed（无 worker→立即明确中文错误态 + reload 无误存 badge），route 监听断言 `/api/chat` 被调用，非仅 `toBeVisible`；verification-final.json passed=true（G1/G2/G3 VERIFIED，0 gaps）；review.json verdict=PASS（0 findings，5 维度 PASS）；UAT `.workflow/scratch/20260531-plan-mobile-chat-deliver-001/uat.md` 双 regime 4 场景全 PASS；`pnpm --filter @agenthub/web type-check` exit 0；commit `3b8029f` |
+| **测试证据** | E2E `npx playwright test e2e/tests/mobile/mobile-chat-deliver.spec.ts --project=mobile-pwa`（真实 DB + auth）：`RUNTIME_E2E=1` 1 passed（有 worker→`POST /api/chat 200` + 可见非 echo 回复 + 架构师 badge + reload 双向持久化）+ `RUNTIME_E2E_NOWORKER=1` 1 passed（缺 worker→立即明确中文错误态 + reload 不误存 badge），route 监听断言 `/api/chat` 被调用，非仅 `toBeVisible`；verification-final.json passed=true（G1/G2/G3 VERIFIED，0 gaps）；review.json verdict=PASS（0 findings，5 维度 PASS）；UAT `.workflow/scratch/20260531-plan-mobile-chat-deliver-001/uat.md` 双 regime 4 场景全 PASS；`pnpm --filter @agenthub/web type-check` exit 0；commit `3b8029f` |
 | **阻塞问题** | 无（已关闭） |
 | **下一步动作** | 闭环，无后续动作（REG-20260530-006 整体 closed） |
 
