@@ -1,0 +1,309 @@
+import { test, expect, type Page } from '@playwright/test'
+import fs from 'fs'
+import path from 'path'
+import { ensureP0StorageState } from '../../helpers/auth-state'
+
+/**
+ * FLOATING-UI-UAT-AUDIT-001 — 只读浮层/Overlay 真实浏览器几何审计。
+ *
+ * 对 workspace 活动路由（/workspace/[id] → WorkspaceShell）下的浮层做真实
+ * hover/focus/click 打开，采集 trigger bbox + floating bbox，做几何断言：
+ *   - 完整落在 viewport 内（未越界 / 未被裁切）
+ *   - 不遮挡 trigger（除非语义允许）
+ *   - 不引发横向滚动
+ *   - 文本不变形（宽度受 max-width 约束、无横向溢出）
+ * 审计目标：T1 tooltip / D1 workspace 下拉 / D2 role picker / O1 artifact 抽屉 / O2 sidebar 抽屉。
+ *
+ * 只读：不修改产品代码。观察结果（含越界/裁切/遮挡判定）写入 findings JSON 供报告引用。
+ * 禁止用 toBeVisible 代替几何断言——本 spec 的所有判定均基于 boundingBox 几何。
+ */
+
+type Box = { x: number; y: number; width: number; height: number }
+type Finding = {
+  id: string
+  viewport: string
+  target: string
+  selector: string
+  triggerBox: Box | null
+  floatingBox: Box | null
+  symptoms: string[]
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'ok'
+  reference: string
+  screenshot: string
+  suggestedTask: string
+}
+
+const ARTIFACT_DIR = 'e2e/artifacts/floating-ui-uat-audit'
+const FINDINGS_PATH = 'research/execution-reports/floating-ui-uat-audit-001-findings.json'
+const MAX_ROLE_PICKER_WIDTH = 320 // popover 合理上限：长角色名不应撑爆
+
+const findings: Finding[] = []
+
+const VIEWPORTS = [
+  { name: '1440x900', width: 1440, height: 900 },
+  { name: '1280x800', width: 1280, height: 800 },
+  { name: '768x900', width: 768, height: 900 },
+]
+
+function record(f: Finding) {
+  findings.push(f)
+}
+
+function inViewport(box: Box, vw: number, vh: number): string[] {
+  const s: string[] = []
+  if (box.x < 0) s.push(`左越界 (x=${Math.round(box.x)})`)
+  if (box.y < 0) s.push(`上越界 (y=${Math.round(box.y)})`)
+  if (box.x + box.width > vw + 1) s.push(`右越界 (right=${Math.round(box.x + box.width)} > vw=${vw})`)
+  if (box.y + box.height > vh + 1) s.push(`下越界 (bottom=${Math.round(box.y + box.height)} > vh=${vh})`)
+  return s
+}
+
+function overlaps(a: Box, b: Box): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+}
+
+async function boxOf(page: Page, sel: string): Promise<Box | null> {
+  return page.locator(sel).first().boundingBox()
+}
+
+async function seedWorkspace(page: Page): Promise<string> {
+  const ts = Date.now()
+  const res = await page.request.post('/api/workspaces', {
+    data: { name: `E2E-FLOAT-${ts}`, execution_domain: 'cloud' },
+  })
+  expect(res.ok(), 'workspace 播种应成功（真实 DB/auth）').toBeTruthy()
+  const wsId = (await res.json()).id as string
+  // 播种一个会话，使 composer / role picker 可用（@角色按钮非 disabled）
+  await page.request.post('/api/sessions', { data: { workspace_id: wsId, name: `S-${ts}` } }).catch(() => {})
+  // 播种一个长名角色，用于检验 role picker 的 max-width / 换行（R5）
+  await page.request
+    .post('/api/role-agents', {
+      data: {
+        workspace_id: wsId,
+        name: '资深全栈架构师与运行时编排负责人（超长名称用于换行审计）',
+        role_type: 'architect',
+        system_prompt: 'audit',
+      },
+    })
+    .catch(() => {})
+  return wsId
+}
+
+async function shot(page: Page, name: string): Promise<string> {
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true })
+  const p = path.join(ARTIFACT_DIR, `${name}.png`)
+  await page.screenshot({ path: p })
+  return p
+}
+
+// 每个视口 test 独立 worker，afterAll 仅见本 worker 数据 → 合并写盘（按 viewport 去重）。
+function persistFindings() {
+  fs.mkdirSync(path.dirname(FINDINGS_PATH), { recursive: true })
+  let existing: Finding[] = []
+  try {
+    const prev = JSON.parse(fs.readFileSync(FINDINGS_PATH, 'utf8'))
+    if (Array.isArray(prev.findings)) existing = prev.findings
+  } catch {
+    /* first writer */
+  }
+  const thisViewports = new Set(findings.map((f) => f.viewport))
+  const merged = existing.filter((f) => !thisViewports.has(f.viewport)).concat(findings)
+  const order = (v: string) => VIEWPORTS.findIndex((x) => x.name === v)
+  merged.sort((a, b) => order(a.viewport) - order(b.viewport) || a.id.localeCompare(b.id))
+  const summary = {
+    task: 'FLOATING-UI-UAT-AUDIT-001',
+    generatedAt: new Date().toISOString(),
+    method: 'real browser (Chromium) + real DB (agenthub_p0_test) + real Auth.js session',
+    viewports: VIEWPORTS.map((v) => v.name),
+    geometricAssertionsOnly: true,
+    findings: merged,
+  }
+  fs.writeFileSync(FINDINGS_PATH, JSON.stringify(summary, null, 2))
+}
+
+test.afterAll(async () => {
+  persistFindings()
+})
+
+for (const vp of VIEWPORTS) {
+  test.describe(`floating-ui audit @ ${vp.name}`, () => {
+    let storageState: string
+    test.beforeAll(async () => {
+      storageState = await ensureP0StorageState()
+    })
+
+    test(`浮层几何审计 ${vp.name}`, async ({ browser }) => {
+      const context = await browser.newContext({ storageState, viewport: { width: vp.width, height: vp.height } })
+      const page = await context.newPage()
+      const wsId = await seedWorkspace(page)
+      await page.goto(`/workspace/${wsId}`)
+      await page.waitForLoadState('networkidle')
+
+      const isMobile = vp.width < 1024
+
+      // ---- T1: tooltip（新建会话按钮）hover + focus ----
+      // 移动态左栏在抽屉里，先开抽屉；桌面态左栏常驻。
+      if (isMobile) {
+        await page.locator('[data-testid="open-sidebar"]').click()
+        await expect(page.locator('[data-testid="sidebar-region"]')).toBeVisible()
+      }
+      {
+        const triggerSel = '[data-testid="new-session-btn"]'
+        await page.mouse.move(0, 0)
+        await page.locator(triggerSel).first().hover()
+        const tip = page.locator('[role="tooltip"]:has-text("新建会话")').first()
+        const visible = await tip.isVisible().catch(() => false)
+        const triggerBox = await boxOf(page, triggerSel)
+        const floatingBox = visible ? await tip.boundingBox() : null
+        const symptoms: string[] = []
+        if (!visible) symptoms.push('tooltip 未渲染')
+        if (floatingBox) {
+          symptoms.push(...inViewport(floatingBox, vp.width, vp.height))
+          if (floatingBox.width > 256 + 2) symptoms.push(`宽度超 max-w-16rem (${Math.round(floatingBox.width)})`)
+        }
+        const sshot = await shot(page, `${vp.name}-T1-tooltip-new-session`)
+        record({
+          id: 'T1', viewport: vp.name, target: 'tooltip 新建会话', selector: triggerSel,
+          triggerBox, floatingBox, symptoms,
+          severity: symptoms.length === 0 ? 'ok' : 'medium',
+          reference: 'R1/R2/R3/R5（已修母版对照）', screenshot: sshot,
+          suggestedTask: symptoms.length === 0 ? '无（回归确认）' : 'tooltip 回归修复',
+        })
+        await page.mouse.move(0, 0)
+        if (isMobile) await page.locator('[data-testid="sidebar-backdrop"]').click().catch(() => {})
+      }
+
+      // ---- D1: workspace selector 下拉 click 打开 ----
+      if (isMobile) await page.locator('[data-testid="open-sidebar"]').click()
+      {
+        const triggerSel = '[data-testid="workspace-switcher"]'
+        const dropSel = '[data-testid="workspace-dropdown"]'
+        await page.locator(triggerSel).click()
+        const visible = await page.locator(dropSel).isVisible().catch(() => false)
+        const triggerBox = await boxOf(page, triggerSel)
+        const floatingBox = visible ? await boxOf(page, dropSel) : null
+        const symptoms: string[] = []
+        if (!visible) symptoms.push('下拉未渲染')
+        let severity: Finding['severity'] = 'ok'
+        if (floatingBox && triggerBox) {
+          const oob = inViewport(floatingBox, vp.width, vp.height)
+          symptoms.push(...oob)
+          // 是否被祖先 overflow 裁切：floating 实际可见高度 < 内容高度
+          const clipped = await page.locator(dropSel).evaluate((el) => {
+            const r = el.getBoundingClientRect()
+            return r.bottom > window.innerHeight + 1
+          })
+          if (clipped) symptoms.push('下拉底部超出视口且无内部滚动')
+          if (oob.length > 0 || clipped) severity = 'high'
+        }
+        const hScroll = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
+        if (hScroll) symptoms.push('引发横向滚动')
+        const sshot = await shot(page, `${vp.name}-D1-workspace-dropdown`)
+        record({
+          id: 'D1', viewport: vp.name, target: 'workspace selector 下拉', selector: dropSel,
+          triggerBox, floatingBox, symptoms,
+          severity: symptoms.length === 0 ? 'ok' : severity,
+          reference: 'R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)', screenshot: sshot,
+          suggestedTask: 'FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升',
+        })
+        await page.locator(triggerSel).click().catch(() => {})
+        // 移动态：关闭下拉后再关抽屉，避免 drawer 覆盖主区 composer 拦截后续点击
+        if (isMobile) await page.locator('[data-testid="sidebar-backdrop"]').click().catch(() => {})
+      }
+
+      // ---- D2: role picker（@角色）click 打开 ----
+      {
+        const triggerSel = '[data-testid="mention-role-btn"]'
+        const pickerSel = '[data-testid="role-picker"]'
+        const enabled = await page.locator(triggerSel).isEnabled().catch(() => false)
+        if (enabled) {
+          await page.locator(triggerSel).click()
+          const visible = await page.locator(pickerSel).isVisible().catch(() => false)
+          const triggerBox = await boxOf(page, triggerSel)
+          const floatingBox = visible ? await boxOf(page, pickerSel) : null
+          const symptoms: string[] = []
+          if (!visible) symptoms.push('role picker 未渲染（可能无 active session）')
+          let severity: Finding['severity'] = 'ok'
+          if (floatingBox) {
+            const oob = inViewport(floatingBox, vp.width, vp.height)
+            symptoms.push(...oob)
+            if (floatingBox.width > MAX_ROLE_PICKER_WIDTH) symptoms.push(`宽度过大 (${Math.round(floatingBox.width)})`)
+            if (triggerBox && overlaps(floatingBox, triggerBox)) symptoms.push('遮挡 @角色 触发按钮')
+            if (oob.length > 0) severity = 'high'
+          }
+          const sshot = await shot(page, `${vp.name}-D2-role-picker`)
+          record({
+            id: 'D2', viewport: vp.name, target: 'role picker @角色', selector: pickerSel,
+            triggerBox, floatingBox, symptoms,
+            severity: symptoms.length === 0 ? 'ok' : severity,
+            reference: 'R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)', screenshot: sshot,
+            suggestedTask: 'FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升',
+          })
+          await page.locator(triggerSel).click().catch(() => {})
+        } else {
+          record({
+            id: 'D2', viewport: vp.name, target: 'role picker @角色', selector: pickerSel,
+            triggerBox: await boxOf(page, triggerSel), floatingBox: null,
+            symptoms: ['@角色按钮 disabled（无 active session，picker 不可开）'],
+            severity: 'low', reference: 'R1/R2/R5', screenshot: await shot(page, `${vp.name}-D2-role-picker-disabled`),
+            suggestedTask: '观察：无会话时禁用属预期；有会话时定位见 D2 修复建议',
+          })
+        }
+      }
+
+      // ---- O1/O2: 移动抽屉（artifact overlay / sidebar drawer）----
+      if (isMobile) {
+        // O1 artifact overlay 默认开启（rightPanelOpen=true）
+        const o1Sel = '[data-testid="artifact-overlay"]'
+        const o1Box = await boxOf(page, o1Sel)
+        const o1Symptoms: string[] = []
+        if (o1Box) {
+          o1Symptoms.push(...inViewport(o1Box, vp.width, vp.height))
+          const hasBackdrop = await page.locator('[data-testid="artifact-backdrop"]').count()
+          if (hasBackdrop === 0) o1Symptoms.push('移动态无 backdrop / 无点击外部关闭（对照 sidebar 抽屉有 backdrop）')
+        }
+        record({
+          id: 'O1', viewport: vp.name, target: 'artifact panel overlay（移动抽屉）', selector: o1Sel,
+          triggerBox: null, floatingBox: o1Box, symptoms: o1Symptoms,
+          severity: o1Symptoms.some((s) => s.includes('越界')) ? 'high' : o1Symptoms.length ? 'medium' : 'ok',
+          reference: 'R9（抽屉缺 backdrop/外部关闭）', screenshot: await shot(page, `${vp.name}-O1-artifact-overlay`),
+          suggestedTask: 'FIX-O1: artifact 移动抽屉补 backdrop + 点击外部关闭 + 与 sidebar 抽屉 z 分层',
+        })
+
+        // O2 sidebar drawer：打开后断言 backdrop 覆盖 + 抽屉在视口内
+        await page.locator('[data-testid="open-sidebar"]').click()
+        const o2Sel = '[data-testid="sidebar-region"]'
+        const o2Box = await boxOf(page, o2Sel)
+        const backdropBox = await boxOf(page, '[data-testid="sidebar-backdrop"]')
+        const o2Symptoms: string[] = []
+        if (o2Box) o2Symptoms.push(...inViewport(o2Box, vp.width, vp.height))
+        if (!backdropBox) o2Symptoms.push('sidebar 抽屉缺 backdrop')
+        else if (backdropBox.width < vp.width - 1 || backdropBox.height < vp.height - 1) o2Symptoms.push('backdrop 未覆盖全视口')
+        record({
+          id: 'O2', viewport: vp.name, target: 'sidebar drawer（移动抽屉）', selector: o2Sel,
+          triggerBox: null, floatingBox: o2Box, symptoms: o2Symptoms,
+          severity: o2Symptoms.length ? 'medium' : 'ok',
+          reference: 'R9（fixed inset + backdrop 母版对照）', screenshot: await shot(page, `${vp.name}-O2-sidebar-drawer`),
+          suggestedTask: o2Symptoms.length ? 'FIX-O2: sidebar 抽屉 backdrop/越界修复' : '无（实现规范，回归确认）',
+        })
+        await page.locator('[data-testid="sidebar-backdrop"]').click().catch(() => {})
+      }
+
+      // 全局：任意浮层操作后不得引发横向滚动（只读记录，不 fail-hard，使审计 findings 完整落盘）
+      await page.mouse.move(0, 0)
+      const hScroll = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      )
+      record({
+        id: 'GLOBAL-HSCROLL', viewport: vp.name, target: '页面横向滚动（浮层操作后）', selector: 'html',
+        triggerBox: null, floatingBox: null,
+        symptoms: hScroll ? ['浮层操作后页面出现横向滚动条'] : [],
+        severity: hScroll ? 'high' : 'ok',
+        reference: 'R3/R4（浮层应被 clamp/portal，不撑出横滚）',
+        screenshot: await shot(page, `${vp.name}-GLOBAL-hscroll`),
+        suggestedTask: hScroll ? '排查触发横滚的浮层并 portal/clamp' : '无（无横滚）',
+      })
+      await context.close()
+    })
+  })
+}

@@ -1,0 +1,306 @@
+{
+  "task": "FLOATING-UI-UAT-AUDIT-001",
+  "generatedAt": "2026-05-30T17:48:38.076Z",
+  "method": "real browser (Chromium) + real DB (agenthub_p0_test) + real Auth.js session",
+  "viewports": [
+    "1440x900",
+    "1280x800",
+    "768x900"
+  ],
+  "geometricAssertionsOnly": true,
+  "findings": [
+    {
+      "id": "D1",
+      "viewport": "1440x900",
+      "target": "workspace selector 下拉",
+      "selector": "[data-testid=\"workspace-dropdown\"]",
+      "triggerBox": {
+        "x": 12,
+        "y": 12,
+        "width": 255,
+        "height": 32
+      },
+      "floatingBox": {
+        "x": 8,
+        "y": 60,
+        "width": 263,
+        "height": 4358
+      },
+      "symptoms": [
+        "下越界 (bottom=4418 > vh=900)",
+        "下拉底部超出视口且无内部滚动"
+      ],
+      "severity": "high",
+      "reference": "R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-D1-workspace-dropdown.png",
+      "suggestedTask": "FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升"
+    },
+    {
+      "id": "D2",
+      "viewport": "1440x900",
+      "target": "role picker @角色",
+      "selector": "[data-testid=\"role-picker\"]",
+      "triggerBox": {
+        "x": 296,
+        "y": 188,
+        "width": 14,
+        "height": 14
+      },
+      "floatingBox": {
+        "x": 296,
+        "y": 78,
+        "width": 160,
+        "height": 102
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-D2-role-picker.png",
+      "suggestedTask": "FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升"
+    },
+    {
+      "id": "GLOBAL-HSCROLL",
+      "viewport": "1440x900",
+      "target": "页面横向滚动（浮层操作后）",
+      "selector": "html",
+      "triggerBox": null,
+      "floatingBox": null,
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R3/R4（浮层应被 clamp/portal，不撑出横滚）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-GLOBAL-hscroll.png",
+      "suggestedTask": "无（无横滚）"
+    },
+    {
+      "id": "T1",
+      "viewport": "1440x900",
+      "target": "tooltip 新建会话",
+      "selector": "[data-testid=\"new-session-btn\"]",
+      "triggerBox": {
+        "x": 249,
+        "y": 69,
+        "width": 14,
+        "height": 14
+      },
+      "floatingBox": {
+        "x": 224,
+        "y": 35,
+        "width": 64,
+        "height": 24
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1/R2/R3/R5（已修母版对照）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-T1-tooltip-new-session.png",
+      "suggestedTask": "无（回归确认）"
+    },
+    {
+      "id": "D1",
+      "viewport": "1280x800",
+      "target": "workspace selector 下拉",
+      "selector": "[data-testid=\"workspace-dropdown\"]",
+      "triggerBox": {
+        "x": 12,
+        "y": 12,
+        "width": 255,
+        "height": 32
+      },
+      "floatingBox": {
+        "x": 8,
+        "y": 60,
+        "width": 263,
+        "height": 4394
+      },
+      "symptoms": [
+        "下越界 (bottom=4454 > vh=800)",
+        "下拉底部超出视口且无内部滚动"
+      ],
+      "severity": "high",
+      "reference": "R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-D1-workspace-dropdown.png",
+      "suggestedTask": "FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升"
+    },
+    {
+      "id": "D2",
+      "viewport": "1280x800",
+      "target": "role picker @角色",
+      "selector": "[data-testid=\"role-picker\"]",
+      "triggerBox": {
+        "x": 296,
+        "y": 188,
+        "width": 14,
+        "height": 14
+      },
+      "floatingBox": {
+        "x": 296,
+        "y": 78,
+        "width": 160,
+        "height": 102
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-D2-role-picker.png",
+      "suggestedTask": "FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升"
+    },
+    {
+      "id": "GLOBAL-HSCROLL",
+      "viewport": "1280x800",
+      "target": "页面横向滚动（浮层操作后）",
+      "selector": "html",
+      "triggerBox": null,
+      "floatingBox": null,
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R3/R4（浮层应被 clamp/portal，不撑出横滚）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-GLOBAL-hscroll.png",
+      "suggestedTask": "无（无横滚）"
+    },
+    {
+      "id": "T1",
+      "viewport": "1280x800",
+      "target": "tooltip 新建会话",
+      "selector": "[data-testid=\"new-session-btn\"]",
+      "triggerBox": {
+        "x": 249,
+        "y": 69,
+        "width": 14,
+        "height": 14
+      },
+      "floatingBox": {
+        "x": 224,
+        "y": 35,
+        "width": 64,
+        "height": 24
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1/R2/R3/R5（已修母版对照）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-T1-tooltip-new-session.png",
+      "suggestedTask": "无（回归确认）"
+    },
+    {
+      "id": "D1",
+      "viewport": "768x900",
+      "target": "workspace selector 下拉",
+      "selector": "[data-testid=\"workspace-dropdown\"]",
+      "triggerBox": {
+        "x": 12,
+        "y": 12,
+        "width": 255,
+        "height": 32
+      },
+      "floatingBox": {
+        "x": 8,
+        "y": 60,
+        "width": 263,
+        "height": 4430
+      },
+      "symptoms": [
+        "下越界 (bottom=4490 > vh=900)",
+        "下拉底部超出视口且无内部滚动"
+      ],
+      "severity": "high",
+      "reference": "R1(无portal)/R2(无flip)/R4(无max-h)/R8(z-10偏低)",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-D1-workspace-dropdown.png",
+      "suggestedTask": "FIX-D1: workspace 下拉 portal-to-body + flip/shift + max-height 滚动 + z-index 提升"
+    },
+    {
+      "id": "D2",
+      "viewport": "768x900",
+      "target": "role picker @角色",
+      "selector": "[data-testid=\"role-picker\"]",
+      "triggerBox": {
+        "x": 16,
+        "y": 229,
+        "width": 14,
+        "height": 14
+      },
+      "floatingBox": {
+        "x": 16,
+        "y": 119,
+        "width": 160,
+        "height": 102
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1(无portal)/R2(无flip)/R5(无max-w)/R8(z-10)",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-D2-role-picker.png",
+      "suggestedTask": "FIX-D2: role picker portal-to-body + flip/shift + max-width 换行 + z-index 提升"
+    },
+    {
+      "id": "GLOBAL-HSCROLL",
+      "viewport": "768x900",
+      "target": "页面横向滚动（浮层操作后）",
+      "selector": "html",
+      "triggerBox": null,
+      "floatingBox": null,
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R3/R4（浮层应被 clamp/portal，不撑出横滚）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-GLOBAL-hscroll.png",
+      "suggestedTask": "无（无横滚）"
+    },
+    {
+      "id": "O1",
+      "viewport": "768x900",
+      "target": "artifact panel overlay（移动抽屉）",
+      "selector": "[data-testid=\"artifact-overlay\"]",
+      "triggerBox": null,
+      "floatingBox": {
+        "x": 448,
+        "y": 0,
+        "width": 320,
+        "height": 900
+      },
+      "symptoms": [
+        "移动态无 backdrop / 无点击外部关闭（对照 sidebar 抽屉有 backdrop）"
+      ],
+      "severity": "medium",
+      "reference": "R9（抽屉缺 backdrop/外部关闭）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-O1-artifact-overlay.png",
+      "suggestedTask": "FIX-O1: artifact 移动抽屉补 backdrop + 点击外部关闭 + 与 sidebar 抽屉 z 分层"
+    },
+    {
+      "id": "O2",
+      "viewport": "768x900",
+      "target": "sidebar drawer（移动抽屉）",
+      "selector": "[data-testid=\"sidebar-region\"]",
+      "triggerBox": null,
+      "floatingBox": {
+        "x": 0,
+        "y": 0,
+        "width": 280,
+        "height": 900
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R9（fixed inset + backdrop 母版对照）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-O2-sidebar-drawer.png",
+      "suggestedTask": "无（实现规范，回归确认）"
+    },
+    {
+      "id": "T1",
+      "viewport": "768x900",
+      "target": "tooltip 新建会话",
+      "selector": "[data-testid=\"new-session-btn\"]",
+      "triggerBox": {
+        "x": 249,
+        "y": 69,
+        "width": 14,
+        "height": 14
+      },
+      "floatingBox": {
+        "x": 224,
+        "y": 35,
+        "width": 64,
+        "height": 24
+      },
+      "symptoms": [],
+      "severity": "ok",
+      "reference": "R1/R2/R3/R5（已修母版对照）",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-T1-tooltip-new-session.png",
+      "suggestedTask": "无（回归确认）"
+    }
+  ]
+}

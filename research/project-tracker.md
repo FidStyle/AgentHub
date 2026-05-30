@@ -353,6 +353,23 @@
 
 ---
 
+### FLOATING-UI-UAT-AUDIT-001: Web Floating UI / Overlay 真实浏览器只读几何审计
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（UI 可用性审计；只读，不 execute/不修复） |
+| **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
+| **缺陷台账** | `research/regression-ledger.md#reg-20260531-002`（high, open）/ `#reg-20260531-003`（medium, open） |
+| **当前状态** | ✅ 审计完成（2026-05-31）：真实浏览器三视口（1440/1280/768）几何审计，14 findings。发现 GAP-001(high) workspace selector 下拉 ×3 视口下越界且无内部滚动、GAP-002(medium) 移动 artifact 抽屉无 backdrop/无点击外部关闭；T1 tooltip 母版（UI-TOOLTIP-POSITION-001）无回归。已登记 REG-20260531-002/003，未修复产品代码。 |
+| **目标** | 只读审计 Web tooltip/dropdown/popover/role picker/workspace selector/mobile drawer/artifact overlay 等浮层定位与裁切问题，几何断言发现缺口并入账，不 execute |
+| **方案摘要** | refer_proj（cherry-studio/lobehub/AionUi/claudecodeui）只读提炼 R1–R11 浮层规则（未复制代码、未提交 refer_proj）；`floating-ui-uat-audit.spec.ts` 只读证据采集器对每个浮层真实 hover/focus/click 打开，采集 trigger + floating boundingBox 做几何断言，归档 findings.json |
+| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_p0_test` + 真实 Auth.js session；几何断言（越界/裁切/遮挡/横滚/变形），禁止 `toBeVisible` 充数 |
+| **测试证据** | `research/execution-reports/floating-ui-uat-audit-001-report.md` + `floating-ui-uat-audit-001-findings.json`（14 findings：D1×3 high / O1 medium / 其余 ok）+ `e2e/tests/web/floating-ui-uat-audit.spec.ts`（只读审计 spec）+ `e2e/artifacts/floating-ui-uat-audit/*.png`（三视口截图证据） |
+| **阻塞问题** | 无（审计任务，发现项已转 REG-20260531-002/003 待 FIX-D1/FIX-O1 后续 execute） |
+| **下一步动作** | GAP-001 → `FIX-D1`（high）；GAP-002 → `FIX-O1`（medium）；本审计任务关闭 |
+
+---
+
 ## P2 任务
 
 （暂无登记）
@@ -399,3 +416,4 @@
 | 2026-05-30 | ROLE-CHAT-RUNTIME-DELIVER-001 / MOBILE-CHAT-DELIVER-001 / ARTIFACT-PANEL-DATA-001 / DEV-ENV-BOOTSTRAP-001 | 新增 4 条后续修复任务（前两项 P0、后两项 P1），来源 PRODUCT-UAT-GAP-AUDIT-001 |
 | 2026-05-30 | ROLE-CHAT-RUNTIME-DELIVER-001 | ✅ 完成（commit `eed577f`）：Web @架构师真实回复链路修复，关闭 REG-20260530-006 **Web GAP-001**——gateway public_cloud 改用 endpoint status/id + 活跃 worker 在线键门控、无 worker/unconfigured 立即短路明确中文错误态（<2s）、非回显 ScriptedRealExecutor、两条默认不可跳过 E2E。verify passed=true/review PASS/UAT 2/2/milestone-audit PASS。Mobile GAP-002 保留 open，转 `MOBILE-CHAT-DELIVER-001`(P0)。归档 `.workflow/milestones/adhoc-role-chat-runtime-deliver/` |
 | 2026-05-31 | UI-TOOLTIP-POSITION-001 | ✅ 完成（ralph-20260531-000642）：packages/ui Tooltip 重写 portal-to-body + computePosition flip/shift + max-w-[16rem] break-words（移除 whitespace-nowrap）+ 保留 role=tooltip/aria-describedby + hover/focus 双触发；IconButton 透传 tooltipSide/tooltipAlign 零破坏向后兼容。真实浏览器 E2E 6/6 passed（1440/1280/768 × web-desktop+web-tablet），boundingBox 在 viewport 内 + 无横滚 + 未遮挡断言。verify passed=true gaps=[]/review PASS（0 critical/blocking）/test 6/6/milestone-audit PASS；四道 gate + goal-audit 全 proceed；关闭 REG-20260531-001，归档 `.workflow/milestones/M-adhoc-20260531-ui-tooltip-position/` |
+| 2026-05-31 | FLOATING-UI-UAT-AUDIT-001 | ✅ 只读浮层/Overlay 真实浏览器几何审计完成（analyze→reference-extract→audit→verify，不 execute/不修复）：refer_proj（cherry-studio/lobehub/AionUi/claudecodeui）提炼 R1–R11 浮层规则写入 Reference Findings；真实浏览器三视口（1440/1280/768）几何审计 3/3 passed，14 findings。发现 GAP-001(high) workspace 下拉越界无滚动 ×3 视口、GAP-002(medium) 移动 artifact 抽屉无 backdrop；T1 tooltip 母版无回归。登记 REG-20260531-002(high)/003(medium)。产物：report + findings.json + 只读审计 spec |
