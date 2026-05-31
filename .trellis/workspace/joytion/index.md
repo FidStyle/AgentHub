@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
+- **Total Sessions**: 2
 - **Last Active**: 2026-05-31
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~38 | Active |
+| `journal-1.md` | ~72 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-05-31 | LOCAL-DESKTOP-OPERABILITY-001 本地工作区可操作性 | `ce25746`, `6397c64` | `AgentHub_new_claude_test` |
 | 1 | 2026-05-31 | 验证 Web Next production build | - | `AgentHub_new_claude_test` |
 <!-- @@@/auto:session-history -->
 
