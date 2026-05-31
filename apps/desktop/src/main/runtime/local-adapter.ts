@@ -1,5 +1,5 @@
 import { execFile } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import path from 'path'
 import { promisify } from 'util'
@@ -46,11 +46,15 @@ export class LocalRuntimeAdapter {
     }
 
     if (!existsSync(resolvedCwd)) {
-      return {
-        exitCode: 1,
-        stdout: '',
-        stderr: `工作目录不存在：${resolvedCwd}`,
-        duration: Date.now() - start,
+      try {
+        mkdirSync(resolvedCwd, { recursive: true })
+      } catch {
+        return {
+          exitCode: 1,
+          stdout: '',
+          stderr: `无法创建工作目录：${resolvedCwd}`,
+          duration: Date.now() - start,
+        }
       }
     }
 

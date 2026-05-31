@@ -91,8 +91,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
     { id: 'a1', action: '删除文件', risk: 'high', description: '删除 src/legacy/ 目录下 12 个文件', createdAt: '2 分钟前' },
   ],
   workspaceDirs: [
-    { path: '~/Projects/agenthub', healthy: true },
-    { path: '~/Projects/api-server', healthy: true },
+    { path: '~/.agenthub/workspaces/default', healthy: true },
   ],
   agents: [
     { id: 'codex', name: 'Codex', status: 'pending', capabilities: [] },

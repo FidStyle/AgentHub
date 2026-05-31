@@ -241,7 +241,7 @@ type RuntimeExecResult = {
 | --- | --- |
 | prompt 为空 | 返回中文错误“请输入要发送给本地 Runtime 的消息” |
 | Runtime type 不是 `codex` / `claude_code` | 返回中文错误“当前 Runtime 暂不支持” |
-| 工作目录不存在 | 返回中文错误“工作目录不存在：...” |
+| 工作目录不存在 | 自动创建目录；创建失败才返回中文错误“无法创建工作目录：...” |
 | CLI 未找到或 spawn `ENOENT` | 返回中文错误“未找到 Codex/Claude Code CLI，请先完成安装和诊断” |
 | CLI exitCode 非 0 | 活动列表显示失败、stderr/stdout 摘要和中文原因 |
 

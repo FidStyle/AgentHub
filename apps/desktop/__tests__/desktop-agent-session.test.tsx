@@ -6,6 +6,7 @@ import { useConsoleStore, type AgentConfig } from '../src/renderer/store/console
 
 const AGENT: AgentConfig = { id: 'codex', name: 'Codex', status: 'connected', version: '0.1.2' }
 const CLAUDE_AGENT: AgentConfig = { id: 'claude_code', name: 'Claude Code', status: 'connected', version: '1.2.3' }
+const DEFAULT_WORKDIR = '~/.agenthub/workspaces/default'
 
 function resetStore() {
   useConsoleStore.setState({
@@ -21,7 +22,7 @@ function resetStore() {
       diagnosticCode: 'RUNTIME_READY',
       diagnosticMessage: 'Codex 已安装并完成认证',
     }],
-    workspaceDirs: [{ path: '~/Projects/agenthub', healthy: true }],
+    workspaceDirs: [{ path: DEFAULT_WORKDIR, healthy: true }],
   })
 }
 
@@ -44,7 +45,7 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     await user.click(screen.getByRole('button', { name: '发送' }))
 
     await waitFor(() => expect(execute).toHaveBeenCalledTimes(1))
-    expect(execute).toHaveBeenCalledWith({ runtimeType: 'codex', prompt: 'hello' }, '~/Projects/agenthub')
+    expect(execute).toHaveBeenCalledWith({ runtimeType: 'codex', prompt: 'hello' }, DEFAULT_WORKDIR)
 
     // 活动来自真实返回：成功 + stdout 内容
     expect(await screen.findByText(/real-output-xyz/)).toBeInTheDocument()
@@ -82,7 +83,7 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
         diagnosticMessage: 'Claude Code 已安装并完成认证',
       }],
       activities: [],
-      workspaceDirs: [{ path: '~/Projects/agenthub', healthy: true }],
+      workspaceDirs: [{ path: DEFAULT_WORKDIR, healthy: true }],
     })
     const execute = vi.fn().mockResolvedValue({ exitCode: 0, stdout: 'claude-output', stderr: '', duration: 12 })
     ;(window as unknown as { electronAPI: unknown }).electronAPI = { runtime: { execute, detect: vi.fn(), available: vi.fn() } }
@@ -93,7 +94,7 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     await user.type(screen.getByPlaceholderText('输入给 Claude Code 的消息...'), 'hello')
     await user.click(screen.getByRole('button', { name: '发送' }))
 
-    await waitFor(() => expect(execute).toHaveBeenCalledWith({ runtimeType: 'claude_code', prompt: 'hello' }, '~/Projects/agenthub'))
+    await waitFor(() => expect(execute).toHaveBeenCalledWith({ runtimeType: 'claude_code', prompt: 'hello' }, DEFAULT_WORKDIR))
   })
 
   it('无 runtime：发送后渲染明确失败错误态，且未伪造执行', async () => {
