@@ -12,9 +12,10 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 
 export function DesktopSessionSidebar() {
-  const { workspaceDirs, approvals, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
+  const { workspaceDirs, approvals, activities, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
   const { handleGitHubLogin, handleLogout } = useDesktopAuth()
   const channelStateLabel = connectionState === 'connected' ? '云端连接在线' : '云端连接断开'
+  const localSessionCount = activities.filter((entry) => /^\[(Codex|Claude Code)]\s+/.test(entry.message)).length
 
   return (
     <aside data-testid="desktop-session-sidebar" className="flex flex-col w-56 border-r border-border bg-card h-full">
@@ -23,7 +24,7 @@ export function DesktopSessionSidebar() {
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-2 flex flex-col gap-1">
         <SidebarItem testId="desktop-nav-workspace" label="本地工作区" count={workspaceDirs.length} page="workspace" currentPage={currentPage} onNavigate={navigateTo} />
-        <SidebarItem testId="desktop-nav-sessions" label="最近会话" count={0} page="sessions" currentPage={currentPage} onNavigate={navigateTo} />
+        <SidebarItem testId="desktop-nav-sessions" label="最近会话" count={localSessionCount} page="sessions" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-agents" label="本地 Agent" count={2} page="agents" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-approvals" label="待审批" count={approvals.length} highlight={approvals.length > 0} page="approvals" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-settings" label="设置" page="settings" currentPage={currentPage} onNavigate={navigateTo} />

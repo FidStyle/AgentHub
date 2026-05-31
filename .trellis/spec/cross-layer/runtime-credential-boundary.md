@@ -155,7 +155,8 @@ interface WorkspaceOperabilityStatus {
   - Claude Code：`command -v claude`、`claude --version`、`claude auth status --json`；认证引导为 `claude auth login`。
   - Codex：`command -v codex`、`codex --version`、`codex login status`；认证引导为 `codex login`；完整诊断入口为 `codex doctor --json`。
   - Codex 认证判定必须支持 `codex login status` 输出 `Logged in using an API key ...`，并用 `codex doctor --json` 的 `checks["auth.credentials"].status === "ok"` 作为兜底；`overallStatus=warning` 不应因为 terminal 等非认证警告误判“未登录”。
-- macOS Electron 发行包从 Finder 启动时不一定继承交互终端的 PATH；本地 Runtime 检测应通过用户登录 shell 解析 CLI 路径，不能只依赖 Electron 进程默认 PATH。
+- macOS Electron 发行包从 Finder / Dock / 快捷方式启动时不一定继承交互终端的 PATH；本地 Runtime 检测应通过用户登录 shell、交互 shell 和常见安装目录解析 CLI 路径，不能只依赖 Electron 进程默认 PATH 或裸 `command -v`。
+- 本地 Runtime 检测成功后应优先使用解析到的绝对 CLI 路径执行后续 `version`、`auth status`、`doctor` 和一次性消息命令，避免 Finder 启动时 `codex` / `claude` 在执行阶段再次找不到。
 - Web/Mobile 只能通过 Cloud Runtime Gateway + Desktop DeviceChannel/tunnel 访问用户本机 Runtime，禁止直连本地 IP/端口。
 
 ### 4. 校验与错误矩阵
@@ -237,6 +238,7 @@ type RuntimeExecResult = {
 - CLI 路径解析和执行应使用用户登录 shell，兼容 macOS Finder 启动的 Electron 进程 PATH 不完整问题。
 - 一次性消息必须有超时上限，超时后返回中文错误，不能让 UI 永久停留在“发送中”。
 - Main process 应使用可取消的进程句柄执行一次性 CLI，renderer 的“停止”按钮必须调用真实 cancel IPC，不能只是 disabled 占位。
+- Desktop “最近会话”只展示本机 Runtime 会话型活动，例如 `[Codex] prompt` 或 `[Claude Code] prompt` 的一次性消息记录；诊断、连接器启动和审批不应伪装成会话历史。完整 IM 历史、Artifact、Agents 和编排仍属于 Web 工作台。
 
 ### 4. Validation & Error Matrix
 

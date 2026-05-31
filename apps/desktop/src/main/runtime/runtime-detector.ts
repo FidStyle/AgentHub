@@ -1,8 +1,4 @@
-import { execFile } from 'child_process'
-import { promisify } from 'util'
-
-const execFileAsync = promisify(execFile)
-const CLI_TIMEOUT_MS = 5000
+import { resolveCliPath, runShell, runShellWithExit, shellQuote } from './cli-resolver'
 
 export const RUNTIME_DETECTOR_COMMANDS = {
   claude: {
@@ -19,32 +15,6 @@ export const RUNTIME_DETECTOR_COMMANDS = {
     doctor: 'codex doctor --json',
   },
 } as const
-
-async function runLoginShell(command: string): Promise<string> {
-  const shell = process.env.SHELL?.startsWith('/') ? process.env.SHELL : '/bin/zsh'
-  const { stdout } = await execFileAsync(shell, ['-lc', command], {
-    timeout: CLI_TIMEOUT_MS,
-    maxBuffer: 1024 * 1024,
-  })
-  return stdout.trim()
-}
-
-async function runLoginShellWithExit(command: string, timeout = CLI_TIMEOUT_MS): Promise<{ stdout: string; exitCode: number }> {
-  const shell = process.env.SHELL?.startsWith('/') ? process.env.SHELL : '/bin/zsh'
-  try {
-    const { stdout } = await execFileAsync(shell, ['-lc', command], {
-      timeout,
-      maxBuffer: 1024 * 1024,
-    })
-    return { stdout: stdout.trim(), exitCode: 0 }
-  } catch (error) {
-    const err = error as { stdout?: string; code?: number | string }
-    return {
-      stdout: (err.stdout ?? '').trim(),
-      exitCode: typeof err.code === 'number' ? err.code : 1,
-    }
-  }
-}
 
 function parseClaudeAuthStatus(output: string): boolean {
   try {
@@ -126,16 +96,17 @@ export class RuntimeDetector {
       diagnosticMessage: '未检测到 Claude Code CLI',
     }
     try {
-      info.cliPath = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.claude.resolvePath) || null
+      info.cliPath = await resolveCliPath('claude')
       if (!info.cliPath) return info
 
-      const version = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.claude.version)
+      const claude = shellQuote(info.cliPath)
+      const version = await runShell(`${claude} --version`)
       if (version && !version.includes('not found')) {
         info.available = true
         info.launchable = true
         info.version = version.split('\n')[0]
         try {
-          const authOut = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.claude.authStatus)
+          const authOut = await runShell(`${claude} auth status --json`)
           info.authenticated = parseClaudeAuthStatus(authOut)
           info.diagnosticCode = info.authenticated ? 'RUNTIME_READY' : 'RUNTIME_AUTH_REQUIRED'
           info.diagnosticMessage = info.authenticated ? 'Claude Code 已安装并完成认证' : 'Claude Code 未登录或认证不可用，请在本机 CLI 完成登录'
@@ -163,17 +134,18 @@ export class RuntimeDetector {
       diagnosticMessage: '未检测到 Codex CLI',
     }
     try {
-      info.cliPath = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.codex.resolvePath) || null
+      info.cliPath = await resolveCliPath('codex')
       if (!info.cliPath) return info
 
-      const version = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.codex.version)
+      const codex = shellQuote(info.cliPath)
+      const version = await runShell(`${codex} --version`)
       if (version && !version.includes('not found')) {
         info.available = true
         info.launchable = true
         info.version = version.split('\n')[0]
         const [authOut, doctor] = await Promise.all([
-          runLoginShellWithExit(RUNTIME_DETECTOR_COMMANDS.codex.authStatus),
-          runLoginShellWithExit(RUNTIME_DETECTOR_COMMANDS.codex.doctor, 10000),
+          runShellWithExit(`${codex} login status`),
+          runShellWithExit(`${codex} doctor --json`, { timeout: 10000 }),
         ])
         info.authenticated =
           parseCodexLoginStatus(authOut.stdout) ||

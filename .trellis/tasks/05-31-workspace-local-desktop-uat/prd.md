@@ -89,6 +89,11 @@
 - Added server-side `local_desktop` workspace creation gate in `/api/workspaces`; frontend dialog mirrors the same state but does not replace backend enforcement.
 - Moved Role Agent CRUD into the current right-panel Agents tab and dispatch `role-agents:changed` so the chat @ picker refreshes after CRUD.
 - Desktop `device-channel:connect` now has active/fallback IPC registration through `device-channel-ipc.ts`; initialization failures return an explicit device-channel error instead of Electron's `No handler registered`.
+- Desktop local activity now supports expandable details for long Runtime output, while keeping the activity list compact and scroll-bounded.
+- Desktop Runtime detection no longer renders long CLI paths inline in the narrow right panel; paths move behind a “查看 CLI 路径” dialog with copy support.
+- Desktop local workspace can switch Agent type directly from the local Agent session header; unavailable runtimes remain visible but disabled.
+- Desktop recent sessions now derive from real local Runtime message activities (`[Codex] ...` / `[Claude Code] ...`) instead of showing a permanent empty placeholder.
+- Runtime CLI resolution now handles Finder/Dock launches by trying login shell, interactive shell, and common installation paths such as nvm, fnm, asdf, Homebrew, and local bin directories; execution uses the resolved absolute CLI path.
 
 ## Verification Results
 
@@ -96,6 +101,8 @@
 - `pnpm --filter @agenthub/desktop type-check` — PASS.
 - `pnpm --filter @agenthub/desktop test -- device-channel-ipc.test.ts` — 2 passed.
 - `npx playwright test e2e/tests/web/workspace-local-desktop-uat.spec.ts --config e2e/playwright.config.ts --project=web-desktop --workers=1` with `docker/.p0-test.env` loaded — 1 passed (6.5s) after granting Chromium launch permission.
+- `pnpm --filter @agenthub/desktop test -- --run` — 20 passed.
+- `pnpm --filter @agenthub/desktop build` — PASS.
 
 ## Out of Scope
 

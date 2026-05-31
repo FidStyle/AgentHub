@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtempSync, mkdirSync } from 'fs'
+import { tmpdir } from 'os'
+import path from 'path'
 import {
   RUNTIME_DETECTOR_COMMANDS,
   parseCodexDoctorAuthStatus,
   parseCodexLoginStatus,
 } from '../src/main/runtime/runtime-detector'
+import { getCommonCliCandidates, shellQuote } from '../src/main/runtime/cli-resolver'
 
 describe('RuntimeDetector command contract', () => {
   it('uses real Claude Code authentication commands', () => {
@@ -39,5 +43,25 @@ describe('RuntimeDetector command contract', () => {
         'auth.credentials': { status: 'fail' },
       },
     }))).toBe(false)
+  })
+
+  it('Finder/Dock 启动兜底会扫描常见 CLI 安装目录', () => {
+    const originalNvmDir = process.env.NVM_DIR
+    const nvmDir = mkdtempSync(path.join(tmpdir(), 'agenthub-nvm-'))
+    mkdirSync(path.join(nvmDir, 'versions/node/v24.15.0/bin'), { recursive: true })
+    try {
+      process.env.NVM_DIR = nvmDir
+      const candidates = getCommonCliCandidates('codex')
+      expect(candidates).toContain(path.join(nvmDir, 'versions/node/v24.15.0/bin/codex'))
+      expect(candidates).toContain('/opt/homebrew/bin/codex')
+      expect(candidates).toContain('/usr/local/bin/codex')
+    } finally {
+      if (originalNvmDir) process.env.NVM_DIR = originalNvmDir
+      else delete process.env.NVM_DIR
+    }
+  })
+
+  it('shellQuote safely quotes absolute CLI paths', () => {
+    expect(shellQuote("/tmp/Agent Hub/codex's/bin")).toBe("'/tmp/Agent Hub/codex'\\''s/bin'")
   })
 })

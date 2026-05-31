@@ -11,6 +11,7 @@ const DEFAULT_WORKDIR = '~/.agenthub/workspaces/default'
 function resetStore() {
   useConsoleStore.setState({
     selectedAgent: AGENT,
+    agents: [AGENT, CLAUDE_AGENT, { id: 'opencode', name: 'OpenCode', status: 'pending' }, { id: 'other', name: '其他 Runtime', status: 'pending' }],
     activities: [],
     runtimes: [{
       type: 'codex',
@@ -50,6 +51,25 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     // 活动来自真实返回：成功 + stdout 内容
     expect(await screen.findByText(/real-output-xyz/)).toBeInTheDocument()
     expect(screen.getByText('成功')).toBeInTheDocument()
+  })
+
+  it('长输出默认不撑破活动列表，可展开查看完整内容', async () => {
+    const longOutput = `第一行回复\n${'完整内容'.repeat(120)}`
+    const execute = vi.fn().mockResolvedValue({ exitCode: 0, stdout: longOutput, stderr: '', duration: 12 })
+    ;(window as unknown as { electronAPI: unknown }).electronAPI = { runtime: { execute, detect: vi.fn(), available: vi.fn() } }
+
+    const user = userEvent.setup()
+    render(<DesktopAgentSession />)
+
+    await user.type(screen.getByPlaceholderText('输入给 Codex 的消息...'), 'hello')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1))
+    await user.click(await screen.findByRole('button', { name: '详情' }))
+
+    expect(screen.getAllByText(/第一行回复/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(new RegExp('完整内容'.repeat(20))).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: '收起' })).toBeInTheDocument()
   })
 
   it('失败路径：exitCode != 0 渲染明确失败错误态（不硬编码 success）', async () => {
@@ -95,6 +115,34 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     await user.click(screen.getByRole('button', { name: '发送' }))
 
     await waitFor(() => expect(execute).toHaveBeenCalledWith({ runtimeType: 'claude_code', prompt: 'hello' }, DEFAULT_WORKDIR))
+  })
+
+  it('本地会话内可以直接切换 Agent 类型', async () => {
+    useConsoleStore.setState({
+      agents: [AGENT, CLAUDE_AGENT, { id: 'opencode', name: 'OpenCode', status: 'pending' }],
+      selectedAgent: AGENT,
+      runtimes: [{
+        type: 'claude_code',
+        available: true,
+        version: '1.2.3',
+        authenticated: true,
+        launchable: true,
+        cliPath: '/usr/local/bin/claude',
+        diagnosticCode: 'RUNTIME_READY',
+        diagnosticMessage: 'Claude Code 已安装并完成认证',
+      }],
+      activities: [],
+      workspaceDirs: [{ path: DEFAULT_WORKDIR, healthy: true }],
+    })
+    ;(window as unknown as { electronAPI: unknown }).electronAPI = { runtime: { execute: vi.fn(), detect: vi.fn(), available: vi.fn() } }
+
+    const user = userEvent.setup()
+    render(<DesktopAgentSession />)
+
+    await user.selectOptions(screen.getByTestId('desktop-agent-type-select'), 'claude_code')
+
+    expect(screen.getByTestId('desktop-selected-agent')).toHaveTextContent('Claude Code')
+    expect(screen.getByPlaceholderText('输入给 Claude Code 的消息...')).toBeInTheDocument()
   })
 
   it('无 runtime：发送后渲染明确失败错误态，且未伪造执行', async () => {

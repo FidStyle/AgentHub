@@ -1,6 +1,6 @@
-import { Card, CardHeader, CardTitle, CardContent, Button, StateCard } from '@agenthub/ui'
+import { Card, CardHeader, CardTitle, CardContent, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, StateCard } from '@agenthub/ui'
 import { useConsoleStore } from '../../store/console-store'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { getRuntimeApi } from '../../utils/electron-api'
 
 const runtimeLabels: Record<string, { label: string; loginCmd: string }> = {
@@ -10,6 +10,7 @@ const runtimeLabels: Record<string, { label: string; loginCmd: string }> = {
 
 export function RuntimeDetection() {
   const { runtimes, runtimeLoading, setRuntimes, setRuntimeLoading } = useConsoleStore()
+  const [pathRuntime, setPathRuntime] = useState<typeof runtimes[number] | null>(null)
 
   const detect = async () => {
     setRuntimeLoading(true)
@@ -54,7 +55,7 @@ export function RuntimeDetection() {
         {runtimes.map((rt) => {
           const meta = runtimeLabels[rt.type] ?? { label: rt.type, loginCmd: '' }
           return (
-            <div key={rt.type} className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5" data-testid="runtime-status-card">
+            <div key={rt.type} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2.5" data-testid="runtime-status-card">
               <span className={`h-2 w-2 rounded-full ${rt.available ? (rt.authenticated ? 'bg-success' : 'bg-warning') : 'bg-muted-foreground'}`} />
               <span className="text-sm font-medium">{meta.label}</span>
               {rt.available ? (
@@ -70,10 +71,20 @@ export function RuntimeDetection() {
               ) : (
                 <span className="ml-auto text-xs text-muted-foreground">未安装</span>
               )}
-              <p className="basis-full pl-5 text-xs text-muted-foreground">
-                {rt.diagnosticMessage}
-                {rt.cliPath ? ` · ${rt.cliPath}` : ''}
-              </p>
+              <p className="basis-full pl-5 text-xs text-muted-foreground break-words">{rt.diagnosticMessage}</p>
+              {rt.cliPath && (
+                <div className="basis-full pl-5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setPathRuntime(rt)}
+                  >
+                    查看 CLI 路径
+                  </Button>
+                </div>
+              )}
             </div>
           )
         })}
@@ -81,6 +92,30 @@ export function RuntimeDetection() {
           AgentHub 不托管 API Key，请使用原生 CLI 完成认证
         </p>
       </CardContent>
+      <Dialog open={Boolean(pathRuntime)} onClose={() => setPathRuntime(null)} className="w-[min(560px,92vw)]">
+        <DialogHeader>
+          <DialogTitle>{pathRuntime ? `${runtimeLabels[pathRuntime.type]?.label ?? pathRuntime.type} CLI 路径` : 'CLI 路径'}</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <p className="text-xs text-muted-foreground">路径只用于本机诊断，不会作为密钥或远端连接地址保存。</p>
+          <pre className="mt-3 max-h-48 overflow-auto rounded-md border border-border bg-background p-3 text-xs break-all">
+            {pathRuntime?.cliPath}
+          </pre>
+        </DialogContent>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void navigator.clipboard?.writeText(pathRuntime?.cliPath ?? '').catch(() => undefined)
+            }}
+          >
+            复制路径
+          </Button>
+          <Button type="button" size="sm" onClick={() => setPathRuntime(null)}>关闭</Button>
+        </DialogFooter>
+      </Dialog>
     </Card>
   )
 }

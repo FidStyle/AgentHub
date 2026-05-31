@@ -34,6 +34,7 @@ export function DesktopAgentSession() {
   const [diagnosing, setDiagnosing] = React.useState(false)
   const selectedRuntimeType = selectedAgent ? toSupportedRuntimeType(selectedAgent.id) : null
   const selectedRuntime = selectedRuntimeType ? runtimes.find((rt) => rt.type === selectedRuntimeType) : null
+  const selectedAgentId = selectedAgent?.id ?? ''
 
   const handleDiagnose = async () => {
     if (diagnosing) return
@@ -126,7 +127,7 @@ export function DesktopAgentSession() {
       addActivity({
         type: 'runtime',
         status: ok ? 'success' : 'failed',
-        message: `[${selectedAgent.name}] ${prompt}${output ? `\n${output.slice(0, 2000)}` : ''}`,
+        message: `[${selectedAgent.name}] ${prompt}${output ? `\n${output}` : ''}`,
         reason: ok ? undefined : (output || `执行失败，退出码 ${result.exitCode}`),
       })
     } catch (err) {
@@ -174,6 +175,25 @@ export function DesktopAgentSession() {
         {!selectedAgent && connectedAgents.length > 0 && (
           <Badge variant="secondary">{connectedAgents.length} 个在线</Badge>
         )}
+        <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          Agent 类型
+          <select
+            data-testid="desktop-agent-type-select"
+            value={selectedAgentId}
+            onChange={(event) => {
+              const agent = agents.find((item) => item.id === event.target.value)
+              if (agent && agent.status === 'connected') enterSession(agent)
+            }}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+          >
+            <option value="" disabled>选择 Agent</option>
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id} disabled={agent.status !== 'connected'}>
+                {agent.name}{agent.status === 'connected' ? '' : '（待接入）'}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
         <div className="flex flex-col gap-1">
@@ -187,7 +207,7 @@ export function DesktopAgentSession() {
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm text-left w-full ${activeWorkspace === ws.path ? 'bg-muted font-medium' : 'hover:bg-muted/50'}`}
             >
               <span className={`h-2 w-2 rounded-full ${ws.healthy ? 'bg-success' : 'bg-destructive'}`} />
-              <span>{ws.path}</span>
+              <span className="min-w-0 truncate" title={ws.path}>{ws.path}</span>
             </button>
           ))}
         </div>

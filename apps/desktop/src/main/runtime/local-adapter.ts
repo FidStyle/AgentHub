@@ -1,11 +1,9 @@
-import { execFile, spawn, type ChildProcess } from 'child_process'
+import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import path from 'path'
-import { promisify } from 'util'
 import type { RuntimeResult } from '@agenthub/shared'
-
-const execFileAsync = promisify(execFile)
+import { resolveCliPath, resolveShell, runShellWithExit, shellQuote } from './cli-resolver'
 
 export interface RuntimePromptRequest {
   runtimeType: 'claude_code' | 'codex'
@@ -20,10 +18,6 @@ export const RUNTIME_EXEC_COMMANDS: Record<RuntimePromptRequest['runtimeType'], 
 const RUNTIME_TIMEOUT_MS: Record<RuntimePromptRequest['runtimeType'], number> = {
   claude_code: 60000,
   codex: 60000,
-}
-
-function resolveShell() {
-  return process.env.SHELL?.startsWith('/') ? process.env.SHELL : '/bin/zsh'
 }
 
 function resolveCwd(cwd: string) {
@@ -83,13 +77,27 @@ export class LocalRuntimeAdapter {
       }
     }
 
+    const binary = request.runtimeType === 'codex' ? 'codex' : 'claude'
+    const cliPath = await resolveCliPath(binary)
+    if (!cliPath) {
+      return {
+        exitCode: 1,
+        stdout: '',
+        stderr: `未找到 ${request.runtimeType === 'codex' ? 'Codex' : 'Claude Code'} CLI，请先完成安装和诊断`,
+        duration: Date.now() - start,
+      }
+    }
+    const resolvedCommand = request.runtimeType === 'codex'
+      ? `${shellQuote(cliPath)} exec --skip-git-repo-check --sandbox read-only --color never -- "$AGENTHUB_PROMPT"`
+      : `${shellQuote(cliPath)} --print "$AGENTHUB_PROMPT"`
+
     return new Promise<RuntimeResult>((resolve) => {
       let stdout = ''
       let stderr = ''
       let settled = false
       let timedOut = false
 
-      const child = spawn(resolveShell(), ['-lc', command], {
+      const child = spawn(resolveShell(), ['-lc', resolvedCommand], {
         cwd: resolvedCwd,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, AGENTHUB_PROMPT: prompt },
@@ -159,11 +167,7 @@ export class LocalRuntimeAdapter {
   }
 
   async isAvailable(): Promise<boolean> {
-    try {
-      await execFileAsync(resolveShell(), ['-lc', 'command -v claude || command -v codex'])
-      return true
-    } catch {
-      return false
-    }
+    const result = await runShellWithExit('command -v claude || command -v codex || true')
+    return Boolean(result.stdout || await resolveCliPath('claude') || await resolveCliPath('codex'))
   }
 }
