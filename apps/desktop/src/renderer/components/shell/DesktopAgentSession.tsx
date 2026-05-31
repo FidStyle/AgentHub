@@ -6,27 +6,114 @@ import { ApprovalPanel } from '../console/ApprovalPanel'
 import { getElectronAPI } from '../../utils/electron-api'
 
 const CONTROL_UNAVAILABLE = '能力未实现：需远程流式 runtime 会话（见 P1-RT），本地一次性执行不支持此控制语义'
+const RUNTIME_LABELS: Record<string, string> = {
+  claude_code: 'Claude Code',
+  codex: 'Codex',
+}
+
+function toSupportedRuntimeType(agentId: string): 'claude_code' | 'codex' | null {
+  if (agentId === 'claude_code' || agentId === 'codex') return agentId
+  return null
+}
 
 export function DesktopAgentSession() {
-  const { agents, activities, selectedAgent, workspaceDirs, enterSession, addActivity } = useConsoleStore()
+  const {
+    agents,
+    activities,
+    selectedAgent,
+    workspaceDirs,
+    runtimes,
+    enterSession,
+    addActivity,
+    setRuntimes,
+    setRuntimeLoading,
+  } = useConsoleStore()
   const connectedAgents = agents.filter(a => a.status === 'connected')
   const [activeWorkspace, setActiveWorkspace] = React.useState<string | null>(null)
   const [input, setInput] = React.useState('')
   const [sending, setSending] = React.useState(false)
+  const [diagnosing, setDiagnosing] = React.useState(false)
+  const selectedRuntimeType = selectedAgent ? toSupportedRuntimeType(selectedAgent.id) : null
+  const selectedRuntime = selectedRuntimeType ? runtimes.find((rt) => rt.type === selectedRuntimeType) : null
+
+  const handleDiagnose = async () => {
+    if (diagnosing) return
+    const runtime = getElectronAPI()?.runtime
+    if (!runtime || typeof runtime.detect !== 'function') {
+      addActivity({
+        type: 'runtime',
+        status: 'failed',
+        message: '本地 Runtime 诊断失败',
+        reason: '未检测到 Electron runtime 桥接，请在桌面端窗口中重试',
+      })
+      return
+    }
+
+    setDiagnosing(true)
+    setRuntimeLoading(true)
+    try {
+      const result = await runtime.detect()
+      setRuntimes(result)
+      const summary = result
+        .map((rt) => {
+          const label = RUNTIME_LABELS[rt.type] ?? rt.type
+          const state = rt.available && rt.authenticated && rt.launchable ? '可启动' : '需处理'
+          return `${label}: ${state} · ${rt.diagnosticMessage}`
+        })
+        .join('\n')
+      addActivity({
+        type: 'runtime',
+        status: result.some((rt) => rt.available && rt.authenticated && rt.launchable) ? 'success' : 'failed',
+        message: `本地 Runtime 诊断完成\n${summary || '未检测到 Claude Code / Codex'}`,
+      })
+    } catch (err) {
+      addActivity({
+        type: 'runtime',
+        status: 'failed',
+        message: '本地 Runtime 诊断失败',
+        reason: err instanceof Error ? err.message : '诊断失败',
+      })
+    } finally {
+      setRuntimeLoading(false)
+      setDiagnosing(false)
+    }
+  }
 
   const handleSend = async () => {
     if (!input.trim() || !selectedAgent || sending) return
-    const command = input.trim()
+    const prompt = input.trim()
     const cwd = activeWorkspace ?? workspaceDirs[0]?.path ?? '.'
     const runtime = getElectronAPI()?.runtime
     setSending(true)
     setInput('')
 
+    if (!selectedRuntimeType) {
+      addActivity({
+        type: 'runtime',
+        status: 'failed',
+        message: `[${selectedAgent.name}] ${prompt}`,
+        reason: '当前 Agent 暂不支持桌面端一次性消息发送',
+      })
+      setSending(false)
+      return
+    }
+
+    if (selectedRuntime && (!selectedRuntime.available || !selectedRuntime.authenticated || !selectedRuntime.launchable)) {
+      addActivity({
+        type: 'runtime',
+        status: 'failed',
+        message: `[${selectedAgent.name}] ${prompt}`,
+        reason: selectedRuntime.diagnosticMessage || '本地 Runtime 未通过诊断，请先点击诊断',
+      })
+      setSending(false)
+      return
+    }
+
     if (!runtime || typeof runtime.execute !== 'function') {
       addActivity({
         type: 'runtime',
         status: 'failed',
-        message: `[${selectedAgent.name}] ${command}`,
+        message: `[${selectedAgent.name}] ${prompt}`,
         reason: '本地 runtime 不可用：未检测到 Electron runtime 桥接，无法执行指令',
       })
       setSending(false)
@@ -34,20 +121,20 @@ export function DesktopAgentSession() {
     }
 
     try {
-      const result = await runtime.execute(command, cwd)
+      const result = await runtime.execute({ runtimeType: selectedRuntimeType, prompt }, cwd)
       const ok = result.exitCode === 0
       const output = (ok ? result.stdout : result.stderr || result.stdout).trim()
       addActivity({
         type: 'runtime',
         status: ok ? 'success' : 'failed',
-        message: `[${selectedAgent.name}] ${command}${output ? `\n${output.slice(0, 2000)}` : ''}`,
-        reason: ok ? undefined : `退出码 ${result.exitCode}`,
+        message: `[${selectedAgent.name}] ${prompt}${output ? `\n${output.slice(0, 2000)}` : ''}`,
+        reason: ok ? undefined : (output || `执行失败，退出码 ${result.exitCode}`),
       })
     } catch (err) {
       addActivity({
         type: 'runtime',
         status: 'failed',
-        message: `[${selectedAgent.name}] ${command}`,
+        message: `[${selectedAgent.name}] ${prompt}`,
         reason: err instanceof Error ? err.message : '执行失败',
       })
     } finally {
@@ -106,7 +193,15 @@ export function DesktopAgentSession() {
           <p className="text-xs text-muted-foreground mb-2">请先选择一个已接入的 Agent</p>
         )}
         <div className="flex gap-2 mb-2">
-          <Button size="sm" variant="outline" disabled={!selectedAgent} title={selectedAgent ? '发送 doctor/status 指令做轻量诊断' : '请先选择一个已接入的 Agent'}>诊断</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={diagnosing}
+            title="诊断 Claude Code / Codex 的安装、认证和可启动状态"
+            onClick={handleDiagnose}
+          >
+            {diagnosing ? '诊断中' : '诊断'}
+          </Button>
           {sending && (
             <Button size="sm" variant="destructive" disabled title={CONTROL_UNAVAILABLE}>停止</Button>
           )}
@@ -114,16 +209,19 @@ export function DesktopAgentSession() {
         <div className="flex gap-2">
           <Input
             className="flex-1"
-            placeholder={selectedAgent ? '输入指令...' : '请先选择 Agent'}
-            disabled={!selectedAgent || sending}
+            placeholder={selectedAgent ? `输入给 ${selectedAgent.name} 的消息...` : '请先选择 Agent'}
+            disabled={!selectedAgent || !selectedRuntimeType || sending}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />
-          <Button size="sm" disabled={!selectedAgent || !input.trim() || sending} onClick={handleSend}>
+          <Button size="sm" disabled={!selectedAgent || !selectedRuntimeType || !input.trim() || sending} onClick={handleSend}>
             {sending ? '发送中' : '发送'}
           </Button>
         </div>
+        {selectedAgent && !selectedRuntimeType && (
+          <p className="mt-2 text-xs text-muted-foreground">当前桌面端只支持 Codex 和 Claude Code 的本地一次性消息。</p>
+        )}
       </div>
     </section>
   )

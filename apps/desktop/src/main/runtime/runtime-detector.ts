@@ -29,6 +29,23 @@ async function runLoginShell(command: string): Promise<string> {
   return stdout.trim()
 }
 
+async function runLoginShellWithExit(command: string, timeout = CLI_TIMEOUT_MS): Promise<{ stdout: string; exitCode: number }> {
+  const shell = process.env.SHELL?.startsWith('/') ? process.env.SHELL : '/bin/zsh'
+  try {
+    const { stdout } = await execFileAsync(shell, ['-lc', command], {
+      timeout,
+      maxBuffer: 1024 * 1024,
+    })
+    return { stdout: stdout.trim(), exitCode: 0 }
+  } catch (error) {
+    const err = error as { stdout?: string; code?: number | string }
+    return {
+      stdout: (err.stdout ?? '').trim(),
+      exitCode: typeof err.code === 'number' ? err.code : 1,
+    }
+  }
+}
+
 function parseClaudeAuthStatus(output: string): boolean {
   try {
     const status = JSON.parse(output) as { loggedIn?: boolean }
@@ -46,6 +63,23 @@ function parseCodexLoginStatus(output: string): boolean {
     normalized.includes('authenticated') ||
     normalized.includes('api key')
   ) && !normalized.includes('not logged in') && !normalized.includes('not authenticated')
+}
+
+function summarizeCodexDoctor(output: string): string | null {
+  if (!output) return null
+  try {
+    const report = JSON.parse(output) as {
+      overallStatus?: string
+      checks?: Record<string, { status?: string; summary?: string }>
+    }
+    if (!report.overallStatus || report.overallStatus === 'ok') return null
+    const issue = Object.entries(report.checks ?? {}).find(([, check]) => check.status && check.status !== 'ok')
+    if (!issue) return `doctor ${report.overallStatus}`
+    const [id, check] = issue
+    return `doctor ${report.overallStatus}: ${id} ${check.summary ?? ''}`.trim()
+  } catch {
+    return null
+  }
 }
 
 export interface RuntimeInfo {
@@ -130,6 +164,13 @@ export class RuntimeDetector {
           info.authenticated = parseCodexLoginStatus(authOut)
           info.diagnosticCode = info.authenticated ? 'RUNTIME_READY' : 'RUNTIME_AUTH_REQUIRED'
           info.diagnosticMessage = info.authenticated ? 'Codex 已安装并完成认证' : 'Codex 未登录或认证状态不可确认，请在本机 CLI 完成登录后重新检测'
+          if (info.authenticated) {
+            const doctor = await runLoginShellWithExit(RUNTIME_DETECTOR_COMMANDS.codex.doctor, 10000)
+            const doctorSummary = summarizeCodexDoctor(doctor.stdout)
+            if (doctorSummary) {
+              info.diagnosticMessage = `Codex 已安装并完成认证；${doctorSummary}`
+            }
+          }
         } catch {
           info.diagnosticCode = 'RUNTIME_AUTH_REQUIRED'
           info.diagnosticMessage = 'Codex 认证状态不可确认，请在本机运行 codex login status 检查'

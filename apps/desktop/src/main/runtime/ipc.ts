@@ -1,11 +1,11 @@
 import { ipcMain } from 'electron'
-import { LocalRuntimeAdapter } from './local-adapter'
+import { LocalRuntimeAdapter, type RuntimePromptRequest } from './local-adapter'
 
 const adapter = new LocalRuntimeAdapter()
 
 export function registerRuntimeIPC() {
-  ipcMain.handle('runtime:execute', async (_event, command: string, cwd: string) => {
-    return adapter.execute(command, cwd)
+  ipcMain.handle('runtime:execute', async (_event, request: RuntimePromptRequest, cwd: string) => {
+    return adapter.execute(request, cwd)
   })
 
   ipcMain.handle('runtime:available', async () => {

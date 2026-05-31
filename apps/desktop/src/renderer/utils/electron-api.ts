@@ -16,9 +16,14 @@ export interface RuntimeExecResult {
   duration: number
 }
 
+export interface RuntimePromptRequest {
+  runtimeType: 'claude_code' | 'codex'
+  prompt: string
+}
+
 interface ElectronRuntimeApi {
   detect: () => Promise<RuntimeInfo[]>
-  execute: (command: string, cwd: string) => Promise<RuntimeExecResult>
+  execute: (request: RuntimePromptRequest, cwd: string) => Promise<RuntimeExecResult>
   available: () => Promise<boolean>
 }
 

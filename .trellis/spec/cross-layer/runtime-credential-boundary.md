@@ -200,3 +200,74 @@ const runtimeReady =
     runtime.available && runtime.authenticated && runtime.launchable,
   );
 ```
+
+## 场景：Desktop 本地 Runtime 一次性消息与诊断
+
+### 1. Scope / Trigger
+
+- Trigger：Desktop 会话 UI 需要让用户验证本机 Claude Code / Codex 是否能启动，并允许 P0 级轻量消息发送。
+- 适用范围：Desktop renderer 输入框、preload IPC、main runtime adapter、Runtime Detector、组件测试。
+- 核心风险：用户输入不能被当成任意 shell 命令执行；否则 UI 语义不清，且失败时只暴露 `ENOENT`、`command not found` 等底层错误。
+
+### 2. Signatures
+
+```typescript
+type RuntimePromptRequest = {
+  runtimeType: 'claude_code' | 'codex';
+  prompt: string;
+};
+
+type RuntimeExecResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  duration: number;
+};
+```
+
+### 3. Contracts
+
+- Renderer 输入框的语义是“发送给当前本地 Runtime 的一次性消息”，不是 shell command。
+- Renderer 只能提交 `RuntimePromptRequest`，不得提交任意 command 字符串。
+- Main process 负责把 `runtimeType` 映射到固定 CLI 命令：
+  - `codex` -> `codex exec "$AGENTHUB_PROMPT"`
+  - `claude_code` -> `claude --print "$AGENTHUB_PROMPT"`
+- Prompt 必须通过环境变量或等价安全参数传递，不能拼接进 shell 字符串。
+- CLI 路径解析和执行应使用用户登录 shell，兼容 macOS Finder 启动的 Electron 进程 PATH 不完整问题。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+| --- | --- |
+| prompt 为空 | 返回中文错误“请输入要发送给本地 Runtime 的消息” |
+| Runtime type 不是 `codex` / `claude_code` | 返回中文错误“当前 Runtime 暂不支持” |
+| 工作目录不存在 | 返回中文错误“工作目录不存在：...” |
+| CLI 未找到或 spawn `ENOENT` | 返回中文错误“未找到 Codex/Claude Code CLI，请先完成安装和诊断” |
+| CLI exitCode 非 0 | 活动列表显示失败、stderr/stdout 摘要和中文原因 |
+
+### 5. Good/Base/Bad Cases
+
+- Good：选中 Codex，输入“帮我解释当前目录”，Desktop 执行固定 `codex exec` 命令并显示真实输出。
+- Base：选中 Claude Code，输入一次性 prompt，Desktop 执行 `claude --print` 并显示真实输出。
+- Bad：输入 `ls -la` 后 Desktop 直接把它作为 shell command 执行，用户以为是在和 Agent 对话但实际进入任意命令执行器。
+
+### 6. Tests Required
+
+- 组件测试：诊断按钮点击后调用 `runtime.detect()` 并渲染活动。
+- 组件测试：Codex 发送时 IPC payload 为 `{ runtimeType: 'codex', prompt }`。
+- 组件测试：Claude Code 发送时 IPC payload 为 `{ runtimeType: 'claude_code', prompt }`。
+- 组件测试：runtime bridge 缺失或 CLI 缺失时展示中文失败原因，不只展示 `ENOENT`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await runtime.execute(input.trim(), cwd);
+```
+
+#### Correct
+
+```typescript
+await runtime.execute({ runtimeType: 'codex', prompt: input.trim() }, cwd);
+```
