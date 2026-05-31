@@ -24,21 +24,33 @@ export interface AgentConfig {
 export interface ActivityEntry {
   id: string
   time: string
-  type: 'runtime' | 'action' | 'approval'
+  type: 'runtime' | 'action' | 'authorization'
   status: 'success' | 'failed' | 'pending'
   message: string
   reason?: string
 }
 
-export interface ApprovalItem {
+export type PermissionPreset = 'sandbox' | 'standard' | 'auto' | 'full_control'
+
+export interface PolicyPresetItem {
   id: string
-  action: string
-  risk: 'high' | 'medium'
+  preset: PermissionPreset
+  label: string
   description: string
-  createdAt: string
+  enabled: boolean
 }
 
-export type DesktopPage = 'workspace' | 'sessions' | 'agents' | 'approvals' | 'settings'
+export interface AuthorizationRecord {
+  id: string
+  title: string
+  scope: string
+  surface: 'Web' | 'Mobile'
+  status: 'executable' | 'needs_authorization' | 'cancelled' | 'security_blocked'
+  createdAt: string
+  commandPreview?: string
+}
+
+export type DesktopPage = 'workspace' | 'sessions' | 'agents' | 'policy' | 'settings'
 
 export interface AuthUser {
   id: string
@@ -55,7 +67,9 @@ interface ConsoleState {
   runtimes: RuntimeInfo[]
   runtimeLoading: boolean
   activities: ActivityEntry[]
-  approvals: ApprovalItem[]
+  permissionPreset: PermissionPreset
+  policyPresets: PolicyPresetItem[]
+  authorizationRecords: AuthorizationRecord[]
   workspaceDirs: { path: string; healthy: boolean }[]
   agents: AgentConfig[]
   webWorkspaceError: string | null
@@ -68,8 +82,7 @@ interface ConsoleState {
   setRuntimes: (runtimes: RuntimeInfo[]) => void
   setRuntimeLoading: (loading: boolean) => void
   addActivity: (entry: Omit<ActivityEntry, 'id' | 'time'>) => void
-  approveItem: (id: string) => void
-  rejectItem: (id: string) => void
+  setPermissionPreset: (preset: PermissionPreset) => void
   setWebWorkspaceError: (error: string | null) => void
   setAuthError: (error: string | null) => void
   setUser: (user: AuthUser | null) => void
@@ -87,8 +100,23 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   activities: [
     { id: '1', time: new Date().toLocaleTimeString('zh-CN'), type: 'runtime', status: 'success', message: '连接器已启动' },
   ],
-  approvals: [
-    { id: 'a1', action: '删除文件', risk: 'high', description: '删除 src/legacy/ 目录下 12 个文件', createdAt: '2 分钟前' },
+  permissionPreset: 'standard',
+  policyPresets: [
+    { id: 'sandbox', preset: 'sandbox', label: '沙箱模式', description: '只读或受限执行，写入和高风险动作需要 Web/Mobile 授权。', enabled: false },
+    { id: 'standard', preset: 'standard', label: '标准模式', description: '允许工作区内常规读写、测试和构建；删除、部署、越界和敏感命令需要授权。', enabled: true },
+    { id: 'auto', preset: 'auto', label: '自动执行', description: '本 Session 内常规动作自动继续；高风险动作仍需授权。', enabled: false },
+    { id: 'full_control', preset: 'full_control', label: '完全控制', description: '当前 workspace/device 范围内最大授权，仍保留审计、撤销和安全阻断。', enabled: false },
+  ],
+  authorizationRecords: [
+    {
+      id: 'auth-1',
+      title: 'Web 已授权一次性文件清理',
+      scope: '仅本次 · 本机执行 · 工作区内文件变更',
+      surface: 'Web',
+      status: 'executable',
+      createdAt: '刚刚',
+      commandPreview: 'rm -rf src/legacy/*',
+    },
   ],
   workspaceDirs: [
     { path: '~/.agenthub/workspaces/default', healthy: true },
@@ -124,8 +152,10 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   addActivity: (entry: Omit<ActivityEntry, 'id' | 'time'>) => set((s) => ({
     activities: [...s.activities, { ...entry, id: String(Date.now()), time: new Date().toLocaleTimeString('zh-CN') }],
   })),
-  approveItem: (id: string) => set((s) => ({ approvals: s.approvals.filter((a) => a.id !== id) })),
-  rejectItem: (id: string) => set((s) => ({ approvals: s.approvals.filter((a) => a.id !== id) })),
+  setPermissionPreset: (permissionPreset: PermissionPreset) => set((s) => ({
+    permissionPreset,
+    policyPresets: s.policyPresets.map((item) => ({ ...item, enabled: item.preset === permissionPreset })),
+  })),
   setWebWorkspaceError: (webWorkspaceError: string | null) => set({ webWorkspaceError }),
   setAuthError: (authError: string | null) => set({ authError }),
   setUser: (user: AuthUser | null) => set({ user, userName: user?.name || user?.email || '未登录' }),

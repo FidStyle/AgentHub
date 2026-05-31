@@ -1,5 +1,5 @@
 import { Badge } from '@agenthub/ui'
-import { FolderOpen, MessageSquare, Bot, Bell, Settings, Github } from 'lucide-react'
+import { FolderOpen, MessageSquare, Bot, ShieldCheck, Settings, Github } from 'lucide-react'
 import { useConsoleStore, type DesktopPage } from '../../store/console-store'
 import { useDesktopAuth } from '../../hooks/useDesktopAuth'
 
@@ -7,12 +7,12 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   workspace: FolderOpen,
   sessions: MessageSquare,
   agents: Bot,
-  approvals: Bell,
+  policy: ShieldCheck,
   settings: Settings,
 }
 
 export function DesktopSessionSidebar() {
-  const { workspaceDirs, approvals, activities, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
+  const { workspaceDirs, authorizationRecords, activities, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
   const { handleGitHubLogin, handleLogout } = useDesktopAuth()
   const channelStateLabel = connectionState === 'connected' ? '云端连接在线' : '云端连接断开'
   const localSessionCount = activities.filter((entry) => /^\[(Codex|Claude Code)]\s+/.test(entry.message)).length
@@ -26,7 +26,7 @@ export function DesktopSessionSidebar() {
         <SidebarItem testId="desktop-nav-workspace" label="本地工作区" count={workspaceDirs.length} page="workspace" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-sessions" label="最近会话" count={localSessionCount} page="sessions" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-agents" label="本地 Agent" count={2} page="agents" currentPage={currentPage} onNavigate={navigateTo} />
-        <SidebarItem testId="desktop-nav-approvals" label="待审批" count={approvals.length} highlight={approvals.length > 0} page="approvals" currentPage={currentPage} onNavigate={navigateTo} />
+        <SidebarItem testId="desktop-nav-policy" label="本机策略" count={authorizationRecords.length} highlight={authorizationRecords.length > 0} page="policy" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-settings" label="设置" page="settings" currentPage={currentPage} onNavigate={navigateTo} />
       </nav>
       <div className="px-3 py-2 border-t border-border flex flex-col gap-2">

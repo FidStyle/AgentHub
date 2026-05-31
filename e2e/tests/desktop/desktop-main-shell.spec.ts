@@ -94,10 +94,10 @@ test.describe('Desktop 主壳三栏布局', () => {
     await expect(window.locator('[data-testid="desktop-nav-workspace"]')).toHaveAttribute('aria-current', 'page')
   })
 
-  test('左侧导航可以进入待审批和设置页面', async () => {
-    await window.locator('[data-testid="desktop-nav-approvals"]').click()
-    await expect(window.locator('[data-testid="desktop-approvals-page"]')).toBeVisible()
-    await expect(window.locator('[data-testid="desktop-nav-approvals"]')).toHaveAttribute('aria-current', 'page')
+  test('左侧导航可以进入本机策略和设置页面', async () => {
+    await window.locator('[data-testid="desktop-nav-policy"]').click()
+    await expect(window.locator('[data-testid="desktop-policy-page"]')).toBeVisible()
+    await expect(window.locator('[data-testid="desktop-nav-policy"]')).toHaveAttribute('aria-current', 'page')
 
     await window.locator('[data-testid="desktop-nav-settings"]').click()
     await expect(window.locator('[data-testid="desktop-settings-page"]')).toBeVisible()
@@ -225,9 +225,9 @@ test.describe('Desktop 主壳三栏布局', () => {
     await expect(window.locator('[data-testid="desktop-agent-config-page"]')).toBeVisible()
     await window.screenshot({ path: 'e2e/artifacts/desktop-agent-config-page-1200x800.png' })
 
-    await window.locator('[data-testid="desktop-nav-approvals"]').click()
-    await expect(window.locator('[data-testid="desktop-approvals-page"]')).toBeVisible()
-    await window.screenshot({ path: 'e2e/artifacts/desktop-approvals-page-1200x800.png' })
+    await window.locator('[data-testid="desktop-nav-policy"]').click()
+    await expect(window.locator('[data-testid="desktop-policy-page"]')).toBeVisible()
+    await window.screenshot({ path: 'e2e/artifacts/desktop-policy-page-1200x800.png' })
 
     await window.locator('[data-testid="desktop-nav-settings"]').click()
     await expect(window.locator('[data-testid="desktop-settings-page"]')).toBeVisible()

@@ -124,7 +124,7 @@ test.describe('P0 入口点击语义验证', () => {
       { testId: 'desktop-nav-workspace', page: 'desktop-agent-session' },
       { testId: 'desktop-nav-sessions', page: 'desktop-sessions-page' },
       { testId: 'desktop-nav-agents', page: 'desktop-agent-config-page' },
-      { testId: 'desktop-nav-approvals', page: 'desktop-approvals-page' },
+      { testId: 'desktop-nav-policy', page: 'desktop-policy-page' },
       { testId: 'desktop-nav-settings', page: 'desktop-settings-page' },
     ]
 
@@ -134,15 +134,15 @@ test.describe('P0 入口点击语义验证', () => {
     }
   })
 
-  test('审批页批准/拒绝按钮可点击', async () => {
-    await window.locator('[data-testid="desktop-nav-approvals"]').click()
-    const page = window.locator('[data-testid="desktop-approvals-page"]')
+  test('本机策略页权限预设切换按钮可点击', async () => {
+    await window.locator('[data-testid="desktop-nav-policy"]').click()
+    const page = window.locator('[data-testid="desktop-policy-page"]')
     await expect(page).toBeVisible()
 
-    const approveBtn = page.locator('button', { hasText: '批准' }).first()
-    if (await approveBtn.isVisible()) {
-      await expect(approveBtn).toBeEnabled()
-      await approveBtn.click()
+    const switchBtn = page.locator('button', { hasText: '切换' }).first()
+    if (await switchBtn.isVisible()) {
+      await expect(switchBtn).toBeEnabled()
+      await switchBtn.click()
     }
   })
 

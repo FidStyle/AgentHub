@@ -27,7 +27,7 @@
 ### 2.1 统一视觉母版硬规则
 
 - Web、Desktop、Mobile/PWA 必须像同一个 AgentHub 产品。端侧布局可以不同，视觉语言不能分裂。
-- Button、IconButton、Card、Panel、Badge、MessageBubble、Composer、Approval、RuntimeStatusCard 必须复用同一套 token、variant 和状态色。
+- Button、IconButton、Card、Panel、Badge、MessageBubble、Composer、Authorization、RuntimeStatusCard 必须复用同一套 token、variant 和状态色。
 - AionUi 只能作为聊天分栏、Agent 卡片、LocalAgents 和 Desktop 轻量会话结构参考；不得把 Arco 默认视觉引入主 UI。
 - lobehub 只能作为移动信息架构参考；不得把移动端做成另一套模型配置产品视觉。
 - cherry-studio 只能作为桌面密度和设置分组参考；不得把 Desktop 做成 Provider/API Key 设置页。
@@ -39,7 +39,7 @@
 
 ### Web
 
-- 主体验必须是三栏 IM 工作台或其登录/空状态：左栏 Workspace/Session，中栏消息，右栏 Artifact/Context/Agents/Preview。
+- 主体验必须是三栏 IM 工作台或其登录/空状态：左栏 Workspace/Session，中栏消息，右栏 Context/Changes/Artifacts。
 - 1280px 以上显示完整三栏；1024-1279px 可收起右栏；低于 640px 使用移动单栏。
 - 首屏不能是营销页；用户登录后必须能进入工作台主流程。
 - 消息区、右侧产物区和输入框必须有稳定高度和滚动边界，不能互相覆盖。
@@ -48,18 +48,18 @@
 
 - Desktop 是 Connector Console 和本地 Agent 轻量工作台，不是 Web 工作台复制品，也不是单页检测面板。
 - 启动后默认界面必须是桌面主壳：左侧导航/Session，中间本地 Agent 轻量会话，右侧 Agent 配置中心与 Runtime 状态。
-- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、Agent 配置中心、本地 Agent 轻量会话、执行活动和待审批。
+- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、Agent 配置中心、本地 Agent 轻量会话、执行活动、本机策略和越权授权记录。
 - 本地 Claude Code / Codex 只展示安装、版本、CLI path、认证状态、能力声明、最近诊断、进入轻量会话动作和本机修复引导。
 - Agent 配置中心必须展示 Codex、Claude Code、OpenCode 和其他预留 Runtime；Codex/Claude Code 为 P0 已接入，OpenCode 等为“待接入”且不可进入会话。
-- 本地 Agent 轻量会话只服务当前 Local Desktop Workspace：最近消息、Runtime 流式输出、执行活动、待审批和诊断。复杂 Artifact/Context/Agents/Preview 仍跳转 Web 工作台。
+- 本地 Agent 轻量会话只服务当前 Local Desktop Workspace：最近消息、Runtime 流式输出、执行活动、本机策略摘要、授权记录和诊断。复杂 Context/Changes/Artifacts 仍跳转 Web 工作台。
 - 打开 Web 工作台入口必须有有效目标；目标不可用时在 Desktop 内展示中文错误和下一步，不得打开空白页。
 - 禁止在本地 Runtime 绑定 UI 中展示 API Key、Base URL、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 输入框。
 
 ### Mobile/PWA
 
-- Mobile/PWA 是轻量 IM、审批和预览端，不承担本地 Runtime 接入和复杂代码编辑。
+- Mobile/PWA 是轻量 IM、远程监督授权和预览端，不承担本地 Runtime 接入和复杂代码编辑。
 - 390x844 视口必须无横向滚动。
-- 审批按钮、输入框和底部导航不能遮挡消息内容。
+- 授权按钮、输入框和底部导航不能遮挡消息内容。
 - Diff、大输出和长文件名默认折叠或截断。
 
 ---
@@ -70,15 +70,15 @@
 | --- | --- | --- |
 | 消息气泡 | 区分用户、Role Agent、系统状态；支持 pending、streaming、completed、failed。 | 长中文、长代码、失败状态不溢出。 |
 | 输入框工具条 | 包含 @ Role Agent、上下文/附件入口、发送动作；发送中禁用重复提交。 | 移动端按钮不挤压，发送中尺寸不跳变。 |
-| 计划卡 | 从结构化计划渲染步骤、角色、依赖、风险和确认动作。 | 卡片截图、审批按钮可点击、风险文案中文。 |
+| 计划卡 | 从结构化计划渲染步骤、角色、依赖、风险和确认动作。 | 卡片截图、确认按钮可点击、风险文案中文。 |
 | 任务结果卡 | 展示状态、摘要、文件变更、Diff、预览和输出摘要。 | 成功/失败/重试状态截图，文件列表不溢出。 |
 | Action 状态卡 | 展示动作类型、执行域、风险等级、输出摘要。 | running 到 succeeded/failed 状态更新。 |
-| 审批卡/弹窗 | 展示审批类型、风险、影响范围、批准/拒绝。 | 批准/拒绝按钮语义清晰，Diff 不作为审批对象。 |
+| 授权卡 | 展示授权类型、风险、影响范围、授权本次/取消。 | 授权/取消按钮语义清晰，Diff 不作为独立授权对象。 |
 | Agent 卡 | 展示角色、能力标签、调度状态和 Runtime 绑定摘要。 | Runtime 名称只在配置摘要出现，不作为聊天对象。 |
 | Runtime 状态卡 | 展示 installed、version、CLI path、authStatus、capability snapshot、最近诊断。 | 不出现本地 CLI API Key 表单。 |
 | Desktop Agent 配置中心 | Codex、Claude Code、OpenCode 和其他 Runtime 卡片；P0 已接入与待接入状态清晰。 | OpenCode 等待接入项不可执行，不出现密钥表单。 |
-| Desktop 本地 Agent 会话 | 展示本地 Runtime/Role Agent 身份、最近消息、流式输出、执行活动、待审批和轻量输入框。 | 不复制 Web 三栏，不绕过 DeviceChannel 执行 shell。 |
-| Artifact/Preview 面板 | 支持 loading、empty、ready、failed。 | 右栏滚动正常，移动端独立视图不遮挡。 |
+| Desktop 本地 Agent 会话 | 展示本地 Runtime/Role Agent 身份、最近消息、流式输出、执行活动、本机策略摘要和轻量输入框。 | 不复制 Web 三栏，不绕过 DeviceChannel 执行 shell。 |
+| Context/Changes/Artifacts 面板 | 上下文整合固定消息和 Role Agents；变更展示编排、授权、Git diff、文件变更和运行结果；产物展示可复用 artifact。 | 右栏滚动正常，移动端独立视图不遮挡。 |
 
 ---
 
@@ -103,14 +103,14 @@
 
 | 端 | Playwright 项目 | 必测视口 | 必测内容 |
 | --- | --- | --- | --- |
-| Web 桌面 | chromium desktop | 1440x900、1024x768 | 工作台、消息、计划卡、结果卡、Artifact 面板、审批队列 |
-| Mobile/PWA | chromium mobile | 390x844 | Workspace、Session、轻量消息、审批详情、预览页 |
-| Desktop | electron | 1200x800 | Connector 首页、Runtime 检测、本地 Agent 轻量会话、执行活动、待审批 |
+| Web 桌面 | chromium desktop | 1440x900、1024x768 | 工作台、消息、计划卡、结果卡、Context/Changes/Artifacts 面板、授权动作 |
+| Mobile/PWA | chromium mobile | 390x844 | Workspace、Session、轻量消息、授权详情、预览页 |
+| Desktop | electron | 1200x800 | Connector 首页、Runtime 检测、本地 Agent 轻量会话、执行活动、本机策略 |
 
 ### 6.2 必须断言
 
 - `document.body.scrollWidth <= window.innerWidth + 1`。
-- 关键容器 bounding box 不重叠：侧栏、消息区、右栏、输入框、审批卡。
+- 关键容器 bounding box 不重叠：侧栏、消息区、右栏、输入框、授权卡。
 - 长标题、长文件名、长路径摘要不超出父容器。
 - loading、disabled、hover、running 状态不改变固定格式组件尺寸。
 - 关键页面调用 `page.screenshot()` 或 Playwright 快照能力留存。
@@ -127,7 +127,7 @@
 - `data-testid="chat-panel"`
 - `data-testid="message-composer"`
 - `data-testid="artifact-panel"`
-- `data-testid="approval-card"`
+- `data-testid="authorization-card"`
 - `data-testid="connector-console"`
 - `data-testid="runtime-status-card"`
 - `data-testid="desktop-agent-session"`

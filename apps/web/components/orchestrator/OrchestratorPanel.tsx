@@ -71,10 +71,10 @@ export function OrchestratorPanel() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ approved }),
         })
-        if (!res.ok) throw new Error('审批动作失败')
+        if (!res.ok) throw new Error('授权动作失败')
         if (activeSessionId) await load(activeSessionId)
       } catch (e) {
-        setError(e instanceof Error ? e.message : '审批动作失败')
+        setError(e instanceof Error ? e.message : '授权动作失败')
       }
     },
     [activeSessionId, load],
@@ -94,7 +94,7 @@ export function OrchestratorPanel() {
           <StateCard
             variant="empty"
             title="暂无计划或动作"
-            description="当前会话还没有编排计划或待审批动作"
+            description="当前会话还没有编排计划或需要授权的动作"
           />
         </div>
       )}

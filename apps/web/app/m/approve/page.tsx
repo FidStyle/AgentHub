@@ -41,26 +41,26 @@ export default function MobileApprovePage() {
   }
 
   if (pending.length === 0) {
-    return <StateCard variant="empty" title="无待审批项" description="当前没有需要确认的操作" />
+    return <StateCard variant="empty" title="暂无需要授权的动作" description="当前没有需要远程监督的本机执行操作" />
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium">待审批动作</h2>
+      <h2 className="text-sm font-medium">远程监督与授权</h2>
       {pending.map(n => (
         <Card key={n.id}>
           <CardContent className="p-4">
             <div className="flex items-start gap-2 mb-2">
-              <Badge variant="warning">待审批</Badge>
+              <Badge variant="warning">需要授权</Badge>
               <p className="text-sm font-medium flex-1 truncate">{n.title}</p>
             </div>
             {n.body && <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{n.body}</p>}
             <div className="flex gap-2">
               <Button size="sm" onClick={() => n.ref_id && handleApprove(n.ref_id, true)} className="flex-1">
-                批准
+                授权本次
               </Button>
               <Button size="sm" variant="outline" onClick={() => n.ref_id && handleApprove(n.ref_id, false)} className="flex-1">
-                拒绝
+                取消
               </Button>
             </div>
           </CardContent>

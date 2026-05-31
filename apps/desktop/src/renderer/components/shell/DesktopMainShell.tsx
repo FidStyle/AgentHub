@@ -2,7 +2,7 @@ import { DesktopSessionSidebar } from './DesktopSessionSidebar'
 import { DesktopAgentSession } from './DesktopAgentSession'
 import { DesktopAgentConfigPanel } from './DesktopAgentConfigPanel'
 import { DesktopAgentConfigPage } from './DesktopAgentConfigPage'
-import { DesktopApprovalsPage } from './DesktopApprovalsPage'
+import { DesktopPolicyPage } from './DesktopPolicyPage'
 import { DesktopSettingsPage } from './DesktopSettingsPage'
 import { DesktopSessionsPage } from './DesktopSessionsPage'
 import { StatusBar } from '../console/StatusBar'
@@ -24,7 +24,7 @@ export function DesktopMainShell() {
         )}
         {currentPage === 'sessions' && <DesktopSessionsPage />}
         {currentPage === 'agents' && <DesktopAgentConfigPage />}
-        {currentPage === 'approvals' && <DesktopApprovalsPage />}
+        {currentPage === 'policy' && <DesktopPolicyPage />}
         {currentPage === 'settings' && <DesktopSettingsPage />}
       </div>
     </div>

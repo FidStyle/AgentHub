@@ -1,0 +1,16 @@
+{"file":"research/contracts/THREE-SURFACE-WORKBENCH-PERMISSION-001.md","reason":"共享合同：三端会话工作台、权限模型、Desktop Host、Mobile 远程监督和验收边界"}
+{"file":"research/prd-amendments/2026-05-31-three-surface-workbench-permission-model.md","reason":"用户确认的 PRD 修订：替代 Desktop 审批中心，定义统一权限和参考迁移原则"}
+{"file":"research/product/ui-design-system.md","reason":"三端 UI 视觉母版、组件契约和参考项目约束"}
+{"file":"research/product/product-design.md","reason":"现有 Web/Desktop/Mobile 产品设计和待修订职责边界"}
+{"file":".trellis/spec/frontend/index.md","reason":"前端实现需遵守的 UI、组件、视觉测试规范索引"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"共享组件、test id 和 UI 组件实现规范"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"三端视觉、审批卡/权限卡、布局和样式门禁"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Cloud/Desktop execution domain 和 Runtime Gateway 跨层边界"}
+{"file":"apps/desktop/src/renderer/store/console-store.ts","reason":"Desktop 权限状态从 approvals 改为本机策略、权限预设和 authorizationRecords"}
+{"file":"apps/desktop/src/renderer/components/shell/DesktopPolicyPage.tsx","reason":"新增 Desktop 本机策略页，替代旧审批中心"}
+{"file":"apps/desktop/src/renderer/components/console/PolicyPanel.tsx","reason":"新增 Connector Console 策略摘要和越权授权记录面板"}
+{"file":"apps/web/components/workspace/ChatPanel.tsx","reason":"Web Composer 新增附件入口和权限模式选择"}
+{"file":"apps/web/components/workspace/SessionList.tsx","reason":"Web Session 列表新增标题/内容搜索"}
+{"file":"apps/web/components/workspace/ArtifactPanel.tsx","reason":"Web 右栏重组为 Context / Changes / Artifacts，并接入授权动作、运行结果和变更记录"}
+{"file":"apps/web/app/m/approve/page.tsx","reason":"Mobile 待处理页从审批语义改为远程监督授权语义"}
+{"file":"research/reference-repos/three-surface-workbench-component-migration.md","reason":"记录 codeg/AionUi/OpenAI Codex 等参考能力到 AgentHub 组件的迁移清单"}

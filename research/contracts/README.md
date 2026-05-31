@@ -12,3 +12,8 @@
 
 模板见 [TEMPLATE.md](./TEMPLATE.md)。
 
+## 当前合同
+
+| 合同 | 说明 |
+| --- | --- |
+| [THREE-SURFACE-WORKBENCH-PERMISSION-001.md](./THREE-SURFACE-WORKBENCH-PERMISSION-001.md) | 三端会话工作台与权限模型统一：Web 完整工作台、Desktop Host/策略/执行日志、Mobile 远程监督控制、Run/Context/Changes/Artifacts 双向关联 |

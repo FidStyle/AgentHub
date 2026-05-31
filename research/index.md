@@ -11,7 +11,9 @@
 | [prd.md](./prd.md) | 总体 PRD，FR-ID 注册表 |
 | [product-design.md](./product-design.md) | 产品设计：页面、用户流、组件状态 |
 | [prd-amendments/](./prd-amendments/) | PRD 增补修订（不直接改 prd.md） |
+| [prd-amendments/2026-05-31-three-surface-workbench-permission-model.md](./prd-amendments/2026-05-31-three-surface-workbench-permission-model.md) | 三端会话工作台、权限模式、Desktop Host、Mobile 远程监督和参考组件迁移修订 |
 | [contracts/](./contracts/) | **共享任务合同** — Trellis 与 Maestro/Ralph 的唯一协作接口 |
+| [contracts/THREE-SURFACE-WORKBENCH-PERMISSION-001.md](./contracts/THREE-SURFACE-WORKBENCH-PERMISSION-001.md) | P0 三端会话工作台与权限模型统一合同：Web 工作台、Desktop Host、Mobile 远程监督、Run/Context/Changes/Artifacts |
 | [contracts/P0-END-TO-END-PRODUCT-FLOW.md](./contracts/P0-END-TO-END-PRODUCT-FLOW.md) | P0 MVP 端到端产品主链路合同与验真样本 |
 | [contracts/P1-RUNTIME-GATEWAY.md](./contracts/P1-RUNTIME-GATEWAY.md) | P1 Cloud Runtime Gateway 架构合同：必需云端 relay，统一 public_cloud 与 user_local runtime |
 | [contracts/LOCAL-DESKTOP-OPERABILITY-001.md](./contracts/LOCAL-DESKTOP-OPERABILITY-001.md) | P0 本地 Desktop 工作区只读/可操作模式、Runtime doctor 和 Web/Desktop 连通性真实性合同 |
@@ -37,6 +39,7 @@
 | 文档 | 说明 |
 |------|------|
 | [reference-repos/](./reference-repos/) | 参考仓库对比分析 |
+| [reference-repos/three-surface-workbench-component-migration.md](./reference-repos/three-surface-workbench-component-migration.md) | 三端工作台权限、diff、artifact、移动监督和 Desktop 策略组件参考迁移清单 |
 
 ## 项目跟进与执行
 

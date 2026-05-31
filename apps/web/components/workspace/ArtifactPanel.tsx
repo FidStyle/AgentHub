@@ -5,7 +5,7 @@ import { Button, StateCard } from '@agenthub/ui'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 
-const TABS = ['产物', '编排', '上下文', 'Agents'] as const
+const TABS = ['上下文', '变更', '产物'] as const
 
 type RoleAgentRow = {
   id: string
@@ -288,23 +288,86 @@ function ContextTab() {
   const refs = messages.filter((m) => m.is_pinned || (m.metadata && Object.keys(m.metadata).length > 0))
   if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，其引用上下文将在此展示" />
   if (error) return <p data-testid="artifact-context-error" className="text-sm text-destructive">{error}</p>
-  if (loaded && refs.length === 0) return <StateCard variant="empty" title="暂无上下文" description="当前会话还没有被引用或固定的上下文" />
   return (
-    <div data-testid="artifact-context" className="space-y-2">
-      {refs.map((m) => (
-        <div key={m.id} className="rounded-lg border border-border p-3 text-sm">
-          {m.is_pinned && <span className="mr-1 text-xs text-primary">📌</span>}
-          {m.content}
+    <div data-testid="artifact-context" className="space-y-4">
+      <section className="space-y-2">
+        <div>
+          <h3 className="text-sm font-medium">会话上下文</h3>
+          <p className="text-xs text-muted-foreground">固定消息、引用材料与本轮运行携带的结构化上下文</p>
         </div>
-      ))}
+        {loaded && refs.length === 0 ? (
+          <StateCard variant="empty" title="暂无上下文" description="当前会话还没有被引用或固定的上下文" />
+        ) : (
+          refs.map((m) => (
+            <div key={m.id} className="rounded-lg border border-border p-3 text-sm">
+              {m.is_pinned && <span className="mr-1 text-xs text-primary">Pinned</span>}
+              {m.content}
+            </div>
+          ))
+        )}
+      </section>
+      <section className="space-y-2">
+        <AgentsTab />
+      </section>
     </div>
   )
 }
 
-function OutputTab() {
+function hasChangeMetadata(metadata: MessageRow['metadata']) {
+  if (!metadata) return false
+  return ['diff', 'git_diff', 'patch', 'changes', 'files', 'changed_files'].some((key) => key in metadata)
+}
+
+function metadataPreview(metadata: MessageRow['metadata']) {
+  if (!metadata) return null
+  const keys = ['diff', 'git_diff', 'patch', 'changes', 'files', 'changed_files'].filter((key) => key in metadata)
+  if (keys.length === 0) return null
+  const preview = Object.fromEntries(keys.map((key) => [key, metadata[key]]))
+  return JSON.stringify(preview, null, 2)
+}
+
+function ChangesTab() {
+  const { activeSessionId, messages, error, loaded } = useSessionMessages()
+  const changes = messages.filter(
+    (m) => m.message_type === 'result_card' || m.message_type === 'approval' || hasChangeMetadata(m.metadata),
+  )
+  if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，其运行、授权和变更记录将在此展示" />
+  if (error) return <p data-testid="artifact-changes-error" className="text-sm text-destructive">{error}</p>
+  return (
+    <div data-testid="artifact-changes" className="space-y-4">
+      <OrchestratorPanel />
+      <section className="space-y-2">
+        <div>
+          <h3 className="text-sm font-medium">变更记录</h3>
+          <p className="text-xs text-muted-foreground">Git diff、文件变更、运行结果和需要授权的动作会关联到对应会话记录</p>
+        </div>
+        {loaded && changes.length === 0 ? (
+          <StateCard variant="empty" title="暂无变更" description="当前会话还没有文件变更、diff 或运行结果" />
+        ) : (
+          changes.map((m) => {
+            const preview = metadataPreview(m.metadata)
+            return (
+              <div key={m.id} className="rounded-lg border border-border p-3 text-sm">
+                <div className="text-xs text-muted-foreground">{m.message_type}</div>
+                <p className="mt-1 whitespace-pre-wrap">{m.content}</p>
+                {preview && (
+                  <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-2 text-xs">
+                    {preview}
+                  </pre>
+                )}
+              </div>
+            )
+          })
+        )}
+      </section>
+    </div>
+  )
+}
+
+function ArtifactsTab() {
   const { activeSessionId, messages, error, loaded } = useSessionMessages()
   const artifacts = messages.filter(
-    (m) => m.message_type === 'plan_card' || m.message_type === 'result_card' || (m.metadata && 'artifact' in m.metadata),
+    (m) => m.message_type === 'artifact' || m.message_type === 'file' || (m.metadata && 'artifact' in m.metadata),
   )
   if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，Agent 产出的产物将在此展示" />
   if (error) return <p data-testid="artifact-output-error" className="text-sm text-destructive">{error}</p>
@@ -322,7 +385,7 @@ function OutputTab() {
 }
 
 export function ArtifactPanel({ onClose }: { onClose: () => void }) {
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('产物')
+  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('上下文')
 
   return (
     <aside data-testid="artifact-panel" className="flex flex-col h-full bg-card">
@@ -344,10 +407,9 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        {activeTab === '产物' && <OutputTab />}
-        {activeTab === '编排' && <OrchestratorPanel />}
         {activeTab === '上下文' && <ContextTab />}
-        {activeTab === 'Agents' && <AgentsTab />}
+        {activeTab === '变更' && <ChangesTab />}
+        {activeTab === '产物' && <ArtifactsTab />}
       </div>
     </aside>
   )

@@ -26,14 +26,14 @@
 ## 必须模式
 
 - Web、Desktop、Mobile/PWA 的用户可见文案必须使用简体中文。
-- 三端共享概念术语必须一致：工作区、会话、审批、产物、预览、智能体、桌面连接器。
+- 三端共享概念术语必须一致：工作区、会话、授权、产物、预览、智能体、桌面连接器。
 - 技术产品名可在指代具体技术或命令时保留英文，例如 Vite、Electron、PWA、Codex、Claude Code、Node、`corepack pnpm`。
 - UI 组件基线为 `shadcn/ui + Tailwind CSS 4 + lucide-react`。
 - 任何 UI 任务必须引用 `research/product/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
 - 本地 Runtime 凭证边界必须遵守 `.trellis/spec/cross-layer/runtime-credential-boundary.md`：本地 CLI 只检测原生认证状态，不托管密钥。
 - 关键页面必须有稳定定位点，供 Playwright 功能断言、截图和布局断言使用。
-- 状态 UI 必须覆盖空、加载、失败、未登录、离线、执行中、待审批、成功、重试。
-- 用户可见的交互控件必须二选一：接入真实行为并验证结果，或显式禁用并给出中文原因（`aria-label`/tooltip/title/可见说明至少一种）。禁止按钮可点击但无效果，尤其是附件、审批、运行时连接、本地工作区创建等主链路入口。
+- 状态 UI 必须覆盖空、加载、失败、未登录、离线、执行中、需要授权、成功、重试。
+- 用户可见的交互控件必须二选一：接入真实行为并验证结果，或显式禁用并给出中文原因（`aria-label`/tooltip/title/可见说明至少一种）。禁止按钮可点击但无效果，尤其是附件、授权、运行时连接、本地工作区创建等主链路入口。
 
 ---
 
@@ -43,9 +43,9 @@
 | --- | --- |
 | 单元测试 | 状态映射、class 变体、权限/Runtime 状态渲染必须可测。 |
 | 组件测试 | 核心卡片和表单必须覆盖 loading、empty、error、success。 |
-| Web E2E | 覆盖三栏工作台、消息发送、计划确认、任务结果、Artifact/Preview。 |
-| Mobile/PWA E2E | 覆盖 390x844 视口下 Workspace、Session、消息、审批、预览。 |
-| Electron E2E | 覆盖 Connector 首页、Runtime 检测、执行活动、待审批。 |
+| Web E2E | 覆盖三栏工作台、消息发送、计划确认、任务结果、Context/Changes/Artifacts。 |
+| Mobile/PWA E2E | 覆盖 390x844 视口下 Workspace、Session、消息、授权、预览。 |
+| Electron E2E | 覆盖 Connector 首页、Runtime 检测、执行活动、本机策略。 |
 | 视觉与布局断言 | 必须截图；必须断言无横向滚动、关键卡片不重叠、文本不溢出。 |
 | 敏感信息断言 | 本地 Runtime UI 和截图中不得出现 API Key、Base URL、敏感环境变量入口。 |
 

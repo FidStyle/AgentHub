@@ -15,7 +15,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
         <h1 className="text-base font-semibold text-primary">AgentHub</h1>
         <nav className="flex gap-3 text-xs">
           <a href="/m" className="text-muted-foreground hover:text-primary transition-colors">工作区</a>
-          <a href="/m/approve" className="text-muted-foreground hover:text-primary transition-colors">审批</a>
+          <a href="/m/approve" className="text-muted-foreground hover:text-primary transition-colors">授权</a>
         </nav>
       </header>
       <main className="p-4">{children}</main>

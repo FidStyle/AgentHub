@@ -28,7 +28,7 @@ export function ActionCard({ action, onApprove }: ActionCardProps) {
 
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          类型: {action.action_type} | 状态: {action.status === 'pending' ? '待审批' : action.status}
+          类型: {action.action_type} | 状态: {action.status === 'pending' ? '需要授权' : action.status}
         </span>
 
         {action.status === 'pending' && onApprove && (
@@ -37,13 +37,13 @@ export function ActionCard({ action, onApprove }: ActionCardProps) {
               onClick={() => onApprove(action.id, true)}
               className="px-3 py-1 text-xs bg-success text-success-foreground rounded hover:bg-success/90"
             >
-              批准
+              授权本次
             </button>
             <button
               onClick={() => onApprove(action.id, false)}
               className="px-3 py-1 text-xs bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
             >
-              拒绝
+              取消
             </button>
           </div>
         )}

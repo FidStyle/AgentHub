@@ -2,7 +2,7 @@ import { StatusBar } from './StatusBar'
 import { WorkspaceBinding } from './WorkspaceBinding'
 import { RuntimeDetection } from './RuntimeDetection'
 import { ActivityPanel } from './ActivityPanel'
-import { ApprovalPanel } from './ApprovalPanel'
+import { PolicyPanel } from './PolicyPanel'
 
 export function ConnectorConsole() {
   return (
@@ -13,7 +13,7 @@ export function ConnectorConsole() {
           <WorkspaceBinding />
           <RuntimeDetection />
           <ActivityPanel />
-          <ApprovalPanel />
+          <PolicyPanel />
         </div>
       </main>
       <footer className="border-t border-border px-4 py-2 text-center text-xs text-muted-foreground">

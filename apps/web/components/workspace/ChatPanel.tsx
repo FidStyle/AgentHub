@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Input, Card, StateCard, IconButton, Badge } from '@agenthub/ui'
-import { Paperclip, AtSign, Send, PanelRight } from 'lucide-react'
+import { AtSign, Plus, Send, PanelRight, ShieldCheck } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 
 interface RoleAgent {
@@ -15,6 +15,12 @@ interface RoleAgent {
 const MARGIN = 8
 const GAP = 4
 const ROLE_PICKER_MAX_WIDTH = 320
+const PERMISSION_MODES = [
+  { value: 'sandbox', label: '沙箱', description: '写入和高风险动作需要授权' },
+  { value: 'standard', label: '标准', description: '常规读写和构建可执行' },
+  { value: 'auto', label: '自动执行', description: '本 Session 常规动作自动继续' },
+  { value: 'full_control', label: '完全控制', description: '最大授权，保留审计和安全阻断' },
+] as const
 
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
 // 语义默认向上展开（对齐裸 absolute 的 bottom-full）；上方空间不足时翻下方；宽度对齐 trigger 与上限取大并 clamp；
@@ -108,10 +114,13 @@ function MessageComposer({
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [selectedRole, setSelectedRole] = useState<RoleAgent | null>(null)
+  const [permissionMode, setPermissionMode] = useState<(typeof PERMISSION_MODES)[number]['value']>('standard')
+  const [attachments, setAttachments] = useState<string[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const [mounted, setMounted] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const { sendMessage, activeSessionId } = useSessionStore()
 
   useEffect(() => setMounted(true), [])
@@ -142,8 +151,12 @@ function MessageComposer({
   const handleSend = async () => {
     if (!input.trim() || !activeSessionId || sending || readOnly) return
     setSending(true)
-    await sendMessage(input.trim(), selectedRole?.id)
+    const mode = PERMISSION_MODES.find((item) => item.value === permissionMode)
+    const modeLine = mode ? `\n权限预设：${mode.label}（${mode.description}）` : ''
+    const attachmentLine = attachments.length > 0 ? `\n附件/上下文：${attachments.join('、')}` : ''
+    await sendMessage(`${input.trim()}${modeLine}${attachmentLine}`, selectedRole?.id)
     setInput('')
+    setAttachments([])
     setSending(false)
   }
 
@@ -196,18 +209,59 @@ function MessageComposer({
           </Badge>
         )}
         <IconButton
-          icon={Paperclip}
-          label="附件上传暂未开放"
+          icon={Plus}
+          label="添加附件或上下文"
           variant="ghost"
           size="sm"
           data-testid="attachment-btn"
-          disabled
-          title="附件上传暂未开放"
+          disabled={!activeSessionId || readOnly}
+          onClick={() => fileRef.current?.click()}
         />
-        <span data-testid="attachment-disabled-note" className="text-xs text-muted-foreground">
-          附件暂未开放
-        </span>
+        <input
+          ref={fileRef}
+          data-testid="attachment-file-input"
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []).map((file) => file.name)
+            setAttachments((current) => Array.from(new Set([...current, ...files])))
+            event.currentTarget.value = ''
+          }}
+        />
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          <span className="sr-only">权限预设</span>
+          <select
+            data-testid="permission-mode-select"
+            value={permissionMode}
+            disabled={!activeSessionId || readOnly}
+            onChange={(event) => setPermissionMode(event.target.value as typeof permissionMode)}
+            className="h-7 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+          >
+            {PERMISSION_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>{mode.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
+      {attachments.length > 0 && (
+        <div data-testid="attachment-chips" className="flex flex-wrap gap-1">
+          {attachments.map((name) => (
+            <Badge key={name} variant="secondary" className="max-w-full">
+              <span className="max-w-[180px] truncate">{name}</span>
+              <button
+                type="button"
+                aria-label={`移除附件 ${name}`}
+                className="ml-1"
+                onClick={() => setAttachments((current) => current.filter((item) => item !== name))}
+              >
+                ×
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
       <div data-testid="composer-input-row" className="flex gap-2">
         <Input
           data-testid="composer-input"

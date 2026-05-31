@@ -32,6 +32,12 @@ YYYY-MM-DD-{slug}.md
 2026-05-25-mobile-approval-empty-state.md
 ```
 
+## 当前修订
+
+| 修订 | 状态 | 说明 |
+| --- | --- | --- |
+| [2026-05-31-three-surface-workbench-permission-model.md](./2026-05-31-three-surface-workbench-permission-model.md) | confirmed | 三端会话工作台、权限预设、Desktop Host、Mobile 远程监督、参考组件迁移和 Context/Changes/Artifacts 结构 |
+
 ---
 
 ## 模板

@@ -33,7 +33,7 @@
 - `data-testid="chat-panel"`
 - `data-testid="message-composer"`
 - `data-testid="artifact-panel"`
-- `data-testid="approval-card"`
+- `data-testid="authorization-card"`
 - `data-testid="connector-console"`
 - `data-testid="runtime-status-card"`
 - `data-testid="mobile-session"`
@@ -44,7 +44,7 @@
 
 - props 使用 TypeScript 明确类型，禁止把跨层领域对象直接传到深层组件后随意读取。
 - 状态类 props 使用有限枚举，例如 `pending | running | succeeded | failed`。
-- 组件需要触发动作时，使用语义回调名，例如 `onApprove`、`onReject`、`onRetry`、`onOpenPreview`。
+- 组件需要触发动作时，使用语义回调名，例如 `onAuthorize`、`onCancel`、`onRetry`、`onOpenPreview`。
 - 文案由上层传入时也必须是中文；组件内部默认文案同样使用中文。
 - Runtime 名称只作为配置或诊断摘要出现，不作为聊天对象或主要行动对象。
 
@@ -93,7 +93,7 @@ type RuntimeStatusCardProps = {
 
 - 交互按钮必须有可访问名称。
 - Dialog、Dropdown、Tabs、Tooltip 优先使用成熟组件模式，避免手写不可访问浮层。
-- 审批、失败、高风险动作必须有清晰文本说明，不能只依赖颜色。
+- 授权、失败、高风险动作必须有清晰文本说明，不能只依赖颜色。
 - 错误信息必须能被屏幕阅读器感知；表单错误应绑定到输入控件。
 - 移动端触控目标不小于 40px。
 
@@ -110,7 +110,8 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 | `MessageComposer` | Web/Mobile | `FR-CHAT-001`, `FR-UI-001` |
 | `OrchestratorPlanCard` | Web/Mobile | `FR-ORCH-001`, `FR-PERM-001` |
 | `TaskResultCard` | Web/Mobile | `FR-RESULT-001`, `FR-ARTIFACT-001` |
-| `PermissionConfirmationCard` | 三端 | `FR-PERM-001`, `FR-NOTIFY-001` |
+| `AuthorizationCard` | Web/Mobile | `FR-PERM-001`, `FR-NOTIFY-001` |
+| `DesktopPolicyPanel` | Desktop | `FR-PERM-001`, `FR-DESK-001` |
 | `RuntimeStatusCard` | Web/Desktop | `FR-RUNTIME-001`, `FR-DESK-001` |
 | `ConnectorConsole` | Desktop | `FR-DESK-001`, `FR-UI-001` |
 | `ArtifactPanel` | Web/Mobile | `FR-ARTIFACT-001`, `FR-RESULT-001` |

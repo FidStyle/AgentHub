@@ -19,6 +19,21 @@
 
 ## P0 任务
 
+### THREE-SURFACE-WORKBENCH-PERMISSION-001: 三端会话工作台与权限模型统一
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-WEB-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-PERM-001, FR-NOTIFY-001, FR-ACTION-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/05-31-three-surface-workbench-permission-model/` |
+| **合同路径** | `research/contracts/THREE-SURFACE-WORKBENCH-PERMISSION-001.md` |
+| **当前状态** | ✅ 完成（2026-05-31）：已移除 Desktop 旧审批中心语义并改为本机策略/权限预设/越权授权记录；Web 已补 Composer 权限模式、附件入口、Session 搜索和 `Context / Changes / Artifacts` 右栏；Mobile/PWA 已改为远程监督授权文案；相关前端 spec、产品文档、合同、PRD amendment 和参考迁移清单已同步。 |
+| **目标** | 统一三端 Agent 工作台、权限模式、授权入口、Desktop 本机策略和参考项目迁移原则，替代现有简陋审批列表和割裂 UI |
+| **验收方式** | 后续实现必须按共享合同覆盖 Web/Desktop/Mobile：权限预设、Run 卡、授权卡、Composer、Session 切换、Git diff、artifact、标题/内容搜索、Desktop 本机策略和执行日志；Desktop 不出现审批中心 |
+| **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/desktop test -- --run` PASS（5 files / 23 tests）；旧审批 UI 扫描 clean（仅安全脚本保留“拒绝本地 IP”语义）；`bash scripts/verify-governance-gate.sh THREE-SURFACE-WORKBENCH-PERMISSION-001` 因未提交工作区和 tracker 未完成状态失败，待提交后复跑 |
+| **阻塞问题** | 无当前阻塞；后续组件抽取和更完整视觉 E2E 独立推进 |
+| **下一步动作** | 后续继续抽 `AuthorizationCard`、`DiffViewer`、`RunTimeline`、`ArtifactViewer` 并补 Web/Mobile E2E/视觉截图 |
+
 ### LOCAL-DESKTOP-OPERABILITY-001: 本地 Desktop 工作区只读/可操作与 Runtime 真实性
 
 | 字段 | 内容 |

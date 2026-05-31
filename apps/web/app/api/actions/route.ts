@@ -57,12 +57,12 @@ export async function POST(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // If requires approval, create notification
+  // If the action exceeds the current policy, create an authorization notification.
   if (needsApproval) {
     await db.from('notifications').insert({
       user_id: user.id,
       type: 'approval_required',
-      title: `动作待审批: ${command.slice(0, 50)}`,
+      title: `动作需要授权: ${command.slice(0, 50)}`,
       body: `风险等级: ${riskLevel}`,
       ref_type: 'action',
       ref_id: action.id,

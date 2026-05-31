@@ -2,7 +2,7 @@ import React from 'react'
 import { Card, CardContent, Button, Badge, Input } from '@agenthub/ui'
 import { useConsoleStore } from '../../store/console-store'
 import { ActivityPanel } from '../console/ActivityPanel'
-import { ApprovalPanel } from '../console/ApprovalPanel'
+import { PolicyPanel } from '../console/PolicyPanel'
 import { getElectronAPI } from '../../utils/electron-api'
 
 const RUNTIME_LABELS: Record<string, string> = {
@@ -212,7 +212,7 @@ export function DesktopAgentSession() {
           ))}
         </div>
         {activities.length > 0 && <ActivityPanel />}
-        <ApprovalPanel />
+        <PolicyPanel />
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-sm text-muted-foreground">

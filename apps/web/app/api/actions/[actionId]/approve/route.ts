@@ -2,7 +2,7 @@ import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
-// POST /api/actions/[actionId]/approve — approve or reject an action
+// POST /api/actions/[actionId]/approve — authorize or cancel an action.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ actionId: string }> }
@@ -24,7 +24,7 @@ export async function POST(
 
   if (!action) return NextResponse.json({ error: '动作不存在' }, { status: 404 })
   if (action.status !== 'pending') {
-    return NextResponse.json({ error: '动作状态不允许审批' }, { status: 400 })
+    return NextResponse.json({ error: '动作状态不允许授权' }, { status: 400 })
   }
 
   const newStatus = approved ? 'approved' : 'rejected'
