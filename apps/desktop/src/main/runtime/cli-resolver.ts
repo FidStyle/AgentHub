@@ -15,6 +15,11 @@ export function shellQuote(value: string) {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+export function withCliPathEnv(cliPath: string, command: string) {
+  const binDir = path.dirname(cliPath)
+  return `PATH=${shellQuote(binDir)}:$PATH ${command}`
+}
+
 export async function runShell(command: string, options: { interactive?: boolean; timeout?: number } = {}) {
   const { stdout } = await execFileAsync(resolveShell(), [options.interactive ? '-lic' : '-lc', command], {
     timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,

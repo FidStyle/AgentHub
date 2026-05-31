@@ -94,6 +94,7 @@
 - Desktop local workspace can switch Agent type directly from the local Agent session header; unavailable runtimes remain visible but disabled.
 - Desktop recent sessions now derive from real local Runtime message activities (`[Codex] ...` / `[Claude Code] ...`) instead of showing a permanent empty placeholder.
 - Runtime CLI resolution now handles Finder/Dock launches by trying login shell, interactive shell, and common installation paths such as nvm, fnm, asdf, Homebrew, and local bin directories; execution uses the resolved absolute CLI path.
+- Runtime CLI execution now prepends the resolved CLI bin directory to PATH so nvm-installed Codex can find its sibling `node` when the app is launched from Finder/Dock.
 
 ## Verification Results
 
@@ -101,7 +102,7 @@
 - `pnpm --filter @agenthub/desktop type-check` — PASS.
 - `pnpm --filter @agenthub/desktop test -- device-channel-ipc.test.ts` — 2 passed.
 - `npx playwright test e2e/tests/web/workspace-local-desktop-uat.spec.ts --config e2e/playwright.config.ts --project=web-desktop --workers=1` with `docker/.p0-test.env` loaded — 1 passed (6.5s) after granting Chromium launch permission.
-- `pnpm --filter @agenthub/desktop test -- --run` — 20 passed.
+- `pnpm --filter @agenthub/desktop test -- --run` — 21 passed.
 - `pnpm --filter @agenthub/desktop build` — PASS.
 
 ## Out of Scope

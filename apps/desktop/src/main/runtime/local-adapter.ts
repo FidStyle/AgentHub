@@ -3,7 +3,7 @@ import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import path from 'path'
 import type { RuntimeResult } from '@agenthub/shared'
-import { resolveCliPath, resolveShell, runShellWithExit, shellQuote } from './cli-resolver'
+import { resolveCliPath, resolveShell, runShellWithExit, shellQuote, withCliPathEnv } from './cli-resolver'
 
 export interface RuntimePromptRequest {
   runtimeType: 'claude_code' | 'codex'
@@ -87,9 +87,10 @@ export class LocalRuntimeAdapter {
         duration: Date.now() - start,
       }
     }
-    const resolvedCommand = request.runtimeType === 'codex'
+    const cliCommand = request.runtimeType === 'codex'
       ? `${shellQuote(cliPath)} exec --skip-git-repo-check --sandbox read-only --color never -- "$AGENTHUB_PROMPT"`
       : `${shellQuote(cliPath)} --print "$AGENTHUB_PROMPT"`
+    const resolvedCommand = withCliPathEnv(cliPath, cliCommand)
 
     return new Promise<RuntimeResult>((resolve) => {
       let stdout = ''

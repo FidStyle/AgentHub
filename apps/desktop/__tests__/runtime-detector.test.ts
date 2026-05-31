@@ -7,7 +7,7 @@ import {
   parseCodexDoctorAuthStatus,
   parseCodexLoginStatus,
 } from '../src/main/runtime/runtime-detector'
-import { getCommonCliCandidates, shellQuote } from '../src/main/runtime/cli-resolver'
+import { getCommonCliCandidates, shellQuote, withCliPathEnv } from '../src/main/runtime/cli-resolver'
 
 describe('RuntimeDetector command contract', () => {
   it('uses real Claude Code authentication commands', () => {
@@ -63,5 +63,12 @@ describe('RuntimeDetector command contract', () => {
 
   it('shellQuote safely quotes absolute CLI paths', () => {
     expect(shellQuote("/tmp/Agent Hub/codex's/bin")).toBe("'/tmp/Agent Hub/codex'\\''s/bin'")
+  })
+
+  it('absolute Node CLI commands prepend the CLI bin dir to PATH', () => {
+    const cliPath = '/Users/joytion/.nvm/versions/node/v24.15.0/bin/codex'
+    expect(withCliPathEnv(cliPath, `${shellQuote(cliPath)} --version`)).toBe(
+      "PATH='/Users/joytion/.nvm/versions/node/v24.15.0/bin':$PATH '/Users/joytion/.nvm/versions/node/v24.15.0/bin/codex' --version",
+    )
   })
 })

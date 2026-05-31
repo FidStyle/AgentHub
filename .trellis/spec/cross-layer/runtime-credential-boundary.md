@@ -157,6 +157,7 @@ interface WorkspaceOperabilityStatus {
   - Codex 认证判定必须支持 `codex login status` 输出 `Logged in using an API key ...`，并用 `codex doctor --json` 的 `checks["auth.credentials"].status === "ok"` 作为兜底；`overallStatus=warning` 不应因为 terminal 等非认证警告误判“未登录”。
 - macOS Electron 发行包从 Finder / Dock / 快捷方式启动时不一定继承交互终端的 PATH；本地 Runtime 检测应通过用户登录 shell、交互 shell 和常见安装目录解析 CLI 路径，不能只依赖 Electron 进程默认 PATH 或裸 `command -v`。
 - 本地 Runtime 检测成功后应优先使用解析到的绝对 CLI 路径执行后续 `version`、`auth status`、`doctor` 和一次性消息命令，避免 Finder 启动时 `codex` / `claude` 在执行阶段再次找不到。
+- 对 nvm/fnm/asdf 安装的 Node CLI，绝对 CLI 路径本身还不够；执行时必须把 CLI 所在 `bin` 目录 prepend 到命令 PATH，避免 shebang `/usr/bin/env node` 在 Finder/Dock 启动环境下找不到 `node`。
 - Web/Mobile 只能通过 Cloud Runtime Gateway + Desktop DeviceChannel/tunnel 访问用户本机 Runtime，禁止直连本地 IP/端口。
 
 ### 4. 校验与错误矩阵

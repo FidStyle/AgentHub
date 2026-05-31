@@ -1,4 +1,4 @@
-import { resolveCliPath, runShell, runShellWithExit, shellQuote } from './cli-resolver'
+import { resolveCliPath, runShell, runShellWithExit, shellQuote, withCliPathEnv } from './cli-resolver'
 
 export const RUNTIME_DETECTOR_COMMANDS = {
   claude: {
@@ -100,13 +100,13 @@ export class RuntimeDetector {
       if (!info.cliPath) return info
 
       const claude = shellQuote(info.cliPath)
-      const version = await runShell(`${claude} --version`)
+      const version = await runShell(withCliPathEnv(info.cliPath, `${claude} --version`))
       if (version && !version.includes('not found')) {
         info.available = true
         info.launchable = true
         info.version = version.split('\n')[0]
         try {
-          const authOut = await runShell(`${claude} auth status --json`)
+          const authOut = await runShell(withCliPathEnv(info.cliPath, `${claude} auth status --json`))
           info.authenticated = parseClaudeAuthStatus(authOut)
           info.diagnosticCode = info.authenticated ? 'RUNTIME_READY' : 'RUNTIME_AUTH_REQUIRED'
           info.diagnosticMessage = info.authenticated ? 'Claude Code 已安装并完成认证' : 'Claude Code 未登录或认证不可用，请在本机 CLI 完成登录'
@@ -138,14 +138,14 @@ export class RuntimeDetector {
       if (!info.cliPath) return info
 
       const codex = shellQuote(info.cliPath)
-      const version = await runShell(`${codex} --version`)
+      const version = await runShell(withCliPathEnv(info.cliPath, `${codex} --version`))
       if (version && !version.includes('not found')) {
         info.available = true
         info.launchable = true
         info.version = version.split('\n')[0]
         const [authOut, doctor] = await Promise.all([
-          runShellWithExit(`${codex} login status`),
-          runShellWithExit(`${codex} doctor --json`, { timeout: 10000 }),
+          runShellWithExit(withCliPathEnv(info.cliPath, `${codex} login status`)),
+          runShellWithExit(withCliPathEnv(info.cliPath, `${codex} doctor --json`), { timeout: 10000 }),
         ])
         info.authenticated =
           parseCodexLoginStatus(authOut.stdout) ||
