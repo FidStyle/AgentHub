@@ -27,6 +27,8 @@
 > ⚠️ **更正（2026-05-30，PRODUCT-UAT-GAP-AUDIT-001）**：REG-20260530-003 的「关闭」仅在 `RUNTIME_E2E=1` + FakeExecutor 下成立；真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 对话仍 0 可见回复。该过早关闭的产品缺口由新登记的 **REG-20260530-006** 接管，REG-20260530-003 的「closed」仅代表「测试态 FakeExecutor 回环已建立」，不代表产品目标达成。当前未关闭项：P1 test-infra REG-20260530-002 + 本次审计新增 REG-20260530-006(P0，**已全部关闭**：Web GAP-001 由 `ROLE-CHAT-RUNTIME-DELIVER-001`/commit `eed577f`，Mobile GAP-002 由 `MOBILE-CHAT-DELIVER-001`)/007(P1)/008(P1)。
 >
 > ✅ **build blocker 闭环（2026-05-31，WEB-BUILD-REACT-TYPES-001）**：此前在多份报告中以 carried-over concern 形式滚动的「`apps/web` 全量 tsc 的 pre-existing dual `@types/react` 冲突」已正式升级为 build blocker **REG-20260531-004** 并关闭——根因为 pnpm 把 mobile 的 `@types/react@18` hoist 进虚拟仓库根污染 web 编译图，已在 `.npmrc` 用 `hoist-pattern` 排除根治，web build/type-check + ui type-check 全绿。
+>
+> ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
 

@@ -79,17 +79,16 @@ async function callRoute<T>(
 
 /** Workspace lookup returns empty (no ownership), supports chained .eq().eq() */
 function noWorkspaceChain() {
-  function makeEq() {
-    return {
-      eq: makeEq,
-      single: () => ({ data: null, error: { message: 'Not found' } }),
-    }
+  const noWorkspaceQuery = {
+    eq: () => noWorkspaceQuery,
+    single: () => ({ data: null, error: { message: 'Not found' } }),
   }
+
   return vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === 'workspaces') {
         return {
-          select: () => ({ eq: makeEq }),
+          select: () => noWorkspaceQuery,
         }
       }
       if (table === 'sessions') {
@@ -103,7 +102,7 @@ function noWorkspaceChain() {
         }
       }
       return {
-        select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+        select: () => ({ eq: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }) }),
       }
     }),
   }))
@@ -111,6 +110,11 @@ function noWorkspaceChain() {
 
 /** GET sessions/[id]: session found but workspace not owned by user */
 function sessionWorkspaceNotOwnedChain() {
+  const notOwnedWorkspaceQuery = {
+    eq: () => notOwnedWorkspaceQuery,
+    single: () => ({ data: null, error: { message: 'Not found' } }),
+  }
+
   return vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === 'sessions') {
@@ -131,6 +135,11 @@ function sessionWorkspaceNotOwnedChain() {
           }),
         }
       }
+      if (table === 'workspaces') {
+        return {
+          select: () => notOwnedWorkspaceQuery,
+        }
+      }
       return {
         select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
       }
@@ -140,12 +149,18 @@ function sessionWorkspaceNotOwnedChain() {
 
 /** PATCH sessions/[id]: session found, workspace lookup fails, supports chained .eq().eq() */
 function sessionWorkspaceNotOwnedChainForUpdate() {
-  function makeEq() {
-    return {
-      eq: makeEq,
-      single: () => ({ data: null, error: { message: 'Not found' } }),
-    }
+  const notOwnedWorkspaceQuery = {
+    eq: () => notOwnedWorkspaceQuery,
+    single: () => ({ data: null, error: { message: 'Not found' } }),
   }
+
+  const updateQuery = {
+    eq: () => updateQuery,
+    select: () => ({
+      single: () => ({ data: null, error: { message: 'Not called' } }),
+    }),
+  }
+
   return vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === 'sessions') {
@@ -158,12 +173,12 @@ function sessionWorkspaceNotOwnedChainForUpdate() {
               }),
             }),
           }),
-          update: () => ({ eq: makeEq }),
+          update: () => updateQuery,
         }
       }
       if (table === 'workspaces') {
         return {
-          select: () => ({ eq: makeEq }),
+          select: () => notOwnedWorkspaceQuery,
         }
       }
       return {

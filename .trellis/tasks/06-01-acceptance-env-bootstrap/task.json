@@ -3,7 +3,7 @@
   "name": "acceptance-env-bootstrap",
   "title": "验收硬化 2：真实环境一键启动与配置",
   "description": "Provide reproducible local acceptance environment: DB, Redis, seed, auth session, Web, worker, and smoke commands.",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "joytion",
   "assignee": "joytion",
   "createdAt": "2026-06-01",
-  "completedAt": null,
+  "completedAt": "2026-06-01",
   "branch": null,
   "base_branch": "AgentHub_new_claude_test",
   "worktree_path": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "06-01-acceptance-hardening-program",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Acceptance env scripts added and smoke passed. See research/execution-reports/acceptance-env-bootstrap-2026-06-01.md.",
   "meta": {}
 }

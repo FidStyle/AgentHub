@@ -516,7 +516,7 @@ function ArtifactCard({ message }: { message: MessageRow }) {
 function ArtifactsTab() {
   const { activeSessionId, messages, error, loaded } = useSessionMessages()
   const artifacts = messages.filter(
-    (m) => m.message_type === 'artifact' || m.message_type === 'file' || (m.metadata && 'artifact' in m.metadata),
+    (m) => m.message_type === 'artifact' || m.message_type === 'file' || m.message_type === 'result_card' || (m.metadata && 'artifact' in m.metadata),
   )
   if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，Agent 产出的产物将在此展示" />
   if (error) return <p data-testid="artifact-output-error" className="text-sm text-destructive">{error}</p>

@@ -3,7 +3,7 @@
   "name": "acceptance-web-core-flow",
   "title": "验收硬化 3：Web 主链路真实回归",
   "description": "Verify and fix Web login/workspace/session/chat/agent/artifact/orchestrator/reload paths against real DB/API/runtime.",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "joytion",
   "assignee": "joytion",
   "createdAt": "2026-06-01",
-  "completedAt": null,
+  "completedAt": "2026-06-01",
   "branch": null,
   "base_branch": "AgentHub_new_claude_test",
   "worktree_path": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "06-01-acceptance-hardening-program",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Web worker-mode and no-worker E2E passed against real DB/API/runtime. See research/execution-reports/acceptance-web-core-flow-2026-06-01.md.",
   "meta": {}
 }

@@ -4,6 +4,29 @@
 
 ## P0 测试数据库
 
+推荐验收入口：
+
+```bash
+pnpm env:acceptance:up
+pnpm dev:acceptance
+```
+
+`env:acceptance:up` 会启动 Postgres、Redis，并显式创建本地 fixture Auth session；`dev:acceptance` 会在同一套环境下启动 Web server 和本地 runtime worker，默认使用 `RUNTIME_EXECUTOR=script`。该 executor 是确定性的测试 executor，不等同于真实 Claude Code / Codex CLI。
+
+Web 与 worker 运行后，另开终端执行 smoke：
+
+```bash
+pnpm env:acceptance:smoke
+```
+
+清理验收容器：
+
+```bash
+pnpm env:acceptance:down
+```
+
+以下命令保留用于分步调试。
+
 启动 Postgres：
 
 ```bash

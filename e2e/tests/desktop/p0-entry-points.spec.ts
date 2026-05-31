@@ -28,10 +28,12 @@ test.describe('P0 入口点击语义验证', () => {
 
     electronApp = await electron.launch({
       args: [path.join(desktopRoot, 'dist/main/main/index.js')],
-      env: { ...process.env, VITE_DEV_SERVER_URL: 'http://localhost:5177' },
+      cwd: desktopRoot,
+      env: { ...process.env, NODE_ENV: 'development', VITE_PORT: '5177' },
     })
     window = await electronApp.firstWindow()
     await window.waitForLoadState('domcontentloaded')
+    await expect(window.locator('[data-testid="desktop-main-shell"]')).toBeVisible({ timeout: 10000 })
   })
 
   test.afterAll(async () => {
@@ -52,7 +54,7 @@ test.describe('P0 入口点击语义验证', () => {
       expect(popup.url()).toContain('auth')
       await popup.close()
     } else {
-      const errorMsg = sidebar.locator('.text-destructive')
+      const errorMsg = sidebar.getByText(/无法连接到 Web 登录服务|创建登录请求失败|无法发起登录|登录超时/)
       await expect(errorMsg).toBeVisible({ timeout: 3000 })
       const text = await errorMsg.textContent()
       expect(text).toBeTruthy()

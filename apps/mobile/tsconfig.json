@@ -7,6 +7,7 @@
     "jsx": "react-native",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "types": ["react"],
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {

@@ -51,7 +51,10 @@ export async function publishEvent(runtimeSessionId: string, event: unknown): Pr
   await r.publish(eventChannel(runtimeSessionId), JSON.stringify(event))
 }
 
-export async function* subscribeEvents(runtimeSessionId: string): AsyncGenerator<unknown> {
+export async function* subscribeEvents(
+  runtimeSessionId: string,
+  onSubscribed?: () => Promise<void>,
+): AsyncGenerator<unknown> {
   const r = (await getRedis()).duplicate()
   await r.connect()
   const queue: unknown[] = []
@@ -65,6 +68,7 @@ export async function* subscribeEvents(runtimeSessionId: string): AsyncGenerator
     if (e.type === 'runtime_completed' || e.type === 'runtime_failed' || e.type === 'runtime_cancelled') done = true
     wake()
   })
+  await onSubscribed?.()
 
   const totalDeadline = Date.now() + SUB_TOTAL_TIMEOUT_MS
   let idleTimer: ReturnType<typeof setTimeout> | null = null

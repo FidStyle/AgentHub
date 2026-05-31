@@ -67,6 +67,7 @@ DB tables for P1 foundation:
 - Desktop may start a local child process or listen on a local port, but remote clients can only access it through Gateway and authenticated DeviceChannel/tunnel.
 - HostedRuntimeAdapter must be implemented as Gateway client/contract boundary. It must not bypass Gateway by hardcoding a provider-specific service.
 - Self-hosted public runtime deployment can be unconfigured while Gateway contracts, DB records, and error events still work.
+- Public cloud worker dispatch must establish the runtime event subscription before enqueueing the job. Enqueue-before-subscribe can miss fast worker `runtime_output` pub/sub messages and falsely produce `runtime_completed` without an agent reply persisted.
 
 ### 4. Validation & Error Matrix
 
@@ -90,6 +91,7 @@ DB tables for P1 foundation:
 - DB migration test: all runtime gateway tables are created idempotently and do not alter P0 workspace/session/message tables.
 - API integration test: `/api/chat` creates `runtime_sessions` / `runtime_logs` and emits Gateway events.
 - `public_cloud` unconfigured test: no fake success; returns `endpoint_unavailable` / `public_runtime_available=false`.
+- `public_cloud` live worker test: fast deterministic executor streams `runtime_output`, emits `runtime_completed`, and `/api/chat` persists both user and agent messages.
 - `user_local` offline test: no fake success; returns `local_runtime_offline` and backwards-compatible `DEVICE_OFFLINE`.
 - Security test: runtime endpoint creation rejects local IP/port as a Web/Mobile-controlled target.
 

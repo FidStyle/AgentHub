@@ -5,7 +5,7 @@ test.describe('Mobile/PWA 轻量界面 (M14)', () => {
 
   test.beforeEach(async ({ authedPage: page }) => {
     await page.goto('/m')
-    await page.waitForLoadState('domcontentloaded')
+    await page.waitForLoadState('networkidle')
   })
 
   test('mobile-session 定位点存在', async ({ authedPage: page }) => {
@@ -20,13 +20,17 @@ test.describe('Mobile/PWA 轻量界面 (M14)', () => {
   })
 
   test('工作区列表页显示中文 UI', async ({ authedPage: page }) => {
-    await expect(page.getByText('工作区')).toBeVisible()
-    await expect(page.getByText('AgentHub')).toBeVisible()
+    await expect(page.getByRole('heading', { name: '工作区' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'AgentHub' })).toBeVisible()
   })
 
   test('审批页面可导航', async ({ authedPage: page }) => {
-    await page.getByText('审批').click()
-    await page.waitForURL('/m/approve')
-    await expect(page.getByText('待审批').or(page.getByText('无待审批项'))).toBeVisible()
+    await page.request.get('/m/approve')
+    await page.goto('/m/approve')
+    await expect(page.getByText('远程监督与授权').or(page.getByText('暂无需要授权的动作'))).toBeVisible()
+    await page.goto('/m')
+    await page.getByRole('link', { name: '授权' }).click()
+    await expect(page).toHaveURL(/\/m\/approve$/)
+    await expect(page.getByText('远程监督与授权').or(page.getByText('暂无需要授权的动作'))).toBeVisible()
   })
 })

@@ -72,6 +72,7 @@ async function callRoute<T>(
 
 describe('GET /api/workspaces', () => {
   beforeEach(() => {
+    process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://unit-test'
     resetMockClient()
     resetMockAuth()
     setupMockAuth()
@@ -109,6 +110,7 @@ describe('GET /api/workspaces', () => {
 
 describe('POST /api/workspaces', () => {
   beforeEach(() => {
+    process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://unit-test'
     resetMockClient()
     resetMockAuth()
     setupMockAuth()

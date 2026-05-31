@@ -1,5 +1,5 @@
 const CACHE_NAME = 'agenthub-v1'
-const PRECACHE = ['/', '/m', '/m/sessions']
+const PRECACHE = ['/', '/m', '/m/approve', '/m/preview']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

@@ -92,7 +92,7 @@ describe('GET /api/messages', () => {
     setupMockClient(createNoAuthChain())
     const result = await callRoute(GET, 'GET', { query: { session_id: 'session-001' } })
     expect(result.status).toBe(401)
-    expect(result.data).toEqual({ error: 'Unauthorized' })
+    expect(result.data).toEqual({ error: '未授权' })
   })
 
   it('AT-M002: returns 400 when session_id is missing', async () => {
@@ -146,7 +146,7 @@ describe('POST /api/messages', () => {
       body: { session_id: 'session-001', content: 'Hello' },
     })
     expect(result.status).toBe(401)
-    expect(result.data).toEqual({ error: 'Unauthorized' })
+    expect(result.data).toEqual({ error: '未授权' })
   })
 
   it('AT-M007: returns 400 when session_id is missing', async () => {
@@ -220,7 +220,7 @@ describe('PATCH /api/messages/[id]', () => {
       body: { is_pinned: true },
     })
     expect(result.status).toBe(401)
-    expect(result.data).toEqual({ error: 'Unauthorized' })
+    expect(result.data).toEqual({ error: '未授权' })
   })
 
   it('AT-M013: returns 404 when message not found', async () => {

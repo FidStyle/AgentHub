@@ -1,9 +1,29 @@
 import React, { useState, useCallback, useMemo } from 'react'
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native'
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  type FlatListProps,
+  type TextInputProps,
+  type TextProps,
+  type TouchableOpacityProps,
+  type ViewProps,
+} from 'react-native'
 import { colors } from '@agenthub/shared'
 import type { Message } from '@agenthub/shared'
 import { getRuntimeConfig } from '../lib/config'
 import { sendChat } from '../lib/chatClient'
+
+const RNView = View as unknown as React.ComponentType<ViewProps>
+const RNText = Text as unknown as React.ComponentType<TextProps>
+const RNTextInput = TextInput as unknown as React.ComponentType<TextInputProps>
+const RNFlatList = FlatList as unknown as React.ComponentType<FlatListProps<Message>>
+const RNTouchableOpacity = TouchableOpacity as unknown as React.ComponentType<TouchableOpacityProps>
+const RNSafeAreaView = SafeAreaView as unknown as React.ComponentType<ViewProps>
 
 let counter = 0
 const genId = () => `msg-${++counter}-${Date.now()}`
@@ -71,37 +91,37 @@ export function ChatScreen() {
 
   if (!config.configured) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>AgentHub</Text>
-        </View>
-        <View style={styles.stateCard}>
-          <Text style={styles.stateTitle}>运行时未配置</Text>
-          <Text style={styles.stateBody}>
+      <RNSafeAreaView style={styles.container}>
+        <RNView style={styles.header}>
+          <RNText style={styles.headerText}>AgentHub</RNText>
+        </RNView>
+        <RNView style={styles.stateCard}>
+          <RNText style={styles.stateTitle}>运行时未配置</RNText>
+          <RNText style={styles.stateBody}>
             原生 App 暂未注入会话与登录凭证，无法连接 Agent 运行时。请配置以下环境变量后重新启动：
-          </Text>
+          </RNText>
           {config.missing.map((k) => (
-            <Text key={k} style={styles.stateKey}>
+            <RNText key={k} style={styles.stateKey}>
               • {k}
-            </Text>
+            </RNText>
           ))}
-          <Text style={styles.stateHint}>配置完成后即可发送消息并接收真实 Agent 回复。</Text>
-        </View>
-      </SafeAreaView>
+          <RNText style={styles.stateHint}>配置完成后即可发送消息并接收真实 Agent 回复。</RNText>
+        </RNView>
+      </RNSafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>AgentHub</Text>
-      </View>
-      <FlatList
+    <RNSafeAreaView style={styles.container}>
+      <RNView style={styles.header}>
+        <RNText style={styles.headerText}>AgentHub</RNText>
+      </RNView>
+      <RNFlatList
         data={messages}
         keyExtractor={(m) => m.id}
         style={styles.list}
         renderItem={({ item }) => (
-          <View
+          <RNView
             style={[
               styles.bubble,
               item.sender_type === 'user'
@@ -111,17 +131,17 @@ export function ChatScreen() {
                   : styles.agentBubble,
             ]}
           >
-            <Text style={item.sender_type === 'user' ? styles.userText : styles.agentText}>{item.content}</Text>
-          </View>
+            <RNText style={item.sender_type === 'user' ? styles.userText : styles.agentText}>{item.content}</RNText>
+          </RNView>
         )}
       />
       {error && (
-        <View style={styles.errorBar}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
+        <RNView style={styles.errorBar}>
+          <RNText style={styles.errorText}>{error}</RNText>
+        </RNView>
       )}
-      <View style={styles.inputRow}>
-        <TextInput
+      <RNView style={styles.inputRow}>
+        <RNTextInput
           style={styles.input}
           value={input}
           onChangeText={setInput}
@@ -130,15 +150,15 @@ export function ChatScreen() {
           placeholderTextColor={colors.mutedForeground}
           onSubmitEditing={handleSend}
         />
-        <TouchableOpacity
+        <RNTouchableOpacity
           style={[styles.sendBtn, sending && styles.sendBtnDisabled]}
           onPress={handleSend}
           disabled={sending}
         >
-          <Text style={styles.sendText}>{sending ? '发送中' : '发送'}</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+          <RNText style={styles.sendText}>{sending ? '发送中' : '发送'}</RNText>
+        </RNTouchableOpacity>
+      </RNView>
+    </RNSafeAreaView>
   )
 }
 

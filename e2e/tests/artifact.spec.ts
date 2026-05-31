@@ -61,10 +61,8 @@ test.describe('Artifact 三 Tab 真实数据（PRGA-007）', () => {
     const panel = page.getByTestId('artifact-panel')
     await expect(panel).toBeVisible()
 
-    // Agents Tab：断言播种的 role agent 名称 + 交叉校验真实 API（非 toBeVisible 糊弄）。
-    // tab 按钮一律在 artifact-panel 内定位，避免与 session-list 同名条目（如「E2E 产物会话」含「产物」）
-    // 触发 strict-mode 冲突。
-    await panel.getByRole('button', { name: 'Agents' }).click()
+    // Role Agents 位于「上下文」Tab：断言播种的 role agent 名称 + 交叉校验真实 API（非 toBeVisible 糊弄）。
+    await panel.getByRole('button', { name: '上下文' }).click()
     const agentsPanel = page.getByTestId('artifact-agents')
     await expect(agentsPanel).toBeVisible({ timeout: 10000 })
     // 定位 agent 列表项按钮（其无障碍名以 agent 名开头）；bare getByText 会同时命中详情面板
@@ -98,6 +96,11 @@ test.describe('Artifact 三 Tab 真实数据（PRGA-007）', () => {
     expect(wsResp.ok()).toBeTruthy()
     const workspaceId = (await wsResp.json()).id as string
 
+    const sessionResp = await page.request.post('/api/sessions', {
+      data: { workspace_id: workspaceId, name: 'E2E 默认 Agent 会话' },
+    })
+    expect(sessionResp.ok()).toBeTruthy()
+
     await Promise.all([
       page.waitForResponse((r) => r.url().includes(`/api/role-agents?workspace_id=${workspaceId}`)),
       page.goto(`/workspace/${workspaceId}`),
@@ -111,7 +114,8 @@ test.describe('Artifact 三 Tab 真实数据（PRGA-007）', () => {
     expect(Array.isArray(agentsApi)).toBeTruthy()
     expect(agentsApi.some((a: { name: string }) => a.name === '架构师')).toBeTruthy()
 
-    await panel.getByRole('button', { name: 'Agents' }).click()
+    await panel.getByRole('button', { name: '上下文' }).click()
+    await page.getByTestId('session-list').getByText('E2E 默认 Agent 会话').click()
     const agentsPanel = page.getByTestId('artifact-agents')
     await expect(agentsPanel).toBeVisible({ timeout: 10000 })
     // 架构师 名同时出现在列表项按钮、详情面板与系统提示词 prose 中；定位列表项按钮

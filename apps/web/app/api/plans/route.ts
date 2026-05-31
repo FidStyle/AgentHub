@@ -2,6 +2,11 @@ import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
+function toPostgresUuidArray(values: string[] | undefined) {
+  const safeValues = values ?? []
+  return `{${safeValues.map((value) => `"${value.replace(/"/g, '\\"')}"`).join(',')}}`
+}
+
 // GET /api/plans?session_id=xxx — list plans for session
 // POST /api/plans — create a new plan
 export async function GET(request: Request) {
@@ -81,7 +86,7 @@ export async function POST(request: Request) {
     agent_id: n.agent_id || null,
     action_type: n.action_type || null,
     action_payload: n.action_payload || {},
-    depends_on: n.depends_on || [],
+    depends_on: toPostgresUuidArray(n.depends_on),
     status: 'pending',
   }))
 

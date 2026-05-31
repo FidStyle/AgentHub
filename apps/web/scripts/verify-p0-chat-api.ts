@@ -1,6 +1,6 @@
 /**
  * P0 /api/chat 集成测试
- * 验证：DEVICE_OFFLINE 错误态 + hosted runtime 路径 + 未登录 401
+ * 验证：未登录 401 + local_desktop 明确 409 错误态 + cloud runtime 路径 + 消息持久化
  */
 export {}
 
@@ -54,8 +54,8 @@ async function main() {
   })
   assert(noAuthRes.status === 401, `未登录返回 401 (got ${noAuthRes.status})`)
 
-  // 2. 创建 local_desktop workspace + session → DEVICE_OFFLINE
-  console.log('[2/4] local_desktop workspace → DEVICE_OFFLINE')
+  // 2. 创建 local_desktop workspace + session → 409 明确只读错误
+  console.log('[2/4] local_desktop workspace → 409 只读错误态')
   const wsRes = await apiFetch('/api/workspaces', {
     method: 'POST',
     body: JSON.stringify({ name: `chat-test-local-${Date.now()}`, execution_domain: 'local_desktop' }),
@@ -74,12 +74,12 @@ async function main() {
     method: 'POST',
     body: JSON.stringify({ sessionId: sess.id, content: '你好' }),
   })
-  assert(chatLocalRes.ok, `local_desktop /api/chat 返回 200 SSE`)
-  const localEvents = await readSSEEvents(chatLocalRes)
-  const offlineEvt = localEvents.find(e => e.type === 'runtime_status' && e.status === 'DEVICE_OFFLINE')
-  assert(!!offlineEvt, 'SSE 包含 DEVICE_OFFLINE 事件')
-  const doneEvt = localEvents.find(e => e.type === 'done')
-  assert(!!doneEvt, 'SSE 包含 done 事件')
+  assert(chatLocalRes.status === 409, `local_desktop /api/chat 返回 409 (got ${chatLocalRes.status})`)
+  const localBody = await chatLocalRes.json() as { error?: string }
+  assert(
+    typeof localBody.error === 'string' && localBody.error.includes('本地') && localBody.error.includes('只读'),
+    `local_desktop 返回中文只读错误 (${localBody.error ?? 'missing'})`,
+  )
 
   // 3. 创建 cloud workspace + session → runtime_status (gateway 路由)
   console.log('[3/4] cloud workspace → runtime_status')
@@ -94,23 +94,35 @@ async function main() {
   })
   const sessCloud = await sessCloudRes.json()
 
+  const cloudContent = `测试 cloud ${Date.now()}`
   const chatCloudRes = await apiFetch('/api/chat', {
     method: 'POST',
-    body: JSON.stringify({ sessionId: sessCloud.id, content: '测试 cloud' }),
+    body: JSON.stringify({ sessionId: sessCloud.id, content: cloudContent }),
   })
   assert(chatCloudRes.ok, `cloud /api/chat 返回 200 SSE`)
   const cloudEvents = await readSSEEvents(chatCloudRes)
-  const runtimeEvt = cloudEvents.find(e => e.type === 'runtime_status')
-  assert(!!runtimeEvt, 'cloud SSE 包含 runtime_status 事件')
-  assert(runtimeEvt?.status !== 'DEVICE_OFFLINE', 'cloud 不返回 DEVICE_OFFLINE')
+  assert(!!cloudEvents.find(e => e.type === 'gateway_connected'), 'cloud SSE 包含 gateway_connected')
+  assert(!!cloudEvents.find(e => e.type === 'done'), 'cloud SSE 包含 done')
+  assert(!cloudEvents.find(e => e.type === 'local_runtime_offline'), 'cloud 不返回 local_runtime_offline')
+  assert(!cloudEvents.find(e => e.type === 'runtime_status' && e.status === 'DEVICE_OFFLINE'), 'cloud 不返回 DEVICE_OFFLINE')
+  const cloudTerminal = cloudEvents.find(e =>
+    e.type === 'endpoint_unavailable' ||
+    e.type === 'runtime_failed' ||
+    e.type === 'runtime_completed',
+  )
+  assert(!!cloudTerminal, `cloud SSE 有明确 runtime 终态 (${cloudEvents.map(e => e.type).join(', ')})`)
 
   // 4. 消息落库验证
   console.log('[4/4] 消息持久化验证')
-  const msgsRes = await apiFetch(`/api/messages?session_id=${sess.id}`)
+  const msgsRes = await apiFetch(`/api/messages?session_id=${sessCloud.id}`)
   assert(msgsRes.ok, `GET /api/messages 成功`)
   const msgs = await msgsRes.json()
-  const userMsg = Array.isArray(msgs) ? msgs.find((m: { content: string }) => m.content === '你好') : null
-  assert(!!userMsg, '用户消息已落库')
+  const userMsg = Array.isArray(msgs) ? msgs.find((m: { content: string; sender_type: string }) => m.content === cloudContent && m.sender_type === 'user') : null
+  assert(!!userMsg, 'cloud 用户消息已落库')
+  if (cloudTerminal?.type === 'runtime_completed') {
+    const agentMsg = Array.isArray(msgs) ? msgs.find((m: { sender_type: string }) => m.sender_type === 'agent') : null
+    assert(!!agentMsg, 'runtime_completed 后 agent 回复已落库')
+  }
 
   console.log(`\nSUMMARY: ${passed} passed, ${failed} failed, status=${failed === 0 ? 'PASS' : 'FAIL'}`)
   process.exit(failed === 0 ? 0 : 1)

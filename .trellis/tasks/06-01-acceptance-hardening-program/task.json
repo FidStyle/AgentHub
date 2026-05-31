@@ -3,7 +3,7 @@
   "name": "acceptance-hardening-program",
   "title": "验收前全功能硬化总控",
   "description": "Before final acceptance, close all quality-gate, environment, real-runtime, Web/Desktop/Mobile, and UAT evidence gaps under one shared contract.",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "joytion",
   "assignee": "joytion",
   "createdAt": "2026-06-01",
-  "completedAt": null,
+  "completedAt": "2026-06-01",
   "branch": null,
   "base_branch": "AgentHub_new_claude_test",
   "worktree_path": null,
@@ -28,6 +28,6 @@
   ],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
+  "notes": "All six acceptance hardening subtasks completed. Final UAT report: research/execution-reports/acceptance-final-uat-governance-2026-06-01.md.",
   "meta": {}
 }

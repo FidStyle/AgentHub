@@ -36,12 +36,17 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
     const wsName = `E2E-P0FLOW-${ts}`
     await page.getByRole('button', { name: '新建工作区' }).click()
     await page.getByPlaceholder('输入工作区名称').fill(wsName)
+    const createResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/workspaces') && r.request().method() === 'POST',
+    )
     await page.getByRole('button', { name: '创建', exact: true }).click()
+    const createResponse = await createResponsePromise
+    expect(createResponse.ok()).toBeTruthy()
+    const createdWorkspace = await createResponse.json() as { id: string }
     await expect(page.getByPlaceholder('输入工作区名称')).not.toBeVisible()
 
-    // 2) 进入工作台（硬断言 shell + chat panel，不再 if-isVisible 静默跳过）
-    await page.getByRole('button', { name: wsName }).click()
-    await page.waitForURL(/\/workspace\//)
+    // 2) 进入工作台（使用真实创建返回的 id，避免列表刷新/排序造成假失败）
+    await page.goto(`/workspace/${createdWorkspace.id}`)
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
     await expect(page.getByTestId('chat-panel')).toBeVisible()
 

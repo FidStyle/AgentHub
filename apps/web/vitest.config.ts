@@ -7,6 +7,7 @@ export default defineConfig({
     globals: true,
     include: [path.resolve(__dirname, '__tests__/**/*.test.ts')],
     exclude: [
+      ...(process.env.RUN_DB_INTEGRATION === '1' ? [] : [path.resolve(__dirname, '__tests__/integration/**/*.test.ts')]),
       '**/node_modules/**',
       '**/dist/**',
       '**/.{idea,git,cache,output,temp}/**',

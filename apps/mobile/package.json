@@ -4,9 +4,9 @@
   "private": true,
   "main": "src/App.tsx",
   "scripts": {
-    "start": "expo start",
-    "type-check": "echo 'skip: RN type-check requires Expo environment'",
-    "build": "echo 'mobile build: expo export handled separately'",
+    "start": "react-native start",
+    "type-check": "tsc --noEmit",
+    "build": "pnpm type-check",
     "test": "vitest run"
   },
   "dependencies": {

@@ -13,7 +13,8 @@ vi.mock('../../lib/runtime/redis-client', () => ({
   isWorkerAlive: async () => workerAlive,
   setCancel: async () => {},
   // available path subscribes then immediately yields a terminal so the generator returns.
-  subscribeEvents: async function* () {
+  subscribeEvents: async function* (_runtimeSessionId: string, onSubscribed?: () => Promise<void>) {
+    await onSubscribed?.()
     yield { type: 'runtime_completed', summary: 'done' }
   },
 }))

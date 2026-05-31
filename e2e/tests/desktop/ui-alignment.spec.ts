@@ -65,12 +65,14 @@ test.describe('Desktop UI 对齐修复断言', () => {
   })
 
   test('Agent 配置页待接入卡片有诊断引导', async () => {
-    const guidanceText = await window.locator('text="未检测到运行实例"').count()
+    await window.locator('[data-testid="desktop-nav-agents"]').click()
+    await expect(window.locator('[data-testid="desktop-agent-config-page"]')).toBeVisible()
+    const guidanceText = await window.locator('text=/未完成真实检测|未检测到运行实例|请先重新检测本地 Runtime/').count()
     expect(guidanceText).toBeGreaterThanOrEqual(1)
   })
 
   test('Agent 会话输入框使用 @agenthub/ui Input', async () => {
-    await window.locator('[data-testid="desktop-nav-sessions"]').click()
+    await window.locator('[data-testid="desktop-nav-workspace"]').click()
     await window.waitForSelector('[data-testid="desktop-agent-session"]')
     const nativeInputs = await window.evaluate(() => {
       const composer = document.querySelector('[data-testid="desktop-agent-composer"]')

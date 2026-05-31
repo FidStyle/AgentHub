@@ -33,10 +33,19 @@
 
 ## Acceptance Criteria
 
-- [ ] 合同完成并登记到 `research/index.md`、`research/project-tracker.md`。
-- [ ] 六个子任务按顺序完成。
-- [ ] 所有完成门禁满足合同第 11 节。
-- [ ] Codex 最终验收明确列出命令、结果、截图/报告、残留风险。
+- [x] 合同完成并登记到 `research/index.md`、`research/project-tracker.md`。
+- [x] 六个子任务按顺序完成。
+- [x] 所有完成门禁满足合同第 11 节。
+- [x] Codex 最终验收明确列出命令、结果、截图/报告、残留风险。
+
+## Final Verification
+
+- 根级质量门禁：`pnpm lint`、`pnpm type-check`、`pnpm test`、`pnpm build` 均 PASS。
+- 验收环境：`pnpm dev:acceptance` + `pnpm env:acceptance:smoke` PASS（CRUD 5/5，chat 14/14）。
+- Web：worker-mode E2E 7 passed；no-worker E2E 2 passed。
+- Desktop：unit/type/build PASS；完整 Electron E2E 45 passed，2 skipped（外部登录环境门槛）。
+- Mobile：RN test/type/build/Metro 入口 PASS；PWA worker-mode 13 passed；no-worker 1 passed。
+- 最终报告：`research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
 ## Out of Scope
 

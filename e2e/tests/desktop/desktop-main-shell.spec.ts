@@ -151,7 +151,7 @@ test.describe('Desktop 主壳三栏布局', () => {
     await window.locator('[data-testid="desktop-nav-agents"]').click()
     const openCodeCard = window.locator('[data-testid="desktop-agent-config-page"] [data-runtime="opencode"]')
     await expect(openCodeCard).toBeVisible()
-    await expect(openCodeCard.getByRole('button', { name: /待接入|进入会话/ })).toBeDisabled()
+    await expect(openCodeCard.getByRole('button', { name: /不可进入|待接入|进入会话/ })).toBeDisabled()
   })
 
   test('入口、项目、会话、Agent 卡和设置项必须可点击或明确不可用', async () => {

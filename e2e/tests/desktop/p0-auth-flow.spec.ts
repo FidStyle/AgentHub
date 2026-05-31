@@ -2,8 +2,19 @@ import { test, expect, _electron as electron } from '@playwright/test'
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL || 'http://localhost:3000'
 
+async function webServiceAvailable() {
+  try {
+    const res = await fetch(WEB_BASE_URL, { method: 'HEAD' })
+    return res.ok || res.status < 500
+  } catch {
+    return false
+  }
+}
+
 test.describe('P0 Desktop 登录流程', () => {
   test('login-intent 创建 → bind-status 轮询 → 绑定后身份展示', async () => {
+    test.skip(!(await webServiceAvailable()), `需要可访问的 Web 服务：${WEB_BASE_URL}`)
+
     // 1. 创建 login-intent（公开端点，无需 auth）
     const intentRes = await fetch(`${WEB_BASE_URL}/api/devices/login-intent`, { method: 'POST' })
     expect(intentRes.status).toBe(200)

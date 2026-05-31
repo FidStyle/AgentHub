@@ -3,7 +3,7 @@
   "name": "acceptance-desktop-runtime",
   "title": "验收硬化 4：Desktop 本地能力验收",
   "description": "Verify and fix Desktop runtime diagnostics, IPC, execute/cancel/error states, device binding, and local workspace operability.",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "joytion",
   "assignee": "joytion",
   "createdAt": "2026-06-01",
-  "completedAt": null,
+  "completedAt": "2026-06-01",
   "branch": null,
   "base_branch": "AgentHub_new_claude_test",
   "worktree_path": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": "06-01-acceptance-hardening-program",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Desktop type-check/test/build and full Electron E2E passed. See research/execution-reports/acceptance-desktop-runtime-2026-06-01.md.",
   "meta": {}
 }

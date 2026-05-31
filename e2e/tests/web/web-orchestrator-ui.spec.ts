@@ -8,36 +8,53 @@ import { test, expect } from '../fixtures'
 // 缺失时 test.skip 并标注 DEFERRED（与 REG-20260531-010 GUI/DB DEFERRED 一致），不删断言糊弄。
 
 const hasAuth = !!(process.env.TEST_AUTH_COOKIE || process.env.TEST_AUTH_COOKIE_VALUE || process.env.TEST_AUTH_STORAGE_STATE)
-const SESSION_ID = process.env.TEST_SESSION_ID
-const WORKSPACE_ID = process.env.TEST_WORKSPACE_ID
 
 test.describe('WEB 编排 UI 真实链路（PRGA-004）', () => {
-  test.skip(!hasAuth || !SESSION_ID || !WORKSPACE_ID,
-    'DEFERRED：需 TEST_AUTH_COOKIE + TEST_SESSION_ID + TEST_WORKSPACE_ID（真实 DB），CI 无真实 Supabase 时跳过')
+  test.skip(!hasAuth,
+    'DEFERRED：需 TEST_AUTH_COOKIE（真实 DB），CI 无真实 Supabase 时跳过')
 
   test('播种真实 plan/action → 编排 tab 渲染卡片 → 批准调真实 API → 状态持久', async ({ authedPage: page }) => {
+    const ts = Date.now()
+    const firstNodeId = crypto.randomUUID()
+    const secondNodeId = crypto.randomUUID()
+    const wsResp = await page.request.post('/api/workspaces', {
+      data: { name: `E2E-ORCH-${ts}`, execution_domain: 'cloud' },
+    })
+    expect(wsResp.ok()).toBeTruthy()
+    const workspaceId = (await wsResp.json()).id as string
+
+    const sessionResp = await page.request.post('/api/sessions', {
+      data: { workspace_id: workspaceId, name: 'E2E 编排会话' },
+    })
+    expect(sessionResp.ok()).toBeTruthy()
+    const sessionId = (await sessionResp.json()).id as string
+
     // 1) 真实 API 播种：一个待确认计划 + 一个高风险待审批动作
     const planResp = await page.request.post('/api/plans', {
       data: {
-        session_id: SESSION_ID,
+        session_id: sessionId,
         title: 'E2E 编排计划',
-        nodes: [{ id: 'n1', label: '步骤一' }, { id: 'n2', label: '步骤二', depends_on: ['n1'] }],
+        nodes: [
+          { id: firstNodeId, label: '步骤一' },
+          { id: secondNodeId, label: '步骤二', depends_on: [firstNodeId] },
+        ],
       },
     })
     expect(planResp.ok()).toBeTruthy()
 
     const actionResp = await page.request.post('/api/actions', {
-      data: { session_id: SESSION_ID, action_type: 'deploy', command: 'deploy production --force' },
+      data: { session_id: sessionId, action_type: 'deploy', command: 'deploy production --force' },
     })
     expect(actionResp.ok()).toBeTruthy()
     const action = await actionResp.json()
     expect(action.risk_level).toBe('high')
     expect(action.status).toBe('pending')
 
-    // 2) 打开 workspace → 右栏切「编排」tab
-    await page.goto(`/workspace/${WORKSPACE_ID}`)
+    // 2) 打开 workspace → 选中 session → 右栏切「变更」tab（编排面板位于变更内）
+    await page.goto(`/workspace/${workspaceId}`)
     await expect(page.locator('[data-testid="workspace-shell"]')).toBeVisible()
-    await page.locator('button', { hasText: '编排' }).click()
+    await page.getByTestId('session-list').getByText('E2E 编排会话').click()
+    await page.locator('button', { hasText: '变更' }).click()
 
     const panel = page.locator('[data-testid="orchestrator-panel"]')
     await expect(panel).toBeVisible()
@@ -46,8 +63,8 @@ test.describe('WEB 编排 UI 真实链路（PRGA-004）', () => {
     await expect(panel.getByText('E2E 编排计划')).toBeVisible()
     await expect(panel.getByText('步骤一')).toBeVisible()
     await expect(panel.getByText('deploy production --force')).toBeVisible()
-    await expect(panel.getByText('风险: 高')).toBeVisible()
-    const approveBtn = panel.locator('button', { hasText: '批准' })
+    await expect(panel.getByText('风险 高')).toBeVisible()
+    const approveBtn = panel.locator('button', { hasText: '授权本次' })
     await expect(approveBtn).toBeVisible()
 
     // 4) 点批准 → 断言真实 /api/actions/:id/approve 被调
@@ -59,7 +76,7 @@ test.describe('WEB 编排 UI 真实链路（PRGA-004）', () => {
     expect(approveRes.ok()).toBeTruthy()
 
     // 5) 状态持久：重新通过真实 API 读取，断言 approved
-    const verify = await page.request.get(`/api/actions?session_id=${SESSION_ID}`)
+    const verify = await page.request.get(`/api/actions?session_id=${sessionId}`)
     const list = await verify.json()
     const persisted = list.find((a: { id: string }) => a.id === action.id)
     expect(persisted.status).toBe('approved')

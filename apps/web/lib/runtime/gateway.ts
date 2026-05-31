@@ -133,14 +133,13 @@ export async function* invoke(input: {
     }
 
     yield { type: 'public_runtime_available', available: true, endpointId }
-    await enqueue({
+    let failed = false
+    for await (const raw of subscribeEvents(input.runtimeSession.id, () => enqueue({
       runtimeSessionId: input.runtimeSession.id,
       endpointId: endpoint.id ?? undefined,
       prompt: input.userMessage ?? '',
       systemPrompt: input.systemPrompt,
-    })
-    let failed = false
-    for await (const raw of subscribeEvents(input.runtimeSession.id)) {
+    }))) {
       const evt = raw as RuntimeGatewayEvent
       if (evt.type === 'runtime_failed') failed = true
       yield evt
