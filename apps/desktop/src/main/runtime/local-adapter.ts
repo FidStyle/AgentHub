@@ -1,4 +1,4 @@
-import { execFile } from 'child_process'
+import { execFile, spawn, type ChildProcess } from 'child_process'
 import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import path from 'path'
@@ -12,9 +12,14 @@ export interface RuntimePromptRequest {
   prompt: string
 }
 
-const RUNTIME_COMMANDS: Record<RuntimePromptRequest['runtimeType'], string> = {
+export const RUNTIME_EXEC_COMMANDS: Record<RuntimePromptRequest['runtimeType'], string> = {
   claude_code: 'claude --print "$AGENTHUB_PROMPT"',
-  codex: 'codex exec "$AGENTHUB_PROMPT"',
+  codex: 'codex exec --skip-git-repo-check --sandbox read-only --color never -- "$AGENTHUB_PROMPT"',
+}
+
+const RUNTIME_TIMEOUT_MS: Record<RuntimePromptRequest['runtimeType'], number> = {
+  claude_code: 60000,
+  codex: 60000,
 }
 
 function resolveShell() {
@@ -30,6 +35,7 @@ function resolveCwd(cwd: string) {
 
 export class LocalRuntimeAdapter {
   type = 'claude_code' as const
+  private activeProcess: ChildProcess | null = null
 
   async execute(request: RuntimePromptRequest, cwd: string): Promise<RuntimeResult> {
     const start = Date.now()
@@ -58,7 +64,7 @@ export class LocalRuntimeAdapter {
       }
     }
 
-    const command = RUNTIME_COMMANDS[request.runtimeType]
+    const command = RUNTIME_EXEC_COMMANDS[request.runtimeType]
     if (!command) {
       return {
         exitCode: 1,
@@ -68,27 +74,88 @@ export class LocalRuntimeAdapter {
       }
     }
 
-    try {
-      const { stdout, stderr } = await execFileAsync(resolveShell(), ['-lc', command], {
-        cwd: resolvedCwd,
-        timeout: 120000,
-        maxBuffer: 1024 * 1024,
-        env: { ...process.env, AGENTHUB_PROMPT: prompt },
-      })
-      return { exitCode: 0, stdout, stderr, duration: Date.now() - start }
-    } catch (err: unknown) {
-      const e = err as { code?: number | string; stdout?: string; stderr?: string; message?: string }
-      const stderr = e.stderr ?? e.message ?? ''
-      const missingCli = stderr.includes('command not found') || e.code === 'ENOENT'
+    if (this.activeProcess) {
       return {
-        exitCode: typeof e.code === 'number' ? e.code : 1,
-        stdout: e.stdout ?? '',
-        stderr: missingCli
-          ? `未找到 ${request.runtimeType === 'codex' ? 'Codex' : 'Claude Code'} CLI，请先完成安装和诊断`
-          : stderr,
+        exitCode: 1,
+        stdout: '',
+        stderr: '已有本地 Runtime 请求正在执行，请先停止或等待完成',
         duration: Date.now() - start,
       }
     }
+
+    return new Promise<RuntimeResult>((resolve) => {
+      let stdout = ''
+      let stderr = ''
+      let settled = false
+      let timedOut = false
+
+      const child = spawn(resolveShell(), ['-lc', command], {
+        cwd: resolvedCwd,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, AGENTHUB_PROMPT: prompt },
+      })
+
+      this.activeProcess = child
+
+      const timeout = setTimeout(() => {
+        timedOut = true
+        child.kill('SIGTERM')
+        setTimeout(() => {
+          if (!child.killed) child.kill('SIGKILL')
+        }, 3000)
+      }, RUNTIME_TIMEOUT_MS[request.runtimeType])
+
+      const finish = (result: RuntimeResult) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        this.activeProcess = null
+        resolve(result)
+      }
+
+      child.stdout?.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString()
+      })
+
+      child.stderr?.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString()
+      })
+
+      child.on('error', (error: NodeJS.ErrnoException) => {
+        const missingCli = error.code === 'ENOENT' || error.message.includes('ENOENT')
+        finish({
+          exitCode: 1,
+          stdout,
+          stderr: missingCli
+            ? `未找到 ${request.runtimeType === 'codex' ? 'Codex' : 'Claude Code'} CLI，请先完成安装和诊断`
+            : error.message,
+          duration: Date.now() - start,
+        })
+      })
+
+      child.on('close', (code) => {
+        const exitCode = code ?? 1
+        finish({
+          exitCode: timedOut ? 1 : exitCode,
+          stdout,
+          stderr: timedOut
+            ? `${request.runtimeType === 'codex' ? 'Codex' : 'Claude Code'} 响应超时，请稍后重试或在本机终端运行诊断`
+            : stderr,
+          duration: Date.now() - start,
+        })
+      })
+    })
+  }
+
+  cancel(): boolean {
+    if (!this.activeProcess) return false
+    this.activeProcess.kill('SIGTERM')
+    setTimeout(() => {
+      if (this.activeProcess && !this.activeProcess.killed) {
+        this.activeProcess.kill('SIGKILL')
+      }
+    }, 3000)
+    return true
   }
 
   async isAvailable(): Promise<boolean> {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { RUNTIME_DETECTOR_COMMANDS } from '../src/main/runtime/runtime-detector'
+import {
+  RUNTIME_DETECTOR_COMMANDS,
+  parseCodexDoctorAuthStatus,
+  parseCodexLoginStatus,
+} from '../src/main/runtime/runtime-detector'
 
 describe('RuntimeDetector command contract', () => {
   it('uses real Claude Code authentication commands', () => {
@@ -15,5 +19,25 @@ describe('RuntimeDetector command contract', () => {
     expect(RUNTIME_DETECTOR_COMMANDS.codex.authStatus).toBe('codex login status')
     expect(RUNTIME_DETECTOR_COMMANDS.codex.login).toBe('codex login')
     expect(RUNTIME_DETECTOR_COMMANDS.codex.doctor).toBe('codex doctor --json')
+  })
+
+  it('recognizes Codex API-key login status output', () => {
+    expect(parseCodexLoginStatus('Logged in using an API key - clp_9967***ba3ff')).toBe(true)
+    expect(parseCodexLoginStatus('Not logged in')).toBe(false)
+  })
+
+  it('uses codex doctor auth.credentials as authenticated fallback', () => {
+    expect(parseCodexDoctorAuthStatus(JSON.stringify({
+      overallStatus: 'warning',
+      checks: {
+        'auth.credentials': { status: 'ok', summary: 'auth is configured' },
+        'terminal.env': { status: 'warning', summary: 'height 19 rows' },
+      },
+    }))).toBe(true)
+    expect(parseCodexDoctorAuthStatus(JSON.stringify({
+      checks: {
+        'auth.credentials': { status: 'fail' },
+      },
+    }))).toBe(false)
   })
 })

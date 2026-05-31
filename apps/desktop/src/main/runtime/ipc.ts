@@ -8,6 +8,10 @@ export function registerRuntimeIPC() {
     return adapter.execute(request, cwd)
   })
 
+  ipcMain.handle('runtime:cancel', async () => {
+    return adapter.cancel()
+  })
+
   ipcMain.handle('runtime:available', async () => {
     return adapter.isAvailable()
   })

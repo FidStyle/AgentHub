@@ -5,7 +5,6 @@ import { ActivityPanel } from '../console/ActivityPanel'
 import { ApprovalPanel } from '../console/ApprovalPanel'
 import { getElectronAPI } from '../../utils/electron-api'
 
-const CONTROL_UNAVAILABLE = '能力未实现：需远程流式 runtime 会话（见 P1-RT），本地一次性执行不支持此控制语义'
 const RUNTIME_LABELS: Record<string, string> = {
   claude_code: 'Claude Code',
   codex: 'Codex',
@@ -142,6 +141,29 @@ export function DesktopAgentSession() {
     }
   }
 
+  const handleStop = async () => {
+    const runtime = getElectronAPI()?.runtime
+    if (!runtime || typeof runtime.cancel !== 'function') {
+      addActivity({
+        type: 'runtime',
+        status: 'failed',
+        message: '停止本地 Runtime 请求失败',
+        reason: '当前桌面端未提供停止能力',
+      })
+      return
+    }
+
+    const cancelled = await runtime.cancel()
+    addActivity({
+      type: 'runtime',
+      status: cancelled ? 'success' : 'failed',
+      message: cancelled ? '已发送停止请求' : '没有正在执行的本地 Runtime 请求',
+    })
+    if (cancelled) {
+      setSending(false)
+    }
+  }
+
   return (
     <section data-testid="desktop-agent-session" className="flex-1 flex flex-col h-full overflow-hidden">
       <header className="px-4 py-3 border-b border-border flex items-center gap-3">
@@ -203,7 +225,7 @@ export function DesktopAgentSession() {
             {diagnosing ? '诊断中' : '诊断'}
           </Button>
           {sending && (
-            <Button size="sm" variant="destructive" disabled title={CONTROL_UNAVAILABLE}>停止</Button>
+            <Button size="sm" variant="destructive" title="停止当前本地 Runtime 请求" onClick={handleStop}>停止</Button>
           )}
         </div>
         <div className="flex gap-2">

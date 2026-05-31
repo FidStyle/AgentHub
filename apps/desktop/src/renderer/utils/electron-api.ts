@@ -24,6 +24,7 @@ export interface RuntimePromptRequest {
 interface ElectronRuntimeApi {
   detect: () => Promise<RuntimeInfo[]>
   execute: (request: RuntimePromptRequest, cwd: string) => Promise<RuntimeExecResult>
+  cancel?: () => Promise<boolean>
   available: () => Promise<boolean>
 }
 

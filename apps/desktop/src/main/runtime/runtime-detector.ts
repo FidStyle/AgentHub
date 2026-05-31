@@ -56,13 +56,25 @@ function parseClaudeAuthStatus(output: string): boolean {
   }
 }
 
-function parseCodexLoginStatus(output: string): boolean {
+export function parseCodexLoginStatus(output: string): boolean {
   const normalized = output.toLowerCase()
   return (
     normalized.includes('logged in') ||
     normalized.includes('authenticated') ||
     normalized.includes('api key')
   ) && !normalized.includes('not logged in') && !normalized.includes('not authenticated')
+}
+
+export function parseCodexDoctorAuthStatus(output: string): boolean {
+  if (!output) return false
+  try {
+    const report = JSON.parse(output) as {
+      checks?: Record<string, { status?: string }>
+    }
+    return report.checks?.['auth.credentials']?.status === 'ok'
+  } catch {
+    return false
+  }
 }
 
 function summarizeCodexDoctor(output: string): string | null {
@@ -159,21 +171,20 @@ export class RuntimeDetector {
         info.available = true
         info.launchable = true
         info.version = version.split('\n')[0]
-        try {
-          const authOut = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.codex.authStatus)
-          info.authenticated = parseCodexLoginStatus(authOut)
-          info.diagnosticCode = info.authenticated ? 'RUNTIME_READY' : 'RUNTIME_AUTH_REQUIRED'
-          info.diagnosticMessage = info.authenticated ? 'Codex 已安装并完成认证' : 'Codex 未登录或认证状态不可确认，请在本机 CLI 完成登录后重新检测'
-          if (info.authenticated) {
-            const doctor = await runLoginShellWithExit(RUNTIME_DETECTOR_COMMANDS.codex.doctor, 10000)
-            const doctorSummary = summarizeCodexDoctor(doctor.stdout)
-            if (doctorSummary) {
-              info.diagnosticMessage = `Codex 已安装并完成认证；${doctorSummary}`
-            }
+        const [authOut, doctor] = await Promise.all([
+          runLoginShellWithExit(RUNTIME_DETECTOR_COMMANDS.codex.authStatus),
+          runLoginShellWithExit(RUNTIME_DETECTOR_COMMANDS.codex.doctor, 10000),
+        ])
+        info.authenticated =
+          parseCodexLoginStatus(authOut.stdout) ||
+          parseCodexDoctorAuthStatus(doctor.stdout)
+        info.diagnosticCode = info.authenticated ? 'RUNTIME_READY' : 'RUNTIME_AUTH_REQUIRED'
+        info.diagnosticMessage = info.authenticated ? 'Codex 已安装并完成认证' : 'Codex 未登录或认证状态不可确认，请在本机 CLI 完成登录后重新检测'
+        if (info.authenticated) {
+          const doctorSummary = summarizeCodexDoctor(doctor.stdout)
+          if (doctorSummary) {
+            info.diagnosticMessage = `Codex 已安装并完成认证；${doctorSummary}`
           }
-        } catch {
-          info.diagnosticCode = 'RUNTIME_AUTH_REQUIRED'
-          info.diagnosticMessage = 'Codex 认证状态不可确认，请在本机运行 codex login status 检查'
         }
       }
     } catch (error) {

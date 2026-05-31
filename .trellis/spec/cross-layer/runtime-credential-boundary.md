@@ -153,7 +153,8 @@ interface WorkspaceOperabilityStatus {
 - Desktop Runtime doctor 必须检测 CLI 是否存在、版本、认证/可启动状态，并通过 DeviceChannel 回传 runtime capability snapshot。
 - Desktop Runtime doctor 的 P0 基线命令必须使用真实 CLI 命令：
   - Claude Code：`command -v claude`、`claude --version`、`claude auth status --json`；认证引导为 `claude auth login`。
-  - Codex：`command -v codex`、`codex --version`、`codex login status`；认证引导为 `codex login`；完整诊断入口为 `codex doctor --json`，但 P0 不应因为非认证类 doctor 失败项误判“未登录”。
+  - Codex：`command -v codex`、`codex --version`、`codex login status`；认证引导为 `codex login`；完整诊断入口为 `codex doctor --json`。
+  - Codex 认证判定必须支持 `codex login status` 输出 `Logged in using an API key ...`，并用 `codex doctor --json` 的 `checks["auth.credentials"].status === "ok"` 作为兜底；`overallStatus=warning` 不应因为 terminal 等非认证警告误判“未登录”。
 - macOS Electron 发行包从 Finder 启动时不一定继承交互终端的 PATH；本地 Runtime 检测应通过用户登录 shell 解析 CLI 路径，不能只依赖 Electron 进程默认 PATH。
 - Web/Mobile 只能通过 Cloud Runtime Gateway + Desktop DeviceChannel/tunnel 访问用户本机 Runtime，禁止直连本地 IP/端口。
 
@@ -230,10 +231,12 @@ type RuntimeExecResult = {
 - Renderer 输入框的语义是“发送给当前本地 Runtime 的一次性消息”，不是 shell command。
 - Renderer 只能提交 `RuntimePromptRequest`，不得提交任意 command 字符串。
 - Main process 负责把 `runtimeType` 映射到固定 CLI 命令：
-  - `codex` -> `codex exec "$AGENTHUB_PROMPT"`
+  - `codex` -> `codex exec --skip-git-repo-check --sandbox read-only --color never -- "$AGENTHUB_PROMPT"`
   - `claude_code` -> `claude --print "$AGENTHUB_PROMPT"`
 - Prompt 必须通过环境变量或等价安全参数传递，不能拼接进 shell 字符串。
 - CLI 路径解析和执行应使用用户登录 shell，兼容 macOS Finder 启动的 Electron 进程 PATH 不完整问题。
+- 一次性消息必须有超时上限，超时后返回中文错误，不能让 UI 永久停留在“发送中”。
+- Main process 应使用可取消的进程句柄执行一次性 CLI，renderer 的“停止”按钮必须调用真实 cancel IPC，不能只是 disabled 占位。
 
 ### 4. Validation & Error Matrix
 
@@ -243,6 +246,7 @@ type RuntimeExecResult = {
 | Runtime type 不是 `codex` / `claude_code` | 返回中文错误“当前 Runtime 暂不支持” |
 | 工作目录不存在 | 自动创建目录；创建失败才返回中文错误“无法创建工作目录：...” |
 | CLI 未找到或 spawn `ENOENT` | 返回中文错误“未找到 Codex/Claude Code CLI，请先完成安装和诊断” |
+| CLI 进程超时 | 返回中文错误“Codex/Claude Code 响应超时...” |
 | CLI exitCode 非 0 | 活动列表显示失败、stderr/stdout 摘要和中文原因 |
 
 ### 5. Good/Base/Bad Cases

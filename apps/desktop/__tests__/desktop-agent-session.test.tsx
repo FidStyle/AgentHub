@@ -109,6 +109,24 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     expect(screen.getByText(/runtime 不可用|未检测到/)).toBeInTheDocument()
     expect(screen.queryByText('成功')).not.toBeInTheDocument()
   })
+
+  it('发送中可以停止当前本地 Runtime 请求', async () => {
+    const execute = vi.fn(() => new Promise(() => undefined))
+    const cancel = vi.fn().mockResolvedValue(true)
+    ;(window as unknown as { electronAPI: unknown }).electronAPI = { runtime: { execute, cancel, detect: vi.fn(), available: vi.fn() } }
+
+    const user = userEvent.setup()
+    render(<DesktopAgentSession />)
+
+    await user.type(screen.getByPlaceholderText('输入给 Codex 的消息...'), 'hello')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+    const stop = await screen.findByRole('button', { name: '停止' })
+    expect(stop).toBeEnabled()
+
+    await user.click(stop)
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText(/已发送停止请求/)).toBeInTheDocument()
+  })
 })
 
 describe('DesktopAgentSession 控制按钮（PRGA-003）', () => {
