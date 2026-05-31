@@ -70,3 +70,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 三端权限工作台模型与界面打磨
+
+**Date**: 2026-05-31
+**Task**: 三端权限工作台模型与界面打磨
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+统一 Web/Desktop/Mobile 授权职责，移除 Desktop 审批中心，补 Web Context/Changes/Artifacts、授权卡、计划卡、Composer、Session 搜索和 Desktop 本机策略控制台，并通过类型检查、Desktop 单测和治理门禁。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `aec1fd1` | (see git log) |
+| `397ec8c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
