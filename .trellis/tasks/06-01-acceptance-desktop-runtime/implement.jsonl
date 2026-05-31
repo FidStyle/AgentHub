@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "research/contracts/ACCEPTANCE-HARDENING-2026-06-01.md", "reason": "P0 acceptance hardening shared contract"}
+{"file": ".trellis/spec/guides/end-to-end-contract-planning.md", "reason": "Prevent fake closure and mock-driven acceptance"}
+{"file": ".trellis/spec/guides/product-planning-guide.md", "reason": "Keep work bound to AgentHub product FRs"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend API DB runtime quality specs index"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend UI state type quality specs index"}
+{"file": ".trellis/spec/cross-layer/index.md", "reason": "Cross-layer runtime gateway and credential boundary specs index"}

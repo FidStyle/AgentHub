@@ -1,0 +1,41 @@
+{
+  "id": "desktop-main-shell-agent-config-refactor",
+  "name": "desktop-main-shell-agent-config-refactor",
+  "title": "Desktop 主界面与 Agent 配置中心返工",
+  "description": "把 Electron Desktop 从单页检测面板返工为完整桌面主壳：左侧导航/Session、中间本地 Agent 轻量会话、右侧 Agent 配置中心与 Runtime 状态。",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": "apps/desktop/src/renderer, apps/desktop/src/main, e2e/tests/desktop",
+  "package": "frontend",
+  "priority": "P0",
+  "creator": "joytion",
+  "assignee": "joytion",
+  "createdAt": "2026-05-26",
+  "completedAt": "2026-06-01",
+  "branch": null,
+  "base_branch": "AgentHub_new_claude_test",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-25-ui-phase3-task-plan",
+  "relatedFiles": [],
+  "notes": "Phase 4 前置修正任务。先补 Electron E2E，再返工 Desktop 主壳、Agent 配置中心、轻量会话和打开 Web 工作台状态。",
+  "meta": {
+    "phase": "Phase 3.5",
+    "fr_ids": [
+      "FR-DESK-001",
+      "FR-RUNTIME-001",
+      "FR-CHAT-001",
+      "FR-UI-001"
+    ],
+    "depends_on": [
+      "05-25-desktop-connector-console-ui"
+    ],
+    "unblocks": [
+      "05-26-ui-visual-unification-refactor",
+      "05-25-visual-e2e-gate"
+    ]
+  }
+}

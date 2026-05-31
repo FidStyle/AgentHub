@@ -19,6 +19,21 @@
 
 ## P0 任务
 
+### ACCEPTANCE-HARDENING-2026-06-01: 验收前全功能硬化
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-AUTH-001, FR-WS-001, FR-WEB-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-RUNTIME-001, FR-DEVICE-001, FR-ARTIFACT-001, FR-ORCH-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-01-acceptance-hardening-program/`（父任务）+ 六个 P0 子任务 |
+| **合同路径** | `research/contracts/ACCEPTANCE-HARDENING-2026-06-01.md` |
+| **当前状态** | 🟡 planning（2026-06-01）：已建立验收硬化总控合同和 Trellis 父/子任务。目标是不再按 MVP 降级口径签收，逐项修复质量门禁、真实环境、Web 主链路、Desktop、本端 Mobile/PWA/RN 和最终 UAT 治理证据。 |
+| **目标** | 最终验收前确保所有核心功能真实可用，所有门禁真实全绿，测试不假绿，环境可复现，三端用户链路可人工验收。 |
+| **验收方式** | 按合同第 11 节完成 lint/type-check/build/Web Vitest/真实环境 smoke/Web E2E/Desktop/Mobile/治理门禁/Codex 独立验收。 |
+| **测试证据** | 待执行。初始已知阻塞：Desktop lint failure、Web Vitest failure、根 test 漏 Web、Mobile type/build echo skip、runtime 默认 FakeExecutor。 |
+| **阻塞问题** | 当前所有上述初始阻塞均视为 P0 验收阻塞，不得继续用局部绿灯宣称完成。 |
+| **下一步动作** | 先执行 `06-01-acceptance-quality-gates`，修复硬红和假门禁；随后按环境 → Web → Desktop → Mobile → Final UAT 顺序推进。 |
+
 ### THREE-SURFACE-WORKBENCH-PERMISSION-001: 三端会话工作台与权限模型统一
 
 | 字段 | 内容 |

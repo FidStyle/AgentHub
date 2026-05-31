@@ -1,0 +1,39 @@
+{
+  "id": "visual-e2e-gate",
+  "name": "visual-e2e-gate",
+  "title": "三端视觉 E2E 门禁",
+  "description": "建立三端视觉 E2E 门禁：Web、Mobile/PWA、Electron Desktop 的截图、布局、文本溢出、敏感信息断言。",
+  "status": "completed",
+  "dev_type": "test",
+  "scope": "e2e",
+  "package": "frontend",
+  "priority": "P0",
+  "creator": "joytion",
+  "assignee": "joytion",
+  "createdAt": "2026-05-25",
+  "completedAt": "2026-06-01",
+  "branch": null,
+  "base_branch": "AgentHub_new_claude_test",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "05-25-ui-phase3-task-plan",
+  "relatedFiles": [],
+  "notes": "该任务是 UI Phase 3 的验收门禁，必须在三端 UI 页面任务后执行。",
+  "meta": {
+    "phase": "Phase 3",
+    "fr_ids": [
+      "FR-UI-001",
+      "FR-WEB-001",
+      "FR-DESK-001",
+      "FR-MOB-001"
+    ],
+    "depends_on": [
+      "05-25-web-three-column-workbench-ui",
+      "05-25-desktop-connector-console-ui",
+      "05-25-mobile-pwa-im-approval-preview-ui"
+    ]
+  }
+}

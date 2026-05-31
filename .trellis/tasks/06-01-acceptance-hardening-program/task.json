@@ -1,0 +1,33 @@
+{
+  "id": "acceptance-hardening-program",
+  "name": "acceptance-hardening-program",
+  "title": "验收前全功能硬化总控",
+  "description": "Before final acceptance, close all quality-gate, environment, real-runtime, Web/Desktop/Mobile, and UAT evidence gaps under one shared contract.",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "joytion",
+  "assignee": "joytion",
+  "createdAt": "2026-06-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "AgentHub_new_claude_test",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-01-acceptance-quality-gates",
+    "06-01-acceptance-env-bootstrap",
+    "06-01-acceptance-web-core-flow",
+    "06-01-acceptance-desktop-runtime",
+    "06-01-acceptance-final-uat-governance",
+    "06-01-acceptance-mobile-surfaces"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

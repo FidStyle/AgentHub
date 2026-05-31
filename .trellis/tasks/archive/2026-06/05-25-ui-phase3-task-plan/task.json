@@ -1,0 +1,52 @@
+{
+  "id": "ui-phase3-task-plan",
+  "name": "ui-phase3-task-plan",
+  "title": "UI Phase 3 任务规划",
+  "description": "Phase 3 UI 任务拆分父任务：把 FR-UI-001、三端 UI 设计系统和视觉 E2E 门禁拆成可执行 Trellis 子任务。",
+  "status": "completed",
+  "dev_type": "planning",
+  "scope": "ui-phase3",
+  "package": "frontend",
+  "priority": "P0",
+  "creator": "joytion",
+  "assignee": "joytion",
+  "createdAt": "2026-05-25",
+  "completedAt": "2026-06-01",
+  "branch": null,
+  "base_branch": "AgentHub_new_claude_test",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "05-25-ui-foundation-design-system",
+    "05-25-web-three-column-workbench-ui",
+    "05-25-desktop-connector-console-ui",
+    "05-26-desktop-main-shell-agent-config-refactor",
+    "05-25-mobile-pwa-im-approval-preview-ui",
+    "05-26-ui-visual-unification-refactor",
+    "05-25-visual-e2e-gate"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "父任务只承载任务规划，不直接实现代码。后续实现应从 05-25-ui-foundation-design-system 开始；若 Desktop 仍是单页检测面板，必须先执行 05-26-desktop-main-shell-agent-config-refactor；若已有 UI 截图显示三端风格割裂，必须先执行 05-26-ui-visual-unification-refactor 再进入最终视觉门禁。",
+  "meta": {
+    "phase": "Phase 3",
+    "fr_ids": [
+      "FR-UI-001",
+      "FR-DEVICE-001",
+      "FR-WEB-001",
+      "FR-DESK-001",
+      "FR-MOB-001"
+    ],
+    "execution_order": [
+      "05-25-ui-foundation-design-system",
+      "05-25-web-three-column-workbench-ui",
+      "05-25-desktop-connector-console-ui",
+      "05-26-desktop-main-shell-agent-config-refactor",
+      "05-25-mobile-pwa-im-approval-preview-ui",
+      "05-26-ui-visual-unification-refactor",
+      "05-25-visual-e2e-gate"
+    ]
+  }
+}
