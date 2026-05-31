@@ -1,4 +1,5 @@
 import { Card, CardHeader, CardTitle, CardContent, Badge, StateCard } from '@agenthub/ui'
+import { Activity, ShieldCheck } from 'lucide-react'
 import { useConsoleStore, type AuthorizationRecord } from '../../store/console-store'
 
 const STATUS_LABEL: Record<AuthorizationRecord['status'], string> = {
@@ -27,14 +28,34 @@ export function PolicyPanel() {
     <Card data-testid="desktop-policy-panel">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm">本机策略</CardTitle>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm">本机策略</CardTitle>
+          </div>
           <Badge variant="secondary">{current.label}</Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-xs text-muted-foreground">{current.description}</p>
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="rounded-md border border-border p-2">
+            <div className="text-muted-foreground">预设</div>
+            <div className="mt-1 font-medium">{current.label}</div>
+          </div>
+          <div className="rounded-md border border-border p-2">
+            <div className="text-muted-foreground">授权端</div>
+            <div className="mt-1 font-medium">Web/Mobile</div>
+          </div>
+          <div className="rounded-md border border-border p-2">
+            <div className="text-muted-foreground">记录</div>
+            <div className="mt-1 font-medium">{authorizationRecords.length} 条</div>
+          </div>
+        </div>
         <div className="rounded-md border border-border p-3">
-          <div className="text-xs font-medium">越权授权记录</div>
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+            越权授权记录
+          </div>
           {authorizationRecords.length === 0 ? (
             <p className="mt-1 text-xs text-muted-foreground">暂无 Web/Mobile 授权后的本机执行记录</p>
           ) : (

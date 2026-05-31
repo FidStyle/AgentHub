@@ -1,7 +1,9 @@
 'use client'
 
+import type React from 'react'
 import { useEffect, useState } from 'react'
-import { Button, StateCard } from '@agenthub/ui'
+import { Badge, Button, StateCard } from '@agenthub/ui'
+import { Bot, Boxes, FileCode2, FileText, GitBranch, MessageSquareText, ShieldCheck, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 
@@ -21,6 +23,50 @@ type MessageRow = {
   message_type: string
   is_pinned: boolean
   metadata: Record<string, unknown> | null
+}
+
+function truncate(text: string, max = 160) {
+  return text.length > max ? `${text.slice(0, max)}...` : text
+}
+
+function toPreview(value: unknown) {
+  if (typeof value === 'string') return value
+  return JSON.stringify(value, null, 2)
+}
+
+function metadataValue(metadata: MessageRow['metadata'], keys: string[]) {
+  if (!metadata) return undefined
+  return keys.find((key) => key in metadata)
+}
+
+function PanelSection({
+  icon: Icon,
+  title,
+  description,
+  action,
+  children,
+}: {
+  icon: typeof MessageSquareText
+  title: string
+  description?: string
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">{title}</h3>
+          </div>
+          {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
 }
 
 function AgentsTab() {
@@ -290,25 +336,31 @@ function ContextTab() {
   if (error) return <p data-testid="artifact-context-error" className="text-sm text-destructive">{error}</p>
   return (
     <div data-testid="artifact-context" className="space-y-4">
-      <section className="space-y-2">
-        <div>
-          <h3 className="text-sm font-medium">会话上下文</h3>
-          <p className="text-xs text-muted-foreground">固定消息、引用材料与本轮运行携带的结构化上下文</p>
-        </div>
+      <PanelSection
+        icon={MessageSquareText}
+        title="会话上下文"
+        description="固定消息、引用材料与本轮运行携带的结构化上下文"
+        action={<Badge variant="secondary">{refs.length} 条</Badge>}
+      >
         {loaded && refs.length === 0 ? (
           <StateCard variant="empty" title="暂无上下文" description="当前会话还没有被引用或固定的上下文" />
         ) : (
           refs.map((m) => (
-            <div key={m.id} className="rounded-lg border border-border p-3 text-sm">
-              {m.is_pinned && <span className="mr-1 text-xs text-primary">Pinned</span>}
-              {m.content}
+            <div key={m.id} className="rounded-lg border border-border bg-background p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <Badge variant={m.is_pinned ? 'default' : 'secondary'}>
+                  {m.is_pinned ? '已固定' : m.message_type}
+                </Badge>
+                {m.metadata && <Badge variant="secondary">{Object.keys(m.metadata).length} 个字段</Badge>}
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{truncate(m.content, 260)}</p>
             </div>
           ))
         )}
-      </section>
-      <section className="space-y-2">
+      </PanelSection>
+      <PanelSection icon={Bot} title="Role Agents" description="当前工作区可提及和调度的角色">
         <AgentsTab />
-      </section>
+      </PanelSection>
     </div>
   )
 }
@@ -326,6 +378,82 @@ function metadataPreview(metadata: MessageRow['metadata']) {
   return JSON.stringify(preview, null, 2)
 }
 
+function DiffPreview({ value }: { value: unknown }) {
+  const text = toPreview(value)
+  const lines = text.split('\n').slice(0, 80)
+  const added = lines.filter((line) => line.startsWith('+') && !line.startsWith('+++')).length
+  const removed = lines.filter((line) => line.startsWith('-') && !line.startsWith('---')).length
+  return (
+    <div data-testid="git-diff-preview" className="overflow-hidden rounded-md border border-border bg-muted/40">
+      <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Git diff</span>
+        </div>
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-success">+{added}</span>
+          <span className="text-destructive">-{removed}</span>
+        </div>
+      </div>
+      <pre className="max-h-64 overflow-auto p-2 text-xs leading-relaxed">
+        {lines.map((line, index) => (
+          <div
+            key={`${index}-${line}`}
+            className={
+              line.startsWith('+') && !line.startsWith('+++')
+                ? 'text-success'
+                : line.startsWith('-') && !line.startsWith('---')
+                  ? 'text-destructive'
+                  : line.startsWith('@@')
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+            }
+          >
+            {line || ' '}
+          </div>
+        ))}
+      </pre>
+    </div>
+  )
+}
+
+function ChangeRecordCard({ message }: { message: MessageRow }) {
+  const diffKey = metadataValue(message.metadata, ['diff', 'git_diff', 'patch'])
+  const filesKey = metadataValue(message.metadata, ['files', 'changed_files'])
+  const preview = metadataPreview(message.metadata)
+  return (
+    <div className="rounded-lg border border-border bg-background p-3 text-sm">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <FileCode2 className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{message.message_type === 'approval' ? '授权动作' : '运行变更'}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">关联消息：{message.id}</p>
+        </div>
+        <Badge variant={message.message_type === 'approval' ? 'warning' : 'secondary'}>
+          {message.message_type}
+        </Badge>
+      </div>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed">{truncate(message.content, 220)}</p>
+      {filesKey && message.metadata && (
+        <div className="mt-2 rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">文件：</span>{toPreview(message.metadata[filesKey])}
+        </div>
+      )}
+      {diffKey && message.metadata ? (
+        <div className="mt-2">
+          <DiffPreview value={message.metadata[diffKey]} />
+        </div>
+      ) : preview ? (
+        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-2 text-xs">
+          {preview}
+        </pre>
+      ) : null}
+    </div>
+  )
+}
+
 function ChangesTab() {
   const { activeSessionId, messages, error, loaded } = useSessionMessages()
   const changes = messages.filter(
@@ -336,30 +464,51 @@ function ChangesTab() {
   return (
     <div data-testid="artifact-changes" className="space-y-4">
       <OrchestratorPanel />
-      <section className="space-y-2">
-        <div>
-          <h3 className="text-sm font-medium">变更记录</h3>
-          <p className="text-xs text-muted-foreground">Git diff、文件变更、运行结果和需要授权的动作会关联到对应会话记录</p>
-        </div>
+      <PanelSection
+        icon={GitBranch}
+        title="变更记录"
+        description="Git diff、文件变更、运行结果和需要授权的动作会关联到对应会话记录"
+        action={<Badge variant="secondary">{changes.length} 条</Badge>}
+      >
         {loaded && changes.length === 0 ? (
           <StateCard variant="empty" title="暂无变更" description="当前会话还没有文件变更、diff 或运行结果" />
         ) : (
-          changes.map((m) => {
-            const preview = metadataPreview(m.metadata)
-            return (
-              <div key={m.id} className="rounded-lg border border-border p-3 text-sm">
-                <div className="text-xs text-muted-foreground">{m.message_type}</div>
-                <p className="mt-1 whitespace-pre-wrap">{m.content}</p>
-                {preview && (
-                  <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-2 text-xs">
-                    {preview}
-                  </pre>
-                )}
-              </div>
-            )
-          })
+          changes.map((m) => <ChangeRecordCard key={m.id} message={m} />)
         )}
-      </section>
+      </PanelSection>
+    </div>
+  )
+}
+
+function ArtifactCard({ message }: { message: MessageRow }) {
+  const artifact = message.metadata?.artifact
+  const title = typeof artifact === 'object' && artifact && 'title' in artifact
+    ? String((artifact as { title?: unknown }).title ?? '未命名产物')
+    : message.message_type === 'file'
+      ? '文件产物'
+      : '会话产物'
+  const artifactType = typeof artifact === 'object' && artifact && 'type' in artifact
+    ? String((artifact as { type?: unknown }).type ?? message.message_type)
+    : message.message_type
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <span className="truncate text-sm font-medium">{title}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">来源消息：{message.id}</p>
+        </div>
+        <Badge variant="secondary">{artifactType}</Badge>
+      </div>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed">{truncate(message.content, 240)}</p>
+      {artifact ? (
+        <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-2 text-xs">
+          {toPreview(artifact)}
+        </pre>
+      ) : null}
     </div>
   )
 }
@@ -374,12 +523,7 @@ function ArtifactsTab() {
   if (loaded && artifacts.length === 0) return <StateCard variant="empty" title="暂无产物" description="当前会话还没有 Agent 产出的代码、文件或结果" />
   return (
     <div data-testid="artifact-output" className="space-y-2">
-      {artifacts.map((m) => (
-        <div key={m.id} className="rounded-lg border border-border p-3 text-sm">
-          <div className="text-xs text-muted-foreground">{m.message_type}</div>
-          {m.content}
-        </div>
-      ))}
+      {artifacts.map((m) => <ArtifactCard key={m.id} message={m} />)}
     </div>
   )
 }
@@ -389,22 +533,35 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <aside data-testid="artifact-panel" className="flex flex-col h-full bg-card">
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <div className="flex gap-1">
+      <div className="border-b border-border p-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Boxes className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">会话工作台</h2>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">上下文、变更和产物按当前 Session 关联</p>
+          </div>
+          <Button variant="ghost" size="sm" data-testid="artifact-close-btn" onClick={onClose} aria-label="关闭右侧面板">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 p-1">
           {TABS.map((tab) => (
             <Button
               key={tab}
               variant={activeTab === tab ? 'default' : 'ghost'}
               size="sm"
+              className="flex-1"
               onClick={() => setActiveTab(tab)}
             >
+              {tab === '变更' && <GitBranch className="mr-1 h-3.5 w-3.5" />}
+              {tab === '上下文' && <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
+              {tab === '产物' && <FileText className="mr-1 h-3.5 w-3.5" />}
               {tab}
             </Button>
           ))}
         </div>
-        <Button variant="ghost" size="sm" data-testid="artifact-close-btn" onClick={onClose}>
-          关闭
-        </Button>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {activeTab === '上下文' && <ContextTab />}

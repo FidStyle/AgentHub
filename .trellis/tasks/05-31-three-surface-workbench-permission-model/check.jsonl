@@ -9,3 +9,7 @@
 {"command":"pnpm --filter @agenthub/desktop test -- --run","result":"PASS","reason":"Desktop vitest 5 files / 23 tests passed"}
 {"command":"rg -n \"ApprovalPanel|DesktopApprovalsPage|desktop-nav-approvals|desktop-approvals-page|待审批|批准|拒绝\" apps/desktop apps/web e2e/tests/desktop --glob '!node_modules'","result":"PASS","reason":"旧 Desktop 审批组件、测试选择器和用户可见批准/拒绝文案已清除；仅安全脚本仍有非审批语义的拒绝本地 IP"}
 {"command":"bash scripts/verify-governance-gate.sh THREE-SURFACE-WORKBENCH-PERMISSION-001","result":"BLOCKED_DIRTY_WORKTREE","reason":"治理门禁要求先精确 git add + 中文 commit，并要求 project-tracker 标记完成；本轮未获提交指令，因此未自动提交"}
+{"command":"pnpm --filter @agenthub/web type-check","result":"PASS","reason":"第二轮 UI/UX polish 后 Web TypeScript 编译通过"}
+{"command":"pnpm --filter @agenthub/desktop type-check","result":"PASS","reason":"第二轮 UI/UX polish 后 Desktop TypeScript 编译通过"}
+{"command":"pnpm --filter @agenthub/desktop test -- --run","result":"PASS","reason":"Desktop vitest 5 files / 23 tests passed"}
+{"command":"npx playwright screenshot http://localhost:3000 e2e/artifacts/three-surface-ui-polish-home.png","result":"PASS_WITH_AUTH_LIMIT","reason":"Web dev server 可访问并生成登录首屏截图；当前环境未登录，未覆盖工作台内部视觉"}

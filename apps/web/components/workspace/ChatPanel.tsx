@@ -122,6 +122,7 @@ function MessageComposer({
   const triggerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const { sendMessage, activeSessionId } = useSessionStore()
+  const currentMode = PERMISSION_MODES.find((mode) => mode.value === permissionMode)
 
   useEffect(() => setMounted(true), [])
 
@@ -161,9 +162,9 @@ function MessageComposer({
   }
 
   return (
-    <div data-testid="message-composer" className="flex flex-col gap-2 p-4 border-t border-border">
+    <div data-testid="message-composer" className="border-t border-border p-4">
       {readOnly && (
-        <div data-testid="readonly-composer-gate" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+        <div data-testid="readonly-composer-gate" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
           <span>{readOnlyReason ?? '当前为只读模式，不能继续执行本地任务。'}</span>
           <button
             type="button"
@@ -174,104 +175,110 @@ function MessageComposer({
           </button>
         </div>
       )}
-      <div data-testid="composer-toolbar" className="flex items-center gap-2">
-        <div ref={triggerRef} className="relative">
-          <IconButton
-            icon={AtSign}
-            label="提及角色"
-            variant="ghost"
-            size="sm"
-            data-testid="mention-role-btn"
-            disabled={!activeSessionId || readOnly}
-            onClick={() => setPickerOpen((v) => !v)}
-          />
-          <RolePicker
-            open={mounted && pickerOpen}
-            pos={pos}
-            roleAgents={roleAgents}
-            onSelect={(r) => {
-              setSelectedRole(r)
-              setPickerOpen(false)
-            }}
-          />
-        </div>
-        {selectedRole && (
-          <Badge data-testid="selected-role" variant="secondary">
-            @{selectedRole.name}
-            <button
-              type="button"
-              aria-label="取消选择角色"
-              className="ml-1"
-              onClick={() => setSelectedRole(null)}
-            >
-              ×
-            </button>
-          </Badge>
-        )}
-        <IconButton
-          icon={Plus}
-          label="添加附件或上下文"
-          variant="ghost"
-          size="sm"
-          data-testid="attachment-btn"
-          disabled={!activeSessionId || readOnly}
-          onClick={() => fileRef.current?.click()}
-        />
-        <input
-          ref={fileRef}
-          data-testid="attachment-file-input"
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(event) => {
-            const files = Array.from(event.target.files ?? []).map((file) => file.name)
-            setAttachments((current) => Array.from(new Set([...current, ...files])))
-            event.currentTarget.value = ''
-          }}
-        />
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          <span className="sr-only">权限预设</span>
-          <select
-            data-testid="permission-mode-select"
-            value={permissionMode}
-            disabled={!activeSessionId || readOnly}
-            onChange={(event) => setPermissionMode(event.target.value as typeof permissionMode)}
-            className="h-7 rounded-md border border-input bg-background px-2 text-xs text-foreground"
-          >
-            {PERMISSION_MODES.map((mode) => (
-              <option key={mode.value} value={mode.value}>{mode.label}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {attachments.length > 0 && (
-        <div data-testid="attachment-chips" className="flex flex-wrap gap-1">
-          {attachments.map((name) => (
-            <Badge key={name} variant="secondary" className="max-w-full">
-              <span className="max-w-[180px] truncate">{name}</span>
+      <div className="rounded-lg border border-border bg-background p-2 shadow-sm">
+        <div data-testid="composer-toolbar" className="mb-2 flex flex-wrap items-center gap-2">
+          <div ref={triggerRef} className="relative">
+            <IconButton
+              icon={AtSign}
+              label="提及角色"
+              variant="ghost"
+              size="sm"
+              data-testid="mention-role-btn"
+              disabled={!activeSessionId || readOnly}
+              onClick={() => setPickerOpen((v) => !v)}
+            />
+            <RolePicker
+              open={mounted && pickerOpen}
+              pos={pos}
+              roleAgents={roleAgents}
+              onSelect={(r) => {
+                setSelectedRole(r)
+                setPickerOpen(false)
+              }}
+            />
+          </div>
+          {selectedRole && (
+            <Badge data-testid="selected-role" variant="secondary">
+              @{selectedRole.name}
               <button
                 type="button"
-                aria-label={`移除附件 ${name}`}
+                aria-label="取消选择角色"
                 className="ml-1"
-                onClick={() => setAttachments((current) => current.filter((item) => item !== name))}
+                onClick={() => setSelectedRole(null)}
               >
                 ×
               </button>
             </Badge>
-          ))}
+          )}
+          <IconButton
+            icon={Plus}
+            label="添加附件或上下文"
+            variant="ghost"
+            size="sm"
+            data-testid="attachment-btn"
+            disabled={!activeSessionId || readOnly}
+            onClick={() => fileRef.current?.click()}
+          />
+          <input
+            ref={fileRef}
+            data-testid="attachment-file-input"
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []).map((file) => file.name)
+              setAttachments((current) => Array.from(new Set([...current, ...files])))
+              event.currentTarget.value = ''
+            }}
+          />
+          <label className="ml-auto flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span className="sr-only">权限预设</span>
+            <select
+              data-testid="permission-mode-select"
+              value={permissionMode}
+              disabled={!activeSessionId || readOnly}
+              onChange={(event) => setPermissionMode(event.target.value as typeof permissionMode)}
+              className="h-6 rounded border-0 bg-transparent px-1 text-xs text-foreground outline-none"
+            >
+              {PERMISSION_MODES.map((mode) => (
+                <option key={mode.value} value={mode.value}>{mode.label}</option>
+              ))}
+            </select>
+          </label>
         </div>
-      )}
-      <div data-testid="composer-input-row" className="flex gap-2">
-        <Input
-          data-testid="composer-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-          placeholder={readOnly ? '只读模式下不能发送消息' : selectedRole ? `@${selectedRole.name} 输入消息...` : '输入消息...'}
-          disabled={!activeSessionId || sending || readOnly}
-        />
-        <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending || readOnly} />
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {currentMode && <span>权限：{currentMode.label} · {currentMode.description}</span>}
+          {attachments.length > 0 && <span>附件 {attachments.length} 个</span>}
+        </div>
+        {attachments.length > 0 && (
+          <div data-testid="attachment-chips" className="mb-2 flex flex-wrap gap-1">
+            {attachments.map((name) => (
+              <Badge key={name} variant="secondary" className="max-w-full">
+                <span className="max-w-[180px] truncate">{name}</span>
+                <button
+                  type="button"
+                  aria-label={`移除附件 ${name}`}
+                  className="ml-1"
+                  onClick={() => setAttachments((current) => current.filter((item) => item !== name))}
+                >
+                  ×
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+        <div data-testid="composer-input-row" className="flex gap-2">
+          <Input
+            data-testid="composer-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            placeholder={readOnly ? '只读模式下不能发送消息' : selectedRole ? `@${selectedRole.name} 输入消息...` : '输入消息...'}
+            disabled={!activeSessionId || sending || readOnly}
+          />
+          <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending || readOnly} />
+        </div>
       </div>
     </div>
   )

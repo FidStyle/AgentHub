@@ -1,5 +1,7 @@
 'use client'
 
+import { Badge, Button } from '@agenthub/ui'
+import { CheckCircle2, Circle, GitBranch, PlayCircle, Route, XCircle } from 'lucide-react'
 import type { Plan, PlanNode } from '@agenthub/shared'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -11,13 +13,22 @@ const STATUS_LABELS: Record<string, string> = {
   skipped: '已跳过',
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-muted text-muted-foreground',
-  ready: 'bg-accent text-accent-foreground',
-  running: 'bg-warning/10 text-warning-foreground',
-  completed: 'bg-success/10 text-success',
-  failed: 'bg-destructive/10 text-destructive',
-  skipped: 'bg-muted text-muted-foreground',
+const STATUS_VARIANT: Record<string, 'secondary' | 'default' | 'warning' | 'success' | 'destructive'> = {
+  pending: 'secondary',
+  ready: 'default',
+  running: 'warning',
+  completed: 'success',
+  failed: 'destructive',
+  skipped: 'secondary',
+}
+
+const STATUS_DOT: Record<string, string> = {
+  pending: 'bg-muted-foreground',
+  ready: 'bg-primary',
+  running: 'bg-warning',
+  completed: 'bg-success',
+  failed: 'bg-destructive',
+  skipped: 'bg-muted-foreground',
 }
 
 interface PlanCardProps {
@@ -28,50 +39,82 @@ interface PlanCardProps {
 export function PlanCard({ plan, onConfirm }: PlanCardProps) {
   const nodes = plan.plan_nodes || []
   const completedCount = nodes.filter(n => n.status === 'completed').length
+  const progress = nodes.length ? Math.round((completedCount / nodes.length) * 100) : 0
+  const failedCount = nodes.filter(n => n.status === 'failed').length
+  const runningCount = nodes.filter(n => n.status === 'running').length
 
   return (
-    <div className="border border-border rounded-lg p-4 bg-card shadow-sm">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-medium text-lg">{plan.title}</h3>
-        <span className={`px-2 py-0.5 rounded text-xs ${STATUS_COLORS[plan.status] || 'bg-muted'}`}>
-          {plan.status === 'pending_confirm' ? '待确认' : plan.status === 'running' ? '执行中' : plan.status}
-        </span>
-      </div>
-
-      {/* Progress */}
-      <div className="mb-3">
-        <div className="flex justify-between text-sm text-muted-foreground mb-1">
-          <span>进度</span>
-          <span>{completedCount}/{nodes.length}</span>
-        </div>
-        <div className="w-full bg-muted rounded-full h-2">
-          <div
-            className="bg-success h-2 rounded-full transition-all"
-            style={{ width: `${nodes.length ? (completedCount / nodes.length) * 100 : 0}%` }}
-          />
+    <div className="rounded-lg border border-border bg-card shadow-sm">
+      <div className="border-b border-border px-3 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Route className="h-4 w-4 text-muted-foreground" />
+              <h3 className="truncate text-sm font-semibold">{plan.title}</h3>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {nodes.length} 个步骤 · {runningCount} 执行中 · {failedCount} 失败
+            </p>
+          </div>
+          <Badge variant={plan.status === 'pending_confirm' ? 'warning' : plan.status === 'running' ? 'default' : 'secondary'}>
+            {plan.status === 'pending_confirm' ? '待确认' : plan.status === 'running' ? '执行中' : plan.status}
+          </Badge>
         </div>
       </div>
 
-      {/* Node list */}
-      <ul className="space-y-1 mb-3">
-        {nodes.map(node => (
-          <li key={node.id} className="flex items-center gap-2 text-sm">
-            <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[node.status]?.split(' ')[0] || 'bg-muted'}`} />
-            <span className="flex-1">{node.label}</span>
-            <span className="text-xs text-muted-foreground">{STATUS_LABELS[node.status]}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="space-y-3 p-3">
+        <div>
+          <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+            <span>计划进度</span>
+            <span>{completedCount}/{nodes.length} · {progress}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted">
+            <div
+              className="h-1.5 rounded-full bg-success transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
 
-      {/* Confirm button */}
-      {plan.status === 'pending_confirm' && onConfirm && (
-        <button
-          onClick={() => onConfirm(plan.id)}
-          className="w-full py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition"
-        >
-          确认执行计划
-        </button>
-      )}
+        <ul className="space-y-1">
+          {nodes.length === 0 && (
+            <li className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
+              计划还没有生成可执行步骤
+            </li>
+          )}
+          {nodes.map((node, index) => {
+            const NodeIcon = node.status === 'completed' ? CheckCircle2 : node.status === 'failed' ? XCircle : node.status === 'running' ? PlayCircle : Circle
+            return (
+              <li key={node.id} className="rounded-md border border-border bg-background px-2.5 py-2">
+                <div className="flex items-start gap-2">
+                  <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[node.status] || 'bg-muted'}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <NodeIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="truncate text-sm">{index + 1}. {node.label}</span>
+                    </div>
+                    {node.agent_id && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        分派角色：{node.agent_id}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant={STATUS_VARIANT[node.status] ?? 'secondary'}>
+                    {STATUS_LABELS[node.status] ?? node.status}
+                  </Badge>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+
+        {plan.status === 'pending_confirm' && onConfirm && (
+          <Button className="w-full" onClick={() => onConfirm(plan.id)}>
+            <GitBranch className="mr-2 h-4 w-4" />
+            确认执行计划
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
