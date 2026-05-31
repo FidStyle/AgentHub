@@ -106,10 +106,10 @@ export function DesktopAgentSession() {
           <p className="text-xs text-muted-foreground mb-2">请先选择一个已接入的 Agent</p>
         )}
         <div className="flex gap-2 mb-2">
-          <Button size="sm" variant="outline" disabled title={CONTROL_UNAVAILABLE}>诊断</Button>
-          <Button size="sm" variant="outline" disabled title={CONTROL_UNAVAILABLE}>继续</Button>
-          <Button size="sm" variant="outline" disabled title={CONTROL_UNAVAILABLE}>重试</Button>
-          <Button size="sm" variant="destructive" disabled title={CONTROL_UNAVAILABLE}>停止</Button>
+          <Button size="sm" variant="outline" disabled={!selectedAgent} title={selectedAgent ? '发送 doctor/status 指令做轻量诊断' : '请先选择一个已接入的 Agent'}>诊断</Button>
+          {sending && (
+            <Button size="sm" variant="destructive" disabled title={CONTROL_UNAVAILABLE}>停止</Button>
+          )}
         </div>
         <div className="flex gap-2">
           <Input

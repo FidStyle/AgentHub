@@ -13,14 +13,38 @@ export async function GET(request: Request) {
   const sessionId = searchParams.get('session_id')
   if (!sessionId) return NextResponse.json({ error: 'session_id 必填' }, { status: 400 })
 
-  const { data, error } = await db
+  const { data: plans, error } = await db
     .from('plans')
-    .select('*, plan_nodes(*)')
+    .select('*')
     .eq('session_id', sessionId)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  const planRows = Array.isArray(plans) ? plans : []
+  if (planRows.length === 0) return NextResponse.json([])
+
+  const planIds = planRows.map((plan: { id: string }) => plan.id)
+  const { data: nodes, error: nodesError } = await db
+    .from('plan_nodes')
+    .select('*')
+    .in('plan_id', planIds)
+
+  if (nodesError) return NextResponse.json({ error: nodesError.message }, { status: 500 })
+
+  const nodesByPlan = new Map<string, unknown[]>()
+  for (const node of (Array.isArray(nodes) ? nodes : []) as Array<{ plan_id: string }>) {
+    const list = nodesByPlan.get(node.plan_id) ?? []
+    list.push(node)
+    nodesByPlan.set(node.plan_id, list)
+  }
+
+  return NextResponse.json(
+    planRows.map((plan: { id: string }) => ({
+      ...plan,
+      plan_nodes: nodesByPlan.get(plan.id) ?? [],
+    })),
+  )
 }
 
 export async function POST(request: Request) {

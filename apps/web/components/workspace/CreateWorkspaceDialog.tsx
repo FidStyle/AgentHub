@@ -25,10 +25,6 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (localDesktopUnavailable) {
-      setError('本地 Desktop 未连接，暂不能创建本地桌面工作区。请先打开 AgentHub Desktop 并完成设备连接。')
-      return
-    }
     setLoading(true)
     setError(null)
     const res = await fetch('/api/workspaces', {
@@ -88,7 +84,7 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
             ) : runtimeStatus.status?.desktop.connected ? (
               `本地 Desktop 已连接：${runtimeStatus.status.desktop.device?.name ?? '当前设备'}`
             ) : (
-              '本地 Desktop 未连接。本地桌面工作区需要先启动 AgentHub Desktop 并完成连接。'
+              '本地 Desktop 未连接。可以先创建为只读工作区，连接 Desktop 后再继续执行。'
             )}
           </div>
         </div>
@@ -99,8 +95,8 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
           </button>
           <button
             type="submit"
-            disabled={loading || !name || localDesktopUnavailable}
-            title={localDesktopUnavailable ? '请先连接本地 Desktop' : undefined}
+            disabled={loading || !name}
+            title={localDesktopUnavailable ? '将创建为只读可查看，连接 Desktop 后才能执行' : undefined}
             className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {loading ? '创建中...' : '创建'}

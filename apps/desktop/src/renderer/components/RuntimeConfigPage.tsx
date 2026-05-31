@@ -12,12 +12,12 @@ interface RuntimeInfo {
 const runtimeMeta: Record<string, { label: string; loginCmd: string; installUrl: string }> = {
   claude_code: {
     label: 'Claude Code',
-    loginCmd: 'claude login',
+    loginCmd: 'claude auth login',
     installUrl: 'https://docs.anthropic.com/claude-code',
   },
   codex: {
     label: 'Codex (OpenAI)',
-    loginCmd: 'codex auth',
+    loginCmd: 'codex login',
     installUrl: 'https://github.com/openai/codex',
   },
 }

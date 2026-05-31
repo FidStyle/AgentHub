@@ -14,7 +14,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 export function DesktopSessionSidebar() {
   const { workspaceDirs, approvals, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
   const { handleGitHubLogin, handleLogout } = useDesktopAuth()
-  const channelStateLabel = connectionState === 'connected' ? '设备通道在线' : '设备通道未连接'
+  const channelStateLabel = connectionState === 'connected' ? '云端连接在线' : '云端连接断开'
 
   return (
     <aside data-testid="desktop-session-sidebar" className="flex flex-col w-56 border-r border-border bg-card h-full">

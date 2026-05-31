@@ -75,12 +75,6 @@ export async function POST(request: Request) {
   if (execution_domain === 'local_desktop') {
     const desktop = await hasConnectedDesktopRuntime(db, user.id)
     if (desktop.error) return NextResponse.json({ error: desktop.error }, { status: 500 })
-    if (!desktop.ok) {
-      return NextResponse.json(
-        { error: '本地 Desktop 未连接，暂不能创建本地桌面工作区。请先打开 AgentHub Desktop 并完成设备连接。' },
-        { status: 409 },
-      )
-    }
   }
 
   const { data, error } = await db

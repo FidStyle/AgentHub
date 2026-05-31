@@ -1,9 +1,10 @@
 'use client'
 
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { WorkspaceShell } from '@/components/workspace/WorkspaceShell'
 
 export default function WorkspaceChatPage() {
   const params = useParams<{ id: string }>()
-  return <WorkspaceShell workspaceId={params.id} />
+  const searchParams = useSearchParams()
+  return <WorkspaceShell workspaceId={params.id} requestedMode={searchParams.get('mode') === 'operate' ? 'operate' : 'read-only'} />
 }

@@ -108,3 +108,95 @@ await saveRuntimeBinding({
 ```
 
 密钥属于用户本机 Codex/Claude 原生认证或独立模型 Provider，不属于本地 CLI Runtime Binding。
+
+## 场景：Local Desktop Workspace 只读/可操作状态
+
+### 1. 范围与触发条件
+
+- 触发条件：Web、Desktop、Runtime Gateway 或 Workspace UI 需要判断 Local Desktop Workspace 是否能继续执行。
+- 适用范围：`/api/runtime/status`、`/api/chat`、Web 工作区列表、Web 工作区输入区、Desktop Runtime Detector、DeviceChannel、runtime capability 回传。
+- 核心规则：历史可查看不等于本地可执行。Web 服务器不能直接连接用户本机 Claude Code / Codex；可执行状态必须由 Desktop 在线和 Runtime doctor 共同证明。
+
+### 2. 签名
+
+```typescript
+type WorkspaceBlockReason =
+  | 'desktop_not_bound'
+  | 'desktop_offline'
+  | 'runtime_status_unknown'
+  | 'runtime_missing'
+  | 'runtime_auth_required'
+  | 'native_session_unavailable';
+
+interface WorkspaceOperabilityStatus {
+  readOnlyAvailable: true;
+  operable: boolean;
+  blockReason: WorkspaceBlockReason | null;
+  blockReasonText: string | null;
+  desktop: {
+    status: 'connected' | 'disconnected' | 'not_bound';
+    connected: boolean;
+  };
+  runtime: {
+    status: 'ready' | 'unavailable';
+    doctorKnown: boolean;
+    description: string;
+  };
+}
+```
+
+### 3. 契约
+
+- Cloud Workspace 不受 Desktop 状态影响。
+- Local Desktop Workspace 在 Desktop 离线、未绑定、Runtime 未检测、Runtime 未登录或 native session 不可恢复时，只能只读查看历史。
+- 只读模式允许展示 AgentHub DB 中的消息、计划、产物和错误状态；禁止发送消息、恢复本地 session、执行 Action 或把失败包装成 agent 成功回复。
+- Desktop Runtime doctor 必须检测 CLI 是否存在、版本、认证/可启动状态，并通过 DeviceChannel 回传 runtime capability snapshot。
+- Desktop Runtime doctor 的 P0 基线命令必须使用真实 CLI 命令：
+  - Claude Code：`command -v claude`、`claude --version`、`claude auth status --json`；认证引导为 `claude auth login`。
+  - Codex：`command -v codex`、`codex --version`、`codex login status`；认证引导为 `codex login`；完整诊断入口为 `codex doctor --json`，但 P0 不应因为非认证类 doctor 失败项误判“未登录”。
+- macOS Electron 发行包从 Finder 启动时不一定继承交互终端的 PATH；本地 Runtime 检测应通过用户登录 shell 解析 CLI 路径，不能只依赖 Electron 进程默认 PATH。
+- Web/Mobile 只能通过 Cloud Runtime Gateway + Desktop DeviceChannel/tunnel 访问用户本机 Runtime，禁止直连本地 IP/端口。
+
+### 4. 校验与错误矩阵
+
+| 条件 | 状态或错误 |
+| --- | --- |
+| 用户未绑定 Desktop | `desktop_not_bound` |
+| Desktop 已绑定但离线 | `desktop_offline` |
+| Desktop 在线但没有 Runtime doctor snapshot | `runtime_status_unknown` |
+| doctor 显示 CLI 不存在 | `runtime_missing` |
+| doctor 显示 CLI 未登录或不可启动 | `runtime_auth_required` |
+| runtime session 需要恢复但 native session 不可用 | `native_session_unavailable` |
+| Local Desktop Workspace 发消息但不可操作 | HTTP 409 + 中文阻塞原因 |
+
+### 5. 正常/基线/错误用例
+
+- 正常：Desktop 在线，Claude Code / Codex doctor 通过，Web 显示“可操作”，允许发送。
+- 基线：Desktop 离线，Web 允许“查看历史”，输入框禁用并显示“本地 Desktop 未连接云端，只能查看历史”。
+- 错误：Desktop 离线时 Web 仍显示“Runtime 可用”或发送后伪造 agent 回复。
+
+### 6. 必需测试
+
+- API 测试：`/api/runtime/status` 返回 `readOnlyAvailable`、`operable`、`blockReason`。
+- API 测试：Local Desktop Workspace 不可操作时 `/api/chat` 返回 409，不写入假成功 agent reply。
+- Web 测试：只读模式输入框和发送按钮禁用，刷新连接状态入口可见。
+- Desktop 测试：Codex / Claude Code 卡片状态来自 Runtime doctor，不 hardcode connected。
+
+### 7. 错误与正确示例
+
+#### 错误
+
+```typescript
+const runtimeReady = desktopConnected;
+```
+
+#### 正确
+
+```typescript
+const runtimeReady =
+  desktopConnected &&
+  runtimeDoctor.known &&
+  runtimeDoctor.runtimes.some(runtime =>
+    runtime.available && runtime.authenticated && runtime.launchable,
+  );
+```

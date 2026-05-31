@@ -10,6 +10,38 @@ function createAdminClient() {
   return createClient()
 }
 
+async function ensureUserLocalEndpoint(userId: string, deviceId: string) {
+  const db = await createAdminClient()
+  const { data: rows } = await db
+    .from('runtime_endpoints')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('kind', 'user_local')
+    .eq('device_id', deviceId)
+    .limit(1)
+  const existing = Array.isArray(rows) ? rows[0] : rows
+  if (existing?.id) return existing.id as string
+
+  const { data } = await db
+    .from('runtime_endpoints')
+    .insert({ user_id: userId, kind: 'user_local', runtime_type: 'desktop_cli', device_id: deviceId, status: 'available' })
+    .select('id')
+    .single()
+  return data?.id as string | undefined
+}
+
+async function persistRuntimeDetection(endpointId: string, runtimes: unknown) {
+  const db = await createAdminClient()
+  await db
+    .from('runtime_capabilities')
+    .delete()
+    .eq('endpoint_id', endpointId)
+    .eq('capability', 'runtime_detection')
+  await db
+    .from('runtime_capabilities')
+    .insert({ endpoint_id: endpointId, capability: 'runtime_detection', value: runtimes })
+}
+
 export function setupWebSocketGateway(server: Server) {
   const wss = new WebSocketServer({ noServer: true })
 
@@ -25,6 +57,7 @@ export function setupWebSocketGateway(server: Server) {
   wss.on('connection', (ws: WebSocket, _req: IncomingMessage) => {
     let authenticated = false
     let deviceId = ''
+    let userId = ''
     let authTimeout: NodeJS.Timeout | null = null
 
     authTimeout = setTimeout(() => {
@@ -54,6 +87,7 @@ export function setupWebSocketGateway(server: Server) {
         }
 
         deviceId = device.id
+        userId = device.user_id
         authenticated = true
         if (authTimeout) clearTimeout(authTimeout)
 
@@ -74,7 +108,8 @@ export function setupWebSocketGateway(server: Server) {
         })
 
         await db.from('devices').update({ online: true }).eq('id', deviceId)
-        await markChannelConnected(deviceId)
+        const endpointId = await ensureUserLocalEndpoint(userId, deviceId)
+        await markChannelConnected(deviceId, endpointId)
 
         const connectedFrame: ConnectedFrame = {
           type: 'connected',
@@ -98,7 +133,12 @@ export function setupWebSocketGateway(server: Server) {
           break
         }
         case 'response':
+          break
         case 'event':
+          if (frame.eventType === 'runtime_detection') {
+            const endpointId = await ensureUserLocalEndpoint(userId, deviceId)
+            if (endpointId) await persistRuntimeDetection(endpointId, (frame.payload as { runtimes?: unknown }).runtimes ?? [])
+          }
           // 路由到对应的请求处理器（后续 TASK-008 实现）
           break
       }

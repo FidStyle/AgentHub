@@ -3,6 +3,17 @@
 import { useCallback, useEffect, useState } from 'react'
 
 export type WorkspaceRuntimeStatus = {
+  readOnlyAvailable: boolean
+  operable: boolean
+  blockReason:
+    | 'desktop_not_bound'
+    | 'desktop_offline'
+    | 'runtime_status_unknown'
+    | 'runtime_missing'
+    | 'runtime_auth_required'
+    | 'native_session_unavailable'
+    | null
+  blockReasonText: string | null
   user: {
     id: string
     name: string | null
@@ -15,6 +26,7 @@ export type WorkspaceRuntimeStatus = {
   }
   runtime: {
     status: 'ready' | 'unavailable'
+    doctorKnown: boolean
     description: string
   }
 }

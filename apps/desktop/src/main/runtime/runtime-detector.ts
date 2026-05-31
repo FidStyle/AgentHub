@@ -1,13 +1,62 @@
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+const CLI_TIMEOUT_MS = 5000
+
+export const RUNTIME_DETECTOR_COMMANDS = {
+  claude: {
+    resolvePath: 'command -v claude || true',
+    version: 'claude --version',
+    authStatus: 'claude auth status --json',
+    login: 'claude auth login',
+  },
+  codex: {
+    resolvePath: 'command -v codex || true',
+    version: 'codex --version',
+    authStatus: 'codex login status',
+    login: 'codex login',
+    doctor: 'codex doctor --json',
+  },
+} as const
+
+async function runLoginShell(command: string): Promise<string> {
+  const shell = process.env.SHELL?.startsWith('/') ? process.env.SHELL : '/bin/zsh'
+  const { stdout } = await execFileAsync(shell, ['-lc', command], {
+    timeout: CLI_TIMEOUT_MS,
+    maxBuffer: 1024 * 1024,
+  })
+  return stdout.trim()
+}
+
+function parseClaudeAuthStatus(output: string): boolean {
+  try {
+    const status = JSON.parse(output) as { loggedIn?: boolean }
+    return status.loggedIn === true
+  } catch {
+    const normalized = output.toLowerCase()
+    return normalized.includes('logged in') || normalized.includes('authenticated')
+  }
+}
+
+function parseCodexLoginStatus(output: string): boolean {
+  const normalized = output.toLowerCase()
+  return (
+    normalized.includes('logged in') ||
+    normalized.includes('authenticated') ||
+    normalized.includes('api key')
+  ) && !normalized.includes('not logged in') && !normalized.includes('not authenticated')
+}
 
 export interface RuntimeInfo {
   type: 'claude_code' | 'codex'
   available: boolean
   version: string | null
   authenticated: boolean
+  launchable: boolean
+  cliPath: string | null
+  diagnosticCode: 'RUNTIME_NOT_FOUND' | 'RUNTIME_AUTH_REQUIRED' | 'RUNTIME_READY' | 'RUNTIME_CHECK_FAILED'
+  diagnosticMessage: string
 }
 
 export class RuntimeDetector {
@@ -20,33 +69,76 @@ export class RuntimeDetector {
   }
 
   private async detectClaude(): Promise<RuntimeInfo> {
-    const info: RuntimeInfo = { type: 'claude_code', available: false, version: null, authenticated: false }
+    const info: RuntimeInfo = {
+      type: 'claude_code',
+      available: false,
+      version: null,
+      authenticated: false,
+      launchable: false,
+      cliPath: null,
+      diagnosticCode: 'RUNTIME_NOT_FOUND',
+      diagnosticMessage: '未检测到 Claude Code CLI',
+    }
     try {
-      const { stdout } = await execAsync('claude --version 2>/dev/null || echo ""', { timeout: 5000 })
-      const version = stdout.trim()
+      info.cliPath = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.claude.resolvePath) || null
+      if (!info.cliPath) return info
+
+      const version = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.claude.version)
       if (version && !version.includes('not found')) {
         info.available = true
+        info.launchable = true
         info.version = version.split('\n')[0]
         try {
-          const { stdout: authOut } = await execAsync('claude auth status 2>&1 || echo "not authenticated"', { timeout: 5000 })
-          info.authenticated = !authOut.includes('not authenticated') && !authOut.includes('error')
-        } catch { /* auth check failed */ }
+          const authOut = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.claude.authStatus)
+          info.authenticated = parseClaudeAuthStatus(authOut)
+          info.diagnosticCode = info.authenticated ? 'RUNTIME_READY' : 'RUNTIME_AUTH_REQUIRED'
+          info.diagnosticMessage = info.authenticated ? 'Claude Code 已安装并完成认证' : 'Claude Code 未登录或认证不可用，请在本机 CLI 完成登录'
+        } catch {
+          info.diagnosticCode = 'RUNTIME_AUTH_REQUIRED'
+          info.diagnosticMessage = 'Claude Code 认证状态不可确认，请在本机运行 claude auth status --json 检查'
+        }
       }
-    } catch { /* not installed */ }
+    } catch (error) {
+      info.diagnosticCode = 'RUNTIME_CHECK_FAILED'
+      info.diagnosticMessage = error instanceof Error ? error.message : 'Claude Code 检测失败'
+    }
     return info
   }
 
   private async detectCodex(): Promise<RuntimeInfo> {
-    const info: RuntimeInfo = { type: 'codex', available: false, version: null, authenticated: false }
+    const info: RuntimeInfo = {
+      type: 'codex',
+      available: false,
+      version: null,
+      authenticated: false,
+      launchable: false,
+      cliPath: null,
+      diagnosticCode: 'RUNTIME_NOT_FOUND',
+      diagnosticMessage: '未检测到 Codex CLI',
+    }
     try {
-      const { stdout } = await execAsync('codex --version 2>/dev/null || echo ""', { timeout: 5000 })
-      const version = stdout.trim()
+      info.cliPath = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.codex.resolvePath) || null
+      if (!info.cliPath) return info
+
+      const version = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.codex.version)
       if (version && !version.includes('not found')) {
         info.available = true
+        info.launchable = true
         info.version = version.split('\n')[0]
-        info.authenticated = true
+        try {
+          const authOut = await runLoginShell(RUNTIME_DETECTOR_COMMANDS.codex.authStatus)
+          info.authenticated = parseCodexLoginStatus(authOut)
+          info.diagnosticCode = info.authenticated ? 'RUNTIME_READY' : 'RUNTIME_AUTH_REQUIRED'
+          info.diagnosticMessage = info.authenticated ? 'Codex 已安装并完成认证' : 'Codex 未登录或认证状态不可确认，请在本机 CLI 完成登录后重新检测'
+        } catch {
+          info.diagnosticCode = 'RUNTIME_AUTH_REQUIRED'
+          info.diagnosticMessage = 'Codex 认证状态不可确认，请在本机运行 codex login status 检查'
+        }
       }
-    } catch { /* not installed */ }
+    } catch (error) {
+      info.diagnosticCode = 'RUNTIME_CHECK_FAILED'
+      info.diagnosticMessage = error instanceof Error ? error.message : 'Codex 检测失败'
+    }
     return info
   }
 }

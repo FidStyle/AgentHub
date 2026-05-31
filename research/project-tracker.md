@@ -19,6 +19,20 @@
 
 ## P0 任务
 
+### LOCAL-DESKTOP-OPERABILITY-001: 本地 Desktop 工作区只读/可操作与 Runtime 真实性
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-AUTH-001, FR-WS-001, FR-DEVICE-001, FR-DESK-001, FR-RUNTIME-001, FR-WEB-001, FR-ORCH-001 |
+| **合同路径** | `research/contracts/LOCAL-DESKTOP-OPERABILITY-001.md` |
+| **当前状态** | ✅ 完成（2026-05-31）：修复 `/api/plans` 本地 Postgres adapter 不支持 `*, plan_nodes(*)` 导致 `column "*"` 500；新增 Local Desktop Workspace `readOnlyAvailable/operable/blockReason` 状态；Web 工作区列表区分“查看历史”和“连接并继续”，工作区内部只读模式禁用输入/发送并展示刷新连接状态；Desktop Runtime doctor 检测 CLI path/version/auth/launchable，Runtime 卡片不再 hardcode connected；Desktop 用户文案从“设备通道”改为“云端连接”；runtime_detection 通过 DeviceChannel event 回写 `runtime_capabilities`。 |
+| **目标** | 防止 Web 在 Desktop 离线或本地 CLI 未通过 doctor 时假装可以继续执行；允许历史只读查看，只有真实连通后才可操作 |
+| **验收方式** | type-check + Web build + Desktop vitest + Web API vitest；人工验收路径见合同 |
+| **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/web build` PASS；`pnpm --filter @agenthub/desktop test -- --run` 6 passed；`DATABASE_URL=postgresql://test pnpm exec vitest run apps/web/__tests__/api/chat.test.ts apps/web/__tests__/api/workspaces.test.ts` 23 passed |
+| **阻塞问题** | 完整 Claude Code / Codex native session resume/continue provider 适配未实现，按合同保留为后续任务；本轮禁止伪造 resume 成功 |
+| **下一步动作** | 后续独立实现 native session resume/continue；可补真实 Electron GUI 截图和完整 Web/Desktop 联调 E2E |
+
 ### P0-END-TO-END-PRODUCT-FLOW: MVP 端到端产品主链路合同与验真
 
 | 字段 | 内容 |

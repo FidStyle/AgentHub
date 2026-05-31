@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Sidebar } from './Sidebar'
 import { ChatPanel } from './ChatPanel'
@@ -9,12 +9,37 @@ import { Badge, IconButton } from '@agenthub/ui'
 import { ArrowLeft, PanelLeft, RefreshCw } from 'lucide-react'
 import { useWorkspaceRuntimeStatus } from './useWorkspaceRuntimeStatus'
 
-export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
+type WorkspaceMode = 'read-only' | 'operate'
+
+export function WorkspaceShell({
+  workspaceId,
+  requestedMode = 'read-only',
+}: {
+  workspaceId?: string
+  requestedMode?: WorkspaceMode
+}) {
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [leftPanelOpen, setLeftPanelOpen] = useState(false)
+  const [executionDomain, setExecutionDomain] = useState<'cloud' | 'local_desktop' | null>(null)
   const runtimeStatus = useWorkspaceRuntimeStatus()
   const userLabel = runtimeStatus.status?.user.name ?? runtimeStatus.status?.user.email ?? '未登录'
   const desktopConnected = runtimeStatus.status?.desktop.connected ?? false
+  const localWorkspace = executionDomain === 'local_desktop'
+  const readOnly = localWorkspace && (requestedMode === 'read-only' || runtimeStatus.status?.operable !== true)
+  const blockReason = runtimeStatus.status?.blockReasonText ?? runtimeStatus.error ?? '正在检查本地连接状态'
+
+  useEffect(() => {
+    if (!workspaceId) {
+      setExecutionDomain(null)
+      return
+    }
+    fetch(`/api/workspaces/${workspaceId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((workspace: { execution_domain?: 'cloud' | 'local_desktop' } | null) => {
+        setExecutionDomain(workspace?.execution_domain ?? null)
+      })
+      .catch(() => setExecutionDomain(null))
+  }, [workspaceId])
 
   return (
     <div
@@ -81,11 +106,16 @@ export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
             Desktop：{desktopConnected ? '已连接' : '未连接'}
           </Badge>
           <Badge
-            variant={runtimeStatus.status?.runtime.status === 'ready' ? 'success' : 'secondary'}
+            variant={runtimeStatus.status?.operable ? 'success' : 'secondary'}
             data-testid="workspace-runtime-status"
           >
-            本地 Runtime：{runtimeStatus.status?.runtime.status === 'ready' ? '可用' : '不可用'}
+            本地 Runtime：{runtimeStatus.status?.operable ? '可操作' : '只读'}
           </Badge>
+          {localWorkspace && (
+            <Badge variant={readOnly ? 'warning' : 'success'} data-testid="workspace-operability-status">
+              {readOnly ? '只读模式' : '可操作模式'}
+            </Badge>
+          )}
           {runtimeStatus.error && <span className="text-destructive">{runtimeStatus.error}</span>}
           <IconButton
             icon={RefreshCw}
@@ -96,7 +126,17 @@ export function WorkspaceShell({ workspaceId }: { workspaceId?: string }) {
             onClick={() => runtimeStatus.refresh()}
           />
         </div>
-        <ChatPanel onTogglePanel={() => setRightPanelOpen((v) => !v)} />
+        {readOnly && (
+          <div data-testid="workspace-readonly-banner" className="border-b border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+            {blockReason}
+          </div>
+        )}
+        <ChatPanel
+          onTogglePanel={() => setRightPanelOpen((v) => !v)}
+          readOnly={readOnly}
+          readOnlyReason={readOnly ? blockReason : null}
+          onRefreshRuntimeStatus={runtimeStatus.refresh}
+        />
       </div>
 
       {/* 桌面：第三栏；移动：fixed overlay 抽屉，不挤压主聊天区 */}

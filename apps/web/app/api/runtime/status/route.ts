@@ -13,10 +13,24 @@ type DeviceRow = {
 
 type ChannelRow = {
   device_id: string
+  endpoint_id?: string | null
   status: string
   connected_at?: string | null
   last_heartbeat?: string | null
 }
+
+type RuntimeCapabilityRow = {
+  capability: string
+  value: unknown
+}
+
+type BlockReason =
+  | 'desktop_not_bound'
+  | 'desktop_offline'
+  | 'runtime_status_unknown'
+  | 'runtime_missing'
+  | 'runtime_auth_required'
+  | 'native_session_unavailable'
 
 function latestConnectedChannel(
   channels: ChannelRow[],
@@ -28,6 +42,31 @@ function latestConnectedChannel(
       const bt = new Date(b.last_heartbeat ?? b.connected_at ?? 0).getTime()
       return bt - at
     })[0] ?? null
+}
+
+function parseCapabilityValue(value: unknown) {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as unknown
+    } catch {
+      return null
+    }
+  }
+  return value
+}
+
+function runtimeDoctorReady(capabilities: RuntimeCapabilityRow[]) {
+  const detection = capabilities.find((capability) => capability.capability === 'runtime_detection')
+  const value = parseCapabilityValue(detection?.value)
+  if (!Array.isArray(value)) return { ready: false, known: false }
+
+  const runnable = value.filter((runtime): runtime is { available?: boolean; authenticated?: boolean; launchable?: boolean } =>
+    Boolean(runtime) && typeof runtime === 'object',
+  )
+  return {
+    ready: runnable.some((runtime) => runtime.available === true && runtime.authenticated === true && runtime.launchable !== false),
+    known: true,
+  }
 }
 
 export async function GET() {
@@ -50,7 +89,7 @@ export async function GET() {
   for (const deviceId of deviceIds) {
     const { data: channels, error: channelError } = await db
       .from('device_runtime_channels')
-      .select('device_id, status, connected_at, last_heartbeat')
+      .select('device_id, endpoint_id, status, connected_at, last_heartbeat')
       .eq('device_id', deviceId)
 
     if (channelError) return NextResponse.json({ error: channelError.message }, { status: 500 })
@@ -61,7 +100,39 @@ export async function GET() {
     ? desktopDevices.find((device) => device.id === connectedChannel?.device_id) ?? null
     : null
 
+  let capabilities: RuntimeCapabilityRow[] = []
+  if (connectedChannel?.endpoint_id) {
+    const { data, error } = await db
+      .from('runtime_capabilities')
+      .select('capability, value')
+      .eq('endpoint_id', connectedChannel.endpoint_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    capabilities = (data ?? []) as unknown as RuntimeCapabilityRow[]
+  }
+
+  const doctor = runtimeDoctorReady(capabilities)
+  const blockReason: BlockReason | null = !connectedDevice
+    ? desktopDevices.length > 0 ? 'desktop_offline' : 'desktop_not_bound'
+    : !doctor.known
+      ? 'runtime_status_unknown'
+      : !doctor.ready
+        ? 'runtime_auth_required'
+        : null
+  const operable = connectedDevice !== null && doctor.ready
+  const blockReasonText: Record<BlockReason, string> = {
+    desktop_not_bound: '尚未绑定 AgentHub Desktop，只能查看历史。',
+    desktop_offline: '本地 Desktop 未连接云端，只能查看历史。',
+    runtime_status_unknown: '本地 Runtime 尚未完成真实检测，只能查看历史。',
+    runtime_missing: '本地 Claude Code / Codex 未安装，只能查看历史。',
+    runtime_auth_required: '本地 Claude Code / Codex 未登录或不可启动，只能查看历史。',
+    native_session_unavailable: '本地 CLI 会话暂不可恢复，只能查看历史。',
+  }
+
   return NextResponse.json({
+    readOnlyAvailable: true,
+    operable,
+    blockReason,
+    blockReasonText: blockReason ? blockReasonText[blockReason] : null,
     user: {
       id: user.id,
       name: user.name ?? null,
@@ -79,10 +150,11 @@ export async function GET() {
         : null,
     },
     runtime: {
-      status: connectedDevice ? 'ready' : 'unavailable',
-      description: connectedDevice
-        ? '本地 Desktop 已连接，Claude Code / Codex 将通过 Cloud Runtime Gateway 转发到本机 CLI。'
-        : '本地 Desktop 未连接，无法创建或使用本地桌面工作区。',
+      status: operable ? 'ready' : 'unavailable',
+      doctorKnown: doctor.known,
+      description: operable
+        ? '本地 Desktop 已连接，且 Claude Code / Codex 已通过真实检测。'
+        : blockReason ? blockReasonText[blockReason] : '本地 Runtime 暂不可用。',
     },
   })
 }

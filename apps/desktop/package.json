@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm dev:app",
     "dev:app": "concurrently -k \"vite\" \"tsc -p tsconfig.main.json && wait-on tcp:5173 && electron .\"",
-    "build": "vite build && tsc -p tsconfig.main.json",
+    "build": "pnpm --filter @agenthub/shared build && vite build && tsc -p tsconfig.main.json",
     "dist": "pnpm build && electron-builder",
     "dist:mac": "pnpm build && electron-builder --mac --dir",
     "dist:mac:dmg": "pnpm build && electron-builder --mac dmg",

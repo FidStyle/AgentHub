@@ -5,6 +5,10 @@ export interface RuntimeInfo {
   available: boolean
   version: string | null
   authenticated: boolean
+  launchable: boolean
+  cliPath: string | null
+  diagnosticCode: string
+  diagnosticMessage: string
 }
 
 export type AgentStatus = 'connected' | 'pending'
@@ -91,8 +95,8 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
     { path: '~/Projects/api-server', healthy: true },
   ],
   agents: [
-    { id: 'codex', name: 'Codex', status: 'connected', version: '0.1.2', capabilities: ['代码生成', '代码审查', '测试生成'] },
-    { id: 'claude_code', name: 'Claude Code', status: 'connected', version: '1.0.6', capabilities: ['代码生成', '重构', '调试'] },
+    { id: 'codex', name: 'Codex', status: 'pending', capabilities: [] },
+    { id: 'claude_code', name: 'Claude Code', status: 'pending', capabilities: [] },
     { id: 'opencode', name: 'OpenCode', status: 'pending', capabilities: [] },
     { id: 'other', name: '其他 Runtime', status: 'pending', capabilities: [] },
   ],
@@ -103,7 +107,20 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   user: null,
 
   setConnectionState: (connectionState: string) => set({ connectionState }),
-  setRuntimes: (runtimes: RuntimeInfo[]) => set({ runtimes }),
+  setRuntimes: (runtimes: RuntimeInfo[]) => set((state) => ({
+    runtimes,
+    agents: state.agents.map((agent) => {
+      const runtime = runtimes.find((item) => item.type === agent.id)
+      if (!runtime) return agent.id === 'opencode' || agent.id === 'other' ? agent : { ...agent, status: 'pending', version: undefined, capabilities: [] }
+      const ready = runtime.available && runtime.authenticated && runtime.launchable
+      return {
+        ...agent,
+        status: ready ? 'connected' : 'pending',
+        version: runtime.version ?? undefined,
+        capabilities: ready ? ['本地 CLI', '已认证', '可启动'] : [],
+      }
+    }),
+  })),
   setRuntimeLoading: (runtimeLoading: boolean) => set({ runtimeLoading }),
   addActivity: (entry: Omit<ActivityEntry, 'id' | 'time'>) => set((s) => ({
     activities: [...s.activities, { ...entry, id: String(Date.now()), time: new Date().toLocaleTimeString('zh-CN') }],

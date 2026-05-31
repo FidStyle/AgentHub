@@ -94,7 +94,17 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
   )
 }
 
-function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
+function MessageComposer({
+  roleAgents,
+  readOnly,
+  readOnlyReason,
+  onRefreshRuntimeStatus,
+}: {
+  roleAgents: RoleAgent[]
+  readOnly: boolean
+  readOnlyReason: string | null
+  onRefreshRuntimeStatus: () => void
+}) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [selectedRole, setSelectedRole] = useState<RoleAgent | null>(null)
@@ -130,7 +140,7 @@ function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
   }, [pickerOpen, roleAgents.length])
 
   const handleSend = async () => {
-    if (!input.trim() || !activeSessionId || sending) return
+    if (!input.trim() || !activeSessionId || sending || readOnly) return
     setSending(true)
     await sendMessage(input.trim(), selectedRole?.id)
     setInput('')
@@ -139,6 +149,18 @@ function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
 
   return (
     <div data-testid="message-composer" className="flex flex-col gap-2 p-4 border-t border-border">
+      {readOnly && (
+        <div data-testid="readonly-composer-gate" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+          <span>{readOnlyReason ?? '当前为只读模式，不能继续执行本地任务。'}</span>
+          <button
+            type="button"
+            className="rounded border border-warning/50 px-2 py-1 hover:bg-warning/10"
+            onClick={onRefreshRuntimeStatus}
+          >
+            刷新连接状态
+          </button>
+        </div>
+      )}
       <div data-testid="composer-toolbar" className="flex items-center gap-2">
         <div ref={triggerRef} className="relative">
           <IconButton
@@ -147,7 +169,7 @@ function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
             variant="ghost"
             size="sm"
             data-testid="mention-role-btn"
-            disabled={!activeSessionId}
+            disabled={!activeSessionId || readOnly}
             onClick={() => setPickerOpen((v) => !v)}
           />
           <RolePicker
@@ -192,10 +214,10 @@ function MessageComposer({ roleAgents }: { roleAgents: RoleAgent[] }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-          placeholder={selectedRole ? `@${selectedRole.name} 输入消息...` : '输入消息...'}
-          disabled={!activeSessionId || sending}
+          placeholder={readOnly ? '只读模式下不能发送消息' : selectedRole ? `@${selectedRole.name} 输入消息...` : '输入消息...'}
+          disabled={!activeSessionId || sending || readOnly}
         />
-        <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending} />
+        <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending || readOnly} />
       </div>
     </div>
   )
@@ -246,7 +268,17 @@ function RolePicker({
   )
 }
 
-export function ChatPanel({ onTogglePanel }: { onTogglePanel: () => void }) {
+export function ChatPanel({
+  onTogglePanel,
+  readOnly = false,
+  readOnlyReason = null,
+  onRefreshRuntimeStatus = () => undefined,
+}: {
+  onTogglePanel: () => void
+  readOnly?: boolean
+  readOnlyReason?: string | null
+  onRefreshRuntimeStatus?: () => void
+}) {
   const { activeSessionId, activeWorkspaceId, sessions } = useSessionStore()
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const roleAgents = useRoleAgents(activeWorkspaceId)
@@ -260,7 +292,12 @@ export function ChatPanel({ onTogglePanel }: { onTogglePanel: () => void }) {
         <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
       </div>
       <MessageList roleAgents={roleAgents} />
-      <MessageComposer roleAgents={roleAgents} />
+      <MessageComposer
+        roleAgents={roleAgents}
+        readOnly={readOnly}
+        readOnlyReason={readOnlyReason}
+        onRefreshRuntimeStatus={onRefreshRuntimeStatus}
+      />
     </div>
   )
 }

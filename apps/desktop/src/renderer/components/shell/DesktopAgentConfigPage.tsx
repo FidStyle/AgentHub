@@ -7,7 +7,7 @@ function agentToRuntime(id: string): RuntimeKind {
 }
 
 export function DesktopAgentConfigPage() {
-  const { agents, enterSession } = useConsoleStore()
+  const { agents, runtimes, enterSession } = useConsoleStore()
   const connected = agents.filter(a => a.status === 'connected')
   const pending = agents.filter(a => a.status === 'pending')
 
@@ -50,23 +50,29 @@ export function DesktopAgentConfigPage() {
         <div>
           <h2 className="text-sm font-medium mb-3">待接入</h2>
           <div className="grid gap-3">
-            {pending.map(agent => (
-              <Card key={agent.id} data-runtime={agent.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <RuntimeIcon runtimeKind={agentToRuntime(agent.id)} size="sm" />
-                      <CardTitle className="text-sm">{agent.name}</CardTitle>
+            {pending.map(agent => {
+              const runtime = runtimes.find(item => item.type === agent.id)
+              return (
+                <Card key={agent.id} data-runtime={agent.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <RuntimeIcon runtimeKind={agentToRuntime(agent.id)} size="sm" />
+                        <CardTitle className="text-sm">{agent.name}</CardTitle>
+                      </div>
+                      <Badge data-status="pending" variant="secondary">待接入</Badge>
                     </div>
-                    <Badge data-status="pending" variant="secondary">待接入</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-xs text-muted-foreground">未检测到运行实例，请确认已安装并启动</p>
-                  <Button variant="outline" size="sm" disabled className="mt-2">待接入</Button>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-xs text-muted-foreground">
+                      {runtime?.diagnosticMessage ?? '未完成真实检测，请先重新检测本地 Runtime'}
+                    </p>
+                    {runtime?.cliPath && <p className="mt-1 text-[10px] text-muted-foreground font-mono truncate">{runtime.cliPath}</p>}
+                    <Button variant="outline" size="sm" disabled className="mt-2" title={runtime?.diagnosticMessage ?? '未完成真实检测'}>不可进入</Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </div>

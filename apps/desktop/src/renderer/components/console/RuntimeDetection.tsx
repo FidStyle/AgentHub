@@ -4,8 +4,8 @@ import { useEffect } from 'react'
 import { getRuntimeApi } from '../../utils/electron-api'
 
 const runtimeLabels: Record<string, { label: string; loginCmd: string }> = {
-  claude_code: { label: 'Claude Code', loginCmd: 'claude login' },
-  codex: { label: 'Codex', loginCmd: 'codex auth' },
+  claude_code: { label: 'Claude Code', loginCmd: 'claude auth login' },
+  codex: { label: 'Codex', loginCmd: 'codex login' },
 }
 
 export function RuntimeDetection() {
@@ -61,15 +61,19 @@ export function RuntimeDetection() {
                 <>
                   <span className="text-xs text-muted-foreground">v{rt.version}</span>
                   <span className={`ml-auto text-xs ${rt.authenticated ? 'text-success' : 'text-warning'}`}>
-                    {rt.authenticated ? '已认证' : '未登录'}
+                    {rt.authenticated && rt.launchable ? '可启动' : '需处理'}
                   </span>
-                  {!rt.authenticated && (
-                    <span className="text-xs text-muted-foreground">运行 {meta.loginCmd}</span>
+                  {(!rt.authenticated || !rt.launchable) && (
+                    <span className="text-xs text-muted-foreground">运行 {meta.loginCmd} 后重新检测</span>
                   )}
                 </>
               ) : (
                 <span className="ml-auto text-xs text-muted-foreground">未安装</span>
               )}
+              <p className="basis-full pl-5 text-xs text-muted-foreground">
+                {rt.diagnosticMessage}
+                {rt.cliPath ? ` · ${rt.cliPath}` : ''}
+              </p>
             </div>
           )
         })}

@@ -39,11 +39,11 @@ export function DesktopSettingsPage() {
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt className="text-muted-foreground">设备名</dt>
               <dd>{deviceName}</dd>
-              <dt className="text-muted-foreground">设备通道</dt>
+              <dt className="text-muted-foreground">云端连接</dt>
               <dd>{connectionState === 'connected' ? '在线' : '未连接'}</dd>
             </dl>
             <p className="mt-2 text-xs text-muted-foreground">
-              设备通道用于本机 Runtime 和后端之间的 WebSocket 通信，和 GitHub 账号登录是两个状态。
+              云端连接用于本机 Runtime 和后端之间的实时转发，和 GitHub 账号登录是两个状态。
             </p>
           </CardContent>
         </Card>

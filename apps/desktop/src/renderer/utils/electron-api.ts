@@ -3,6 +3,10 @@ export interface RuntimeInfo {
   available: boolean
   version: string | null
   authenticated: boolean
+  launchable: boolean
+  cliPath: string | null
+  diagnosticCode: string
+  diagnosticMessage: string
 }
 
 export interface RuntimeExecResult {

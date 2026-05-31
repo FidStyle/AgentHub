@@ -30,6 +30,7 @@ export class RuntimeHost {
   private registerIPC() {
     ipcMain.handle('runtime:detect', async () => {
       this.cachedRuntimes = await this.detector.detectAll()
+      this.channel?.sendEvent('runtime_detection', { runtimes: this.cachedRuntimes })
       return this.cachedRuntimes
     })
     ipcMain.handle('runtime:cached', () => this.cachedRuntimes)
@@ -71,6 +72,7 @@ export class RuntimeHost {
 
   private async handleDetect(frame: RequestFrame) {
     this.cachedRuntimes = await this.detector.detectAll()
+    this.channel?.sendEvent('runtime_detection', { runtimes: this.cachedRuntimes })
     this.channel?.sendResponse(frame.requestId, true, undefined, {
       runtimes: this.cachedRuntimes,
     })

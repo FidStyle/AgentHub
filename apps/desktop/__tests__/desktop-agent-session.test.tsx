@@ -75,13 +75,14 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
 describe('DesktopAgentSession 控制按钮（PRGA-003）', () => {
   beforeEach(resetStore)
 
-  it('诊断/继续/重试/停止 不再是可点无效果死按钮：disabled 且有明确原因 title', () => {
+  it('诊断是明确轻量入口，继续/重试/停止不再常驻成无效果死按钮', () => {
     render(<DesktopAgentSession />)
-    for (const name of ['诊断', '继续', '重试', '停止']) {
-      const btn = screen.getByRole('button', { name })
-      expect(btn).toBeDisabled()
-      expect(btn).toHaveAttribute('title')
-      expect(btn.getAttribute('title') ?? '').toMatch(/能力未实现|P1-RT/)
-    }
+    const diagnose = screen.getByRole('button', { name: '诊断' })
+    expect(diagnose).toBeEnabled()
+    expect(diagnose).toHaveAttribute('title')
+    expect(diagnose.getAttribute('title') ?? '').toMatch(/doctor|status|诊断/)
+    expect(screen.queryByRole('button', { name: '继续' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument()
   })
 })
