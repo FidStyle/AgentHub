@@ -161,6 +161,21 @@
 | **关闭证据** | `WORKSPACE-LOCAL-DESKTOP-UAT-001`（2026-05-31）：新增 `/api/runtime/status`；`POST /api/workspaces` local_desktop connected gate（未连接 409）；`WorkspaceShell` 状态栏 + 返回“我的工作区”；`CreateWorkspaceDialog` 前端门禁；`ArtifactPanel` Agents CRUD；`ChatPanel` 监听 `role-agents:changed` 刷新 @角色；`OrchestratorPanel` 显示 `/api/plans`/`/api/actions` 具体错误；附件按钮禁用并显示“附件暂未开放”；Desktop 新增 `device-channel-ipc.ts` active/fallback handler。验证：Web/Desktop type-check PASS；Desktop IPC unit 2 passed；真实 Chromium UAT `workspace-local-desktop-uat.spec.ts` 1 passed（6.5s，真实 Postgres + Auth.js session，cloud 201、本地未连接 409、Agents create/edit/delete、@同步、无横滚）。报告 `research/execution-reports/workspace-local-desktop-uat-001-report.md` |
 | **下一步** | 已关闭。真实附件上传后端另起 `ATTACHMENT-UPLOAD-001`；默认 dev env 引导仍归 `DEV-ENV-BOOTSTRAP-001` / REG-20260530-008。 |
 
+### REG-20260531-013 — Desktop Codex 一次性消息显示 Codex 转录流且可能超时误判失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / Desktop local runtime UX |
+| **优先级** | P0（Codex 本地消息已返回但 UI 显示失败、重复日志，影响本地 Runtime 可用性判断） |
+| **状态** | `closed`（2026-05-31，WORKSPACE-LOCAL-DESKTOP-UAT-001 后续修复） |
+| **关联 FR/PRD** | `FR-RUNTIME-001`, `FR-DESKTOP-001`, `FR-UI-001` |
+| **关联任务/合同** | `WORKSPACE-LOCAL-DESKTOP-UAT-001`；`research/contracts/WORKSPACE-LOCAL-DESKTOP-UAT-001.md`；`.trellis/tasks/05-31-workspace-local-desktop-uat/prd.md` |
+| **影响功能面** | Desktop 本地工作区 Codex 一次性消息、执行活动详情、停止/超时体验 |
+| **发现方式** | 用户真实 Desktop 验收反馈：`[Codex] 你是谁` 返回内容后仍显示失败，详情混入 `Reading additional input from stdin...`、Codex 横幅、重复 prompt、`tokens used`，长输出在失败标题和原因里重复。 |
+| **根因** | `codex exec` stdout 是运行转录流，不是最终回复协议；Desktop 直接展示 stdout/stderr，且 60s timeout 对 Codex 启动/推理偏短，失败态把同一段输出同时写入 `message` 和 `reason`。 |
+| **关闭证据** | `LocalRuntimeAdapter` Codex 命令加入 `--output-last-message "$AGENTHUB_OUTPUT_FILE"`，优先读取最终回复文件；stdout 兜底清理 stdin 提示、横幅、转录标签和 `tokens used`；Codex timeout 调整为 180s；失败活动标题只保留 `[Agent] prompt`，详情放入 `reason`。验证：`pnpm --filter @agenthub/desktop test -- local-adapter.test.ts desktop-agent-session.test.tsx --run` 12 passed；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/desktop test -- --run` 23 passed；`pnpm --filter @agenthub/desktop build` PASS。 |
+| **下一步** | 已关闭。若后续要做流式 Codex 会话，应另定义 runtime event 增量协议，不能复用 stdout 转录直接作为 UI 消息。 |
+
 
 ### REG-20260531-004 — `@agenthub/web` build 被 dual `@types/react`（mobile 18 / web-ui-desktop 19）阻断（build blocker，已关闭）
 

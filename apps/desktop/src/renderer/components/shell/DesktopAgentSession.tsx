@@ -127,7 +127,7 @@ export function DesktopAgentSession() {
       addActivity({
         type: 'runtime',
         status: ok ? 'success' : 'failed',
-        message: `[${selectedAgent.name}] ${prompt}${output ? `\n${output}` : ''}`,
+        message: ok ? `[${selectedAgent.name}] ${prompt}${output ? `\n${output}` : ''}` : `[${selectedAgent.name}] ${prompt}`,
         reason: ok ? undefined : (output || `执行失败，退出码 ${result.exitCode}`),
       })
     } catch (err) {

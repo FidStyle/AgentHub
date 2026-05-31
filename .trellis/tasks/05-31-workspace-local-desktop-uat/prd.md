@@ -95,6 +95,9 @@
 - Desktop recent sessions now derive from real local Runtime message activities (`[Codex] ...` / `[Claude Code] ...`) instead of showing a permanent empty placeholder.
 - Runtime CLI resolution now handles Finder/Dock launches by trying login shell, interactive shell, and common installation paths such as nvm, fnm, asdf, Homebrew, and local bin directories; execution uses the resolved absolute CLI path.
 - Runtime CLI execution now prepends the resolved CLI bin directory to PATH so nvm-installed Codex can find its sibling `node` when the app is launched from Finder/Dock.
+- Codex one-shot execution now writes the final answer through `--output-last-message "$AGENTHUB_OUTPUT_FILE"` and cleans fallback stdout so Desktop no longer displays Codex transcript chrome such as `Reading additional input from stdin...`, version banners, duplicate prompt blocks, or `tokens used`.
+- Codex one-shot timeout is 180s instead of 60s; if Codex has already written a final answer file before process close/timeout cleanup, Desktop treats that final answer as the successful user-visible result.
+- Desktop failed runtime activities now keep the row title as `[Agent] prompt` and place the failure details in `reason`, avoiding duplicated long output in collapsed and expanded activity views.
 
 ## Verification Results
 
@@ -103,6 +106,10 @@
 - `pnpm --filter @agenthub/desktop test -- device-channel-ipc.test.ts` — 2 passed.
 - `npx playwright test e2e/tests/web/workspace-local-desktop-uat.spec.ts --config e2e/playwright.config.ts --project=web-desktop --workers=1` with `docker/.p0-test.env` loaded — 1 passed (6.5s) after granting Chromium launch permission.
 - `pnpm --filter @agenthub/desktop test -- --run` — 21 passed.
+- `pnpm --filter @agenthub/desktop build` — PASS.
+- `pnpm --filter @agenthub/desktop test -- local-adapter.test.ts desktop-agent-session.test.tsx --run` — PASS, 12 passed.
+- `pnpm --filter @agenthub/desktop type-check` — PASS.
+- `pnpm --filter @agenthub/desktop test -- --run` — PASS, 23 passed.
 - `pnpm --filter @agenthub/desktop build` — PASS.
 
 ## Out of Scope

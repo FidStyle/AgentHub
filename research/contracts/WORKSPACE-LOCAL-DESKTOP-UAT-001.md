@@ -84,6 +84,7 @@
 5. Gateway 下发 `runtime_invoke` 请求后，Desktop `RuntimeHost` 调 `StreamAdapter` 在本机 `spawn` `claude` 或 `codex` CLI。
 6. stdout/stderr 转成 runtime event 回传给 Web/Mobile。
 7. UI 或文档必须向用户解释：AgentHub Desktop 不托管 API Key，依赖本机已安装并已认证的 Claude Code / Codex CLI。
+8. Desktop 本地一次性 Codex 消息必须优先用 `codex exec --output-last-message "$AGENTHUB_OUTPUT_FILE"` 读取最终回复；stdout 仅作为兜底转录流，必须清理 `Reading additional input from stdin...`、横幅、重复 prompt 和 `tokens used` 后才能展示给用户。
 
 ---
 

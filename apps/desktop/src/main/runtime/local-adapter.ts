@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
-import { homedir } from 'os'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { homedir, tmpdir } from 'os'
 import path from 'path'
 import type { RuntimeResult } from '@agenthub/shared'
 import { resolveCliPath, resolveShell, runShellWithExit, shellQuote, withCliPathEnv } from './cli-resolver'
@@ -12,12 +12,12 @@ export interface RuntimePromptRequest {
 
 export const RUNTIME_EXEC_COMMANDS: Record<RuntimePromptRequest['runtimeType'], string> = {
   claude_code: 'claude --print "$AGENTHUB_PROMPT"',
-  codex: 'codex exec --skip-git-repo-check --sandbox read-only --color never -- "$AGENTHUB_PROMPT"',
+  codex: 'codex exec --skip-git-repo-check --sandbox read-only --color never --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"',
 }
 
 const RUNTIME_TIMEOUT_MS: Record<RuntimePromptRequest['runtimeType'], number> = {
   claude_code: 60000,
-  codex: 60000,
+  codex: 180000,
 }
 
 function resolveCwd(cwd: string) {
@@ -25,6 +25,38 @@ function resolveCwd(cwd: string) {
   if (cwd === '~') return homedir()
   if (cwd.startsWith('~/')) return path.join(homedir(), cwd.slice(2))
   return cwd
+}
+
+function stripAnsi(value: string) {
+  return value.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+}
+
+function readTextFile(filePath: string | null) {
+  if (!filePath || !existsSync(filePath)) return ''
+  try {
+    return readFileSync(filePath, 'utf8').trim()
+  } catch {
+    return ''
+  }
+}
+
+export function normalizeCodexExecOutput(stdout: string, outputLastMessage = '') {
+  const finalMessage = outputLastMessage.trim()
+  if (finalMessage) return finalMessage
+
+  const cleaned = stripAnsi(stdout)
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .filter((line) => line.trim() !== 'Reading additional input from stdin...')
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  const answerBlocks = cleaned.split(/(?:^|\n)\s*codex\s*\n/i)
+  const answer = answerBlocks.length > 1 ? answerBlocks[answerBlocks.length - 1] : cleaned
+  return answer
+    .replace(/\n\s*tokens used\b[\s\S]*$/i, '')
+    .trim()
 }
 
 export class LocalRuntimeAdapter {
@@ -87,8 +119,12 @@ export class LocalRuntimeAdapter {
         duration: Date.now() - start,
       }
     }
+    const outputDir = request.runtimeType === 'codex'
+      ? mkdtempSync(path.join(tmpdir(), 'agenthub-codex-'))
+      : null
+    const outputFile = outputDir ? path.join(outputDir, 'last-message.txt') : null
     const cliCommand = request.runtimeType === 'codex'
-      ? `${shellQuote(cliPath)} exec --skip-git-repo-check --sandbox read-only --color never -- "$AGENTHUB_PROMPT"`
+      ? `${shellQuote(cliPath)} exec --skip-git-repo-check --sandbox read-only --color never --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"`
       : `${shellQuote(cliPath)} --print "$AGENTHUB_PROMPT"`
     const resolvedCommand = withCliPathEnv(cliPath, cliCommand)
 
@@ -101,7 +137,7 @@ export class LocalRuntimeAdapter {
       const child = spawn(resolveShell(), ['-lc', resolvedCommand], {
         cwd: resolvedCwd,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, AGENTHUB_PROMPT: prompt },
+        env: { ...process.env, AGENTHUB_PROMPT: prompt, AGENTHUB_OUTPUT_FILE: outputFile ?? '' },
       })
 
       this.activeProcess = child
@@ -119,6 +155,13 @@ export class LocalRuntimeAdapter {
         settled = true
         clearTimeout(timeout)
         this.activeProcess = null
+        if (outputDir) {
+          try {
+            rmSync(outputDir, { recursive: true, force: true })
+          } catch {
+            // Best-effort cleanup for a temp output file.
+          }
+        }
         resolve(result)
       }
 
@@ -132,9 +175,12 @@ export class LocalRuntimeAdapter {
 
       child.on('error', (error: NodeJS.ErrnoException) => {
         const missingCli = error.code === 'ENOENT' || error.message.includes('ENOENT')
+        const finalMessage = request.runtimeType === 'codex'
+          ? normalizeCodexExecOutput(stdout, readTextFile(outputFile))
+          : stdout.trim()
         finish({
           exitCode: 1,
-          stdout,
+          stdout: finalMessage,
           stderr: missingCli
             ? `未找到 ${request.runtimeType === 'codex' ? 'Codex' : 'Claude Code'} CLI，请先完成安装和诊断`
             : error.message,
@@ -144,9 +190,13 @@ export class LocalRuntimeAdapter {
 
       child.on('close', (code) => {
         const exitCode = code ?? 1
+        const finalStdout = request.runtimeType === 'codex'
+          ? normalizeCodexExecOutput(stdout, readTextFile(outputFile))
+          : stdout.trim()
+        const timeoutWithFinalMessage = timedOut && Boolean(finalStdout)
         finish({
-          exitCode: timedOut ? 1 : exitCode,
-          stdout,
+          exitCode: timeoutWithFinalMessage ? 0 : timedOut ? 1 : exitCode,
+          stdout: finalStdout,
           stderr: timedOut
             ? `${request.runtimeType === 'codex' ? 'Codex' : 'Claude Code'} 响应超时，请稍后重试或在本机终端运行诊断`
             : stderr,

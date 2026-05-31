@@ -535,6 +535,7 @@
 | **方案摘要** | 新增 `/api/runtime/status` 真实读取 Auth.js user + devices + device_runtime_channels；`POST /api/workspaces` 对 `local_desktop` 做服务端 409 门禁；`WorkspaceShell` 状态栏 + `CreateWorkspaceDialog` 前端门禁；`ArtifactPanel` Agents Tab 接 `/api/role-agents` CRUD 并派发 `role-agents:changed`；`ChatPanel` 刷新 @角色；`OrchestratorPanel` 显示 plans/actions 具体错误；Desktop 新增 `device-channel-ipc.ts` active/fallback handler 注册单点。 |
 | **验收方式** | 真实 Postgres `agenthub_p0_test` + Auth.js session + Chromium UAT；Web/Desktop type-check；Desktop IPC vitest。 |
 | **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/desktop test -- device-channel-ipc.test.ts` 2 passed；`npx playwright test e2e/tests/web/workspace-local-desktop-uat.spec.ts --config e2e/playwright.config.ts --project=web-desktop --workers=1` 1 passed（6.5s，提升权限后真实 Chromium 通过）。报告 `research/execution-reports/workspace-local-desktop-uat-001-report.md`。 |
+| **后续修复** | 2026-05-31 关闭 `REG-20260531-013`：Desktop Codex 一次性消息改用 `--output-last-message "$AGENTHUB_OUTPUT_FILE"` 读取最终回复，清理 stdout 转录噪声，Codex timeout 调整到 180s，失败活动不再重复长输出。验证：Desktop 定向测试 12 passed、全量 vitest 23 passed、type-check PASS、build PASS。 |
 | **阻塞问题** | 无。附件上传后端未实现，按合同诚实禁用并登记为范围外；默认 `.env.local` 引导问题仍归属 DEV-ENV-BOOTSTRAP-001 / REG-20260530-008。 |
 | **下一步动作** | 关闭本任务；如要实现真实附件上传，应另起 `ATTACHMENT-UPLOAD-001` 并定义存储/权限/预览合同。 |
 

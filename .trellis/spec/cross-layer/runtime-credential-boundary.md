@@ -233,9 +233,11 @@ type RuntimeExecResult = {
 - Renderer 输入框的语义是“发送给当前本地 Runtime 的一次性消息”，不是 shell command。
 - Renderer 只能提交 `RuntimePromptRequest`，不得提交任意 command 字符串。
 - Main process 负责把 `runtimeType` 映射到固定 CLI 命令：
-  - `codex` -> `codex exec --skip-git-repo-check --sandbox read-only --color never -- "$AGENTHUB_PROMPT"`
+  - `codex` -> `codex exec --skip-git-repo-check --sandbox read-only --color never --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"`
   - `claude_code` -> `claude --print "$AGENTHUB_PROMPT"`
 - Prompt 必须通过环境变量或等价安全参数传递，不能拼接进 shell 字符串。
+- Codex stdout 是运行转录流，不是稳定的“最终回复”协议；main process 必须优先读取 `--output-last-message` 写入的文件作为用户可见回复，并只在该文件缺失时才从 stdout 兜底提取。
+- Codex stdout 兜底提取必须剥离 `Reading additional input from stdin...`、版本横幅、`user`/`codex` 转录标签和 `tokens used` 尾部，避免 Desktop UI 把运行日志当成 Agent 回复。
 - CLI 路径解析和执行应使用用户登录 shell，兼容 macOS Finder 启动的 Electron 进程 PATH 不完整问题。
 - 一次性消息必须有超时上限，超时后返回中文错误，不能让 UI 永久停留在“发送中”。
 - Main process 应使用可取消的进程句柄执行一次性 CLI，renderer 的“停止”按钮必须调用真实 cancel IPC，不能只是 disabled 占位。
@@ -250,6 +252,8 @@ type RuntimeExecResult = {
 | 工作目录不存在 | 自动创建目录；创建失败才返回中文错误“无法创建工作目录：...” |
 | CLI 未找到或 spawn `ENOENT` | 返回中文错误“未找到 Codex/Claude Code CLI，请先完成安装和诊断” |
 | CLI 进程超时 | 返回中文错误“Codex/Claude Code 响应超时...” |
+| Codex exitCode 为 0 且 `$AGENTHUB_OUTPUT_FILE` 有内容 | 返回该文件内容作为 stdout，不展示 Codex 横幅、stdin 提示或 tokens |
+| Codex stdout 只有转录流、无输出文件 | 从最后一个 `codex` 回复块提取文本，剥离 `tokens used` 尾部 |
 | CLI exitCode 非 0 | 活动列表显示失败、stderr/stdout 摘要和中文原因 |
 
 ### 5. Good/Base/Bad Cases
@@ -257,9 +261,14 @@ type RuntimeExecResult = {
 - Good：选中 Codex，输入“帮我解释当前目录”，Desktop 执行固定 `codex exec` 命令并显示真实输出。
 - Base：选中 Claude Code，输入一次性 prompt，Desktop 执行 `claude --print` 并显示真实输出。
 - Bad：输入 `ls -la` 后 Desktop 直接把它作为 shell command 执行，用户以为是在和 Agent 对话但实际进入任意命令执行器。
+- Bad：Desktop 直接展示 Codex stdout 全量转录，导致用户看到 `Reading additional input from stdin...`、版本横幅、重复 prompt 和 `tokens used`。
 
 ### 6. Tests Required
 
+- 单元测试：`RUNTIME_EXEC_COMMANDS.codex` 包含 `--output-last-message "$AGENTHUB_OUTPUT_FILE"`。
+- 单元测试：Codex 输出清洗优先使用 output-last-message 文件内容。
+- 单元测试：Codex stdout 兜底清洗会移除 stdin 提示和 `tokens used`，只返回最后一个 `codex` 回复块。
+- 组件测试：Runtime exitCode 非 0 时，活动标题只显示 `[Agent] prompt`，失败原因单独显示，不能把同一段长输出在标题和原因里重复展示。
 - 组件测试：诊断按钮点击后调用 `runtime.detect()` 并渲染活动。
 - 组件测试：Codex 发送时 IPC payload 为 `{ runtimeType: 'codex', prompt }`。
 - 组件测试：Claude Code 发送时 IPC payload 为 `{ runtimeType: 'claude_code', prompt }`。
@@ -270,11 +279,20 @@ type RuntimeExecResult = {
 #### Wrong
 
 ```typescript
-await runtime.execute(input.trim(), cwd);
+const stdout = await runCodexExec(prompt)
+return { stdout }
+
+await runtime.execute(input.trim(), cwd)
 ```
 
 #### Correct
 
 ```typescript
-await runtime.execute({ runtimeType: 'codex', prompt: input.trim() }, cwd);
+const outputFile = createTempOutputFile()
+await runCodexExecWithOutputLastMessage(prompt, outputFile)
+return {
+  stdout: readFinalMessage(outputFile) || extractFinalCodexAnswer(stdout),
+}
+
+await runtime.execute({ runtimeType: 'codex', prompt: input.trim() }, cwd)
 ```
