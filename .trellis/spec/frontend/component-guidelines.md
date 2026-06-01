@@ -34,7 +34,7 @@
 - `data-testid="message-composer"`
 - `data-testid="artifact-panel"`
 - `data-testid="authorization-card"`
-- `data-testid="connector-console"`
+- `data-testid="desktop-main-shell"`
 - `data-testid="runtime-status-card"`
 - `data-testid="mobile-session"`
 
@@ -113,7 +113,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 | `AuthorizationCard` | Web/Mobile | `FR-PERM-001`, `FR-NOTIFY-001` |
 | `DesktopPolicyPanel` | Desktop | `FR-PERM-001`, `FR-DESK-001` |
 | `RuntimeStatusCard` | Web/Desktop | `FR-RUNTIME-001`, `FR-DESK-001` |
-| `ConnectorConsole` | Desktop | `FR-DESK-001`, `FR-UI-001` |
+| `DesktopMainShell` | Desktop | `FR-DESK-001`, `FR-UI-001` |
 | `ArtifactPanel` | Web/Mobile | `FR-ARTIFACT-001`, `FR-RESULT-001` |
 
 ---

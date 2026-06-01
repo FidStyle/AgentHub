@@ -128,7 +128,7 @@
 - `data-testid="message-composer"`
 - `data-testid="artifact-panel"`
 - `data-testid="authorization-card"`
-- `data-testid="connector-console"`
+- `data-testid="desktop-main-shell"`
 - `data-testid="runtime-status-card"`
 - `data-testid="desktop-agent-session"`
 - `data-testid="desktop-agent-composer"`
@@ -141,7 +141,7 @@
 ### 错误
 
 ```tsx
-export function RuntimeConfigPage() {
+export function BadRuntimeKeyForm() {
   return (
     <div>
       <h1>Runtime Config</h1>

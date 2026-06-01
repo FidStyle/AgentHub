@@ -283,7 +283,7 @@ Mobile/PWA 视觉参考：
 
 ### 9.2 必须断言
 
-- 关键容器截图：`workspace-shell`、`chat-panel`、`artifact-panel`、`connector-console`、`mobile-session`。
+- 关键容器截图：`workspace-shell`、`chat-panel`、`artifact-panel`、`desktop-main-shell`、`mobile-session`。
 - `document.body.scrollWidth <= window.innerWidth + 1`，禁止横向破版。
 - 关键卡片通过 bounding box 检查不重叠。
 - 长中文标题、长文件名、长路径摘要必须截断、换行或折叠，不能溢出父容器。

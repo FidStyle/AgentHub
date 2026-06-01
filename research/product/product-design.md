@@ -209,7 +209,7 @@ Desktop 可以承担 Codex / Claude Code 的本地轻量对话能力，但该能
 | Agent 配置中心 | P0 | 以 Agent/Runtime 卡片展示 Codex、Claude Code、OpenCode 和其他预留 Runtime；Codex/Claude Code 可用，OpenCode 等待接入 | `FR-DESK-001`, `FR-RUNTIME-001`, `FR-UI-001` |
 | 本地 Agent 轻量会话 | P0 | 从检测到的 Codex / Claude Code 进入本地运行态会话，查看运行流、最近消息、失败原因和本机策略审计记录，发送轻量诊断/继续/重试类指令 | `FR-DESK-001`, `FR-CHAT-001`, `FR-RUNTIME-001` |
 | 执行请求列表 | P0 | 展示最近 Runtime/Action 请求、状态、失败原因 | `FR-DESK-001`, `FR-ACTION-001` |
-| 本机策略与授权记录 | P0 | 展示本机权限预设、策略镜像、执行前校验结果、由 Web/Mobile 授权的越权记录 | `FR-DESK-001`, `FR-PERM-001` |
+| 本机策略与审计 | P0 | 展示本机权限预设、策略镜像、执行前校验结果和真实本机策略审计记录 | `FR-DESK-001`, `FR-PERM-001` |
 | 打开 Web | P0 | 跳转当前 Workspace 的 Web 工作台 | `FR-DESK-001` |
 | 系统通知设置 | P1 | 配置 Desktop OS 通知 | `FR-NOTIFY-101` |
 
@@ -219,7 +219,7 @@ Desktop 启动后的默认界面必须是可持续操作的主壳，而不是单
 
 | 区域 | P0 内容 | 参考 |
 | --- | --- | --- |
-| 左侧导航 | 本地 Workspace、最近 Session、本地 Agent、本机策略、执行日志、设置、登录/账号入口 | AionUi `Sider`、codeg `Sidebar` |
+| 左侧导航 | 本地 Workspace、本地 Agent、本机策略、设置、登录/账号入口；最近 Session 只有接入可重建的真实会话恢复链路后才能加入 | AionUi `Sider`、codeg `Sidebar` |
 | 中间主区 | 本地 Agent 运行态会话、运行流、最近消息、执行状态、失败原因、轻量输入框 | AionUi `ChatLayout`、codeg `ConversationShell` |
 | 右侧面板 | Agent 配置中心、Runtime 状态、能力声明、最近诊断、待接入 Runtime | AionUi `LocalAgents`/`AgentCard` |
 | 顶部/底部状态 | Connector 在线状态、设备名、当前 Workspace、最近心跳、打开 Web 工作台入口 | codeg `StatusBar` |
