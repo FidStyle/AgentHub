@@ -75,6 +75,9 @@ export async function POST(request: Request) {
   if (execution_domain === 'local_desktop') {
     const desktop = await hasConnectedDesktopRuntime(db, user.id)
     if (desktop.error) return NextResponse.json({ error: desktop.error }, { status: 500 })
+    if (!desktop.ok) {
+      return NextResponse.json({ error: '本地 Desktop 未连接，无法创建可执行的本地工作区' }, { status: 409 })
+    }
   }
 
   const { data, error } = await db

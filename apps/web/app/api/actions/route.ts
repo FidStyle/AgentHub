@@ -3,17 +3,21 @@ import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { classifyRisk, requiresApproval } from '@/lib/orchestrator/permission-engine'
 import { DEFAULT_POLICIES } from '@agenthub/shared'
+import { assertSessionOwner } from '@/lib/chat/attachments-artifacts'
 
 // GET /api/actions?session_id=xxx
 // POST /api/actions — create an action (auto-classify risk)
 export async function GET(request: Request) {
   const db = await createClient()
-  const { error: authError } = await requireAuth()
+  const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
   const { searchParams } = new URL(request.url)
   const sessionId = searchParams.get('session_id')
   if (!sessionId) return NextResponse.json({ error: 'session_id 必填' }, { status: 400 })
+
+  const owner = await assertSessionOwner(db, sessionId, user.id)
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status })
 
   const { data } = await db
     .from('actions')
@@ -35,6 +39,9 @@ export async function POST(request: Request) {
   if (!session_id || !action_type || !command) {
     return NextResponse.json({ error: 'session_id, action_type, command 必填' }, { status: 400 })
   }
+
+  const owner = await assertSessionOwner(db, session_id, user.id)
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status })
 
   const riskLevel = classifyRisk(action_type, command)
   const needsApproval = requiresApproval(action_type, riskLevel, DEFAULT_POLICIES)

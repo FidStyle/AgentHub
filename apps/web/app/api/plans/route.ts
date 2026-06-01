@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
+import { assertSessionOwner } from '@/lib/chat/attachments-artifacts'
 
 function toPostgresUuidArray(values: string[] | undefined) {
   const safeValues = values ?? []
@@ -11,12 +12,15 @@ function toPostgresUuidArray(values: string[] | undefined) {
 // POST /api/plans — create a new plan
 export async function GET(request: Request) {
   const db = await createClient()
-  const { error: authError } = await requireAuth()
+  const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
   const { searchParams } = new URL(request.url)
   const sessionId = searchParams.get('session_id')
   if (!sessionId) return NextResponse.json({ error: 'session_id 必填' }, { status: 400 })
+
+  const owner = await assertSessionOwner(db, sessionId, user.id)
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status })
 
   const { data: plans, error } = await db
     .from('plans')
@@ -63,6 +67,9 @@ export async function POST(request: Request) {
   if (!session_id || !title || !nodes?.length) {
     return NextResponse.json({ error: 'session_id, title, nodes 必填' }, { status: 400 })
   }
+
+  const owner = await assertSessionOwner(db, session_id, user.id)
+  if (!owner.ok) return NextResponse.json({ error: owner.error }, { status: owner.status })
 
   // Build DAG edges from depends_on
   const edges = nodes.flatMap((n: { id: string; depends_on?: string[] }) =>

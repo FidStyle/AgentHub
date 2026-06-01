@@ -9,7 +9,8 @@ test.describe('WORKSPACE-LOCAL-DESKTOP-UAT Web workspace 真实可用性', () =>
     storageState = await ensureP0StorageState()
   })
 
-  test('状态栏/返回入口/附件禁用/Agents CRUD/@角色同步/本地工作区门禁', async ({ browser }) => {
+  test('状态栏/返回入口/附件上传/Agents CRUD/@角色同步/本地工作区门禁', async ({ browser }) => {
+    test.setTimeout(60_000)
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     const ts = Date.now()
@@ -23,12 +24,10 @@ test.describe('WORKSPACE-LOCAL-DESKTOP-UAT Web workspace 真实可用性', () =>
     const localRes = await page.request.post('/api/workspaces', {
       data: { name: `UAT-本地门禁-${ts}`, execution_domain: 'local_desktop' },
     })
-    if (!localRes.ok()) {
-      expect(localRes.status()).toBe(409)
-      expect(await localRes.json()).toMatchObject({
-        error: expect.stringContaining('本地 Desktop 未连接'),
-      })
-    }
+    expect(localRes.status()).toBe(409)
+    expect(await localRes.json()).toMatchObject({
+      error: expect.stringContaining('本地 Desktop 未连接'),
+    })
 
     await page.goto(`/workspace/${workspace.id}`)
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
@@ -38,10 +37,37 @@ test.describe('WORKSPACE-LOCAL-DESKTOP-UAT Web workspace 真实可用性', () =>
     await expect(page.getByRole('link', { name: /我的工作区/ }).first()).toHaveAttribute('href', '/workspace')
 
     await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('attachment-btn')).toBeDisabled()
-    await expect(page.getByTestId('attachment-disabled-note')).toContainText('附件暂未开放')
+    await expect(page.getByTestId('attachment-btn')).toBeEnabled()
+    const attachmentName = `uat-attachment-${ts}.txt`
+    const uploadResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/attachments') && r.request().method() === 'POST',
+    )
+    const fileChooserPromise = page.waitForEvent('filechooser')
+    await page.getByTestId('attachment-btn').click()
+    const fileChooser = await fileChooserPromise
+    await fileChooser.setFiles({
+      name: attachmentName,
+      mimeType: 'text/plain',
+      buffer: Buffer.from(`附件正文 ${ts}`),
+    })
+    const uploadResponse = await uploadResponsePromise
+    expect(uploadResponse.ok()).toBeTruthy()
+    const uploaded = await uploadResponse.json() as { id: string; name: string; preview: string }
+    expect(uploaded.name).toBe(attachmentName)
+    expect(uploaded.preview).toContain(`附件正文 ${ts}`)
+    await expect(page.getByTestId('attachment-chips')).toContainText(attachmentName)
 
-    await page.getByRole('button', { name: 'Agents' }).click()
+    const chatResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/chat') && r.request().method() === 'POST',
+    )
+    await page.getByPlaceholder(/输入消息/).fill(`请读取附件 ${ts}`)
+    await page.getByRole('button', { name: /发送/ }).click()
+    const chatResponse = await chatResponsePromise
+    expect(chatResponse.ok()).toBeTruthy()
+    const chatPayload = chatResponse.request().postDataJSON() as { attachmentIds?: string[] }
+    expect(chatPayload.attachmentIds).toEqual([uploaded.id])
+
+    await expect(page.getByTestId('artifact-agents')).toBeVisible()
     await page.getByTestId('agent-create-btn').click()
     await page.getByLabel('名称').fill(`UAT 工程师 ${ts}`)
     await page.getByLabel('角色类型').selectOption('engineer')
