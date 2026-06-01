@@ -26,6 +26,15 @@ export class HostedRuntimeAdapter {
       roleAgentId: input.roleAgentId,
     })
 
+    const shouldPersistGatewayEvent = (event: RuntimeGatewayEvent): boolean => {
+      if (endpoint.kind !== 'public_cloud') return true
+      if (!event.type.startsWith('runtime_')) return true
+
+      // Cloud worker owns persistence for normal runtime_* events. The gateway still persists
+      // its own timeout sentinel because no worker log exists for that case.
+      return event.type === 'runtime_failed' && !('endpointId' in event)
+    }
+
     let seq = 0
     for await (const event of invoke({
       userId: input.userId,
@@ -33,7 +42,9 @@ export class HostedRuntimeAdapter {
       userMessage: input.userMessage,
       systemPrompt: input.systemPrompt,
     })) {
-      await persistRuntimeEvent(runtimeSession.id, event, seq++)
+      if (shouldPersistGatewayEvent(event)) {
+        await persistRuntimeEvent(runtimeSession.id, event, seq++)
+      }
       yield event
     }
   }

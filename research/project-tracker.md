@@ -27,12 +27,12 @@
 | **绑定 FR-ID** | FR-AUTH-001, FR-WS-001, FR-CHAT-001, FR-AGENT-001, FR-RUNTIME-001, FR-DESK-001, FR-MOB-001, FR-ARTIFACT-001, FR-PERM-001 |
 | **对应计划** | `.trellis/tasks/06-01-acceptance-real-flow-program/` + 6 个子任务 |
 | **合同路径** | `research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md` |
-| **当前状态** | 🚧 进行中（2026-06-01）：已建立总合同、Trellis 任务树和 opencli UAT skill；已修 runtime worker 默认验收模式从 fake/script 改为 real CLI；已跑通 Web `/api/chat` → Gateway → Redis 跨进程 relay → Desktop DeviceChannel → Electron `RuntimeHost` → 真实 Claude CLI → SSE → agent message 落库的 `local_desktop` 核心 @ 链路。 |
+| **当前状态** | 🚧 进行中（2026-06-01）：已建立总合同、Trellis 任务树和 opencli UAT skill；已修 runtime worker 默认验收模式从 fake/script 改为 real CLI；已跑通 Web `/api/chat` → Gateway → Redis 跨进程 relay → Desktop DeviceChannel → Electron `RuntimeHost` → 真实 Claude CLI → SSE → agent message 落库的 `local_desktop` 核心 @ 链路；cloud `@架构师` API 链路和 390x844 Mobile/PWA 视口均已通过 Gateway/Redis/runtime worker/real executor 返回非 echo 回复并落库；public cloud runtime 日志已去除 Gateway/worker 双写。 |
 | **目标** | 本地链路、远程链路分别跑通核心 `@角色` 对话，附件上传和 artifact 产出真实可读，最终用 opencli/Playwright 留下 Web/Electron/Mobile/PWA UAT 证据。 |
 | **验收方式** | 本地和远程 `/api/chat` 均验证 runtime_sessions/runtime_logs/messages；Web/Electron 使用 opencli/Playwright 从真实入口操作；附件与 artifact 要能刷新后读取；禁止 `FakeExecutor`/`ScriptedRealExecutor` 作为产品成功证据。 |
 | **测试证据** | 当前阶段：`pnpm --filter @agenthub/web test -- __tests__/runtime` → 6 files / 25 tests passed；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts` → 6 tests passed；`pnpm --filter @agenthub/desktop test` → 6 files / 24 tests passed；`pnpm --filter @agenthub/web type-check` → PASS；`pnpm --filter @agenthub/desktop type-check` → PASS。 |
-| **阻塞问题** | 待处理：远程链路需真实 CLI credential 环境下继续做浏览器级 @ UAT；附件仍只是文件名；artifact durable output 未落；最终 opencli/Electron/Mobile/PWA UAT 未全量收口。 |
-| **下一步动作** | 进入 `06-01-acceptance-at-remote-flow` 与 `06-01-acceptance-attachments-artifacts`：补远程真实 executor 浏览器 UAT、附件内容入库/传递和 durable artifact 输出；最后执行 `06-01-acceptance-real-e2e-uat`。 |
+| **阻塞问题** | 待处理：附件仍只是文件名；artifact durable output 未落；最终 opencli/Electron/Mobile/PWA UAT 未全量收口。 |
+| **下一步动作** | 进入 `06-01-acceptance-attachments-artifacts`：补附件内容入库/传递和 durable artifact 输出；最后执行 `06-01-acceptance-real-e2e-uat`。 |
 
 ### ACCEPTANCE-HARDENING-2026-06-01: 验收前全功能硬化
 
