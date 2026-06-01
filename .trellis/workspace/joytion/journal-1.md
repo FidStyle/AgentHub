@@ -140,3 +140,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: 清理验收收尾假入口
+
+**Date**: 2026-06-02
+**Task**: 清理验收收尾假入口
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+停用旧 runtime invoke 假成功入口，删除未挂载旧 Web 组件和旧 store，明确 Desktop native session 暂不可恢复并补 Web 单测、报告、ledger/tracker。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9ae63a0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
