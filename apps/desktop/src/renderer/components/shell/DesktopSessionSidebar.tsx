@@ -1,21 +1,19 @@
 import { Badge } from '@agenthub/ui'
-import { FolderOpen, MessageSquare, Bot, ShieldCheck, Settings, Github } from 'lucide-react'
+import { FolderOpen, Bot, ShieldCheck, Settings, Github } from 'lucide-react'
 import { useConsoleStore, type DesktopPage } from '../../store/console-store'
 import { useDesktopAuth } from '../../hooks/useDesktopAuth'
 
 const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   workspace: FolderOpen,
-  sessions: MessageSquare,
   agents: Bot,
   policy: ShieldCheck,
   settings: Settings,
 }
 
 export function DesktopSessionSidebar() {
-  const { workspaceDirs, authorizationRecords, activities, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
+  const { workspaceDirs, authorizationRecords, connectionState, currentPage, navigateTo, authError, user } = useConsoleStore()
   const { handleGitHubLogin, handleLogout } = useDesktopAuth()
   const channelStateLabel = connectionState === 'connected' ? '云端连接在线' : '云端连接断开'
-  const localSessionCount = activities.filter((entry) => /^\[(Codex|Claude Code)]\s+/.test(entry.message)).length
 
   return (
     <aside data-testid="desktop-session-sidebar" className="flex flex-col w-56 border-r border-border bg-card h-full">
@@ -24,7 +22,6 @@ export function DesktopSessionSidebar() {
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-2 flex flex-col gap-1">
         <SidebarItem testId="desktop-nav-workspace" label="本地工作区" count={workspaceDirs.length} page="workspace" currentPage={currentPage} onNavigate={navigateTo} />
-        <SidebarItem testId="desktop-nav-sessions" label="最近会话" count={localSessionCount} page="sessions" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-agents" label="本地 Agent" count={2} page="agents" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-policy" label="本机策略" count={authorizationRecords.length} highlight={authorizationRecords.length > 0} page="policy" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-settings" label="设置" page="settings" currentPage={currentPage} onNavigate={navigateTo} />

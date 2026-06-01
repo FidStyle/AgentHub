@@ -111,7 +111,6 @@ test.describe('P0 入口点击语义验证', () => {
   test('导航按钮全部可点击且切换页面', async () => {
     const navItems = [
       { testId: 'desktop-nav-workspace', page: 'desktop-agent-session' },
-      { testId: 'desktop-nav-sessions', page: 'desktop-sessions-page' },
       { testId: 'desktop-nav-agents', page: 'desktop-agent-config-page' },
       { testId: 'desktop-nav-policy', page: 'desktop-policy-page' },
       { testId: 'desktop-nav-settings', page: 'desktop-settings-page' },

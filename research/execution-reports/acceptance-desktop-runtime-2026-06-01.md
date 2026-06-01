@@ -14,14 +14,17 @@
   - 待接入 OpenCode 按当前真实按钮文案「不可进入」断言 disabled，不再使用旧文案。
 - `e2e/tests/desktop/ui-alignment.spec.ts`
   - 配置页待接入诊断引导按真实文案断言。
-  - 会话输入框测试回到「本地工作区」页，避免在「最近会话」页等待不存在的 composer。
+  - 会话输入框测试回到「本地工作区」页，避免等待不存在的 composer。
+- Desktop 最近会话入口
+  - 删除基于本地活动日志拼出来的“最近会话”导航、页面和单测。
+  - 验收脚本改为覆盖真实存在的本地工作区、本地 Agent、本机策略和设置入口。
 - `e2e/tests/desktop/p0-auth-flow.spec.ts`
   - Web 登录 API 和构建后 Electron app 路径改为显式环境门槛；环境不存在时 `test.skip`，不伪造登录绑定。
 
 ## 验证证据
 
 - `pnpm --filter @agenthub/desktop type-check`：PASS。
-- `pnpm --filter @agenthub/desktop test`：PASS，5 files / 23 tests。
+- `pnpm --filter @agenthub/desktop test`：PASS，5 files / 22 tests。
 - `pnpm --filter @agenthub/desktop build`：PASS。
 - `npx playwright test --config e2e/playwright.desktop.config.ts --workers=1`：PASS，45 passed，2 skipped。
 

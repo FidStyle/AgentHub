@@ -141,7 +141,7 @@ test.describe('Desktop 主壳三栏布局', () => {
     await expect(openCodeCard.getByRole('button', { name: /不可进入|待接入|进入会话/ })).toBeDisabled()
   })
 
-  test('入口、项目、会话、Agent 卡和设置项必须可点击或明确不可用', async () => {
+  test('入口、项目、Agent 卡和设置项必须可点击或明确不可用', async () => {
     await window.locator('[data-testid="desktop-nav-workspace"]').click()
     const workspaceItems = window.locator('[data-testid^="desktop-workspace-item-"]')
     const workspaceCount = await workspaceItems.count()
@@ -149,9 +149,6 @@ test.describe('Desktop 主壳三栏布局', () => {
 
     await workspaceItems.first().click()
     await expect(workspaceItems.first()).toHaveAttribute('data-state', 'active')
-
-    await window.locator('[data-testid="desktop-nav-sessions"]').click()
-    await expect(window.locator('[data-testid="desktop-session-item"], [data-testid="desktop-empty-sessions"]')).toBeVisible()
 
     await window.locator('[data-testid="desktop-nav-agents"]').click()
     const codexCard = window.locator('[data-testid="desktop-agent-config-page"] [data-runtime="codex"]')

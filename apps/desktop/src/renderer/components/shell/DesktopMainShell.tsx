@@ -4,7 +4,6 @@ import { DesktopAgentConfigPanel } from './DesktopAgentConfigPanel'
 import { DesktopAgentConfigPage } from './DesktopAgentConfigPage'
 import { DesktopPolicyPage } from './DesktopPolicyPage'
 import { DesktopSettingsPage } from './DesktopSettingsPage'
-import { DesktopSessionsPage } from './DesktopSessionsPage'
 import { StatusBar } from '../console/StatusBar'
 import { useConsoleStore } from '../../store/console-store'
 
@@ -22,7 +21,6 @@ export function DesktopMainShell() {
             <DesktopAgentConfigPanel />
           </>
         )}
-        {currentPage === 'sessions' && <DesktopSessionsPage />}
         {currentPage === 'agents' && <DesktopAgentConfigPage />}
         {currentPage === 'policy' && <DesktopPolicyPage />}
         {currentPage === 'settings' && <DesktopSettingsPage />}

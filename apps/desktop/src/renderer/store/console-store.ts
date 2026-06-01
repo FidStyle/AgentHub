@@ -50,7 +50,7 @@ export interface AuthorizationRecord {
   commandPreview?: string
 }
 
-export type DesktopPage = 'workspace' | 'sessions' | 'agents' | 'policy' | 'settings'
+export type DesktopPage = 'workspace' | 'agents' | 'policy' | 'settings'
 
 export interface AuthUser {
   id: string
