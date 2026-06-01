@@ -2,14 +2,14 @@ import path from 'path'
 import fs from 'fs'
 
 /**
- * P0 E2E 登录策略：
+ * 验收 E2E 登录策略：
  * 1. 优先使用 TEST_AUTH_STORAGE_STATE 环境变量指向的人工录制 storageState
  * 2. 否则使用 TEST_AUTH_COOKIE 构造 cookie-based storageState
  * 3. 该 fixture 只替代 OAuth 人机步骤，不 mock 任何主链路 API
  */
-export async function ensureP0StorageState(): Promise<string> {
+export async function ensureAcceptanceStorageState(): Promise<string> {
   const stateDir = path.join(__dirname, '..', '.auth')
-  const statePath = path.join(stateDir, 'p0-user.json')
+  const statePath = path.join(stateDir, 'acceptance-user.json')
 
   if (process.env.TEST_AUTH_STORAGE_STATE) {
     const customPath = path.resolve(process.env.TEST_AUTH_STORAGE_STATE)
@@ -50,4 +50,5 @@ export async function ensureP0StorageState(): Promise<string> {
   )
 }
 
+export const ensureP0StorageState = ensureAcceptanceStorageState
 export const TEST_USER_ID = process.env.TEST_USER_ID || 'e2e-test-user'

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Browser } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll } from '../../helpers/visual-assertions'
 
 /**
@@ -91,7 +91,7 @@ const DESKTOP_TRIGGERS: { sel: string; label: string }[] = [
 test.describe('Tooltip 桌面定位/变形（1440 / 1280）', () => {
   let storageState: string
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
   for (const vp of [
@@ -138,7 +138,7 @@ test.describe('Tooltip 桌面定位/变形（1440 / 1280）', () => {
 test.describe('Tooltip 移动窄屏定位/变形（768）', () => {
   let storageState: string
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
   test('768：打开侧栏入口 + 边缘按钮 tooltip 自动 flip/shift 不越界不横滚', async ({ browser }: { browser: Browser }) => {

@@ -41,19 +41,23 @@ loadLocalEnv()
 
 const databaseUrl =
   process.env.DATABASE_URL ?? 'postgresql://agenthub:agenthub_dev@localhost:5432/agenthub_p0_test'
-const shouldCreateFixture = process.env.P0_CREATE_GITHUB_FIXTURE === 'true'
+const shouldCreateFixture =
+  process.env.ACCEPTANCE_CREATE_GITHUB_FIXTURE === 'true' ||
+  process.env.P0_CREATE_GITHUB_FIXTURE === 'true'
 const fixtureUserId = '00000000-0000-4000-8000-000000000001'
 const fixtureGithubAccountId = 'agenthub-p0-test-github'
 const testUserId = process.env.TEST_USER_ID ?? (shouldCreateFixture ? fixtureUserId : undefined)
 const testUserEmail = process.env.TEST_USER_EMAIL ?? 'p0-test@agenthub.local'
-const testUserName = process.env.TEST_USER_NAME ?? 'P0 测试用户'
+const testUserName = process.env.TEST_USER_NAME ?? '验收测试用户'
 const testGithubAccountId =
   process.env.TEST_GITHUB_ACCOUNT_ID ?? (shouldCreateFixture ? fixtureGithubAccountId : undefined)
 const sessionToken = process.env.TEST_AUTH_SESSION_TOKEN ?? randomUUID()
 const schemaPath = path.join(repoRoot, 'docker/postgres/p0-test-schema.sql')
-const envPath = process.env.P0_TEST_ENV_FILE
-  ? path.resolve(process.env.P0_TEST_ENV_FILE)
-  : path.join(repoRoot, 'docker/.p0-test.env')
+const envPath = process.env.ACCEPTANCE_ENV_FILE
+  ? path.resolve(process.env.ACCEPTANCE_ENV_FILE)
+  : process.env.P0_TEST_ENV_FILE
+    ? path.resolve(process.env.P0_TEST_ENV_FILE)
+    : path.join(repoRoot, 'docker/.acceptance.env')
 
 async function findExistingGithubUser(pool: Pool): Promise<GithubTestUser | null> {
   const filters: string[] = [`a.provider = 'github'`]
@@ -96,7 +100,7 @@ async function findExistingGithubUser(pool: Pool): Promise<GithubTestUser | null
 
 async function createFixtureGithubUser(pool: Pool): Promise<GithubTestUser> {
   if (!testUserId || !testGithubAccountId) {
-    throw new Error('P0_CREATE_GITHUB_FIXTURE=true 时必须提供 TEST_USER_ID 和 TEST_GITHUB_ACCOUNT_ID。')
+    throw new Error('ACCEPTANCE_CREATE_GITHUB_FIXTURE=true 时必须提供 TEST_USER_ID 和 TEST_GITHUB_ACCOUNT_ID。')
   }
 
   await pool.query(
@@ -143,7 +147,7 @@ async function main() {
         '未找到数据库里已有的 GitHub 关联测试用户。',
         '请先用 GitHub OAuth 登录一次，或在 Auth.js 表中准备 user + account(provider=github) 记录。',
         '可选筛选：TEST_GITHUB_ACCOUNT_ID=<github providerAccountId> 或 TEST_USER_EMAIL=<email>。',
-        '仅空库 bootstrap 时可显式运行：P0_CREATE_GITHUB_FIXTURE=true pnpm env:p0:seed。',
+        '仅空库 bootstrap 时可显式运行：ACCEPTANCE_CREATE_GITHUB_FIXTURE=true pnpm env:acceptance:seed。',
       ].join('\n'),
     )
   }
@@ -161,7 +165,7 @@ async function main() {
     `DATABASE_URL=${databaseUrl}`,
     'AGENTHUB_DB_CLIENT=postgres',
     'AUTH_TRUST_HOST=true',
-    'AUTH_SECRET=agenthub-p0-local-test-auth-secret',
+    'AUTH_SECRET=agenthub-acceptance-local-test-auth-secret',
     'BASE_URL=http://localhost:3000',
     `TEST_USER_ID=${githubUser.user_id}`,
     `TEST_USER_EMAIL=${githubUser.email ?? ''}`,
@@ -174,7 +178,7 @@ async function main() {
 
   fs.writeFileSync(envPath, envContent)
 
-  console.log('=== P0 test database ready ===')
+  console.log('=== Acceptance test database ready ===')
   console.log(`DATABASE_URL=${databaseUrl}`)
   console.log(`TEST_USER_ID=${githubUser.user_id}`)
   console.log(`TEST_USER_EMAIL=${githubUser.email ?? ''}`)

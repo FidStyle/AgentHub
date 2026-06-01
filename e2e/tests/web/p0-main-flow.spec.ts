@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/visual-assertions'
 
 /**
@@ -9,7 +9,7 @@ import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/
  * 发送后无任何回复/错误态断言，reload 后无持久化断言，是典型的「silent pass」假绿。
  *
  * 修复后：去掉所有条件保护，按真实 UI 选择器硬断言完整主链路终态：
- *   workspace 创建 → 进工作台 → 新建会话 → @架构师 → 发送 → /api/chat 被调用
+ *   workspace 创建 → 进工作台 → 新建会话 → @Orchestrator → 发送 → /api/chat 被调用
  *   → 回复（worker）或明确中文错误态（无 worker）→ reload 后用户消息持久化 → 视觉/布局断言。
  * 缺真实 DB session 时显式 test.skip 并标 DEFERRED，绝不 silent pass。
  */
@@ -22,10 +22,10 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
   let storageState: string
 
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
-  test('Workspace 创建 → Session → @架构师 → 发送 → 回复/错误态 → reload 持久化', async ({ browser }) => {
+  test('Workspace 创建 → Session → @Orchestrator → 发送 → 回复/错误态 → reload 持久化', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     const ts = Date.now()
@@ -54,12 +54,12 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
     await page.getByRole('button', { name: '新建会话' }).click()
     await expect(page.getByTestId('session-list')).toBeVisible()
 
-    // 4) @架构师（默认 orchestrator 自动 seed）
+    // 4) @Orchestrator（默认 orchestrator 自动 seed）
     await page.getByRole('button', { name: '提及角色' }).click()
     const picker = page.getByTestId('role-picker')
     await expect(picker).toBeVisible()
-    await picker.getByText('@架构师').click()
-    await expect(page.getByTestId('selected-role')).toHaveText(/架构师/)
+    await picker.getByText('@Orchestrator').click()
+    await expect(page.getByTestId('selected-role')).toHaveText(/Orchestrator/)
 
     // 5) 发送（走真实 /api/chat），监听确认链路被调用
     let chatCalled = false
@@ -67,7 +67,7 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
       if (req.method() === 'POST' && req.url().includes('/api/chat')) chatCalled = true
     })
     const msg = `E2E-P0FLOW-ASK-${ts}`
-    await page.getByPlaceholder(/输入消息/).fill(msg)
+    await page.getByTestId('composer-input').fill(msg)
     const [chatRes] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('/api/chat') && r.request().method() === 'POST'),
       page.getByRole('button', { name: /发送/ }).click(),
@@ -77,13 +77,13 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
     expect(chatCalled).toBeTruthy()
 
     // 用户气泡可见（真实落库）
-    await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
 
     // 6) 终态断言：有 worker → 可见非 echo agent 回复；无 worker → 明确中文错误态（无 silent pass）
     if (workerMode) {
       const badge = page.getByTestId('message-role-badge')
       await expect(badge.first()).toBeVisible({ timeout: 30000 })
-      await expect(badge.first()).toHaveText(/架构师/)
+      await expect(badge.first()).toHaveText(/Orchestrator/)
       const agentReply = page.locator('.bg-muted p').first()
       await expect(agentReply).toBeVisible({ timeout: 30000 })
       await expect(agentReply).not.toContainText(msg)
@@ -103,7 +103,7 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
     // 8) reload 持久化：用户消息从 DB 重新加载
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
     if (workerMode) {
       await expect(page.getByTestId('message-role-badge').first()).toBeVisible({ timeout: 10000 })
     }

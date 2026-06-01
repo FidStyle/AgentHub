@@ -19,6 +19,20 @@
 
 ## P0 任务
 
+### P0-ACCEPTANCE-ENV-UAT-CLOSURE: P0 验收环境、E2E 与报告收口
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-WEB-001, FR-CHAT-001, FR-RUNTIME-001, FR-DESK-001, FR-ARTIFACT-001, FR-NOTIFY-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-02-p0-acceptance-env-uat-closure` |
+| **当前状态** | ✅ 完成（2026-06-02）：验收环境入口从历史 `docker/.p0-test.env` 规范化为 `docker/.acceptance.env`；`env:acceptance:*` 成为主命令，旧 `env:p0:*` 仅作兼容别名。Playwright acceptance profile 固定串行 worker，解决共享 Auth.js 测试用户下 DB 变更型 E2E 多 worker 污染；普通开发 CLI/非共享状态测试仍可并行。旧 E2E 口径同步到当前 UI：默认角色为 `Orchestrator`，右栏为「角色/文件/变更/产物」，durable artifact 不再从 message metadata 假装产物。native session resume/continue 明确不可用，不再作为 P0 passed。 |
+| **目标** | 关闭 P0 报告中剩余的环境入口、旧 E2E 假绿、多角色/通知/pin/附件/artifact/文件预览主入口复验和报告漂移问题。 |
+| **验收方式** | 使用 `pnpm env:acceptance:up` / `pnpm dev:acceptance` / `pnpm env:acceptance:smoke` 准备真实 Postgres/Redis/Auth.js session；Web acceptance E2E 使用 `pnpm test:e2e:acceptance`、`pnpm test:e2e:acceptance:runtime`、`pnpm test:e2e:acceptance:no-worker`，全部真实 API/DB/session，无主链路 mock。 |
+| **测试证据** | `pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 12/12）；`pnpm test:e2e:acceptance` PASS（18 passed）；`pnpm test:e2e:acceptance:runtime` PASS（2 passed）；`pnpm test:e2e:acceptance:no-worker` PASS（1 passed）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web test` PASS（19 files / 146 tests）；`pnpm --filter @agenthub/web build` PASS。 |
+| **阻塞问题** | P0 blocker 已关闭。仍未自动化的范围：外部 OAuth/登录绑定人工点击、原生 RN 设备/模拟器 GUI；Desktop native session resume/continue 是明确不可用能力，后续若需要按 P1/P2 增强处理。 |
+| **下一步动作** | P0 验收收口完成；后续人工演示使用 acceptance 命令，不再引用 `docker/.p0-test.env` 作为主入口。 |
+
 ### ACCEPTANCE-REAL-FLOW-2026-06-01: 验收真实闭环
 
 | 字段 | 内容 |
@@ -158,10 +172,10 @@
 | **优先级** | P1（关闭 REG-20260530-007 / PRGA-005） |
 | **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
 | **对应计划** | Ralph session `ralph-20260531-063611`（analyze→plan→execute→verify→review→goal-audit→milestone-complete） |
-| **当前状态** | ✅ 完成（2026-05-31）：`apps/web/components/workspace/ArtifactPanel.tsx` 产物/上下文/Agents 三 Tab 从硬编码 `StateCard variant="empty"` 恒空态改接真实数据。AgentsTab 读 `useSessionStore().activeWorkspaceId` → `fetch GET /api/role-agents?workspace_id`，按 snake_case 渲染 `name/role_type/capabilities/is_orchestrator`；ContextTab+OutputTab 共用 `useSessionMessages()` 读 `GET /api/messages?session_id`，上下文筛 `is_pinned||metadata` 非空、产物筛 `message_type∈{plan_card,result_card}||metadata.artifact`；空态仅真实 fetch 为空时显示，未选 workspace/session 与 error 单独显式态；`data-testid` artifact-agents/artifact-context/artifact-output。**编排 Tab `<OrchestratorPanel />` 保留不动**（向后兼容 WEB-ORCHESTRATOR-UI-001）。复用 StateCard/Button 既有共享组件，遵循设计系统，无 mock/硬编码假空态。 |
-| **目标** | Web workspace 右栏三 Tab 展示真实数据：Agents 接 role-agents、上下文/产物从 session messages 派生；空态为数据确实为空非假功能；保留编排 Tab |
-| **验收方式** | 真实数据 E2E：真实 API 播种 role agent+session+pinned 上下文+result_card 产物 → 打开 workspace → 切三 Tab 断言真实数据文本（非仅 `toBeVisible`）+ 交叉校验 GET API |
-| **测试证据** | `e2e/tests/web/artifact-panel-data.spec.ts`（new，`npx playwright test artifact-panel-data --list` → Total: 1 test，valid）真实 POST 播种（非 `page.route` mock）+ 三 Tab 深度断言（`E2E 测试工程师`/`E2E 引用上下文片段`/`E2E 产物结果卡片`）+ 交叉校验 `GET /api/role-agents`；`pnpm --filter @agenthub/web type-check` exit 0；`build` exit 0（`/workspace/[id]` 7.68 kB）；反模式扫描 clean（未见 `page.route`/mock/硬编码假空态/占位）；`grep OrchestratorPanel` → ArtifactPanel.tsx:5,132 编排 Tab 保留 |
+| **当前状态** | ✅ 完成（2026-06-02 复核）：当前右栏为「角色 / 文件 / 变更 / 产物」。角色 Tab 读真实 `GET /api/role-agents?workspace_id`，文件/变更 Tab 接 workspace 文件/Git API，产物 Tab 读 durable `/api/artifacts`；不再从 `messages.metadata` 或 `message_type=result_card` 假装产物。旧「上下文/Agents/消息派生产物」测试口径已同步修正。 |
+| **目标** | Web workspace 右栏展示真实角色、文件、Git 变更和 durable artifact；空态为数据确实为空非假功能。 |
+| **验收方式** | 真实数据 E2E：真实 API 播种 role agent/session → 打开 workspace → 切「角色」Tab 断言真实角色并交叉校验 GET API；文件上传/预览/diff/保存为产物通过 `workbench-file-ops.spec.ts` 与 acceptance UAT 覆盖。 |
+| **测试证据** | `pnpm test:e2e:acceptance` PASS（18 passed，含 `artifact.spec.ts` 角色/产物空态、`workspace-local-desktop-uat.spec.ts` 附件上传和 Agents CRUD、布局断言）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web build` PASS。 |
 | **阻塞问题** | E2E 实跑需真实 Supabase DB（`TEST_AUTH_COOKIE`+`TEST_WORKSPACE_ID`），CI 无真实 DB → `test.skip` 标 DEFERRED 保留断言骨架（与 REG-20260531-010 GUI/DB DEFERRED 一致）；真实浏览器截图 DEFERRED（CLI 环境无 GUI） |
 | **下一步动作** | 关闭 REG-20260530-007 / PRGA-005；遗留 E2E 门禁缺陷（`artifact.spec.ts` 等假数据）见 REG-20260531-011（P1，独立任务） |
 
@@ -172,12 +186,12 @@
 |------|------|
 | **优先级** | P1（关闭 REG-20260531-011 / PRGA-007/008/009/010） |
 | **绑定 FR-ID** | FR-WEB-001, FR-UI-001 |
-| **当前状态** | ✅ 完成（2026-05-31）：四个「假绿」mock spec 改真实栈集成测试，并实跑全绿。`artifact.spec.ts`（PRGA-007）从全程 `page.route` mock sessions/messages/role-agents 改真实 `POST /api/workspaces+role-agents+sessions+messages` 播种 → 切 Agents/上下文/产物三 Tab 断言真实数据文本（agent 列表项按钮无障碍名定位，规避详情面板/系统提示词 prose 同名 strict-mode 冲突）+ 交叉校验 GET API；`messaging.spec.ts`（PRGA-008）改真实 `@架构师`→发送→`waitForResponse(/api/chat POST)`→断言 agent 回复或明确错误终态→reload 持久化（用户气泡 `.bg-primary/10` 取代失效的 `.bg-blue-500`）；`workspace.spec.ts`（PRGA-009）改真实 `POST /api/workspaces`→交叉校验落库→列表渲染（self-scoped 到唯一命名项 + `scrollIntoViewIfNeeded` 规避长列表 off-screen）→点击导航进 shell，删除 `list[0]`/全局空态等共享 DB 易污染断言；`p0-main-flow.spec.ts`（PRGA-010）删除所有 `if(await x.isVisible())` 静默跳过守卫，硬断言 workspace→session→@角色→发送→回复/错误终态→reload 持久化 + 布局无横向滚动/不重叠。`playwright.config.ts` web-desktop `testMatch` 补 `workspace/artifact/messaging.spec`（此前位于 `tests/` 根目录从不被任何 project 收集——比 mock 更致命的「从不执行」缺口）。审计锚点 `product-reality-gap-audit.spec.ts` 的 PRGA-005/007/008/009/010 反转为修复后事实；顺带反转 PRGA-001（MOBILE-RN-CHAT-RUNTIME-001 已修，`ChatScreen` 用 `sendChat`→`/api/chat` 非 `setTimeout` 回显）/PRGA-004（WEB-ORCHESTRATOR-UI-001 已修，`OrchestratorPanel` 真实引用 PlanCard/ActionCard），消除两个 sibling 任务遗漏未反转的 stale 红锚点。 |
+| **当前状态** | ✅ 完成（2026-06-02 复验）：四个「假绿」mock spec 已改真实栈集成测试，并同步到当前 UI。`artifact.spec.ts` 走真实 workspace/role-agents/session，断言「角色」Tab 与 durable artifact 空态；`messaging.spec.ts` 与 `p0-main-flow.spec.ts` 走真实 `@Orchestrator` → `/api/chat` → 明确回复/错误态 → reload 持久化；`workspace.spec.ts` 用创建返回 id 和 `workspace-card-<id>` 自作用域断言，避免共享用户列表污染。 |
 | **目标** | 核心功能 spec 不得用 mock/`toBeVisible` 假绿；主链路走真实 API/DB/auth/runtime 并断言用户目标终态；环境缺失只能显式 `test.skip` 标 DEFERRED 不能 silent pass |
-| **验收方式** | 真实栈实跑：清 E2E 行 → `source docker/.p0-test.env` → `playwright --project=web-desktop --workers=1`；四 spec + 审计锚点全绿，0 mock 0 silent-skip |
-| **测试证据** | 真实栈实跑 **14 passed**（artifact×2 + messaging×1 + p0-main-flow×2 + workspace×2 + 审计锚点×7，serial，cleaned DB，真实 Supabase/Next API/authjs cookie）；`/api/chat` 实际 compiled+被调用，`/workspace/[id]` 与全部 API 路由由真实 DB 服务；`grep page.route(` → 四 spec CLEAN；审计锚点 regex 校验四 spec `page.request.(post\|get)` / `/api/(workspaces\|chat\|messages\|role-agents\|sessions)` 全 true。运行口令：`docker exec ... psql -c "DELETE FROM workspaces WHERE owner_id='<TEST_USER>' AND name LIKE 'E2E-%'"; set -a; source docker/.p0-test.env; set +a; npx playwright test --config e2e/playwright.config.ts --project=web-desktop --workers=1 tests/artifact.spec.ts tests/messaging.spec.ts tests/workspace.spec.ts tests/web/p0-main-flow.spec.ts tests/web/product-reality-gap-audit.spec.ts` |
-| **阻塞问题** | 端口 3000 被独立运行的 AgentHub 实例（Electron + server.ts）占用、共享同一 seeded DB 形成竞争——已隔离（未杀用户进程，harness 自带 `dev:web` 成功 bind）；RUNTIME_E2E worker-mode（真实 agent 回复路径）本次未实跑，no-worker 错误终态分支已覆盖 → DEFERRED 由 RUNTIME-REAL-EXECUTOR-E2E-001 跟进；真实浏览器/GUI 截图 DEFERRED（CLI 无 GUI） |
-| **下一步动作** | 关闭 REG-20260531-011 / PRGA-007/008/009/010；RUNTIME_E2E worker-mode 实跑见 RUNTIME-REAL-EXECUTOR-E2E-001（P1） |
+| **验收方式** | 真实栈实跑：`pnpm test:e2e:acceptance` 固定 serial worker，使用 `docker/.acceptance.env` Auth.js DB session；worker 与 no-worker 专项分别用 `pnpm test:e2e:acceptance:runtime` / `pnpm test:e2e:acceptance:no-worker`。 |
+| **测试证据** | `pnpm test:e2e:acceptance` PASS（18 passed）；`pnpm test:e2e:acceptance:runtime` PASS（2 passed）；`pnpm test:e2e:acceptance:no-worker` PASS（1 passed）；主链路 spec 无 `page.route` mock，真实 API/DB/session/runtime 入口均被调用。 |
+| **阻塞问题** | 已解除：旧 UI 文案、旧角色名、共享用户多 worker 污染、worker/no-worker 混跑导致的假失败。 |
+| **下一步动作** | 已关闭；后续新增 DB 变更型 E2E 必须纳入 acceptance 串行 profile 或提供 per-test 用户隔离。 |
 
 
 ### UI-ALIGN-001: 三端 UI 参考项目对齐修复

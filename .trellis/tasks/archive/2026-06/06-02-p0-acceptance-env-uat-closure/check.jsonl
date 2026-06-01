@@ -1,0 +1,7 @@
+{"file":"research/regression-ledger.md","reason":"确认 REG-20260601-002、REG-20260530-008、REG-20260530-002 的状态和残留风险准确"}
+{"file":"research/project-tracker.md","reason":"确认 P0 验收状态不再引用旧 P0 env 文件作为主入口"}
+{"file":"research/contracts/ACCEPTANCE-HARDENING-2026-06-01.md","reason":"确认验收命令和报告仍满足合同门禁"}
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"确认真实主链路证据没有被 mock/skip 混入 passed"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"复核报告必须列出命令、环境、数据证据和未覆盖项"}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"复核 P0 report/code drift 和 stale_or_ghost 已处理"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"复核 acceptance env 规范和命令名一致"}

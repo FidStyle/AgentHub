@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 
 /**
  * FLOATING-UI-UAT-AUDIT-001 — 只读浮层/Overlay 真实浏览器几何审计。
@@ -132,7 +132,7 @@ for (const vp of VIEWPORTS) {
   test.describe(`floating-ui audit @ ${vp.name}`, () => {
     let storageState: string
     test.beforeAll(async () => {
-      storageState = await ensureP0StorageState()
+      storageState = await ensureAcceptanceStorageState()
     })
 
     test(`浮层几何审计 ${vp.name}`, async ({ browser }) => {

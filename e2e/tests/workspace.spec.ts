@@ -28,23 +28,15 @@ test.describe('工作区真实 CRUD（PRGA-009）', () => {
     await page.getByPlaceholder('输入工作区名称').fill(wsName)
     await page.getByRole('button', { name: '创建', exact: true }).click()
 
-    // Dialog 关闭 + 列表刷新出现「本测试创建的」唯一命名新项（真实数据，非 mock）。
-    // 列表渲染全部真实工作区，新项追加在末尾——滚入视口再断言，避免长列表下 off-screen 误判。
+    // Dialog 关闭后会直接进入工作台；交叉校验真实 /api/workspaces 落库。
     await expect(page.getByPlaceholder('输入工作区名称')).not.toBeVisible()
-    const createdCard = page.getByRole('button', { name: wsName })
-    await expect(createdCard).toBeAttached({ timeout: 10000 })
-    await createdCard.scrollIntoViewIfNeeded()
-    await expect(createdCard).toBeVisible()
 
-    // 交叉校验：真实 /api/workspaces 落库（self-scoped 到本次创建项）
     const list = await (await page.request.get('/api/workspaces')).json()
     const created = list.find((w: { name: string }) => w.name === wsName)
     expect(created).toBeTruthy()
     expect(created.id).toBeTruthy()
 
-    // 点击本测试创建的卡片导航到工作台（真实路由 + shell 加载）
-    await page.getByRole('button', { name: wsName }).click()
-    await page.waitForURL(`**/workspace/${created.id}`)
+    await page.waitForURL(`**/workspace/${created.id}`, { timeout: 10000 })
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
   })
 
@@ -57,14 +49,16 @@ test.describe('工作区真实 CRUD（PRGA-009）', () => {
       data: { name: wsName, execution_domain: 'cloud' },
     })
     expect(createResp.ok()).toBeTruthy()
+    const created = await createResp.json() as { id: string }
 
     await page.goto('/workspace')
     await expect(page.getByRole('heading', { name: '我的工作区' })).toBeVisible()
     // 列表已渲染真实数据：本测试创建的工作区可见（滚入视口避免长列表 off-screen），空态文案不出现。
-    const card = page.getByRole('button', { name: wsName })
+    const card = page.getByTestId(`workspace-card-${created.id}`)
     await expect(card).toBeAttached({ timeout: 10000 })
     await card.scrollIntoViewIfNeeded()
     await expect(card).toBeVisible()
+    await expect(card.getByText(wsName)).toBeVisible()
     await expect(page.getByText('暂无工作区，点击右上角新建')).not.toBeVisible()
   })
 })

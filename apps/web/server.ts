@@ -29,6 +29,7 @@ function loadLocalEnv() {
   for (const envPath of [
     path.resolve(process.cwd(), '.env.local'),
     path.join(repoRoot, '.env.local'),
+    path.join(repoRoot, 'docker/.acceptance.env'),
     path.join(repoRoot, 'docker/.p0-test.env'),
   ]) {
     loadEnvFile(envPath)

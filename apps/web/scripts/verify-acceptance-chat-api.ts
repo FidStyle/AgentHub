@@ -1,6 +1,6 @@
 /**
- * P0 /api/chat 集成测试
- * 验证：未登录 401 + local_desktop 明确 409 错误态 + cloud runtime 路径 + 消息持久化
+ * 验收 /api/chat 集成测试
+ * 验证：未登录 401 + 未连接 Desktop 时禁止创建 local_desktop workspace + cloud runtime 路径 + 消息持久化
  */
 export {}
 
@@ -43,7 +43,7 @@ async function main() {
   requireEnv('DATABASE_URL')
   requireEnv('TEST_AUTH_COOKIE')
 
-  console.log('\n=== P0 /api/chat 集成测试 ===\n')
+  console.log('\n=== Acceptance /api/chat 集成测试 ===\n')
 
   // 1. 未登录 → 401
   console.log('[1/4] 未登录请求 /api/chat')
@@ -54,31 +54,17 @@ async function main() {
   })
   assert(noAuthRes.status === 401, `未登录返回 401 (got ${noAuthRes.status})`)
 
-  // 2. 创建 local_desktop workspace + session → 409 明确只读错误
-  console.log('[2/4] local_desktop workspace → 409 只读错误态')
+  // 2. 未连接 Desktop 时，创建 local_desktop workspace 应在入口阶段被拒绝。
+  console.log('[2/4] 未连接 Desktop → local_desktop workspace 创建 409')
   const wsRes = await apiFetch('/api/workspaces', {
     method: 'POST',
     body: JSON.stringify({ name: `chat-test-local-${Date.now()}`, execution_domain: 'local_desktop' }),
   })
-  assert(wsRes.ok, `创建 local_desktop workspace (status ${wsRes.status})`)
-  const ws = await wsRes.json()
-
-  const sessRes = await apiFetch('/api/sessions', {
-    method: 'POST',
-    body: JSON.stringify({ workspace_id: ws.id, name: 'chat-test-session' }),
-  })
-  assert(sessRes.ok, `创建 session (status ${sessRes.status})`)
-  const sess = await sessRes.json()
-
-  const chatLocalRes = await apiFetch('/api/chat', {
-    method: 'POST',
-    body: JSON.stringify({ sessionId: sess.id, content: '你好' }),
-  })
-  assert(chatLocalRes.status === 409, `local_desktop /api/chat 返回 409 (got ${chatLocalRes.status})`)
-  const localBody = await chatLocalRes.json() as { error?: string }
+  assert(wsRes.status === 409, `local_desktop workspace 创建返回 409 (got ${wsRes.status})`)
+  const localBody = await wsRes.json() as { error?: string }
   assert(
-    typeof localBody.error === 'string' && localBody.error.includes('本地') && localBody.error.includes('只读'),
-    `local_desktop 返回中文只读错误 (${localBody.error ?? 'missing'})`,
+    typeof localBody.error === 'string' && localBody.error.includes('Desktop') && localBody.error.includes('未连接'),
+    `local_desktop 返回中文连接错误 (${localBody.error ?? 'missing'})`,
   )
 
   // 3. 创建 cloud workspace + session → runtime_status (gateway 路由)

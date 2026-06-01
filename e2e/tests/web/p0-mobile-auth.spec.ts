@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll } from '../../helpers/visual-assertions'
 
 test.describe('P0 Mobile /m/* 鉴权', () => {
@@ -10,7 +10,7 @@ test.describe('P0 Mobile /m/* 鉴权', () => {
   })
 
   test('登录后 /m 可正常访问', async ({ browser }) => {
-    const storageState = await ensureP0StorageState()
+    const storageState = await ensureAcceptanceStorageState()
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     await page.goto('/m')

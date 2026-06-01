@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 
 /**
  * ROLE-CHAT-NO-WORKER E2E — 真实 DB + 真实浏览器，public_cloud 无可用 worker。
  *
- * 关闭 REG-20260530-006 的另一半：无 worker / 未配置 endpoint 时，@架构师发送必须「立即」
+ * 关闭 REG-20260530-006 的另一半：无 worker / 未配置 endpoint 时，@Orchestrator 发送必须「立即」
  * 给出明确中文错误态，绝不空等 60s idle timeout，也绝不伪造 agent 成功回复。
- *   1. open /workspace/:id（cloud domain）→ 新建 session → @架构师 → 发送
+ *   1. open /workspace/:id（cloud domain）→ 新建 session → @Orchestrator → 发送
  *   2. POST /api/chat 必须在 60s idle timeout 之前快速返回（断言 < 15s，远低于 60s）
  *   3. UI 出现中文错误系统提示（公共云端 Runtime 未就绪/尚未配置）
  *   4. 该提示不带 role badge（系统态，非伪造 agent 回答）
@@ -25,10 +25,10 @@ test.describe('ROLE-CHAT-NO-WORKER 无 worker 立即错误态', () => {
         'ROLE-CHAT-NO-WORKER 需 Redis-但-无-worker 环境：请以 RUNTIME_E2E_NOWORKER=1 运行，不允许静默跳过无 worker 错误态门禁',
       )
     }
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
-  test('open workspace → @架构师 → 发送 → 立即中文错误态（不空等 60s，无 role badge）', async ({ browser }) => {
+  test('open workspace → @Orchestrator → 发送 → 立即中文错误态（不空等 60s，无 role badge）', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
 
@@ -49,10 +49,10 @@ test.describe('ROLE-CHAT-NO-WORKER 无 worker 立即错误态', () => {
     await page.getByRole('button', { name: '提及角色' }).click()
     const picker = page.getByTestId('role-picker')
     await expect(picker).toBeVisible()
-    await picker.getByText('@架构师').click()
+    await picker.getByText('@Orchestrator').click()
 
     const msg = `NOWORKER-ASK-${ts}`
-    await page.getByPlaceholder(/输入消息/).fill(msg)
+    await page.getByTestId('composer-input').fill(msg)
 
     // 关键断言：POST /api/chat 必须远早于 60s idle timeout 完成（无空等）。
     const started = Date.now()
@@ -69,7 +69,7 @@ test.describe('ROLE-CHAT-NO-WORKER 无 worker 立即错误态', () => {
     const notice = page.locator('.bg-muted p', { hasText: /Runtime (未就绪|尚未配置)/ })
     await expect(notice.first()).toBeVisible({ timeout: 10000 })
 
-    // 该提示为系统态：不得带 role badge（不能伪造成 @架构师 的真实回答）。
+    // 该提示为系统态：不得带 role badge（不能伪造成 @Orchestrator 的真实回答）。
     await expect(page.getByTestId('message-role-badge')).toHaveCount(0)
 
     await context.close()

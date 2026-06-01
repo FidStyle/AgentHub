@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll } from '../../helpers/visual-assertions'
 
 test.describe('WORKSPACE-LOCAL-DESKTOP-UAT Web workspace 真实可用性', () => {
   let storageState: string
 
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
   test('状态栏/返回入口/附件上传/Agents CRUD/@角色同步/本地工作区门禁', async ({ browser }) => {
@@ -60,7 +60,7 @@ test.describe('WORKSPACE-LOCAL-DESKTOP-UAT Web workspace 真实可用性', () =>
     const chatResponsePromise = page.waitForResponse(
       (r) => r.url().includes('/api/chat') && r.request().method() === 'POST',
     )
-    await page.getByPlaceholder(/输入消息/).fill(`请读取附件 ${ts}`)
+    await page.getByTestId('composer-input').fill(`请读取附件 ${ts}`)
     await page.getByRole('button', { name: /发送/ }).click()
     const chatResponse = await chatResponsePromise
     expect(chatResponse.ok()).toBeTruthy()

@@ -1,5 +1,5 @@
 /**
- * P0 端到端真实 API CRUD smoke 验证
+ * 端到端验收真实 API CRUD smoke 验证
  * 要求环境变量：DATABASE_URL + TEST_AUTH_COOKIE
  * TEST_AUTH_COOKIE 必须对应 Auth.js database session 表中的真实 session token。
  * 验证链路：创建 workspace → 创建 session → 创建 message → GET 验证持久化
@@ -28,10 +28,10 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
 async function main() {
   requireEnv('DATABASE_URL')
   if (!process.env.TEST_AUTH_COOKIE) {
-    throw new Error('缺少认证凭据: 需要 TEST_AUTH_COOKIE。先运行 pnpm env:p0:seed 生成测试 session。')
+    throw new Error('缺少认证凭据: 需要 TEST_AUTH_COOKIE。先运行 pnpm env:acceptance:seed 生成测试 session。')
   }
 
-  console.log('=== P0 API CRUD Smoke 验证 ===')
+  console.log('=== Acceptance API CRUD Smoke 验证 ===')
   console.log(`BASE_URL: ${BASE_URL}`)
 
   // 1. 创建 workspace

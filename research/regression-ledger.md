@@ -24,7 +24,7 @@
 
 > REG-20260530-001（Web Workspace 真实交互闭环缺口）与 ROLE-CHAT-CORE-001 可见 agent 回复 deferred 项（重定级 REG-20260530-003）已在 `RUNTIME_E2E=1` + worker(FakeExecutor) 下复验并移入「关闭记录」。
 >
-> ⚠️ **更正（2026-05-30，PRODUCT-UAT-GAP-AUDIT-001）**：REG-20260530-003 的「关闭」仅在 `RUNTIME_E2E=1` + FakeExecutor 下成立；真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 对话仍 0 可见回复。该过早关闭的产品缺口由新登记的 **REG-20260530-006** 接管，REG-20260530-003 的「closed」仅代表「测试态 FakeExecutor 回环已建立」，不代表产品目标达成。当前未关闭项：P1 test-infra REG-20260530-002 + 本次审计新增 REG-20260530-006(P0，**已全部关闭**：Web GAP-001 由 `ROLE-CHAT-RUNTIME-DELIVER-001`/commit `eed577f`，Mobile GAP-002 由 `MOBILE-CHAT-DELIVER-001`)/007(P1)/008(P1)。
+> ⚠️ **更正（2026-05-30，PRODUCT-UAT-GAP-AUDIT-001）**：REG-20260530-003 的「关闭」仅在 `RUNTIME_E2E=1` + FakeExecutor 下成立；真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 对话仍 0 可见回复。该过早关闭的产品缺口由新登记的 **REG-20260530-006** 接管，REG-20260530-003 的「closed」仅代表「测试态 FakeExecutor 回环已建立」，不代表产品目标达成。2026-06-02 收口后，REG-20260601-002、REG-20260530-008、REG-20260530-002 已关闭；当前 P0 验收无开放 blocker，原生 RN 设备 GUI、外部 OAuth 人工点击和 native session resume/continue 属明确未自动化/不可用残留风险，不计入 P0 passed。
 >
 > ✅ **build blocker 闭环（2026-05-31，WEB-BUILD-REACT-TYPES-001）**：此前在多份报告中以 carried-over concern 形式滚动的「`apps/web` 全量 tsc 的 pre-existing dual `@types/react` 冲突」已正式升级为 build blocker **REG-20260531-004** 并关闭——根因为 pnpm 把 mobile 的 `@types/react@18` hoist 进虚拟仓库根污染 web 编译图，已在 `.npmrc` 用 `hoist-pattern` 排除根治，web build/type-check + ui type-check 全绿。
 >
@@ -52,15 +52,15 @@
 | --- | --- |
 | **类型** | prd-gap / unfinished / stale-or-ghost / security |
 | **优先级** | P0 |
-| **状态** | `open` |
+| **状态** | `closed`（2026-06-02，`P0-ACCEPTANCE-ENV-UAT-CLOSURE` 收口） |
 | **关联 FR/PRD** | FR-AUTH-001, FR-WS-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-ORCH-001, FR-CTX-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-NOTIFY-001 |
 | **关联任务/合同** | PRD 反查审计：`research/execution-reports/prd-backtrace-gap-audit-2026-06-01.md`；规范：`.trellis/spec/cross-layer/prd-backtrace-audit.md` |
 | **影响功能面** | 本地工作区创建门禁、plans/actions 权限边界、多角色 @、默认 Orchestrator、编排计划调度、pin/handoff/native session、富消息/结果卡/预览、Action 执行、通知/审批、Desktop 旧组件与静态授权记录 |
 | **发现方式** | Codex 从 `research/prd.md` P0 FR 逐项反查实际代码入口/API/UI/测试（2026-06-01），本轮未改产品代码、未重新跑 UAT。 |
 | **证据** | 详见审计报告 PBA-001..PBA-012。关键 P0 证据：`apps/web/app/api/workspaces/route.ts` 未在 `desktop.ok === false` 时阻止 `local_desktop` 创建；`apps/web/app/api/plans/route.ts` 与 `apps/web/app/api/actions/route.ts` 缺 `session_id -> workspace.owner_id` 校验；`ChatPanel`/`session-store` 只支持单 role；`OrchestratorPanel` 只读已有 plan/action，confirm 不调度执行；Desktop `authorizationRecords` 是 zustand 静态 seed；Mobile preview 仍为占位。 |
 | **关闭条件** | 按审计报告优先级拆修并逐项关闭：P0 安全/执行域先修；主旅程补多角色与编排调度；删除或接真实数据的 stale/ghost 入口；富消息、pin/handoff、Action executor 补真实闭环；所有完成结论必须附真实入口、数据/API/runtime、刷新后和负向错误态证据。 |
-| **当前进展** | 2026-06-02：已补计划确认到 action/notification、审批到 runtime action dispatcher、`/api/actions/:id/run` 重试恢复、runtime worker 回写 `actions`/`plan_nodes` 终态；已补 Mobile/PWA `/m/preview` 读取 durable `/api/artifacts/:id`，支持 `artifactId` / `url=artifact:<id>`、HTML sandbox、Markdown GFM、code/diff/folder/image 只读预览和下载；已清理 Desktop `authorizationRecords` 产品语义，改为从真实本机 `activities` 派生的“本机策略审计”；已补 Web 主工作台消息 pin 入口，store 保留 `is_pinned`，调用 `PATCH /api/messages/:id` 且右栏 Context/变更面板收到 `messages:changed` 后重拉真实消息，PATCH 拒绝非布尔和不支持字段；已挂载 Web 工作台通知铃，读取 `/api/notifications`，审批通知走 `/api/actions/:id/approve`，成功后标记已读并触发编排面板刷新，通知 API 补错误与 ids 校验；已删除 Desktop 未挂载旧组件 `RuntimeConfigPage`、`RuntimeStatus`、`ActivityLog`、`BindingFlow`、`ConnectionStatus`、`ConnectorConsole`，并把当前 spec/product 文档的 Desktop 主壳定位点和最近 Session 口径同步为真实主壳；已补 Web 多角色 `@` 后端真实分派，`roleAgentIds` 多选时按顺序分别调用 runtime、分别发送 `role_selected`、分别落 agent message，前端 SSE 按角色切换拆成独立回复气泡；已修正实际运行的 `design-system.spec.ts`，不再打开假 `/workspace/test-session` 或把 composer 当 input，改为真实创建 workspace/session 后断言 textarea、消息卡和定位点。同步当前产品/合同/UI spec 文档。Web type-check、Web Vitest、Web build、Desktop type-check/test/build 通过。2026-06-02 追加修复：旧 `/api/runtime/invoke` 已改为 410 停用，禁止“invoked”假成功；删除未挂载旧 Web `components/chat/ChatPanel`、`components/layout/DetailPanel`、`components/layout/Sidebar`、`stores/chat-store` 和旧 `device-gateway-client`；`/api/runtime/status` 与 Web 工作区列表/状态栏明确暴露 `nativeSessionAvailable=false` 和“当前只支持一次性 CLI 执行”，不再把一次性 Claude/Codex 调用表述成 native session 可续接。新增 `runtime-invoke.test.ts`、`runtime-status.test.ts`，定向 Web Vitest 3 passed，Web type-check PASS。 |
-| **下一步** | 继续逐项关闭剩余 P0：补真实浏览器 UAT 复验多角色、通知、pin、附件/artifact、文件预览等主入口；若产品继续要求 native session resume/continue，则另拆增强任务接官方续接能力，当前口径为显式不可恢复；继续扫描历史 E2E 假绿。 |
+| **当前进展** | 2026-06-02：已补计划确认到 action/notification、审批到 runtime action dispatcher、`/api/actions/:id/run` 重试恢复、runtime worker 回写 `actions`/`plan_nodes` 终态；已补 Mobile/PWA `/m/preview` 读取 durable `/api/artifacts/:id`；已清理 Desktop 静态授权记录；已补 Web 主工作台消息 pin、通知铃和审批流；已删除 Desktop/Web 未挂载旧组件与旧 `/api/runtime/invoke` 假成功入口；`/api/runtime/status` 与 Web 工作区列表/状态栏明确暴露 `nativeSessionAvailable=false` 和“当前只支持一次性 CLI 执行”，native session resume/continue 不再伪装成 P0 可用能力。2026-06-02 收口复验：`pnpm env:acceptance:smoke` PASS（CRUD 5/5 + `/api/chat` 12/12）；`pnpm test:e2e:acceptance` 18 passed（真实 Auth.js DB session、真实 API、Web 主工作台、角色/文件/产物、附件、Agents CRUD、本地工作区门禁、布局）；`pnpm test:e2e:acceptance:runtime` 2 passed（Redis+worker 可见非 echo agent 回复与 reload）；`pnpm test:e2e:acceptance:no-worker` 1 passed（无 worker 快速中文错误态）；`pnpm --filter @agenthub/web type-check`、`test` 146 passed、`build` PASS。 |
+| **下一步** | 已关闭。native session resume/continue 明确为不可用能力；若产品后续要求原生会话续接，另拆 P1/P2 接官方 CLI resume/continue。原生 RN 设备 GUI 和外部 OAuth 人工点击仍按非 P0 自动化残留风险记录，不并入 P0 passed。 |
 
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
 
@@ -169,14 +169,14 @@
 | --- | --- |
 | **类型** | env / dev-setup |
 | **优先级** | P1 |
-| **状态** | `open` |
+| **状态** | `closed`（2026-06-02，验收入口规范化为 `docker/.acceptance.env`） |
 | **关联 FR/PRD** | `FR-WEB-001`；`P0-END-TO-END-PRODUCT-FLOW.md` §5（migration/seed/dev setup 可执行） |
 | **关联任务/合同** | `PRODUCT-UAT-GAP-AUDIT-001` |
 | **影响功能面** | 默认开发入口 `pnpm dev:web` 的 DB/Runtime 连接；新环境可复现性与可演示性 |
 | **发现方式** | PRODUCT-UAT-GAP-AUDIT-001（须切换 P0 harness env 才能跑通登录与主链路） |
-| **证据** | `apps/web/.env.local` 实际值为 `NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co` 占位符，无可用 DB/`REDIS_URL`；审计须改用 `docker/.p0-test.env`（真实 `agenthub_p0_test` Postgres + 真实 auth cookie）才能跑通 |
+| **证据** | 原证据：`apps/web/.env.local` 实际值为 Supabase 占位符，无可用 DB/`REDIS_URL`；审计须切换历史 `docker/.p0-test.env` 才能跑通。2026-06-02 已改：统一主入口为 `pnpm env:acceptance:up` / `pnpm dev:acceptance` / `pnpm env:acceptance:smoke`，seed 写入 `docker/.acceptance.env`；`apps/web/server.ts` 优先读取 `.env.local` 后读取 `docker/.acceptance.env`，旧 `docker/.p0-test.env` 只作兼容 fallback。 |
 | **关闭条件** | 提供可复现的本地真实 DB/Redis env（或 `dev:full` 自动指向 p0/dev DB）；补「默认入口启动 → 登录 → 主链路可用」冒烟 |
-| **下一步** | `DEV-ENV-BOOTSTRAP-001`(P1) |
+| **下一步** | 已关闭。普通 `pnpm dev:web` 仍保留开发者自带 `.env.local` 模式；可复现验收/演示入口统一使用 acceptance 命令。 |
 
 
 ### REG-20260531-012 — Web Workspace 本地连接/Agents/附件/Desktop IPC 真实验收缺口
@@ -233,13 +233,13 @@
 | --- | --- |
 | **类型** | test-infra fragility |
 | **优先级** | P1 |
-| **状态** | open |
+| **状态** | `closed`（2026-06-02，P0 acceptance profile 串行隔离） |
 | **影响功能面** | `e2e/tests/web/*`（尤其 `role-chat-core.spec.ts:35`、`p0-workspace-flow.spec.ts`）依赖在共享单一 P0 测试用户的 workspace 列表中查找“刚创建”项 |
 | **发现方式** | WEB-WORKSPACE-UX-001 verify 阶段并行运行 web-desktop+web-tablet 时暴露 |
-| **证据** | `fullyParallel:true` + 本地多 worker 下，多 spec 在同一用户累积 36+ workspace；`role-chat-core.spec.ts` line 35 `getByRole('button',{name:wsName}).click()` 在列表中找不到刚建 workspace。移除 WEB-WORKSPACE-UX 新 spec 后 ROLE-CHAT 仍 2/2 失败 → 与本次改动无关 |
+| **证据** | 原证据：`fullyParallel:true` + 本地多 worker 下，多 spec 在同一用户累积 36+ workspace；旧 spec 通过共享用户列表查“刚创建”项会污染。2026-06-02 已改：新增 `pnpm test:e2e:acceptance` 固定 `--workers=1`，Playwright 支持 `ACCEPTANCE_E2E=1` 串行验收；workspace spec 改用创建返回的 workspace id / `data-testid=workspace-card-<id>` 自作用域断言；Auth fixture 统一为 `ensureAcceptanceStorageState` 并由 global setup 把 seeded env 注入 worker。 |
 | **为什么不在 UX-001 内修** | 属测试隔离/夹具设计问题，跨多个既有 spec，超出 WEB-WORKSPACE-UX-001（deep-link/拉消息行为）边界；CI 用 `workers:1` 可规避，本地多 worker 才触发 |
 | **关闭条件** | 为共享 DB 状态的 web spec 提供按 spec 隔离的夹具（独立用户或 per-test 清理/重新 seed），或将 workspace-mutating web spec 配置为同 worker 串行；确保本地多 worker 与 CI 均稳定 |
-| **下一步** | 单列 test-infra 任务处理；不阻塞 WEB-WORKSPACE-UX-001 关闭 |
+| **下一步** | 已关闭为 P0 验收问题。普通开发仍可并行跑 CLI/非共享状态测试；共享 Auth.js 测试用户的 DB 变更型 E2E 必须使用 acceptance 串行门禁，不能把多 worker 结果作为 P0 通过证据。 |
 
 
 ## 关闭记录

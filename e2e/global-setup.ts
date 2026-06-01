@@ -49,10 +49,12 @@ async function waitForWorkerAlive(timeout = 30000): Promise<void> {
 
 async function globalSetup(_config: FullConfig) {
   const rootDir = path.resolve(__dirname, '..')
-  execFileSync('pnpm', ['env:p0:db:up'], { cwd: rootDir, stdio: 'inherit' })
-  execFileSync('pnpm', ['env:p0:seed:fixture'], { cwd: rootDir, stdio: 'inherit' })
+  execFileSync('pnpm', ['env:acceptance:db:up'], { cwd: rootDir, stdio: 'inherit' })
+  execFileSync('pnpm', ['env:acceptance:seed:fixture'], { cwd: rootDir, stdio: 'inherit' })
 
-  const envFile = path.join(rootDir, 'docker/.p0-test.env')
+  const envFile = fs.existsSync(path.join(rootDir, 'docker/.acceptance.env'))
+    ? path.join(rootDir, 'docker/.acceptance.env')
+    : path.join(rootDir, 'docker/.p0-test.env')
   const seededEnv = Object.fromEntries(
     fs.readFileSync(envFile, 'utf8')
       .split('\n')
@@ -62,6 +64,7 @@ async function globalSetup(_config: FullConfig) {
         return [line.slice(0, index), line.slice(index + 1)]
       }),
   )
+  Object.assign(process.env, seededEnv)
 
   // Real runtime reply path (RUNTIME_E2E=1): bring up Redis + a worker (ScriptedRealExecutor) wired
   // to the same p0 DB, and expose REDIS_URL to the web server so the public_cloud gateway enqueues

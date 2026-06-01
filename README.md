@@ -6,30 +6,36 @@
 pnpm install
 ```
 
-## 本地数据库
+## 本地验收环境
 
-启动 P0 本地 Postgres：
+一键准备本地验收 Postgres、Redis 和 Auth.js 测试 session：
 
 ```bash
-pnpm env:p0:db:up
+pnpm env:acceptance:up
 ```
 
-初始化 schema / seed：
+启动 Web 和 runtime worker：
 
 ```bash
-pnpm env:p0:seed
+pnpm dev:acceptance
 ```
 
-空库需要测试 fixture 时：
+API smoke：
 
 ```bash
-pnpm env:p0:seed:fixture
+pnpm env:acceptance:smoke
 ```
 
-停止数据库：
+验收 E2E 使用串行 worker，避免共享 Auth.js 测试用户并发改同一套 DB 状态：
 
 ```bash
-pnpm env:p0:db:down
+pnpm test:e2e:acceptance
+```
+
+停止验收容器：
+
+```bash
+pnpm env:acceptance:down
 ```
 
 更多数据库说明见 `docker/README.md`。
@@ -130,8 +136,8 @@ pnpm test:e2e
 pnpm test:e2e:desktop
 ```
 
-P0 API smoke：
+验收 API smoke：
 
 ```bash
-pnpm env:p0:smoke
+pnpm env:acceptance:smoke
 ```

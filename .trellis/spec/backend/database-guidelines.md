@@ -52,32 +52,33 @@ Questions to answer:
 
 ---
 
-## Scenario: P0 Auth.js Test Session Seed
+## Scenario: Acceptance Auth.js Test Session Seed
 
 ### 1. Scope / Trigger
 
-- Trigger: P0 smoke/E2E needs a real Auth.js database session that can pass `auth()` and exercise real Workspace/Session/Message APIs.
+- Trigger: acceptance smoke/E2E needs a real Auth.js database session that can pass `auth()` and exercise real Workspace/Session/Message APIs.
 - The seed must never mock API route auth or bypass ownership checks with headers such as `X-Test-User-Id`.
 
 ### 2. Signatures
 
-- Command: `pnpm env:p0:seed`
-- Fixture command: `pnpm env:p0:seed:fixture`
-- Smoke command: `pnpm env:p0:smoke`
+- Command: `pnpm env:acceptance:seed`
+- Fixture command: `pnpm env:acceptance:seed:fixture`
+- Smoke command: `pnpm env:acceptance:smoke`
 - DB tables: `public."user"`, `public.account`, `public.session`.
 
 ### 3. Contracts
 
-- `pnpm env:p0:seed`:
+- `pnpm env:acceptance:seed`:
   - Loads `apps/web/.env.local` when process env does not already define a key.
   - Looks for an existing `account.provider = 'github'` row joined to `public."user"`.
   - Supports optional filters `TEST_GITHUB_ACCOUNT_ID` and `TEST_USER_EMAIL`.
-  - Writes `docker/.p0-test.env` with `DATABASE_URL`, `AUTH_TRUST_HOST`, `AUTH_SECRET`, `TEST_USER_ID`, `TEST_USER_EMAIL`, `TEST_GITHUB_ACCOUNT_ID`, `TEST_AUTH_SESSION_TOKEN`, and `TEST_AUTH_COOKIE`.
-- `pnpm env:p0:seed:fixture`:
-  - Sets `P0_CREATE_GITHUB_FIXTURE=true`.
+  - Writes `docker/.acceptance.env` with `DATABASE_URL`, `AUTH_TRUST_HOST`, `AUTH_SECRET`, `TEST_USER_ID`, `TEST_USER_EMAIL`, `TEST_GITHUB_ACCOUNT_ID`, `TEST_AUTH_SESSION_TOKEN`, and `TEST_AUTH_COOKIE`.
+  - Legacy `docker/.p0-test.env` may be read for compatibility, but it is not the canonical acceptance entry.
+- `pnpm env:acceptance:seed:fixture`:
+  - Sets `ACCEPTANCE_CREATE_GITHUB_FIXTURE=true`.
   - Creates or updates a real DB `user` row and a test `account(provider='github')` row.
   - This simulates GitHub binding for automated tests; it is not proof that real browser OAuth completed.
-- `pnpm env:p0:smoke`:
+- `pnpm env:acceptance:smoke`:
   - Uses `TEST_AUTH_COOKIE=authjs.session-token=<token>`.
   - Must call real API routes and verify persistence by rereading DB-backed API results.
 
@@ -91,32 +92,32 @@ Questions to answer:
 
 ### 5. Good/Base/Bad Cases
 
-- Good: a real OAuth-created Auth.js user exists; `pnpm env:p0:seed` only creates a session for that user.
-- Base: local empty DB; `pnpm env:p0:seed:fixture` creates a DB user plus GitHub account row, then smoke passes.
+- Good: a real OAuth-created Auth.js user exists; `pnpm env:acceptance:seed` only creates a session for that user.
+- Base: local empty DB; `pnpm env:acceptance:seed:fixture` creates a DB user plus GitHub account row, then smoke passes.
 - Bad: seed creates a user silently in default mode, then reports OAuth-linked coverage.
 
 ### 6. Tests Required
 
 - Type-check `apps/web`.
 - Build `apps/web`.
-- Run `pnpm env:p0:seed:fixture`.
-- Start the built web server with `docker/.p0-test.env`, then run `pnpm env:p0:smoke`.
+- Run `pnpm env:acceptance:seed:fixture`.
+- Start the built web server with `docker/.acceptance.env`, then run `pnpm env:acceptance:smoke`.
 
 ### 7. Wrong vs Correct
 
 #### Wrong
 
 ```bash
-pnpm env:p0:seed
+pnpm env:acceptance:seed
 # silently creates a fake user when no GitHub account exists
 ```
 
 #### Correct
 
 ```bash
-pnpm env:p0:seed
+pnpm env:acceptance:seed
 # strict: uses existing GitHub-linked account or fails
 
-pnpm env:p0:seed:fixture
+pnpm env:acceptance:seed:fixture
 # explicit: creates a real DB fixture user and test GitHub account row
 ```

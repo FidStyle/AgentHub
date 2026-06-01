@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 
 /**
  * MOBILE-CHAT-DELIVER-001 E2E — 真实 DB + 真实 auth，移动视口（iPhone 14, mobile-pwa project）。
@@ -29,7 +29,7 @@ test.describe('MOBILE-CHAT-DELIVER Mobile 发送走 /api/chat runtime 链路', (
           'RUNTIME_E2E_NOWORKER=1（无 worker，断言明确错误态）运行，不允许静默跳过 P0 闭环门禁',
       )
     }
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
   test('登录 → /m → 进 session → 发送 → /api/chat 被调用 → 可见回复或明确错误态 → reload 持久化', async ({ browser }) => {
@@ -68,8 +68,7 @@ test.describe('MOBILE-CHAT-DELIVER Mobile 发送走 /api/chat runtime 链路', (
     })
 
     const msg = `MOBILE-DELIVER-ASK-${ts}`
-    // 等默认角色解析就绪（发送按钮在 defaultRole 解析前禁用，避免无角色上下文发送）——
-    // “将发送给 @架构师” 提示即就绪信号，消除 role-agents 异步加载竞态。
+    // 等默认角色解析就绪（发送按钮在 defaultRole 解析前禁用，避免无角色上下文发送）。
     await expect(page.getByText(/将发送给 @/)).toBeVisible({ timeout: 10000 })
     await page.getByPlaceholder(/输入消息/).fill(msg)
     await page.getByRole('button', { name: /发送/ }).click()
@@ -78,10 +77,10 @@ test.describe('MOBILE-CHAT-DELIVER Mobile 发送走 /api/chat runtime 链路', (
     await expect(page.locator('.bg-primary', { hasText: msg }).first()).toBeVisible({ timeout: 10000 })
 
     if (workerMode) {
-      // 有 worker：必须出现可见非 echo agent 回复，带 role badge（默认架构师角色上下文）。
+      // 有 worker：必须出现可见非 echo agent 回复，带 role badge（默认 Orchestrator 角色上下文）。
       const badge = page.getByTestId('message-role-badge')
       await expect(badge.first()).toBeVisible({ timeout: 30000 })
-      await expect(badge.first()).toHaveText(/架构师/)
+      await expect(badge.first()).toHaveText(/Orchestrator/)
       const agentReply = page.locator('.bg-muted p').first()
       await expect(agentReply).toBeVisible({ timeout: 30000 })
       await expect(agentReply).not.toHaveText('')

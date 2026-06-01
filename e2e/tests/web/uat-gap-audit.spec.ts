@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 
 /**
  * PRODUCT-UAT-GAP-AUDIT-001 — 只读真实浏览器审计（不修复、不断言已知答案）。
@@ -20,7 +20,7 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
   let storageState: string
 
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
     if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true })
   })
 
@@ -31,7 +31,7 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
     )
   })
 
-  test('cloud workspace：@架构师发送后用户能否看到真实回复', async ({ browser }) => {
+  test('cloud workspace：@Orchestrator 发送后用户能否看到真实回复', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     const ts = Date.now()
@@ -52,14 +52,14 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
     await page.getByRole('button', { name: '提及角色' }).click()
     const picker = page.getByTestId('role-picker')
     await picker.waitFor({ state: 'visible' }).catch(() => {})
-    const architect = picker.getByText('@架构师')
-    const hasArchitect = await architect.count()
-    record('role-picker', { architect_visible: hasArchitect > 0 })
-    if (hasArchitect > 0) await architect.first().click()
+    const orchestrator = picker.getByText('@Orchestrator')
+    const hasOrchestrator = await orchestrator.count()
+    record('role-picker', { orchestrator_visible: hasOrchestrator > 0 })
+    if (hasOrchestrator > 0) await orchestrator.first().click()
 
     const chatResp = page.waitForResponse((r) => r.url().includes('/api/chat'), { timeout: 15000 })
     const msg = `AUDIT-ASK-${ts}`
-    await page.getByPlaceholder(/输入消息/).fill(msg)
+    await page.getByTestId('composer-input').fill(msg)
     await page.getByRole('button', { name: /发送/ }).click()
     let chatStatus = -1
     try { chatStatus = (await chatResp).status() } catch { /* no resp */ }
@@ -83,7 +83,7 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
 
     record('cloud-architect-reply', {
       chat_http_status: chatStatus,
-      user_message_visible: (await page.locator('.bg-primary\\/10', { hasText: msg }).count()) > 0,
+      user_message_visible: (await page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg }).count()) > 0,
       saw_real_agent_reply: sawReply,
       saw_runtime_notice: sawNotice,
       notice_text: noticeText,
@@ -98,14 +98,14 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
     await page.waitForLoadState('domcontentloaded')
     await page.waitForTimeout(1500)
     record('reload-persistence', {
-      user_msg_after_reload: (await page.locator('.bg-primary\\/10', { hasText: msg }).count()) > 0,
+      user_msg_after_reload: (await page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg }).count()) > 0,
       agent_badge_after_reload: (await page.getByTestId('message-role-badge').count()) > 0,
     })
 
     await context.close()
   })
 
-  test('artifact 面板：产物/上下文/Agents 是否呈现真实数据', async ({ browser }) => {
+  test('artifact 面板：角色/产物是否呈现真实数据', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     const res = await page.request.get('/api/workspaces')

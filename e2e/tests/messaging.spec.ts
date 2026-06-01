@@ -20,7 +20,7 @@ const workerMode = process.env.RUNTIME_E2E === '1'
 test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
   test.skip(!hasAuth, 'DEFERRED：需真实 DB session（TEST_AUTH_COOKIE/TEST_AUTH_STORAGE_STATE），CI 无真实 Supabase 时跳过')
 
-  test('真实 workspace → 新建会话 → @架构师 → 发送 → /api/chat 被调用 → 回复或明确错误态 → reload 持久化', async ({ authedPage: page }) => {
+  test('真实 workspace → 新建会话 → @Orchestrator → 发送 → /api/chat 被调用 → 回复或明确错误态 → reload 持久化', async ({ authedPage: page }) => {
     const ts = Date.now()
     const wsResp = await page.request.post('/api/workspaces', {
       data: { name: `E2E-MSG-${ts}`, execution_domain: 'cloud' },
@@ -34,12 +34,12 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
     await page.getByRole('button', { name: '新建会话' }).click()
     await expect(page.getByTestId('session-list')).toBeVisible()
 
-    // 打开 @角色选择器，默认架构师自动 seed
+    // 打开 @角色选择器，默认 Orchestrator 自动 seed
     await page.getByRole('button', { name: '提及角色' }).click()
     const picker = page.getByTestId('role-picker')
     await expect(picker).toBeVisible()
-    await picker.getByText('@架构师').click()
-    await expect(page.getByTestId('selected-role')).toHaveText(/架构师/)
+    await picker.getByText('@Orchestrator').click()
+    await expect(page.getByTestId('selected-role')).toHaveText(/Orchestrator/)
 
     // 监听 POST /api/chat 被调用（修复前根本不发真实请求）
     let chatCalled = false
@@ -48,7 +48,7 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
     })
 
     const msg = `E2E-MSG-ASK-${ts}`
-    await page.getByPlaceholder(/输入消息/).fill(msg)
+    await page.getByTestId('composer-input').fill(msg)
     const [chatRes] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('/api/chat') && r.request().method() === 'POST'),
       page.getByRole('button', { name: /发送/ }).click(),
@@ -57,13 +57,13 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
     expect(chatRes.ok()).toBeTruthy()
 
     // 用户气泡先可见（真实落库，定位真实 .bg-primary/10 而非过期 .bg-blue-500）
-    await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
 
     if (workerMode) {
       // 有 worker：断言可见非 echo agent 回复 + role badge
       const badge = page.getByTestId('message-role-badge')
       await expect(badge.first()).toBeVisible({ timeout: 30000 })
-      await expect(badge.first()).toHaveText(/架构师/)
+      await expect(badge.first()).toHaveText(/Orchestrator/)
       const agentReply = page.locator('.bg-muted p').first()
       await expect(agentReply).toBeVisible({ timeout: 30000 })
       await expect(agentReply).not.toHaveText('')
@@ -72,7 +72,7 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
 
       await page.reload()
       await page.waitForLoadState('domcontentloaded')
-      await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
       await expect(page.getByTestId('message-role-badge').first()).toBeVisible({ timeout: 10000 })
     } else {
       // 无 worker / public_cloud unconfigured：发送必须立即出现明确中文错误/系统提示，绝不静默仅存用户消息。
@@ -86,7 +86,7 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
       // reload：用户消息持久化；错误态不被误存为 agent 回复
       await page.reload()
       await page.waitForLoadState('domcontentloaded')
-      await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
       await expect(page.getByTestId('message-role-badge')).toHaveCount(0)
     }
 

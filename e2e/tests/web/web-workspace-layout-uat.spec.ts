@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import {
   assertNoHorizontalScroll,
   assertNoElementOverlap,
@@ -39,7 +39,7 @@ async function seedWorkspace(page: Page) {
 test.describe('Web workspace 桌面三栏布局几何', () => {
   let storageState: string
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
   for (const vp of [
@@ -120,7 +120,7 @@ test.describe('Web workspace 窄屏（移动宽度）布局', () => {
   test.use({ viewport: { width: 768, height: 1024 } })
   let storageState: string
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
   test('768 窄屏：单列聊天为主 + 右栏 overlay 不挤压 + 左栏入口可开', async ({ browser }) => {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ensureP0StorageState } from '../../helpers/auth-state'
+import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/visual-assertions'
 
 /**
@@ -15,7 +15,7 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
   let storageState: string
 
   test.beforeAll(async () => {
-    storageState = await ensureP0StorageState()
+    storageState = await ensureAcceptanceStorageState()
   })
 
   test('创建工作区 → 默认 Orchestrator → @Orchestrator 选择 → 发送持久化 → reload 保留', async ({ browser }) => {

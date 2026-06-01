@@ -4,7 +4,8 @@ import { resolve } from 'path'
 import { spawn } from 'child_process'
 
 const repoRoot = resolve(new URL('..', import.meta.url).pathname)
-const envFile = resolve(repoRoot, 'docker/.p0-test.env')
+const envFile = resolve(repoRoot, 'docker/.acceptance.env')
+const legacyEnvFile = resolve(repoRoot, 'docker/.p0-test.env')
 
 function parseEnvFile(file) {
   if (!existsSync(file)) return {}
@@ -47,8 +48,9 @@ function spawnLong(command, args, env) {
 async function up() {
   await run('docker', ['compose', '-f', 'docker/docker-compose.p0-test.yml', 'up', '-d', 'postgres'])
   await run('docker', ['compose', '-f', 'docker/docker-compose.runtime.yml', 'up', '-d', 'redis'])
-  await run('pnpm', ['env:p0:seed'], { env: { P0_CREATE_GITHUB_FIXTURE: 'true' } })
+  await run('pnpm', ['env:acceptance:seed'], { env: { ACCEPTANCE_CREATE_GITHUB_FIXTURE: 'true' } })
   console.log('\n验收基础环境已准备：Postgres、Redis、测试 Auth session。')
+  console.log('环境文件：docker/.acceptance.env')
   console.log('启动 Web + runtime worker：pnpm dev:acceptance')
   console.log('另开终端运行 smoke：pnpm env:acceptance:smoke')
 }
@@ -59,13 +61,13 @@ async function down() {
 }
 
 async function smoke() {
-  const fileEnv = parseEnvFile(envFile)
+  const fileEnv = { ...parseEnvFile(legacyEnvFile), ...parseEnvFile(envFile) }
   const env = { ...process.env, ...fileEnv }
   if (!env.TEST_AUTH_COOKIE) {
     throw new Error('缺少 TEST_AUTH_COOKIE。请先运行 pnpm env:acceptance:up 生成测试 session。')
   }
-  await run('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'scripts/verify-p0-api-crud.ts'], { env })
-  await run('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'scripts/verify-p0-chat-api.ts'], {
+  await run('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'scripts/verify-acceptance-api-crud.ts'], { env })
+  await run('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'scripts/verify-acceptance-chat-api.ts'], {
     env: {
       ...env,
       REDIS_URL: env.REDIS_URL ?? 'redis://localhost:6379',
@@ -75,7 +77,7 @@ async function smoke() {
 
 async function dev() {
   await up()
-  const fileEnv = parseEnvFile(envFile)
+  const fileEnv = { ...parseEnvFile(legacyEnvFile), ...parseEnvFile(envFile) }
   const env = {
     ...process.env,
     ...fileEnv,

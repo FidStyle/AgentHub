@@ -1,0 +1,8 @@
+{"file":"research/regression-ledger.md","reason":"P0/P1 未关闭项和关闭条件的公开台账"}
+{"file":"research/project-tracker.md","reason":"P0 验收环境、Web E2E 和最终 UAT 状态事实源"}
+{"file":"research/contracts/ACCEPTANCE-HARDENING-2026-06-01.md","reason":"P0 验收前全功能硬化合同"}
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"真实 runtime、Web/Desktop/Mobile 主链路验收合同"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"防止 mock、skip、文件存在检查被写成 P0 通过"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"真实 DB/API/session/runtime 主链路验收口径"}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"审计旧入口、假绿和未挂载组件残留"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Auth.js 测试 session seed 和 acceptance 环境规范"}
