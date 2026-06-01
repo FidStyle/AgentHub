@@ -5,6 +5,8 @@ import { getReadyNodes } from '@/lib/orchestrator/dag-scheduler'
 import type { PlanNode } from '@agenthub/shared'
 import { DEFAULT_POLICIES } from '@agenthub/shared'
 import { classifyRisk, requiresApproval } from '@/lib/orchestrator/permission-engine'
+import { dispatchApprovedAction, type ActionDispatchResult } from '@/lib/orchestrator/action-dispatcher'
+import type { ActionRecordForDispatch } from '@/lib/orchestrator/action-dispatcher'
 
 // POST /api/plans/[planId]/confirm — user confirms plan, start execution
 export async function POST(
@@ -36,6 +38,7 @@ export async function POST(
   const { data: nodes } = await db.from('plan_nodes').select('*').eq('plan_id', planId)
   const readyNodes = getReadyNodes(nodes as unknown as PlanNode[])
   let createdActions = 0
+  const dispatches: ActionDispatchResult[] = []
 
   for (const node of readyNodes) {
     await db.from('plan_nodes').update({ status: 'ready' }).eq('id', node.id)
@@ -71,8 +74,10 @@ export async function POST(
         ref_type: 'action',
         ref_id: action.id,
       })
+    } else {
+      dispatches.push(await dispatchApprovedAction(db, action as unknown as ActionRecordForDispatch))
     }
   }
 
-  return NextResponse.json({ status: 'running', ready_nodes: readyNodes.length, created_actions: createdActions })
+  return NextResponse.json({ status: 'running', ready_nodes: readyNodes.length, created_actions: createdActions, dispatches })
 }

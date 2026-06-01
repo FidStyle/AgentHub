@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
+import { dispatchApprovedAction } from '@/lib/orchestrator/action-dispatcher'
+import type { ActionRecordForDispatch } from '@/lib/orchestrator/action-dispatcher'
 
 // POST /api/actions/[actionId]/approve — authorize or cancel an action.
 export async function POST(
@@ -33,5 +35,7 @@ export async function POST(
     approved_at: approved ? new Date().toISOString() : null,
   }).eq('id', actionId)
 
-  return NextResponse.json({ status: newStatus })
+  const dispatch = approved ? await dispatchApprovedAction(db, action as unknown as ActionRecordForDispatch) : undefined
+
+  return NextResponse.json({ status: newStatus, dispatch })
 }

@@ -11,6 +11,8 @@ vi.mock('../../lib/runtime/redis-client', () => ({
   dequeue: async () => null,
   setHeartbeat: async () => {},
   clearHeartbeat: async () => {},
+  setWorkerAlive: async () => {},
+  clearWorkerAlive: async () => {},
   isAlive: async () => true,
 }))
 
@@ -88,6 +90,39 @@ describe('processJob — FakeExecutor regression', () => {
     const failed = published.find((p) => p.event.type === 'runtime_failed')
     expect(failed).toBeDefined()
     expect(String(failed!.event.error)).toContain('not found')
+  })
+
+  it('updates linked action and plan node when a queued action completes', async () => {
+    const job: RuntimeJob = {
+      runtimeSessionId: 's-action',
+      prompt: 'do useful work',
+      actionId: 'action-001',
+      planNodeId: 'node-001',
+    }
+
+    const result = await processJob(job, new FakeExecutor())
+
+    expect(result).toBe('completed')
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'running', executed_at: expect.any(String) }),
+      expect.objectContaining({ status: 'running', started_at: expect.any(String) }),
+      expect.objectContaining({
+        status: 'completed',
+        result: expect.objectContaining({
+          terminal: 'completed',
+          runtimeSessionId: 's-action',
+          output: 'do useful work',
+        }),
+      }),
+      expect.objectContaining({
+        status: 'completed',
+        completed_at: expect.any(String),
+        result: expect.objectContaining({
+          terminal: 'completed',
+          runtimeSessionId: 's-action',
+        }),
+      }),
+    ]))
   })
 })
 

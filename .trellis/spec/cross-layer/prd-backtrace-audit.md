@@ -243,6 +243,7 @@ Decision:
 | Runtime unavailable | SSE terminal event rendered as system notice, no fake agent success |
 | User clicks stop | Abort current stream and show stopped notice |
 | Plan confirm only changes plan status | `partial_shell` until it marks ready nodes and creates real action/notification rows |
+| Approved action has no dispatcher/worker terminal evidence | `partial_shell` until approved action is queued to runtime worker or records an explicit unavailable/unsupported result |
 
 #### 5. Good/Base/Bad Cases
 
@@ -256,7 +257,7 @@ Decision:
 - API: `/api/chat` with tool/permission/diff/artifact SSE events persists `metadata.runtimeParts` and does not persist fake success on incomplete runtime.
 - API smoke: real auth cookie + Postgres fixture + `/api/workspaces`, `/api/sessions`, file upload/rename/delete, git status/diff, artifact create/download.
 - Web E2E: `workbench-file-ops.spec.ts` for file/preview/diff/artifact; `role-chat-core.spec.ts` for default Orchestrator, multi-role picker path, textarea/slash, send persistence.
-- Plan/action API: confirming a `pending_confirm` plan must mark ready nodes and create action + notification rows when nodes define executable actions.
+- Plan/action API: confirming a `pending_confirm` plan must mark ready nodes and create action + notification rows when nodes define executable actions; low-risk or approved actions must enter the runtime action dispatcher, create a `runtime_sessions` row, queue a worker job, and let the worker write `actions`/`plan_nodes` terminal status. If the dispatcher is unavailable or unsupported, tests must assert the explicit failure result/notification and no fake `completed`; there must be a retry/resume API for already approved actions so worker outages do not strand the plan.
 - Build gate: `pnpm --filter @agenthub/web type-check`, `pnpm --filter @agenthub/web test`, `NEXT_TELEMETRY_DISABLED=1 pnpm --filter @agenthub/web build`.
 
 #### 7. Wrong vs Correct
@@ -275,6 +276,7 @@ Decision:
 - permissionMode 作为结构化字段进入 metadata/policy。
 - 变更 Tab 调用真实 Git status/diff API。
 - git status 使用 -uall，未跟踪文件生成 synthetic new-file diff。
+- action approve 只负责授权；真实完成必须来自 runtime worker 回写 action/plan node 终态，worker 不可用时保留未执行状态并写中文通知。
 ```
 
 ## 7. Wrong vs Correct

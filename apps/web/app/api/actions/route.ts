@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 import { classifyRisk, requiresApproval } from '@/lib/orchestrator/permission-engine'
 import { DEFAULT_POLICIES } from '@agenthub/shared'
 import { assertSessionOwner } from '@/lib/chat/attachments-artifacts'
+import { dispatchApprovedAction } from '@/lib/orchestrator/action-dispatcher'
+import type { ActionRecordForDispatch } from '@/lib/orchestrator/action-dispatcher'
 
 // GET /api/actions?session_id=xxx
 // POST /api/actions — create an action (auto-classify risk)
@@ -76,5 +78,6 @@ export async function POST(request: Request) {
     })
   }
 
-  return NextResponse.json(action, { status: 201 })
+  const dispatch = needsApproval ? undefined : await dispatchApprovedAction(db, action as unknown as ActionRecordForDispatch)
+  return NextResponse.json({ ...action, dispatch }, { status: 201 })
 }

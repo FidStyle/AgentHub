@@ -7,6 +7,14 @@ import {
   mockSession,
 } from '../utils'
 
+const { dispatchApprovedActionMock } = vi.hoisted(() => ({
+  dispatchApprovedActionMock: vi.fn(async (..._args: unknown[]) => ({ status: 'queued', runtimeSessionId: 'runtime-001' })),
+}))
+
+vi.mock('@/lib/orchestrator/action-dispatcher', () => ({
+  dispatchApprovedAction: (...args: unknown[]) => dispatchApprovedActionMock(...args),
+}))
+
 async function callRoute(
   handler: (request: Request) => Promise<Response>,
   method: 'GET' | 'POST',
@@ -30,6 +38,28 @@ async function callConfirmPlan(planId: string) {
   const { POST } = await import('@/app/api/plans/[planId]/confirm/route')
   const response = await POST(new Request('http://localhost/api/plans/plan-001/confirm', { method: 'POST' }), {
     params: Promise.resolve({ planId }),
+  })
+  return { status: response.status, data: await response.json() }
+}
+
+async function callApproveAction(actionId: string, approved: boolean) {
+  const { POST } = await import('@/app/api/actions/[actionId]/approve/route')
+  const response = await POST(new Request(`http://localhost/api/actions/${actionId}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ approved }),
+  }), {
+    params: Promise.resolve({ actionId }),
+  })
+  return { status: response.status, data: await response.json() }
+}
+
+async function callRunAction(actionId: string) {
+  const { POST } = await import('@/app/api/actions/[actionId]/run/route')
+  const response = await POST(new Request(`http://localhost/api/actions/${actionId}/run`, {
+    method: 'POST',
+  }), {
+    params: Promise.resolve({ actionId }),
   })
   return { status: response.status, data: await response.json() }
 }
@@ -130,11 +160,83 @@ function confirmPlanCreatesActionsChain() {
   return { chainFactory, writes }
 }
 
+function approveActionChain() {
+  const writes: Array<{ table: string; values: Record<string, unknown>; id?: string }> = []
+  const action = {
+    id: 'action-001',
+    session_id: 'session-001',
+    plan_node_id: 'node-001',
+    owner_id: 'user-001',
+    action_type: 'shell',
+    command: 'rm -rf dist',
+    cwd: '/workspace',
+    status: 'pending',
+  }
+  const chainFactory = vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'actions') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: () => ({ data: action, error: null }),
+              }),
+            }),
+          }),
+          update: (values: Record<string, unknown>) => ({
+            eq: (field: string, id: string) => {
+              writes.push({ table, values, id: field === 'id' ? id : undefined })
+              return { data: null, error: null }
+            },
+          }),
+        }
+      }
+      return {
+        select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+      }
+    }),
+  }))
+  return { chainFactory, writes, action }
+}
+
+function runActionChain(status = 'approved') {
+  const action = {
+    id: 'action-001',
+    session_id: 'session-001',
+    plan_node_id: 'node-001',
+    owner_id: 'user-001',
+    action_type: 'shell',
+    command: 'pnpm test',
+    cwd: '/workspace',
+    status,
+  }
+  const chainFactory = vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'actions') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: () => ({ data: action, error: null }),
+              }),
+            }),
+          }),
+        }
+      }
+      return {
+        select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+      }
+    }),
+  }))
+  return { chainFactory, action }
+}
+
 describe('plans/actions API session ownership', () => {
   beforeEach(() => {
     resetMockAuth()
     resetMockClient()
     setupMockAuth()
+    dispatchApprovedActionMock.mockClear()
   })
 
   it('rejects GET /api/plans for a session outside the current user workspace', async () => {
@@ -202,12 +304,54 @@ describe('plans/actions API session ownership', () => {
     const result = await callConfirmPlan('plan-001')
 
     expect(result.status).toBe(200)
-    expect(result.data).toEqual({ status: 'running', ready_nodes: 1, created_actions: 1 })
+    expect(result.data).toEqual({ status: 'running', ready_nodes: 1, created_actions: 1, dispatches: [] })
     expect(writes).toEqual(expect.arrayContaining([
       expect.objectContaining({ table: 'plans', values: expect.objectContaining({ status: 'running' }) }),
       expect.objectContaining({ table: 'plan_nodes', values: expect.objectContaining({ status: 'ready' }) }),
       expect.objectContaining({ table: 'actions', values: expect.objectContaining({ command: 'rm -rf dist', risk_level: 'high', status: 'pending', requires_approval: true }) }),
       expect.objectContaining({ table: 'notifications', values: expect.objectContaining({ type: 'approval_required', ref_type: 'action', ref_id: 'action-001' }) }),
     ]))
+    expect(dispatchApprovedActionMock).not.toHaveBeenCalled()
+  })
+
+  it('approving a pending action dispatches it through the runtime action dispatcher', async () => {
+    const { chainFactory, writes, action } = approveActionChain()
+    setupMockClient(chainFactory)
+
+    const result = await callApproveAction('action-001', true)
+
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual({
+      status: 'approved',
+      dispatch: { status: 'queued', runtimeSessionId: 'runtime-001' },
+    })
+    expect(writes).toEqual([
+      expect.objectContaining({
+        table: 'actions',
+        values: expect.objectContaining({ status: 'approved', approved_at: expect.any(String) }),
+        id: 'action-001',
+      }),
+    ])
+    expect(dispatchApprovedActionMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      id: action.id,
+      status: 'pending',
+    }))
+  })
+
+  it('reruns an approved action through the dispatcher after a previous unavailable dispatch', async () => {
+    const { chainFactory, action } = runActionChain('approved')
+    setupMockClient(chainFactory)
+
+    const result = await callRunAction('action-001')
+
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual({
+      status: 'approved',
+      dispatch: { status: 'queued', runtimeSessionId: 'runtime-001' },
+    })
+    expect(dispatchApprovedActionMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      id: action.id,
+      status: 'approved',
+    }))
   })
 })

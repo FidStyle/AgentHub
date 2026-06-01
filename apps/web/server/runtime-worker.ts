@@ -34,17 +34,59 @@ async function log(runtimeSessionId: string, eventType: string, payload: Record<
   await db.from('runtime_logs').insert({ runtime_session_id: runtimeSessionId, event_type: eventType, payload: redact(payload), seq })
 }
 
+async function markActionRunning(job: RuntimeJob): Promise<void> {
+  if (!job.actionId) return
+  const db = await createClient()
+  const now = new Date().toISOString()
+  await db.from('actions').update({
+    status: 'running',
+    executed_at: now,
+    result: { dispatch: 'running', runtimeSessionId: job.runtimeSessionId, at: now },
+  }).eq('id', job.actionId)
+  if (job.planNodeId) {
+    await db.from('plan_nodes').update({
+      status: 'running',
+      started_at: now,
+      result: { dispatch: 'running', runtimeSessionId: job.runtimeSessionId },
+    }).eq('id', job.planNodeId)
+  }
+}
+
+async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = '', error?: string): Promise<void> {
+  if (!job.actionId) return
+  const db = await createClient()
+  const now = new Date().toISOString()
+  const status = terminal === 'completed' ? 'completed' : 'failed'
+  const result = {
+    terminal,
+    runtimeSessionId: job.runtimeSessionId,
+    output: output.slice(-20_000),
+    error,
+    at: now,
+  }
+  await db.from('actions').update({ status, result }).eq('id', job.actionId)
+  if (job.planNodeId) {
+    await db.from('plan_nodes').update({
+      status: status === 'completed' ? 'completed' : 'failed',
+      completed_at: now,
+      result,
+    }).eq('id', job.planNodeId)
+  }
+}
+
 // Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.
 // Each step persists to runtime_logs (seq) + publishes to redis for gateway relay. Exported for tests.
 export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Promise<Terminal> {
   const id = job.runtimeSessionId
   let seq = 0
+  let output = ''
   const emit = async (event: Record<string, unknown>) => {
     await log(id, String(event.type), event, seq++)
     await publishEvent(id, event)
   }
 
   await setStatus(id, 'running')
+  await markActionRunning(job)
   await setHeartbeat(id, HEARTBEAT_TTL_SEC)
   await emit({ type: 'runtime_status', status: 'running', endpointId: job.endpointId })
 
@@ -56,21 +98,26 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
       if (await isCancelled(id)) {
         await setStatus(id, 'cancelled', true)
         await clearHeartbeat(id)
+        await markActionTerminal(job, 'cancelled', output, 'cancelled by request')
         await emit({ type: 'runtime_cancelled', endpointId: job.endpointId, reason: 'cancelled by request' })
         return 'cancelled'
       }
       await setHeartbeat(id, HEARTBEAT_TTL_SEC)
+      output += chunk.delta
       await emit({ type: 'runtime_output', delta: chunk.delta, endpointId: job.endpointId })
     }
   } catch (err) {
+    const error = err instanceof Error ? err.message : String(err)
     await setStatus(id, 'failed', true)
     await clearHeartbeat(id)
-    await emit({ type: 'runtime_failed', endpointId: job.endpointId, error: err instanceof Error ? err.message : String(err) })
+    await markActionTerminal(job, 'failed', output, error)
+    await emit({ type: 'runtime_failed', endpointId: job.endpointId, error })
     return 'failed'
   }
 
   await setStatus(id, 'completed', true)
   await clearHeartbeat(id)
+  await markActionTerminal(job, 'completed', output)
   await emit({ type: 'runtime_completed', endpointId: job.endpointId, summary: 'done' })
   return 'completed'
 }

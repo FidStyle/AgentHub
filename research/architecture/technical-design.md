@@ -648,7 +648,12 @@ P0 已落地的计划确认闭环：
 - 确认后计划状态进入 `running`，无依赖或依赖已完成的节点进入 `ready`。
 - 如果 ready node 带 `action_type` 和 `action_payload.command`，后端创建对应 `actions` 记录，使用统一 permission engine 计算 risk 和 `requires_approval`。
 - 高风险或策略要求授权的 action 会同步创建 `approval_required` notification；Web 右栏和 Mobile 审批页都读取同一数据源。
-- 当前 P0 仍不在 confirm route 内直接执行 action；执行/恢复由后续 runtime/action dispatcher 消费 `approved` action。
+- 低风险或已授权 action 进入 `dispatchApprovedAction`，由后端创建 `runtime_sessions` 并通过 Redis 投递给 `runtime-worker`；worker 执行过程中回写 `actions.status/result/executed_at` 与 `plan_nodes.status/result/started_at/completed_at`。
+- `POST /api/actions/:actionId/approve` 只允许 action owner 审批 `pending` action；审批通过后进入同一个 dispatcher，拒绝时只写 `rejected`。
+- `POST /api/actions/:actionId/run` 用于恢复已授权但未投递、或失败后需要重跑的 action；只允许 action owner 对 `approved` / `failed` 状态调用，不绕过审批。
+- `cloud` Workspace action 通过 `public_cloud` endpoint + live worker presence 投递；缺少 endpoint、`REDIS_URL` 或 worker alive key 时保持 action 为已授权但未执行，并写入 `action_dispatch_failed` notification，不能伪造 completed。
+- `local_desktop` action 的队列执行边界尚未接入 Desktop action proxy 时必须返回明确 unsupported 结果和通知，不能在 Web 进程直接执行本机命令。
+- runtime worker 是 action 终态的唯一执行回写方；API route 只能投递或记录未投递原因，不能在没有 worker 执行证据时把 action/plan node 标记为 completed。
 
 ### 11.3 状态机如何驱动 DAG
 

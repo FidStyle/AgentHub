@@ -19,6 +19,8 @@ export interface RuntimeJob {
   prompt: string
   systemPrompt?: string
   fail?: boolean
+  actionId?: string
+  planNodeId?: string
 }
 
 let client: RedisClientType | null = null
