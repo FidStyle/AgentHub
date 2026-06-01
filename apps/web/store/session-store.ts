@@ -28,7 +28,7 @@ interface SessionState {
   fetchSessions: (workspaceId: string) => Promise<void>
   createSession: (workspaceId: string) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
-  sendMessage: (content: string, roleAgentId?: string) => Promise<void>
+  sendMessage: (content: string, roleAgentId?: string, attachmentIds?: string[]) => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -118,7 +118,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  sendMessage: async (content, roleAgentId) => {
+  sendMessage: async (content, roleAgentId, attachmentIds = []) => {
     const { activeSessionId, messages } = get()
     if (!activeSessionId) return
 
@@ -141,6 +141,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           content,
           roleAgentId: roleAgentId ?? null,
           mentions: roleAgentId ? [roleAgentId] : null,
+          attachmentIds,
         }),
       })
       if (!res.ok || !res.body) {

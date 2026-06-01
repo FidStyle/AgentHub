@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth-guard'
 import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
+import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const conn = getConnectionByUserId(userId)
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
-  const { sessionId, content, roleAgentId, mentions } = await req.json()
+  const { sessionId, content, roleAgentId, mentions, attachmentIds } = await req.json()
   if (!sessionId || !content) {
     return Response.json({ error: '缺少 sessionId 或 content' }, { status: 400 })
   }
@@ -111,12 +112,28 @@ export async function POST(req: NextRequest) {
     systemPrompt = roleAgent.system_prompt || undefined
   }
 
+  const requestedAttachmentIds = Array.isArray(attachmentIds)
+    ? attachmentIds.map((id) => String(id)).filter(Boolean)
+    : []
+  const attachments = requestedAttachmentIds.length > 0
+    ? await loadSessionAttachments(db, sessionId, requestedAttachmentIds)
+    : []
+  if (requestedAttachmentIds.length > 0 && attachments.length !== requestedAttachmentIds.length) {
+    return Response.json({ error: '附件不存在或无权限' }, { status: 403 })
+  }
+  const userMessage = `${content}${buildAttachmentPrompt(attachments)}`
+  const metadata: Record<string, unknown> = {}
+  if (mentions) metadata.mentions = mentions
+  if (attachments.length > 0) {
+    metadata.attachments = attachments.map(({ content: _content, ...attachment }) => attachment)
+  }
+
   await db.from('messages').insert({
     session_id: sessionId,
     content,
     sender_type: 'user',
     role_agent_id: roleAgentId ?? null,
-    metadata: mentions ? { mentions } : null,
+    metadata: Object.keys(metadata).length > 0 ? metadata : null,
   })
 
   const encoder = new TextEncoder()
@@ -137,7 +154,7 @@ export async function POST(req: NextRequest) {
           sessionId,
           executionDomain: ws.execution_domain,
           workspaceId: ws.id,
-          userMessage: content,
+          userMessage,
           systemPrompt,
           roleAgentId: roleAgentId ?? undefined,
         })) {
@@ -149,12 +166,30 @@ export async function POST(req: NextRequest) {
         // Persist the agent reply so reload restores it. Only on a clean completion with
         // non-empty output — failed/unavailable terminals must not fabricate a success message.
         if (completed && reply) {
-          await db.from('messages').insert({
+          const { data: agentMessage } = await db.from('messages').insert({
             session_id: sessionId,
             content: reply,
             sender_type: 'agent',
             role_agent_id: roleAgentId ?? null,
-          })
+          }).select('id').single()
+
+          const artifacts = parseArtifacts(reply)
+          if (artifacts.length > 0) {
+            await db.from('messages').insert(artifacts.map((artifact) => ({
+              session_id: sessionId,
+              content: artifact.content,
+              sender_type: 'agent',
+              role_agent_id: roleAgentId ?? null,
+              message_type: 'text',
+              metadata: {
+                artifact: {
+                  ...artifact,
+                  sourceMessageId: agentMessage?.id ?? null,
+                },
+              },
+              is_pinned: true,
+            })))
+          }
         }
         controller.enqueue(encode({ type: 'done' }))
         controller.close()

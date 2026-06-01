@@ -12,6 +12,15 @@ interface RoleAgent {
   is_orchestrator: boolean
 }
 
+interface UploadedAttachment {
+  id: string
+  name: string
+  type: string
+  size: number
+  contentRef: string
+  preview?: string
+}
+
 const MARGIN = 8
 const GAP = 4
 const ROLE_PICKER_MAX_WIDTH = 320
@@ -115,7 +124,9 @@ function MessageComposer({
   const [sending, setSending] = useState(false)
   const [selectedRole, setSelectedRole] = useState<RoleAgent | null>(null)
   const [permissionMode, setPermissionMode] = useState<(typeof PERMISSION_MODES)[number]['value']>('standard')
-  const [attachments, setAttachments] = useState<string[]>([])
+  const [attachments, setAttachments] = useState<UploadedAttachment[]>([])
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -154,11 +165,40 @@ function MessageComposer({
     setSending(true)
     const mode = PERMISSION_MODES.find((item) => item.value === permissionMode)
     const modeLine = mode ? `\n权限预设：${mode.label}（${mode.description}）` : ''
-    const attachmentLine = attachments.length > 0 ? `\n附件/上下文：${attachments.join('、')}` : ''
-    await sendMessage(`${input.trim()}${modeLine}${attachmentLine}`, selectedRole?.id)
+    const attachmentLine = attachments.length > 0
+      ? `\n附件/上下文：${attachments.map((attachment) => `${attachment.name}（${attachment.contentRef}）`).join('、')}`
+      : ''
+    await sendMessage(`${input.trim()}${modeLine}${attachmentLine}`, selectedRole?.id, attachments.map((attachment) => attachment.id))
     setInput('')
     setAttachments([])
     setSending(false)
+  }
+
+  const uploadFiles = async (files: File[]) => {
+    if (!activeSessionId || readOnly || files.length === 0) return
+    setUploadingAttachment(true)
+    setAttachmentError(null)
+    try {
+      const uploaded: UploadedAttachment[] = []
+      for (const file of files) {
+        const form = new FormData()
+        form.append('session_id', activeSessionId)
+        form.append('file', file)
+        const res = await fetch('/api/attachments', { method: 'POST', body: form })
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error((body as { error?: string }).error || `上传附件失败（${res.status}）`)
+        uploaded.push(body as UploadedAttachment)
+      }
+      setAttachments((current) => {
+        const seen = new Set(current.map((attachment) => attachment.id))
+        return [...current, ...uploaded.filter((attachment) => !seen.has(attachment.id))]
+      })
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : '上传附件失败')
+    } finally {
+      setUploadingAttachment(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   return (
@@ -212,11 +252,11 @@ function MessageComposer({
           )}
           <IconButton
             icon={Plus}
-            label="添加附件或上下文"
+            label={uploadingAttachment ? '上传中...' : '添加附件或上下文'}
             variant="ghost"
             size="sm"
             data-testid="attachment-btn"
-            disabled={!activeSessionId || readOnly}
+            disabled={!activeSessionId || readOnly || uploadingAttachment}
             onClick={() => fileRef.current?.click()}
           />
           <input
@@ -226,9 +266,7 @@ function MessageComposer({
             multiple
             className="hidden"
             onChange={(event) => {
-              const files = Array.from(event.target.files ?? []).map((file) => file.name)
-              setAttachments((current) => Array.from(new Set([...current, ...files])))
-              event.currentTarget.value = ''
+              void uploadFiles(Array.from(event.target.files ?? []))
             }}
           />
           <label className="ml-auto flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
@@ -250,17 +288,19 @@ function MessageComposer({
         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {currentMode && <span>权限：{currentMode.label} · {currentMode.description}</span>}
           {attachments.length > 0 && <span>附件 {attachments.length} 个</span>}
+          {uploadingAttachment && <span>附件上传中...</span>}
         </div>
+        {attachmentError && <p className="mb-2 text-xs text-destructive">{attachmentError}</p>}
         {attachments.length > 0 && (
           <div data-testid="attachment-chips" className="mb-2 flex flex-wrap gap-1">
-            {attachments.map((name) => (
-              <Badge key={name} variant="secondary" className="max-w-full">
-                <span className="max-w-[180px] truncate">{name}</span>
+            {attachments.map((attachment) => (
+              <Badge key={attachment.id} variant="secondary" className="max-w-full">
+                <span className="max-w-[180px] truncate">{attachment.name}</span>
                 <button
                   type="button"
-                  aria-label={`移除附件 ${name}`}
+                  aria-label={`移除附件 ${attachment.name}`}
                   className="ml-1"
-                  onClick={() => setAttachments((current) => current.filter((item) => item !== name))}
+                  onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
                 >
                   ×
                 </button>
@@ -277,7 +317,7 @@ function MessageComposer({
             placeholder={readOnly ? '只读模式下不能发送消息' : selectedRole ? `@${selectedRole.name} 输入消息...` : '输入消息...'}
             disabled={!activeSessionId || sending || readOnly}
           />
-          <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending || readOnly} />
+          <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending || readOnly || uploadingAttachment} />
         </div>
       </div>
     </div>
