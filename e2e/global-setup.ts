@@ -118,6 +118,11 @@ async function globalSetup(_config: FullConfig) {
       ['compose', '-f', 'docker/docker-compose.runtime.yml', 'up', '-d', 'redis'],
       { cwd: rootDir, stdio: 'inherit' },
     )
+    execFileSync(
+      'docker',
+      ['exec', '-i', 'agenthub_runtime_redis', 'redis-cli', 'DEL', 'agenthub:runtime:worker:alive'],
+      { cwd: rootDir, stdio: 'inherit' },
+    )
     runtimeEnv.REDIS_URL = redisUrl
   }
 

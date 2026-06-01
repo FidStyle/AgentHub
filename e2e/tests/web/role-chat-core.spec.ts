@@ -22,17 +22,14 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
 
-    await page.goto('/workspace')
-    await page.waitForLoadState('domcontentloaded')
-
-    // 创建工作区
-    await page.getByRole('button', { name: '新建工作区' }).click()
     const wsName = `E2E-ROLE-${Date.now()}`
-    await page.getByPlaceholder('输入工作区名称').fill(wsName)
-    await page.getByRole('button', { name: '创建', exact: true }).click()
+    const workspaceRes = await page.request.post('/api/workspaces', {
+      data: { name: wsName, execution_domain: 'cloud' },
+    })
+    expect(workspaceRes.ok()).toBeTruthy()
+    const workspace = await workspaceRes.json() as { id: string }
 
-    // 进入工作区
-    await page.getByRole('button', { name: wsName }).click()
+    await page.goto(`/workspace/${workspace.id}`)
     await page.waitForLoadState('domcontentloaded')
 
     // 新建会话（启用聊天输入）
