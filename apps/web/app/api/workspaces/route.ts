@@ -6,6 +6,27 @@ function hasDatabaseConfig() {
   return Boolean(process.env.DATABASE_URL)
 }
 
+function parseCapabilityValue(value: unknown) {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as unknown
+    } catch {
+      return null
+    }
+  }
+  return value
+}
+
+function hasReadyRuntimeDetection(value: unknown) {
+  const parsed = parseCapabilityValue(value)
+  if (!Array.isArray(parsed)) return false
+  return parsed.some((runtime) => {
+    if (!runtime || typeof runtime !== 'object') return false
+    const record = runtime as { available?: boolean; authenticated?: boolean; launchable?: boolean }
+    return record.available === true && record.authenticated === true && record.launchable !== false
+  })
+}
+
 async function hasConnectedDesktopRuntime(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: devices, error: devicesError } = await db
     .from('devices')
@@ -20,11 +41,23 @@ async function hasConnectedDesktopRuntime(db: Awaited<ReturnType<typeof createCl
   for (const device of desktopDevices) {
     const { data: channels, error: channelError } = await db
       .from('device_runtime_channels')
-      .select('status')
+      .select('endpoint_id, status')
       .eq('device_id', device.id)
 
     if (channelError) return { ok: false, error: channelError.message }
-    if (((channels ?? []) as unknown as Array<{ status: string }>).some((channel) => channel.status === 'connected')) {
+    const connected = ((channels ?? []) as unknown as Array<{ endpoint_id: string | null; status: string }>)
+      .find((channel) => channel.status === 'connected' && channel.endpoint_id)
+    if (!connected?.endpoint_id) continue
+
+    const { data: capabilities, error: capabilitiesError } = await db
+      .from('runtime_capabilities')
+      .select('value')
+      .eq('endpoint_id', connected.endpoint_id)
+      .eq('capability', 'runtime_detection')
+      .limit(1)
+    if (capabilitiesError) return { ok: false, error: capabilitiesError.message }
+    const row = Array.isArray(capabilities) ? capabilities[0] : capabilities
+    if (hasReadyRuntimeDetection((row as { value?: unknown } | null)?.value)) {
       return { ok: true }
     }
   }
@@ -76,7 +109,7 @@ export async function POST(request: Request) {
     const desktop = await hasConnectedDesktopRuntime(db, user.id)
     if (desktop.error) return NextResponse.json({ error: desktop.error }, { status: 500 })
     if (!desktop.ok) {
-      return NextResponse.json({ error: '本地 Desktop 未连接，无法创建可执行的本地工作区' }, { status: 409 })
+      return NextResponse.json({ error: '本地 Desktop 未连接或 Runtime 未通过检测，无法创建可执行的本地工作区' }, { status: 409 })
     }
   }
 

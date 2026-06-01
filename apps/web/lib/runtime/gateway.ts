@@ -41,6 +41,47 @@ export async function resolveEndpoint(input: {
   const db = await createClient()
   const kind: EndpointKind = input.executionDomain === 'local_desktop' ? 'user_local' : 'public_cloud'
 
+  if (kind === 'public_cloud') {
+    const { data: rows } = await db
+      .from('runtime_endpoints')
+      .select('id, kind, status, device_id')
+      .eq('user_id', input.userId)
+      .eq('kind', kind)
+      .limit(1)
+    const row = Array.isArray(rows) ? rows[0] : rows
+
+    if (row) {
+      return {
+        id: row.id,
+        kind,
+        status: row.status as EndpointStatus,
+        deviceId: row.device_id ?? undefined,
+      }
+    }
+
+    const { data: created, error } = await db
+      .from('runtime_endpoints')
+      .insert({
+        user_id: input.userId,
+        kind,
+        runtime_type: 'hosted',
+        status: 'available',
+      })
+      .select('id, kind, status, device_id')
+      .single()
+
+    if (!error && created?.id) {
+      return {
+        id: created.id,
+        kind,
+        status: created.status as EndpointStatus,
+        deviceId: created.device_id ?? undefined,
+      }
+    }
+
+    return { id: null, kind, status: 'unconfigured' }
+  }
+
   if (kind === 'user_local') {
     const { data: devices } = await db
       .from('devices')
@@ -89,7 +130,7 @@ export async function resolveEndpoint(input: {
   const row = Array.isArray(rows) ? rows[0] : rows
 
   if (!row) {
-    return { id: null, kind, status: kind === 'public_cloud' ? 'unconfigured' : 'offline' }
+    return { id: null, kind, status: 'offline' }
   }
   return {
     id: row.id,
@@ -110,6 +151,7 @@ export async function createSession(input: {
     .insert({
       session_id: input.sessionId,
       endpoint_id: input.endpoint.id,
+      role_agent_id: input.roleAgentId ?? null,
       status: 'idle',
     })
     .select('id')
@@ -237,11 +279,7 @@ export async function* invoke(input: {
 
   // user_local: relay through Gateway/DeviceChannel; remote clients never touch local ports.
   const conn = getConnectionByUserId(input.userId)
-  let relayDeviceId = conn?.deviceId ?? endpoint.deviceId
-  if (!conn && endpoint.deviceId) {
-    const channel = await getChannelByDevice(endpoint.deviceId)
-    if (channel?.status !== 'connected') relayDeviceId = undefined
-  }
+  const relayDeviceId = conn?.deviceId
   if (!relayDeviceId) {
     // Distinguish "was connected then dropped" (tunnel_disconnected) from "never connected" (local_runtime_offline).
     const channel = endpoint.deviceId ? await getChannelByDevice(endpoint.deviceId) : null

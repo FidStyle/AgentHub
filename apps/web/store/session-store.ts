@@ -56,12 +56,31 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return
       }
       const data = await res.json()
-      const sessions: Session[] = data.map((s: Record<string, unknown>) => ({
+      let sessions: Session[] = data.map((s: Record<string, unknown>) => ({
         id: s.id,
         title: s.name || '未命名会话',
         lastMessage: '',
         updatedAt: s.updated_at || s.created_at || '',
       }))
+      if (sessions.length === 0) {
+        const createRes = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspace_id: workspaceId }),
+        })
+        if (!createRes.ok) {
+          const body = await createRes.json().catch(() => ({ error: createRes.statusText }))
+          set({ error: body.error || createRes.statusText, loading: false })
+          return
+        }
+        const s = await createRes.json()
+        sessions = [{
+          id: s.id,
+          title: s.name || '新会话',
+          lastMessage: '',
+          updatedAt: s.updated_at || s.created_at || '',
+        }]
+      }
       set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: sessions[0]?.id ?? null, loading: false })
       if (sessions[0]) get().fetchMessages(sessions[0].id)
     } catch (e) {

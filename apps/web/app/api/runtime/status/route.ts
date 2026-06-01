@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
+import { getConnectionByUserId } from '@/server/device-connections'
 
 type DeviceRow = {
   id: string
@@ -84,9 +85,11 @@ export async function GET() {
 
   const desktopDevices = ((devices ?? []) as unknown as DeviceRow[]).filter((device) => device.type === 'desktop')
   const deviceIds = desktopDevices.map((device) => device.id)
+  const liveConnection = getConnectionByUserId(user.id)
   let connectedChannel: ChannelRow | null = null
 
   for (const deviceId of deviceIds) {
+    if (liveConnection?.deviceId !== deviceId) continue
     const { data: channels, error: channelError } = await db
       .from('device_runtime_channels')
       .select('device_id, endpoint_id, status, connected_at, last_heartbeat')

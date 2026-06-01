@@ -226,6 +226,9 @@ CREATE TABLE IF NOT EXISTS public.runtime_sessions (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.runtime_sessions
+  ADD COLUMN IF NOT EXISTS role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS public.runtime_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   runtime_session_id uuid NOT NULL REFERENCES public.runtime_sessions(id) ON DELETE CASCADE,

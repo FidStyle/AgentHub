@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Card, CardContent, StateCard, Badge } from '@agenthub/ui'
+import { Paperclip } from 'lucide-react'
 import type { Message } from '@agenthub/shared'
 
 interface RoleAgent {
@@ -181,6 +182,10 @@ export default function MobileSessionPage() {
         {defaultRole && (
           <p className="text-xs text-muted-foreground">将发送给 @{defaultRole.name}</p>
         )}
+        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
+          <Paperclip className="h-3.5 w-3.5" />
+          <span>移动端附件上传和产物编辑暂未开放，请在 Web 工作台处理附件与产物。</span>
+        </div>
         <div className="flex gap-2">
           <Input
             value={input}

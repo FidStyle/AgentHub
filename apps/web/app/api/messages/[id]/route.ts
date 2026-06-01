@@ -2,6 +2,30 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const db = await createClient()
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
+
+  const { data: msg } = await db
+    .from('messages').select('*').eq('id', id).single()
+  if (!msg) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { data: session } = await db
+    .from('sessions').select('workspace_id').eq('id', msg.session_id).single()
+  if (!session) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { data: workspace } = await db
+    .from('workspaces').select('id').eq('id', session.workspace_id).eq('owner_id', user.id).single()
+  if (!workspace) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  return NextResponse.json(msg)
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },

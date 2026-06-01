@@ -7,6 +7,9 @@ import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const conn = getConnectionByUserId(userId)
+  if (!conn?.deviceId) {
+    return { ok: false, error: '本地 Desktop 未连接云端，当前只能只读查看历史。' }
+  }
 
   const { data: devices } = await db
     .from('devices')
@@ -17,6 +20,7 @@ async function localDesktopOperability(db: Awaited<ReturnType<typeof createClien
 
   let connectedChannel: { device_id: string; endpoint_id: string | null; status: string; connected_at?: string | null; last_heartbeat?: string | null } | null = null
   for (const desktop of desktopDevices) {
+    if (desktop.id !== conn.deviceId) continue
     const { data: channels } = await db
       .from('device_runtime_channels')
       .select('device_id, endpoint_id, status, connected_at, last_heartbeat')
@@ -28,9 +32,9 @@ async function localDesktopOperability(db: Awaited<ReturnType<typeof createClien
         const bt = new Date(b.last_heartbeat ?? b.connected_at ?? 0).getTime()
         return bt - at
       })[0]
-    if (!connected) continue
+    if (!connected?.endpoint_id) continue
     if (!connectedChannel) connectedChannel = connected
-    if (conn?.deviceId === desktop.id) {
+    if (connected.device_id === desktop.id) {
       connectedChannel = connected
       break
     }

@@ -117,7 +117,15 @@ export default function WorkspacePage() {
         )}
       </div>
 
-      <CreateWorkspaceDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onCreated={fetchWorkspaces} />
+      <CreateWorkspaceDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onCreated={(workspace) => {
+          void fetchWorkspaces()
+          const mode = workspace.execution_domain === 'local_desktop' ? '?mode=operate' : ''
+          router.push(`/workspace/${workspace.id}${mode}`)
+        }}
+      />
     </div>
   )
 }

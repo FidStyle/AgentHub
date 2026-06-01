@@ -8,7 +8,7 @@ type ExecutionDomain = 'cloud' | 'local_desktop'
 interface Props {
   open: boolean
   onClose: () => void
-  onCreated: () => void
+  onCreated: (workspace: { id: string; execution_domain: ExecutionDomain }) => void
 }
 
 export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
@@ -21,7 +21,7 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
 
   if (!open) return null
 
-  const localDesktopUnavailable = domain === 'local_desktop' && !runtimeStatus.status?.desktop.connected
+  const localDesktopUnavailable = domain === 'local_desktop' && runtimeStatus.status?.operable !== true
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,10 +34,11 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
     })
     setLoading(false)
     if (res.ok) {
+      const workspace = await res.json()
       setName('')
       setDescription('')
       setDomain('cloud')
-      onCreated()
+      onCreated(workspace as { id: string; execution_domain: ExecutionDomain })
       onClose()
     } else {
       const data = await res.json().catch(() => ({}))
@@ -84,7 +85,7 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
             ) : runtimeStatus.status?.desktop.connected ? (
               `本地 Desktop 已连接：${runtimeStatus.status.desktop.device?.name ?? '当前设备'}`
             ) : (
-              '本地 Desktop 未连接。可以先创建为只读工作区，连接 Desktop 后再继续执行。'
+              '本地 Desktop 未连接，当前不能创建可执行的本地工作区。'
             )}
           </div>
         </div>
@@ -96,7 +97,7 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: Props) {
           <button
             type="submit"
             disabled={loading || !name}
-            title={localDesktopUnavailable ? '将创建为只读可查看，连接 Desktop 后才能执行' : undefined}
+            title={localDesktopUnavailable ? '请先连接 Desktop 后再创建本地工作区' : undefined}
             className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {loading ? '创建中...' : '创建'}

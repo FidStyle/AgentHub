@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, Badge, StateCard } from '@agenthub/ui'
+import { Button, Card, CardContent, Badge, StateCard } from '@agenthub/ui'
 
 interface WorkspaceRow {
   id: string
@@ -21,24 +21,59 @@ export default function MobileHomePage() {
   const [sessions, setSessions] = useState<SessionRow[]>([])
   const [selectedWs, setSelectedWs] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     fetch('/api/workspaces')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('加载工作区失败')
+        return r.json()
+      })
       .then(d => { if (Array.isArray(d)) setWorkspaces(d) })
+      .catch((e) => setError(e instanceof Error ? e.message : '加载工作区失败'))
       .finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
     if (!selectedWs) return
+    setSessionsLoading(true)
     fetch(`/api/sessions?workspace_id=${selectedWs}`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('加载会话失败')
+        return r.json()
+      })
       .then(d => { if (Array.isArray(d)) setSessions(d) })
+      .catch((e) => setError(e instanceof Error ? e.message : '加载会话失败'))
+      .finally(() => setSessionsLoading(false))
   }, [selectedWs])
+
+  const createSession = async () => {
+    if (!selectedWs) return
+    setSessionsLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: selectedWs }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || '创建会话失败')
+      router.push(`/m/sessions/${(body as SessionRow).id}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '创建会话失败')
+      setSessionsLoading(false)
+    }
+  }
 
   if (loading) {
     return <StateCard variant="loading" />
+  }
+
+  if (error && workspaces.length === 0) {
+    return <StateCard variant="error" title="加载失败" description={error} />
   }
 
   return (
@@ -69,8 +104,15 @@ export default function MobileHomePage() {
 
       {selectedWs && (
         <>
-          <h2 className="text-sm font-medium mt-2">会话</h2>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">会话</h2>
+            <Button size="sm" onClick={createSession} disabled={sessionsLoading}>
+              新建会话
+            </Button>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex flex-col gap-2">
+            {sessionsLoading && sessions.length === 0 && <StateCard variant="loading" title="正在加载会话" />}
             {sessions.map(s => (
               <Card key={s.id} className="cursor-pointer hover:bg-muted transition-colors"
                 onClick={() => router.push(`/m/sessions/${s.id}`)}>

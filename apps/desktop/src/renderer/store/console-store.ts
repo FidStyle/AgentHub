@@ -107,17 +107,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
     { id: 'auto', preset: 'auto', label: '自动执行', description: '本 Session 内常规动作自动继续；高风险动作仍需授权。', enabled: false },
     { id: 'full_control', preset: 'full_control', label: '完全控制', description: '当前 workspace/device 范围内最大授权，仍保留审计、撤销和安全阻断。', enabled: false },
   ],
-  authorizationRecords: [
-    {
-      id: 'auth-1',
-      title: 'Web 已授权一次性文件清理',
-      scope: '仅本次 · 本机执行 · 工作区内文件变更',
-      surface: 'Web',
-      status: 'executable',
-      createdAt: '刚刚',
-      commandPreview: 'rm -rf src/legacy/*',
-    },
-  ],
+  authorizationRecords: [],
   workspaceDirs: [
     { path: '~/.agenthub/workspaces/default', healthy: true },
   ],

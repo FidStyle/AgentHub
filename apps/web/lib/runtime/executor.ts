@@ -35,6 +35,13 @@ export interface CliExecutorOptions {
 
 const CLI_BINARY: Record<CliRuntimeType, string> = { claude_code: 'claude', codex: 'codex' }
 
+function cliArgs(runtimeType: CliRuntimeType, prompt: string) {
+  if (runtimeType === 'codex') {
+    return ['exec', '-s', 'read-only', '--color', 'never', prompt]
+  }
+  return ['-p', prompt]
+}
+
 // CliRuntimeExecutor: spawns the real claude/codex CLI and streams stdout lines as chunks.
 // stderr is consumed for failure diagnosis only and is NOT forwarded as output (avoids leaking
 // credential-bearing error text). A missing binary (ENOENT) surfaces as ExecutorUnavailableError.
@@ -43,9 +50,10 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
 
   async *execute(job: ExecutorJob): AsyncIterable<ExecutorChunk> {
     const binary = CLI_BINARY[this.options.runtimeType]
-    const child = spawn(binary, ['-p', job.prompt], {
+    const child = spawn(binary, cliArgs(this.options.runtimeType, job.prompt), {
       cwd: this.options.cwd,
       env: { ...process.env, ...this.options.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
 
     const queue: ExecutorChunk[] = []
