@@ -23,6 +23,7 @@
 - `opencli doctor` PASS。
 - `pnpm --filter @agenthub/web type-check` PASS。
 - `pnpm --filter @agenthub/desktop type-check` PASS。
+- `pnpm --filter @agenthub/web build` PASS（干净删除 `apps/web/.next` 后重建）。
 - `pnpm --filter @agenthub/web test -- __tests__/runtime __tests__/api/chat.test.ts` PASS（7 files / 31 tests）。
 - `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts` PASS（6 tests）。
 - `pnpm env:acceptance:smoke` PASS（CRUD 5/5，chat 14/14）。
@@ -58,5 +59,6 @@
 ## 收尾记录
 
 - 工作提交：`08440f7`、`dc4bd21`、`dc3e75d`、`c2cb16f`。
+- 生产构建补测：修复附件 metadata 摘要的 ESLint 未使用变量后，`pnpm --filter @agenthub/web build` 与 production `start` 下 fixture session 验证通过；无 cookie 业务 API 返回 401，有 Auth.js fixture cookie 返回 200，`/api/auth/session` 返回 200。
 - Trellis 归档：`chore(task): archive 06-01-acceptance-real-e2e-uat`。
 - Journal 记录：`chore: record journal`。

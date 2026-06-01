@@ -125,7 +125,14 @@ export async function POST(req: NextRequest) {
   const metadata: Record<string, unknown> = {}
   if (mentions) metadata.mentions = mentions
   if (attachments.length > 0) {
-    metadata.attachments = attachments.map(({ content: _content, ...attachment }) => attachment)
+    metadata.attachments = attachments.map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      type: attachment.type,
+      size: attachment.size,
+      contentRef: attachment.contentRef,
+      createdAt: attachment.createdAt,
+    }))
   }
 
   await db.from('messages').insert({
