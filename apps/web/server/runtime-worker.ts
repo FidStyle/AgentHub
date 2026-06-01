@@ -36,7 +36,7 @@ async function log(runtimeSessionId: string, eventType: string, payload: Record<
 
 // Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.
 // Each step persists to runtime_logs (seq) + publishes to redis for gateway relay. Exported for tests.
-export async function processJob(job: RuntimeJob, executor: RuntimeExecutor = new FakeExecutor()): Promise<Terminal> {
+export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Promise<Terminal> {
   const id = job.runtimeSessionId
   let seq = 0
   const emit = async (event: Record<string, unknown>) => {

@@ -34,18 +34,18 @@ const PERMISSION_MODES = [
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
 // 语义默认向上展开（对齐裸 absolute 的 bottom-full）；上方空间不足时翻下方；宽度对齐 trigger 与上限取大并 clamp；
 // 高度受可用空间与视口 60% 双重 clamp，长列表内部滚动而非撑高页面。
-function computeRolePicker(trigger: DOMRect): { top: number; left: number; width: number; maxHeight: number } {
+function computeRolePicker(trigger: DOMRect): { top: number; left: number; width: number; maxHeight: number; placement: 'above' | 'below' } {
   const vw = window.innerWidth
   const vh = window.innerHeight
   const spaceAbove = trigger.top - GAP - MARGIN
   const spaceBelow = vh - trigger.bottom - GAP - MARGIN
-  const above = spaceAbove >= spaceBelow
+  const above = spaceAbove >= 120 || spaceAbove >= spaceBelow
   const avail = Math.max(0, above ? spaceAbove : spaceBelow)
   const maxHeight = Math.min(avail, Math.round(vh * 0.6))
   const width = Math.min(ROLE_PICKER_MAX_WIDTH, vw - 2 * MARGIN)
-  const top = above ? Math.max(MARGIN, trigger.top - GAP - maxHeight) : trigger.bottom + GAP
+  const top = above ? Math.max(MARGIN, trigger.top - GAP) : trigger.bottom + GAP
   const left = Math.max(MARGIN, Math.min(trigger.left, vw - width - MARGIN))
-  return { top, left, width, maxHeight }
+  return { top, left, width, maxHeight, placement: above ? 'above' : 'below' }
 }
 
 function useRoleAgents(workspaceId: string | null) {
@@ -128,7 +128,7 @@ function MessageComposer({
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number; placement: 'above' | 'below' } | null>(null)
   const [mounted, setMounted] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -331,7 +331,7 @@ function RolePicker({
   onSelect,
 }: {
   open: boolean
-  pos: { top: number; left: number; width: number; maxHeight: number } | null
+  pos: { top: number; left: number; width: number; maxHeight: number; placement: 'above' | 'below' } | null
   roleAgents: RoleAgent[]
   onSelect: (r: RoleAgent) => void
 }) {
@@ -345,6 +345,7 @@ function RolePicker({
         width: pos?.width ?? 0,
         minWidth: 160,
         maxHeight: pos?.maxHeight ?? 0,
+        transform: pos?.placement === 'above' ? 'translateY(-100%)' : undefined,
         visibility: pos ? 'visible' : 'hidden',
       }}
       className="fixed z-50 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md"

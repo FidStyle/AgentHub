@@ -80,6 +80,8 @@ async function main() {
   const pool = new Pool({ connectionString: DATABASE_URL })
   const { enqueue, dequeue, setCancel, clearCancel, closeRedis } = await import('../lib/runtime/redis-client')
   const { processJob } = await import('../server/runtime-worker')
+  const { ScriptedRealExecutor } = await import('../lib/runtime/executor')
+  const executor = new ScriptedRealExecutor()
 
   try {
     // --- Test 1: 调度（enqueue → dequeue 同一 job）---
@@ -93,7 +95,7 @@ async function main() {
     // --- Test 2+3: 流式 + completed 落库 + seq 有序 ---
     console.log('\n[流式+落库] FakeExecutor 流式 → completed + runtime_logs seq 有序')
     const ok = await createRuntimeSession(pool)
-    const okTerminal = await processJob({ runtimeSessionId: ok.runtimeSessionId, prompt: 'alpha beta gamma delta' })
+    const okTerminal = await processJob({ runtimeSessionId: ok.runtimeSessionId, prompt: 'alpha beta gamma delta' }, executor)
     assert(okTerminal === 'completed', `processJob 返回 completed（got ${okTerminal}）`)
     assert((await sessionStatus(pool, ok.runtimeSessionId)) === 'completed', 'runtime_sessions.status=completed 落库')
 
@@ -110,7 +112,7 @@ async function main() {
     console.log('\n[取消] setCancel → processJob 落 cancelled + emit runtime_cancelled')
     const cancel = await createRuntimeSession(pool)
     await setCancel(cancel.runtimeSessionId)
-    const cancelTerminal = await processJob({ runtimeSessionId: cancel.runtimeSessionId, prompt: 'one two three four five six' })
+    const cancelTerminal = await processJob({ runtimeSessionId: cancel.runtimeSessionId, prompt: 'one two three four five six' }, executor)
     assert(cancelTerminal === 'cancelled', `processJob 返回 cancelled（got ${cancelTerminal}）`)
     assert((await sessionStatus(pool, cancel.runtimeSessionId)) === 'cancelled', 'runtime_sessions.status=cancelled 落库')
     const cancelLogs = await logsBySeq(pool, cancel.runtimeSessionId)
@@ -121,7 +123,7 @@ async function main() {
     // --- Test 5: 失败（job.fail → failed，不伪装成功）---
     console.log('\n[失败] job.fail 注入异常 → 落 failed + emit runtime_failed')
     const fail = await createRuntimeSession(pool)
-    const failTerminal = await processJob({ runtimeSessionId: fail.runtimeSessionId, prompt: 'a b c d e f', fail: true })
+    const failTerminal = await processJob({ runtimeSessionId: fail.runtimeSessionId, prompt: 'a b c d e f', fail: true }, executor)
     assert(failTerminal === 'failed', `processJob 返回 failed（got ${failTerminal}）`)
     assert((await sessionStatus(pool, fail.runtimeSessionId)) === 'failed', 'runtime_sessions.status=failed 落库')
     const failLogs = await logsBySeq(pool, fail.runtimeSessionId)

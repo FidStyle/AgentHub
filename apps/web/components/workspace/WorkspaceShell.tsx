@@ -78,7 +78,10 @@ export function WorkspaceShell({
             variant="ghost"
             size="sm"
             data-testid="open-sidebar"
-            onClick={() => setLeftPanelOpen(true)}
+            onClick={() => {
+              setRightPanelOpen(false)
+              setLeftPanelOpen(true)
+            }}
           />
           <Link href="/workspace" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
             <ArrowLeft className="h-3.5 w-3.5" />

@@ -1,0 +1,41 @@
+{
+  "runtime_e2e": "0",
+  "findings": [
+    {
+      "id": "env",
+      "workspace_create_status": 201,
+      "wsId": "26a1a53f-60dc-4c00-8605-a6dfd8782a65"
+    },
+    {
+      "id": "role-picker",
+      "architect_visible": true
+    },
+    {
+      "id": "cloud-architect-reply",
+      "chat_http_status": 200,
+      "user_message_visible": true,
+      "saw_real_agent_reply": false,
+      "saw_runtime_notice": true,
+      "notice_text": "⚠️ 公共云端 Runtime 未就绪，请稍后再试或切换到本地 Desktop 运行时",
+      "conclusion": "技术链路有反馈但目标未达成：仅运行时不可用提示（⚠️ 公共云端 Runtime 未就绪，请稍后再试或切换到本地 Desktop 运行时）"
+    },
+    {
+      "id": "reload-persistence",
+      "user_msg_after_reload": true,
+      "agent_badge_after_reload": false
+    },
+    {
+      "id": "artifact",
+      "panel_visible": true,
+      "role_agents_api_count": 1,
+      "agents_tab_text": "Role Agents 管理当前工作区可 @ 的角色 新建 架构师 orchestrator · 编排者 能力: architecture、planning、review 架构师 orchestrator · 编排者 你是一名资深软件架构师。你负责理解需求、拆解系统、评估技术权衡，并给出清晰、可落地的架构方案与实现指引。回答使用简体中文。 编辑 删除 本地 Claude Code / Codex ",
+      "conclusion": "需人工核对"
+    },
+    {
+      "id": "mobile-entry",
+      "http_status": 200,
+      "body_excerpt": "AgentHub 工作区 授权 工作区 AUDIT-1780297710335云端 E2E-MOBILE-P0-1780297707909云端 E2E-P0FLOW-1780297707002云端 E2E-P0FLOW-1780297706662云端 E2E-P0FLOW-1780297706241云端 E2E-ARTIFACT-DATA-1780297702220云端 AUDIT-1780297659965云端 E2E-LAYOUT-1780297647891云端 E2E-LAYOUT-1780297647048云端 E2E-LAYOUT-1780297644309云端 E2E-LAYOUT",
+      "has_interactive": 158
+    }
+  ]
+}

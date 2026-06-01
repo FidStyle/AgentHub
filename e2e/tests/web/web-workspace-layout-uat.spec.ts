@@ -18,6 +18,15 @@ import {
 
 const ARTIFACT_DIR = 'e2e/artifacts/web-workspace-layout'
 
+async function assertRolePickerAdjacent(page: Page) {
+  const picker = await page.getByTestId('role-picker').boundingBox()
+  const trigger = await page.getByTestId('mention-role-btn').boundingBox()
+  expect(picker).toBeTruthy()
+  expect(trigger).toBeTruthy()
+  const edge = picker!.y < trigger!.y ? 'above' : 'below'
+  await assertAdjacent(page, '[data-testid="role-picker"]', '[data-testid="mention-role-btn"]', edge, 16)
+}
+
 async function seedWorkspace(page: Page) {
   const ts = Date.now()
   const res = await page.request.post('/api/workspaces', {
@@ -74,7 +83,7 @@ test.describe('Web workspace 桌面三栏布局几何', () => {
       await page.getByTestId('mention-role-btn').click()
       const picker = page.getByTestId('role-picker')
       await expect(picker).toBeVisible()
-      await assertAdjacent(page, '[data-testid="role-picker"]', '[data-testid="mention-role-btn"]', 'above', 16)
+      await assertRolePickerAdjacent(page)
       await assertNotOverlapping(page, '[data-testid="role-picker"]', '[data-testid="composer-input"]')
       await assertNotOverlapping(page, '[data-testid="role-picker"]', '[data-testid="send-btn"]')
       await page.getByTestId('mention-role-btn').click()
@@ -134,6 +143,7 @@ test.describe('Web workspace 窄屏（移动宽度）布局', () => {
     await page.getByTestId('sidebar-backdrop').click()
 
     // 右栏 overlay 模式：开启不把中栏聊天区压到不可用（仍 >=480 或 overlay 覆盖在上层）
+    await page.getByTestId('toggle-artifact-btn').click()
     await expect(page.getByTestId('artifact-overlay')).toBeVisible()
     await assertMinWidth(page, '[data-testid="chat-panel"]', 480)
 

@@ -119,9 +119,9 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
     const panelVisible = await panel.count()
     let agentsTabText = ''
     if (panelVisible > 0) {
-      await panel.getByRole('button', { name: 'Agents' }).click().catch(() => {})
-      await page.waitForTimeout(500)
-      agentsTabText = (await panel.innerText()).replace(/\s+/g, ' ').trim().slice(0, 200)
+      const agents = panel.getByTestId('artifact-agents')
+      await expect(agents).toBeVisible()
+      agentsTabText = (await agents.innerText()).replace(/\s+/g, ' ').trim().slice(0, 200)
     }
     const ra = await page.request.get(`/api/role-agents?workspace_id=${wsId}`)
     const raCount = ra.ok() ? (await ra.json()).length : -1
