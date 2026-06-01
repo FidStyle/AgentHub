@@ -1,77 +1,58 @@
 {
+  "env": {
+    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"
+  },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/session-start.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/session-start.py",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/session-start.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
+        "matcher": "Task",
         "hooks": [
           {
             "type": "command",
-            "command": "maestro hooks run spec-injector"
-          }
-        ],
-        "matcher": "Agent"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "maestro hooks run preflight-guard"
-          }
-        ],
-        "matcher": "Bash|Write|Edit|Agent"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "maestro hooks run spec-validator"
-          }
-        ],
-        "matcher": "Write|Edit"
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "maestro hooks run delegate-monitor"
-          }
-        ],
-        "matcher": "Bash|Agent"
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "maestro hooks run team-monitor"
+            "command": "python3 .claude/hooks/inject-subagent-context.py",
+            "timeout": 30
           }
         ]
       },
       {
+        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",
-            "command": "maestro hooks run telemetry"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "maestro hooks run coordinator-tracker"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "maestro hooks run session-context"
+            "command": "python3 .claude/hooks/inject-subagent-context.py",
+            "timeout": 30
           }
         ]
       }
@@ -81,18 +62,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "maestro hooks run skill-context"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "maestro hooks run keyword-spec-injector"
+            "command": "python3 .claude/hooks/inject-workflow-state.py",
+            "timeout": 15
           }
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {}
 }
