@@ -232,6 +232,22 @@ describe('GET /api/sessions', () => {
     expect(result.data).toBeInstanceOf(Array)
   })
 
+  it('AT-S004b: includes latest message summary for the session list', async () => {
+    const { GET } = await import('@/app/api/sessions/route')
+    setupMockClient(createPostgresChain(
+      mockUser,
+      undefined,
+      undefined,
+      [{ id: 'msg-latest', session_id: 'session-001', content: '最新会话摘要', sender_type: 'agent', created_at: '2026-01-02T00:00:00.000Z' }],
+    ))
+    const result = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001' } })
+    expect(result.status).toBe(200)
+    const sessions = result.data as Array<Record<string, unknown>>
+    expect(sessions[0].last_message).toBe('最新会话摘要')
+    expect(sessions[0].last_message_sender_type).toBe('agent')
+    expect(sessions[0].last_message_at).toBe('2026-01-02T00:00:00.000Z')
+  })
+
   it('AT-S005: returns 403 when workspace not found (ownership check precedes DB query)', async () => {
     const { GET } = await import('@/app/api/sessions/route')
     // Sessions route checks workspace ownership first. The error chain returns null workspace
