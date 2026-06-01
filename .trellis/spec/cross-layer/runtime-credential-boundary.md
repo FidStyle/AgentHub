@@ -296,3 +296,125 @@ return {
 
 await runtime.execute({ runtimeType: 'codex', prompt: input.trim() }, cwd)
 ```
+
+## 场景：Desktop / Electron 验收测试前进程隔离
+
+### 1. Scope / Trigger
+
+- Trigger：运行 Desktop、Electron、DeviceChannel、opencli 或本地 `local_desktop` 链路验收前，机器上可能残留旧的 Vite/Electron/Playwright/WebSocket 进程。
+- 适用范围：`npx playwright test --config e2e/playwright.desktop.config.ts`、手工 Playwright Electron 脚本、`pnpm --filter @agenthub/desktop exec vite --port 5173`、`pnpm dev:acceptance`、opencli Desktop/Web UAT。
+- 核心风险：旧进程占用 `5173` 或保留旧 renderer bundle、旧 DeviceChannel token、旧 WebSocket CONNECTING 状态，导致测试看似是当前代码失败，实际是旧进程污染。
+
+### 2. Signatures
+
+```bash
+# Desktop/Electron 测试前清理命令。只清理 AgentHub 当前仓库相关进程。
+pkill -f 'playwright.desktop.config.ts' || true
+pkill -f 'Electron.*apps/desktop/dist/main/main/index.js' || true
+pkill -f 'node --input-type=module' || true
+pkill -f 'apps/desktop/node_modules/.bin/../vite/bin/vite.js --port 5173' || true
+pkill -f 'node ./node_modules/.bin/../vite/bin/vite.js --port 5173' || true
+pkill -f '@esbuild.*AgentHub_new_claude_test.*--service=0.25.12' || true
+
+# 端口确认。
+lsof -nP -iTCP:5173 -sTCP:LISTEN
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+```
+
+```typescript
+type DesktopTestProcessKind =
+  | 'desktop-vite'
+  | 'playwright-electron'
+  | 'manual-electron'
+  | 'one-off-node-script'
+  | 'web-acceptance-server'
+  | 'runtime-worker';
+
+interface DesktopTestPreflightResult {
+  clean5173: boolean;
+  cleanElectron: boolean;
+  cleanPlaywright: boolean;
+  webServerMode: 'none' | 'acceptance' | 'intentional';
+}
+```
+
+### 3. Contracts
+
+- 每次运行 Desktop/Electron E2E 前，必须先清理旧 `playwright.desktop.config.ts`、Playwright Electron、手工 Electron、一次性 `node --input-type=module` 脚本和 Desktop Vite `5173`。
+- 如果本轮测试需要 Web acceptance 服务，先明确它应由 `pnpm dev:acceptance` 启动；如果本轮只测 Desktop UI，`3000` 可以不存在，但 `5173` 必须由当前测试自己启动。
+- 任何 Desktop 测试失败前后，都要用 `ps`/`lsof` 复核是否存在旧 `5173` renderer 或旧 Electron。存在旧进程时，先清理并重跑一次，不能立刻把失败归因到业务代码。
+- Electron `DeviceChannel.connect()` 必须能承受 renderer 重载、重复 connect 和旧 socket 仍处于 `CONNECTING` 的情况；旧 socket 清理异常不得变成未捕获异常。
+- Vite renderer 环境变量必须由当前进程注入，不能依赖旧 `5173` server 的缓存 bundle。测试需要覆盖不可用 Web 时，应在本轮 Vite 进程中注入不可用 `APP_BASE_URL` / `VITE_WEB_BASE_URL`。
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| `lsof :5173` 显示旧 Desktop Vite | 先 kill 旧进程；不得复用旧 renderer 运行新 E2E |
+| `ps` 显示旧 Playwright Electron | 先 kill 旧 Electron 和父 Playwright worker；否则可能触发 single-instance、ready、WebSocket 竞争 |
+| Electron 抛 `Cannot create BrowserWindow before app is ready` | 检查是否有旧/并发 Electron 或早发 `activate`；main process 必须 gate `app.isReady()` |
+| WebSocket 抛 `WebSocket is not open: readyState 0 (CONNECTING)` | DeviceChannel 发送前必须检查 `readyState === WebSocket.OPEN` |
+| WebSocket 抛 `closed before the connection was established` | 不要对 CONNECTING 旧 socket 直接 `close()` / `terminate()` 后放任异常；旧 socket 清理必须吞掉 cleanup errors |
+| E2E 期望 Web 不可用错误，但本机 `3000` 正在运行 | 测试必须为当前 Vite renderer 注入不可用 base URL，不能依赖全局机器状态 |
+
+### 5. Good/Base/Bad Cases
+
+- Good：跑 Desktop E2E 前，清理旧 Electron/Vite/Playwright，确认 `5173` 空闲，再由 spec 自己启动 Vite 和 Electron。
+- Good：需要同时跑 Web acceptance 时，明确保留 `3000`，但仍清理 `5173` 和旧 Electron；测试内通过 env 控制 Web 可用/不可用场景。
+- Base：测试被用户中断后，先执行清理并确认无 `Electron.*apps/desktop`、无 `playwright.desktop`、无 `5173` listener，再继续。
+- Bad：旧 `5173` Vite 还在运行，代码已 rebuild 但 Electron 加载旧 bundle，导致错误定位到不存在的问题。
+- Bad：多个 Electron 实例复用同一个 Electron user-data-dir 和 DeviceChannel token，产生 WebSocket CONNECTING/close 竞争，然后把未捕获异常误判为业务链路失败。
+
+### 6. Tests Required
+
+- E2E 前置检查：`lsof -nP -iTCP:5173 -sTCP:LISTEN` 必须为空，除非当前测试脚本刚启动并记录了 PID。
+- E2E 稳定性：`npx playwright test --config e2e/playwright.desktop.config.ts --workers=1` 不应因旧进程导致 `SIGABRT`、single-instance 或 `BrowserWindow before app ready`。
+- DeviceChannel 单元/集成测试：重复调用 `connect()` 时，不应抛出 `WebSocket was closed before the connection was established`。
+- Desktop 负向入口测试：当 Web 工作台不可用时，测试必须通过当前 Vite env 注入不可用 base URL，并断言 `web-workspace-error` 可见。
+- 验收脚本：如果手工启动 `pnpm dev:acceptance` 或 Desktop Vite，结束前必须清理或在最终状态中明确留下的 PID 和用途。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+# 直接跑，默认机器状态干净。
+npx playwright test --config e2e/playwright.desktop.config.ts --workers=1
+```
+
+```typescript
+if (this.ws) {
+  this.ws.close()
+}
+this.ws = new WebSocket(config.gatewayUrl)
+```
+
+#### Correct
+
+```bash
+pkill -f 'playwright.desktop.config.ts' || true
+pkill -f 'Electron.*apps/desktop/dist/main/main/index.js' || true
+pkill -f 'apps/desktop/node_modules/.bin/../vite/bin/vite.js --port 5173' || true
+lsof -nP -iTCP:5173 -sTCP:LISTEN
+npx playwright test --config e2e/playwright.desktop.config.ts --workers=1
+```
+
+```typescript
+const oldSocket = this.ws
+if (oldSocket) {
+  oldSocket.removeAllListeners()
+  oldSocket.on('error', () => undefined)
+  if (oldSocket.readyState === WebSocket.CONNECTING) {
+    oldSocket.once('open', () => oldSocket.close())
+  } else if (oldSocket.readyState === WebSocket.OPEN) {
+    oldSocket.close()
+  }
+}
+
+const ws = new WebSocket(config.gatewayUrl)
+this.ws = ws
+ws.on('open', () => {
+  if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(serializeFrame(authFrame))
+})
+```

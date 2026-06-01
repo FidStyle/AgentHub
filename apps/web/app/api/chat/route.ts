@@ -6,22 +6,38 @@ import { getConnectionByUserId } from '@/server/device-connections'
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const conn = getConnectionByUserId(userId)
-  if (!conn) return { ok: false, error: '本地 Desktop 未连接云端，当前只能只读查看历史。' }
 
   const { data: devices } = await db
     .from('devices')
-    .select('id, type')
+    .select('id, type, created_at')
     .eq('user_id', userId)
-  const desktop = ((devices ?? []) as unknown as Array<{ id: string; type: string }>).find((device) => device.id === conn.deviceId && device.type === 'desktop')
-  if (!desktop) return { ok: false, error: '当前账号没有可用的 Desktop 绑定，当前只能只读查看历史。' }
+  const desktopDevices = ((devices ?? []) as unknown as Array<{ id: string; type: string; created_at?: string }>).filter((device) => device.type === 'desktop')
+  if (desktopDevices.length === 0) return { ok: false, error: '当前账号没有可用的 Desktop 绑定，当前只能只读查看历史。' }
 
-  const { data: channels } = await db
-    .from('device_runtime_channels')
-    .select('endpoint_id, status')
-    .eq('device_id', desktop.id)
-  const channel = ((channels ?? []) as unknown as Array<{ endpoint_id: string | null; status: string }>).find((row) => row.status === 'connected')
+  let connectedChannel: { device_id: string; endpoint_id: string | null; status: string; connected_at?: string | null; last_heartbeat?: string | null } | null = null
+  for (const desktop of desktopDevices) {
+    const { data: channels } = await db
+      .from('device_runtime_channels')
+      .select('device_id, endpoint_id, status, connected_at, last_heartbeat')
+      .eq('device_id', desktop.id)
+    const connected = ((channels ?? []) as unknown as Array<{ device_id: string; endpoint_id: string | null; status: string; connected_at?: string | null; last_heartbeat?: string | null }>)
+      .filter((row) => row.status === 'connected')
+      .sort((a, b) => {
+        const at = new Date(a.last_heartbeat ?? a.connected_at ?? 0).getTime()
+        const bt = new Date(b.last_heartbeat ?? b.connected_at ?? 0).getTime()
+        return bt - at
+      })[0]
+    if (!connected) continue
+    if (!connectedChannel) connectedChannel = connected
+    if (conn?.deviceId === desktop.id) {
+      connectedChannel = connected
+      break
+    }
+  }
+
+  const channel = connectedChannel
   if (!channel?.endpoint_id) {
-    return { ok: false, error: '本地 Runtime 尚未完成真实检测，当前只能只读查看历史。' }
+    return { ok: false, error: '本地 Desktop 未连接云端，当前只能只读查看历史。' }
   }
 
   const { data: capabilities } = await db

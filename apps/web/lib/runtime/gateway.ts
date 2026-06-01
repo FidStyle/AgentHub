@@ -41,6 +41,45 @@ export async function resolveEndpoint(input: {
   const db = await createClient()
   const kind: EndpointKind = input.executionDomain === 'local_desktop' ? 'user_local' : 'public_cloud'
 
+  if (kind === 'user_local') {
+    const { data: devices } = await db
+      .from('devices')
+      .select('id')
+      .eq('user_id', input.userId)
+      .eq('type', 'desktop')
+    const deviceIds = ((devices ?? []) as unknown as Array<{ id: string }>).map((device) => device.id)
+    for (const deviceId of deviceIds) {
+      const { data: channels } = await db
+        .from('device_runtime_channels')
+        .select('endpoint_id, status, connected_at, last_heartbeat')
+        .eq('device_id', deviceId)
+      const channel = ((channels ?? []) as unknown as Array<{ endpoint_id: string | null; status: string; connected_at?: string | null; last_heartbeat?: string | null }>)
+        .filter((row) => row.status === 'connected' && row.endpoint_id)
+        .sort((a, b) => {
+          const at = new Date(a.last_heartbeat ?? a.connected_at ?? 0).getTime()
+          const bt = new Date(b.last_heartbeat ?? b.connected_at ?? 0).getTime()
+          return bt - at
+        })[0]
+      if (!channel?.endpoint_id) continue
+
+      const { data: endpoint } = await db
+        .from('runtime_endpoints')
+        .select('id, kind, status, device_id')
+        .eq('id', channel.endpoint_id)
+        .eq('user_id', input.userId)
+        .eq('kind', kind)
+        .single()
+      if (endpoint?.id) {
+        return {
+          id: endpoint.id,
+          kind,
+          status: endpoint.status as EndpointStatus,
+          deviceId: endpoint.device_id ?? deviceId,
+        }
+      }
+    }
+  }
+
   const { data: rows } = await db
     .from('runtime_endpoints')
     .select('id, kind, status, device_id')
@@ -66,16 +105,18 @@ export async function createSession(input: {
   roleAgentId?: string
 }): Promise<RuntimeSessionRecord> {
   const db = await createClient()
-  const { data } = await db
+  const { data, error } = await db
     .from('runtime_sessions')
     .insert({
       session_id: input.sessionId,
       endpoint_id: input.endpoint.id,
       status: 'idle',
-      role_agent_id: input.roleAgentId ?? null,
     })
     .select('id')
     .single()
+  if (error || !data?.id) {
+    throw new Error(error?.message ?? '创建 Runtime Session 失败')
+  }
   return { id: data?.id ?? '', endpoint: input.endpoint }
 }
 
@@ -196,7 +237,12 @@ export async function* invoke(input: {
 
   // user_local: relay through Gateway/DeviceChannel; remote clients never touch local ports.
   const conn = getConnectionByUserId(input.userId)
-  if (!conn) {
+  let relayDeviceId = conn?.deviceId ?? endpoint.deviceId
+  if (!conn && endpoint.deviceId) {
+    const channel = await getChannelByDevice(endpoint.deviceId)
+    if (channel?.status !== 'connected') relayDeviceId = undefined
+  }
+  if (!relayDeviceId) {
     // Distinguish "was connected then dropped" (tunnel_disconnected) from "never connected" (local_runtime_offline).
     const channel = endpoint.deviceId ? await getChannelByDevice(endpoint.deviceId) : null
     if (channel?.connected_at) {
@@ -210,8 +256,8 @@ export async function* invoke(input: {
     return
   }
 
-  await markChannelConnected(conn.deviceId, endpoint.id ?? undefined)
-  yield { type: 'tunnel_connected', endpointId: endpoint.id ?? '', deviceId: conn.deviceId }
+  await markChannelConnected(relayDeviceId, endpoint.id ?? undefined)
+  yield { type: 'tunnel_connected', endpointId: endpoint.id ?? '', deviceId: relayDeviceId }
   yield { type: 'runtime_status', status: 'tunnel_ready', endpointId }
   const prompt = input.systemPrompt ? `${input.systemPrompt}\n\n${input.userMessage ?? ''}` : input.userMessage ?? ''
   const invokePayload = await resolveLocalRuntimeInvoke(endpoint.id, prompt)
@@ -222,7 +268,7 @@ export async function* invoke(input: {
   }
 
   await setSessionStatus(input.runtimeSession.id, 'running')
-  for await (const event of sendRuntimeInvokeToDevice(conn.deviceId, {
+  for await (const event of sendRuntimeInvokeToDevice(relayDeviceId, {
     sessionId: input.runtimeSession.id,
     runtimeType: invokePayload.runtimeType,
     prompt: invokePayload.prompt,

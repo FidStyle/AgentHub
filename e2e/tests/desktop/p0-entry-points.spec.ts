@@ -1,5 +1,6 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
-import { spawn, ChildProcess } from 'child_process'
+import { type ChildProcess } from 'child_process'
+import { startDesktopVite, stopProcessTree, waitForViteReady } from './desktop-test-utils'
 import path from 'path'
 
 const desktopRoot = path.resolve(__dirname, '../../../apps/desktop')
@@ -9,27 +10,13 @@ let window: Page
 
 test.describe('P0 入口点击语义验证', () => {
   test.beforeAll(async () => {
-    viteProcess = spawn('npx', ['vite', '--port', '5177'], {
-      cwd: desktopRoot,
-      stdio: 'pipe',
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Vite startup timeout')), 15000)
-      const onData = (data: Buffer) => {
-        if (data.toString().includes('ready') || data.toString().includes('Local')) {
-          clearTimeout(timeout)
-          resolve()
-        }
-      }
-      viteProcess.stdout?.on('data', onData)
-      viteProcess.stderr?.on('data', onData)
-    })
+    viteProcess = startDesktopVite(desktopRoot, '5177', { APP_BASE_URL: 'http://127.0.0.1:65530', VITE_WEB_BASE_URL: 'http://127.0.0.1:65530' })
+    await waitForViteReady(viteProcess)
 
     electronApp = await electron.launch({
       args: [path.join(desktopRoot, 'dist/main/main/index.js')],
       cwd: desktopRoot,
-      env: { ...process.env, NODE_ENV: 'development', VITE_PORT: '5177' },
+      env: { ...process.env, NODE_ENV: 'development', VITE_PORT: '5177', APP_BASE_URL: 'http://127.0.0.1:65530', VITE_WEB_BASE_URL: 'http://127.0.0.1:65530' },
     })
     window = await electronApp.firstWindow()
     await window.waitForLoadState('domcontentloaded')
@@ -38,7 +25,7 @@ test.describe('P0 入口点击语义验证', () => {
 
   test.afterAll(async () => {
     await electronApp?.close()
-    viteProcess?.kill()
+    await stopProcessTree(viteProcess)
   })
 
   test('GitHub 登录按钮点击后触发可观察结果', async () => {

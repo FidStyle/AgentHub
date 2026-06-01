@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { IncomingMessage } from 'http'
 import type { Server } from 'http'
 import { parseFrame, type AuthFrame, type HeartbeatAckFrame, type ConnectedFrame } from '@agenthub/shared'
-import { addConnection, removeConnection, updateHeartbeat, getAllConnections, deliverDeviceResponse, deliverDeviceRuntimeEvent } from './device-connections'
+import { addConnection, removeConnection, updateHeartbeat, getAllConnections, deliverDeviceResponse, deliverDeviceRuntimeEvent, startDeviceRequestRedisBridge } from './device-connections'
 import { createClient } from '../lib/app-db-client'
 import { markChannelConnected, markChannelDisconnected } from '../lib/runtime/device-channel-store'
 
@@ -44,6 +44,9 @@ async function persistRuntimeDetection(endpointId: string, runtimes: unknown) {
 
 export function setupWebSocketGateway(server: Server) {
   const wss = new WebSocketServer({ noServer: true })
+  void startDeviceRequestRedisBridge().catch((error) => {
+    console.error('[device-relay] redis bridge failed', error)
+  })
 
   server.on('upgrade', (req, socket, head) => {
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname

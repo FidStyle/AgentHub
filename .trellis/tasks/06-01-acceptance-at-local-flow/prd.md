@@ -13,9 +13,16 @@
 
 ## Acceptance Criteria
 
-- [ ] 本地链路成功时 Web 可见 agent 回复并刷新保留。
-- [ ] 本地链路失败时 Web 显示中文错误且 DB 不落成功 agent 回复。
-- [ ] Electron 层有自动化或 opencli UAT 证据。
+- [x] 本地链路成功时 Web 可见 agent 回复并刷新保留。
+- [x] 本地链路失败时 Web 显示中文错误且 DB 不落成功 agent 回复。
+- [x] Electron 层有自动化或 opencli UAT 证据。
+
+## Verification Notes
+
+- 2026-06-01：真实 acceptance 环境下跑通 `local_desktop` 核心 @ 链路：Web `/api/chat` -> Gateway -> Redis 跨进程 DeviceChannel relay -> Electron `RuntimeHost` -> `claude --print` -> runtime_event -> SSE -> agent message 落库。
+- SSE 证据包含 `gateway_connected`、`tunnel_connected`、`runtime_status: tunnel_ready/running`、`runtime_output`、`runtime_completed`、`done`。
+- DB 证据：最新 `runtime_sessions.status=completed`；`runtime_logs` 6 条事件按 seq 落库；`messages` 有用户消息和 agent 消息。
+- 验证命令：`npx playwright test --config e2e/playwright.desktop.config.ts --workers=1` 45 passed / 2 skipped；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm env:acceptance:smoke` PASS。
 
 ## References
 

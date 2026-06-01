@@ -1,5 +1,6 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
-import { spawn, ChildProcess } from 'child_process'
+import { type ChildProcess } from 'child_process'
+import { startDesktopVite, stopProcessTree, waitForViteReady } from './desktop-test-utils'
 import path from 'path'
 
 const desktopRoot = path.resolve(__dirname, '../../../apps/desktop')
@@ -9,22 +10,8 @@ let window: Page
 
 test.describe('Desktop Electron', () => {
   test.beforeAll(async () => {
-    viteProcess = spawn('npx', ['vite', '--port', '5173'], {
-      cwd: desktopRoot,
-      stdio: 'pipe',
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Vite startup timeout')), 15000)
-      const onData = (data: Buffer) => {
-        if (data.toString().includes('ready') || data.toString().includes('Local')) {
-          clearTimeout(timeout)
-          resolve()
-        }
-      }
-      viteProcess.stdout?.on('data', onData)
-      viteProcess.stderr?.on('data', onData)
-    })
+    viteProcess = startDesktopVite(desktopRoot, '5173')
+    await waitForViteReady(viteProcess)
 
     electronApp = await electron.launch({
       args: [path.join(desktopRoot, 'dist/main/main/index.js')],
@@ -38,7 +25,7 @@ test.describe('Desktop Electron', () => {
 
   test.afterAll(async () => {
     await electronApp?.close()
-    viteProcess?.kill('SIGTERM')
+    await stopProcessTree(viteProcess)
   })
 
   test('启动窗口并显示连接器界面', async () => {

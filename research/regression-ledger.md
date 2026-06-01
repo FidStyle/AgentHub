@@ -43,8 +43,8 @@
 | **发现方式** | 用户验收前复核 + Codex 代码审计（2026-06-01） |
 | **证据** | `apps/web/server/runtime-worker.ts` 默认 fake/script 已修为 real；`apps/web/lib/runtime/gateway.ts` 原 `user_local` 只到 `tunnel_ready`，现已补基础 DeviceChannel relay；`apps/web/components/workspace/ChatPanel.tsx` 附件仍只取 `file.name`；Artifact 面板仍主要从 messages metadata 派生，缺 durable artifact 输出合同。 |
 | **关闭条件** | cloud 与 local_desktop 核心 `@角色` 流程分别跑通并落库；runtime 不可用时明确失败且不落 fake agent 回复；附件内容可被 runtime 使用；artifact 有 durable output 并可刷新读取；opencli/Playwright 留下 Web/Electron UAT 证据；tracker/report/治理门禁齐全。 |
-| **当前进展** | 已建立合同/任务树/opencli skill；worker 默认改 real；Web Gateway 新增 `sendRuntimeInvokeToDevice` relay、ws-gateway response/runtime_event 分发；Desktop `RuntimeHost` 改用 `runtimeType/prompt` 调 `LocalRuntimeAdapter` 固定 CLI 映射；Web runtime tests 25 passed，Desktop tests 24 passed，Web/Desktop type-check PASS。 |
-| **下一步** | 完成 Desktop 端真实联调与 CLI 输出安全统一；再做远程真实 executor E2E、附件上传、artifact durable output 和最终 UAT。 |
+| **当前进展** | 已建立合同/任务树/opencli skill；worker 默认改 real；Web Gateway 新增 `sendRuntimeInvokeToDevice` relay、ws-gateway response/runtime_event 分发；Desktop `RuntimeHost` 改用 `runtimeType/prompt` 调 `LocalRuntimeAdapter` 固定 CLI 映射；新增 Redis 跨进程 DeviceChannel request/event relay，修复 Next API 与 WS Gateway 不同进程导致的假 offline；`local_desktop` 核心 @ 链路已用真实 Electron + Claude CLI 跑通并落库。证据：`runtime_sessions.status=completed`，`runtime_logs` 包含 `gateway_connected/tunnel_connected/runtime_status/running/runtime_output/runtime_completed`，agent message 持久化；Desktop E2E 45 passed/2 skipped，Web/Desktop type-check PASS，acceptance smoke PASS。 |
+| **下一步** | 继续远程真实 executor 浏览器 UAT、附件上传内容处理、artifact durable output 和最终 UAT；当前 regression 仍保持 open，直到 cloud/local/附件/artifact/opencli 全部闭环。 |
 
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
 

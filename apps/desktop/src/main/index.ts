@@ -9,6 +9,7 @@ let deviceChannel: DeviceChannelType | null = null
 let runtimeHost: RuntimeHostType | null = null
 let configStore: ConfigStoreType | null = null
 let pendingDeepLinkUrl: string | null = null
+let appReady = false
 
 async function setupRuntime() {
   const { RuntimeHost } = await import('./runtime/runtime-host')
@@ -57,6 +58,7 @@ function openExternalHttpUrl(url: string) {
 }
 
 function createWindow() {
+  if (!app.isReady()) return
   const rendererPort = process.env.VITE_PORT || '5173'
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
   const win = new BrowserWindow({
@@ -151,6 +153,7 @@ if (!singleInstanceLock) {
 }
 
 app.whenReady().then(async () => {
+  appReady = true
   registerProtocolHandler()
   await setupRuntime()
   createWindow()
@@ -167,5 +170,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
+  if (!appReady) return
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })

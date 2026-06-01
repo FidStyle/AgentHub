@@ -35,30 +35,70 @@ export class DeviceChannel {
     registerDeviceChannelHandlers(this)
   }
 
+  private closeSocket(ws: WebSocket) {
+    const readyState = ws.readyState
+    ws.removeAllListeners()
+    ws.on('error', () => {
+      // Swallow errors from an obsolete socket while a newer connection is taking over.
+    })
+    if (readyState === WebSocket.CONNECTING) {
+      ws.once('open', () => {
+        try {
+          ws.close()
+        } catch {
+          // Ignore obsolete socket cleanup failures.
+        }
+      })
+      return
+    }
+    try {
+      if (readyState === WebSocket.OPEN || readyState === WebSocket.CLOSING) {
+        ws.close()
+      }
+    } catch {
+      // Ignore obsolete socket cleanup failures.
+    }
+  }
+
   connect(config: DeviceChannelConfig) {
+    this.stopHeartbeat()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    if (this.ws) {
+      this.closeSocket(this.ws)
+      this.ws = null
+    }
+
     this.config = config
     this.setState('connecting')
     this.seq.reset()
 
-    this.ws = new WebSocket(config.gatewayUrl)
+    const ws = new WebSocket(config.gatewayUrl)
+    this.ws = ws
 
-    this.ws.on('open', () => {
+    ws.on('open', () => {
+      if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return
       this.setState('authenticating')
       const authFrame: AuthFrame = {
         type: 'auth',
         seq: this.seq.next(),
         deviceToken: config.deviceToken,
       }
-      this.ws!.send(serializeFrame(authFrame))
+      ws.send(serializeFrame(authFrame))
     })
 
-    this.ws.on('message', (data) => {
+    ws.on('message', (data) => {
+      if (this.ws !== ws) return
       const frame = parseFrame(data.toString())
       if (!frame) return
       this.handleFrame(frame)
     })
 
-    this.ws.on('close', () => {
+    ws.on('close', () => {
+      if (this.ws !== ws) return
+      this.ws = null
       this.stopHeartbeat()
       if (this.state === 'connected' || this.state === 'authenticating') {
         this.setState('reconnecting')
@@ -68,7 +108,7 @@ export class DeviceChannel {
       }
     })
 
-    this.ws.on('error', () => {
+    ws.on('error', () => {
       // close event will handle reconnection
     })
   }
@@ -102,7 +142,7 @@ export class DeviceChannel {
   }
 
   sendResponse(requestId: string, ok: boolean, error?: string, payload?: Record<string, unknown>) {
-    if (!this.ws || this.state !== 'connected') return
+    if (!this.ws || this.state !== 'connected' || this.ws.readyState !== WebSocket.OPEN) return
     const frame: ResponseFrame = {
       type: 'response',
       seq: this.seq.next(),
@@ -115,7 +155,7 @@ export class DeviceChannel {
   }
 
   sendEvent(eventType: string, payload: Record<string, unknown>) {
-    if (!this.ws || this.state !== 'connected') return
+    if (!this.ws || this.state !== 'connected' || this.ws.readyState !== WebSocket.OPEN) return
     const frame: EventFrame = {
       type: 'event',
       seq: this.seq.next(),
@@ -128,7 +168,7 @@ export class DeviceChannel {
 
   private startHeartbeat() {
     this.heartbeatTimer = setInterval(() => {
-      if (!this.ws || this.state !== 'connected') return
+      if (!this.ws || this.state !== 'connected' || this.ws.readyState !== WebSocket.OPEN) return
       const frame: HeartbeatFrame = {
         type: 'heartbeat',
         seq: this.seq.next(),
@@ -158,7 +198,7 @@ export class DeviceChannel {
     this.stopHeartbeat()
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     if (this.ws) {
-      this.ws.close()
+      this.closeSocket(this.ws)
       this.ws = null
     }
   }

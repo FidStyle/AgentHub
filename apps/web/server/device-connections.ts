@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws'
 import { SeqGenerator, type DeviceFrame, type RequestFrame, type ResponseFrame, type RuntimeEvent } from '@agenthub/shared'
+import { getRedis } from '../lib/runtime/redis-client'
 
 interface DeviceConnection {
   ws: WebSocket
@@ -12,12 +13,25 @@ interface DeviceConnection {
 const connections = new Map<string, DeviceConnection>()
 const seq = new SeqGenerator()
 const requestToSession = new Map<string, string>()
+const DEVICE_REQUEST_CHANNEL = 'agenthub:device:requests'
+const DEVICE_EVENT_CHANNEL = 'agenthub:device:events'
+let redisBridgeStarted = false
 const runtimeRelays = new Map<string, {
   queue: Array<RuntimeEvent | ResponseFrame>
   done: boolean
   wake: (() => void) | null
   timer: NodeJS.Timeout
 }>()
+
+type DeviceRequestRelayMessage = {
+  deviceId: string
+  frame: RequestFrame
+}
+
+type DeviceEventRelayMessage = {
+  sessionId: string
+  event: RuntimeEvent | ResponseFrame
+}
 
 export function addConnection(deviceId: string, conn: DeviceConnection) {
   connections.set(deviceId, conn)
@@ -47,6 +61,51 @@ export function sendToDevice(deviceId: string, frame: DeviceFrame): boolean {
 
 export function sendRequestToDevice(deviceId: string, request: RequestFrame): boolean {
   return sendToDevice(deviceId, request)
+}
+
+export async function startDeviceRequestRedisBridge(): Promise<void> {
+  if (redisBridgeStarted) return
+  redisBridgeStarted = true
+  const subscriber = (await getRedis()).duplicate()
+  await subscriber.connect()
+  await subscriber.subscribe(DEVICE_REQUEST_CHANNEL, (msg) => {
+    try {
+      const { deviceId, frame } = JSON.parse(msg) as DeviceRequestRelayMessage
+      if (!deviceId || !frame?.requestId) return
+      requestToSession.set(frame.requestId, String((frame.payload as { sessionId?: unknown })?.sessionId ?? ''))
+      sendRequestToDevice(deviceId, frame)
+    } catch (error) {
+      console.error('[device-relay] request parse failed', error)
+    }
+  })
+}
+
+async function publishDeviceRequest(deviceId: string, frame: RequestFrame): Promise<void> {
+  const r = await getRedis()
+  await r.publish(DEVICE_REQUEST_CHANNEL, JSON.stringify({ deviceId, frame } satisfies DeviceRequestRelayMessage))
+}
+
+async function subscribeDeviceEvents(sessionId: string, onEvent: (event: RuntimeEvent | ResponseFrame) => void): Promise<() => Promise<void>> {
+  const subscriber = (await getRedis()).duplicate()
+  await subscriber.connect()
+  await subscriber.subscribe(DEVICE_EVENT_CHANNEL, (msg) => {
+    try {
+      const relay = JSON.parse(msg) as DeviceEventRelayMessage
+      if (relay.sessionId === sessionId) onEvent(relay.event)
+    } catch {
+      // Ignore malformed relay messages; they are not product events.
+    }
+  })
+  return async () => {
+    await subscriber.unsubscribe(DEVICE_EVENT_CHANNEL)
+    await subscriber.quit()
+  }
+}
+
+async function publishDeviceEvent(sessionId: string, event: RuntimeEvent | ResponseFrame): Promise<void> {
+  if (!sessionId) return
+  const r = await getRedis()
+  await r.publish(DEVICE_EVENT_CHANNEL, JSON.stringify({ sessionId, event } satisfies DeviceEventRelayMessage))
 }
 
 function pushRelay(runtimeSessionId: string, event: RuntimeEvent | ResponseFrame) {
@@ -90,25 +149,32 @@ export async function* sendRuntimeInvokeToDevice(
   }
   runtimeRelays.set(payload.sessionId, relay)
   requestToSession.set(requestId, payload.sessionId)
+  const unsubscribeRedisEvents = await subscribeDeviceEvents(payload.sessionId, (event) => pushRelay(payload.sessionId, event))
 
-  const sent = sendRequestToDevice(deviceId, {
+  const requestFrame: RequestFrame = {
     type: 'request',
     seq: seq.next(),
     requestId,
     requestType: 'runtime_invoke',
     payload,
-  })
+  }
+  const sent = sendRequestToDevice(deviceId, requestFrame)
   if (!sent) {
-    clearTimeout(relay.timer)
-    runtimeRelays.delete(payload.sessionId)
-    requestToSession.delete(requestId)
-    yield {
-      type: 'failed',
-      sessionId: payload.sessionId,
-      timestamp: Date.now(),
-      error: '本地 Desktop 通道发送失败',
+    try {
+      await publishDeviceRequest(deviceId, requestFrame)
+    } catch {
+      clearTimeout(relay.timer)
+      runtimeRelays.delete(payload.sessionId)
+      requestToSession.delete(requestId)
+      await unsubscribeRedisEvents()
+      yield {
+        type: 'failed',
+        sessionId: payload.sessionId,
+        timestamp: Date.now(),
+        error: '本地 Desktop 通道发送失败',
+      }
+      return
     }
-    return
   }
 
   try {
@@ -122,6 +188,7 @@ export async function* sendRuntimeInvokeToDevice(
     clearTimeout(relay.timer)
     runtimeRelays.delete(payload.sessionId)
     requestToSession.delete(requestId)
+    await unsubscribeRedisEvents()
   }
 }
 
@@ -129,10 +196,12 @@ export function deliverDeviceResponse(frame: ResponseFrame) {
   const sessionId = requestToSession.get(frame.requestId)
   if (!sessionId) return
   pushRelay(sessionId, frame)
+  void publishDeviceEvent(sessionId, frame)
 }
 
 export function deliverDeviceRuntimeEvent(event: RuntimeEvent) {
   pushRelay(event.sessionId, event)
+  void publishDeviceEvent(event.sessionId, event)
 }
 
 export function updateHeartbeat(deviceId: string) {

@@ -1,5 +1,6 @@
 import { test, expect, _electron as electron, ElectronApplication, Page } from '@playwright/test'
-import { spawn, ChildProcess } from 'child_process'
+import { type ChildProcess } from 'child_process'
+import { startDesktopVite, stopProcessTree, waitForViteReady } from './desktop-test-utils'
 import path from 'path'
 import fs from 'fs'
 
@@ -14,22 +15,8 @@ test.describe('Desktop UI 对齐修复断言', () => {
   test.beforeAll(async () => {
     fs.mkdirSync(artifactDir, { recursive: true })
 
-    viteProcess = spawn('npx', ['vite', '--port', '5176'], {
-      cwd: desktopRoot,
-      stdio: 'pipe',
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Vite startup timeout')), 15000)
-      const onData = (data: Buffer) => {
-        if (data.toString().includes('ready') || data.toString().includes('Local')) {
-          clearTimeout(timeout)
-          resolve()
-        }
-      }
-      viteProcess.stdout?.on('data', onData)
-      viteProcess.stderr?.on('data', onData)
-    })
+    viteProcess = startDesktopVite(desktopRoot, '5176')
+    await waitForViteReady(viteProcess)
 
     electronApp = await electron.launch({
       args: [path.join(desktopRoot, 'dist/main/main/index.js')],
@@ -43,7 +30,7 @@ test.describe('Desktop UI 对齐修复断言', () => {
 
   test.afterAll(async () => {
     await electronApp?.close()
-    viteProcess?.kill('SIGTERM')
+    await stopProcessTree(viteProcess)
   })
 
   test('侧栏导航项包含 lucide 图标', async () => {
