@@ -648,7 +648,7 @@ P0 已落地的计划确认闭环：
 - `POST /api/plans/:planId/confirm` 只能确认当前用户拥有且 `pending_confirm` 的计划。
 - 确认后计划状态进入 `running`，无依赖或依赖已完成的节点进入 `ready`。
 - 如果 ready node 带 `action_type` 和 `action_payload.command`，后端创建对应 `actions` 记录，使用统一 permission engine 计算 risk 和 `requires_approval`。
-- 高风险或策略要求授权的 action 会同步创建 `approval_required` notification；Web 右栏和 Mobile 审批页都读取同一数据源。
+- 高风险或策略要求授权的 action 会同步创建 `approval_required` notification；Web 工作台状态栏通知铃、Web 编排/变更面板和 Mobile 审批页都读取同一数据源。Web 通知铃中的“授权本次/取消”必须调用 `POST /api/actions/:actionId/approve`，成功后再用 `PATCH /api/notifications` 标记已读，并触发编排面板重拉 action 状态。
 - 低风险或已授权 action 进入 `dispatchApprovedAction`，由后端创建 `runtime_sessions` 并通过 Redis 投递给 `runtime-worker`；worker 执行过程中回写 `actions.status/result/executed_at` 与 `plan_nodes.status/result/started_at/completed_at`。
 - `POST /api/actions/:actionId/approve` 只允许 action owner 审批 `pending` action；审批通过后进入同一个 dispatcher，拒绝时只写 `rejected`。
 - `POST /api/actions/:actionId/run` 用于恢复已授权但未投递、或失败后需要重跑的 action；只允许 action owner 对 `approved` / `failed` 状态调用，不绕过审批。

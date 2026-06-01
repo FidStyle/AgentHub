@@ -9,6 +9,7 @@ import { ArtifactPanel } from './ArtifactPanel'
 import { Badge, IconButton } from '@agenthub/ui'
 import { ArrowLeft, PanelLeft, RefreshCw } from 'lucide-react'
 import { useWorkspaceRuntimeStatus } from './useWorkspaceRuntimeStatus'
+import { NotificationBell } from '../orchestrator/NotificationBell'
 
 type WorkspaceMode = 'read-only' | 'operate'
 
@@ -150,14 +151,17 @@ export function WorkspaceShell({
             </Badge>
           )}
           {runtimeStatus.error && <span className="text-destructive">{runtimeStatus.error}</span>}
-          <IconButton
-            icon={RefreshCw}
-            label="刷新本地连接状态"
-            variant="ghost"
-            size="sm"
-            data-testid="refresh-runtime-status"
-            onClick={() => runtimeStatus.refresh()}
-          />
+          <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
+            <IconButton
+              icon={RefreshCw}
+              label="刷新本地连接状态"
+              variant="ghost"
+              size="sm"
+              data-testid="refresh-runtime-status"
+              onClick={() => runtimeStatus.refresh()}
+            />
+          </div>
         </div>
         {readOnly && (
           <div data-testid="workspace-readonly-banner" className="shrink-0 border-b border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">

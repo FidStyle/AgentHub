@@ -15,7 +15,8 @@ export async function GET(request: Request) {
   let query = db.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50)
   if (unreadOnly) query = query.eq('read', false)
 
-  const { data } = await query
+  const { data, error } = await query
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data || [])
 }
 
@@ -27,8 +28,11 @@ export async function PATCH(request: Request) {
   const body = await request.json()
   const { ids } = body // string[]
 
-  if (!ids?.length) return NextResponse.json({ error: 'ids 必填' }, { status: 400 })
+  if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => typeof id !== 'string')) {
+    return NextResponse.json({ error: 'ids 必须是非空字符串数组' }, { status: 400 })
+  }
 
-  await db.from('notifications').update({ read: true }).in('id', ids).eq('user_id', user.id)
+  const { error } = await db.from('notifications').update({ read: true }).in('id', ids).eq('user_id', user.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ marked: ids.length })
 }

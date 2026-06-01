@@ -78,6 +78,18 @@ export const mockArtifact = {
   updated_at: '2026-01-01T00:00:00.000Z',
 }
 
+export const mockNotification = {
+  id: 'notification-001',
+  user_id: 'user-001',
+  type: 'approval_required',
+  title: '需要授权',
+  body: '需要审批动作',
+  ref_type: 'action',
+  ref_id: 'action-001',
+  read: false,
+  created_at: '2026-01-01T00:00:00.000Z',
+}
+
 // ---------------------------------------------------------------------------
 // Auth mock
 // ---------------------------------------------------------------------------
@@ -113,8 +125,10 @@ type ChainBuilder = {
   error: { message: string } | null
   select: () => ChainBuilder
   eq: (field: string, value: string) => ChainBuilder
+  in: (field: string, values: string[]) => ChainBuilder
   single: () => ChainBuilder
   order: () => ChainBuilder
+  limit: () => ChainBuilder
   insert: (vals: Record<string, unknown>) => ChainBuilder
   update: (vals: Record<string, unknown>) => ChainBuilder
 }
@@ -125,8 +139,10 @@ function chain(data: unknown, error: { message: string } | null = null): ChainBu
     error,
     select: () => chain(data, error),
     eq: () => chainBuilder(data, error),
+    in: () => chainBuilder(data, error),
     single: () => chain(data, error),
     order: () => chain(data, error),
+    limit: () => chain(data, error),
     insert: () => chain(data, error),
     update: () => chain(data, error),
   }
@@ -138,8 +154,10 @@ function chainBuilder(data: unknown, error: { message: string } | null = null): 
     error,
     select: () => chainBuilder(data, error),
     eq: () => chainBuilder(data, error),
+    in: () => chainBuilder(data, error),
     single: () => chain(data, error),
     order: () => chain(data, error),
+    limit: () => chain(data, error),
     insert: () => chain(data, error),
     update: () => chain(data, error),
   }
@@ -157,6 +175,7 @@ export function createPostgresChain(
   messages: unknown[] = [mockMessage],
   roleAgents: unknown[] = [mockRoleAgent],
   artifacts: unknown[] = [mockArtifact],
+  notifications: unknown[] = [mockNotification],
 ) {
   let cell = { data: undefined as unknown, error: null as { message: string } | null }
 
@@ -314,6 +333,40 @@ export function createPostgresChain(
           delete: () => ({ eq: () => chain(null, null) }),
         }
       }
+      if (table === 'notifications') {
+        return {
+          select: () => ({
+            eq: (field: string, value: string) => {
+              if (field === 'user_id') {
+                const byUser = notifications.filter(n => (n as { user_id?: string }).user_id === value)
+                return {
+                  order: () => ({
+                    limit: () => chain(byUser, null),
+                    eq: (field2: string, value2: unknown) => ({
+                      order: () => ({
+                        limit: () => chain(byUser.filter(n => (n as Record<string, unknown>)[field2] === value2), null),
+                      }),
+                    }),
+                  }),
+                }
+              }
+              return chain(notifications, null)
+            },
+            order: () => ({ limit: () => chain(notifications, null) }),
+          }),
+          update: (vals: Record<string, unknown>) => ({
+            in: (_field: string, ids: string[]) => ({
+              eq: () => chain(notifications.filter(n => ids.includes((n as { id: string }).id)).map(n => ({ ...(n as Record<string, unknown>), ...vals })), null),
+            }),
+          }),
+          insert: (vals: Record<string, unknown>) => ({
+            select: () => ({
+              single: () => chain({ ...mockNotification, ...vals, id: `notification-${Date.now()}` }, null),
+            }),
+          }),
+          delete: () => ({ eq: () => chain(null, null) }),
+        }
+      }
       return chain(null, { message: `Unknown table: ${table}` })
     }),
   }))
@@ -332,8 +385,10 @@ export function createErrorChain(msg = 'Database error') {
       error: { message: msg } as { message: string },
       select: errChain,
       eq: errChain,
+      in: errChain,
       single: () => ({ data: null, error: { message: msg } }),
-      order: () => ({ data: null, error: { message: msg } }),
+      order: errChain,
+      limit: () => ({ data: null, error: { message: msg } }),
       insert: () => errChain(),
       update: () => errChain(),
     }

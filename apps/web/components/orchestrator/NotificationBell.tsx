@@ -2,20 +2,34 @@
 
 import { useState, useEffect } from 'react'
 import type { Notification } from '@agenthub/shared'
+import { Badge, Button } from '@agenthub/ui'
+import { Bell } from 'lucide-react'
 
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [actingId, setActingId] = useState<string | null>(null)
 
   const unreadCount = notifications.filter(n => !n.read).length
 
-  useEffect(() => {
+  const loadNotifications = () => {
+    setError(null)
     fetch('/api/notifications?unread=true')
-      .then(r => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('加载通知失败')
+        return r.json()
+      })
       .then(data => { if (Array.isArray(data)) setNotifications(data) })
+      .catch((e) => setError(e instanceof Error ? e.message : '加载通知失败'))
+  }
+
+  useEffect(() => {
+    loadNotifications()
   }, [])
 
   const markRead = async (ids: string[]) => {
+    if (ids.length === 0) return
     await fetch('/api/notifications', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -24,23 +38,52 @@ export function NotificationBell() {
     setNotifications(prev => prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n))
   }
 
+  const approveAction = async (notification: Notification, approved: boolean) => {
+    if (!notification.ref_id) return
+    setActingId(notification.id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/actions/${notification.ref_id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || '处理授权失败')
+      await markRead([notification.id])
+      setNotifications(prev => prev.filter(n => n.id !== notification.id))
+      window.dispatchEvent(new CustomEvent('actions:changed', { detail: { actionId: notification.ref_id } }))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '处理授权失败')
+    } finally {
+      setActingId(null)
+    }
+  }
+
   return (
     <div className="relative">
-      <button onClick={() => setOpen(!open)} className="relative p-2 rounded hover:bg-muted" aria-label="通知">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-        </svg>
+      <button
+        type="button"
+        data-testid="notification-bell"
+        onClick={() => {
+          setOpen(!open)
+          if (!open) loadNotifications()
+        }}
+        className="relative rounded-md p-2 hover:bg-muted"
+        aria-label="通知"
+      >
+        <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+          <span data-testid="notification-unread-count" className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
             {unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-80 bg-card border border-border rounded-lg shadow-lg z-50 max-h-96 overflow-auto">
-          <div className="p-3 border-b border-border flex justify-between items-center">
-            <span className="font-medium text-sm">通知</span>
+        <div data-testid="notification-menu" className="absolute right-0 top-10 z-50 max-h-96 w-80 overflow-auto rounded-lg border border-border bg-card shadow-lg">
+          <div className="flex items-center justify-between border-b border-border p-3">
+            <span className="text-sm font-medium">通知</span>
             {unreadCount > 0 && (
               <button
                 onClick={() => markRead(notifications.filter(n => !n.read).map(n => n.id))}
@@ -50,14 +93,39 @@ export function NotificationBell() {
               </button>
             )}
           </div>
+          {error && <p className="border-b border-border p-3 text-xs text-destructive">{error}</p>}
           {notifications.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground text-center">暂无通知</p>
+            <p className="p-4 text-center text-sm text-muted-foreground">暂无通知</p>
           ) : (
             <ul>
               {notifications.map(n => (
-                <li key={n.id} className={`p-3 border-b border-border text-sm ${n.read ? 'opacity-60' : ''}`}>
-                  <p className="font-medium">{n.title}</p>
-                  {n.body && <p className="text-muted-foreground text-xs mt-0.5">{n.body}</p>}
+                <li key={n.id} className={`border-b border-border p-3 text-sm ${n.read ? 'opacity-60' : ''}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 font-medium">{n.title}</p>
+                    {n.type === 'approval_required' && <Badge variant="warning">待授权</Badge>}
+                  </div>
+                  {n.body && <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>}
+                  {n.type === 'approval_required' && n.ref_type === 'action' && n.ref_id && (
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        disabled={actingId === n.id}
+                        onClick={() => approveAction(n, true)}
+                      >
+                        授权本次
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        disabled={actingId === n.id}
+                        onClick={() => approveAction(n, false)}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

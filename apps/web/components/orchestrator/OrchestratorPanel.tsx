@@ -42,8 +42,12 @@ export function OrchestratorPanel() {
   }, [])
 
   useEffect(() => {
-    if (activeSessionId) load(activeSessionId)
-    else {
+    if (activeSessionId) {
+      load(activeSessionId)
+      const onChanged = () => load(activeSessionId)
+      window.addEventListener('actions:changed', onChanged)
+      return () => window.removeEventListener('actions:changed', onChanged)
+    } else {
       setPlans([])
       setActions([])
       setError(null)
