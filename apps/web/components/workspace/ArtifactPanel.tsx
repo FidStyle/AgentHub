@@ -1,9 +1,11 @@
 'use client'
 
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, FileCode2, FileText, FolderTree, GitBranch, ShieldCheck, X } from 'lucide-react'
+import { Bot, Boxes, Download, FileCode2, FileText, FolderTree, GitBranch, PackagePlus, Pencil, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 
@@ -30,6 +32,35 @@ type FileTreeNode = {
   type: 'file' | 'directory'
   children?: FileTreeNode[]
 }
+type FilePreview = {
+  path: string
+  name: string
+  type: 'file' | 'directory'
+  size: number
+  mime: string
+  previewKind: 'html' | 'markdown' | 'code' | 'image' | 'text' | 'binary' | 'folder' | 'diff'
+  content: string | null
+  truncated: boolean
+  downloadUrl: string
+}
+type ArtifactRow = {
+  id: string
+  workspace_id: string
+  session_id: string | null
+  source_path: string | null
+  artifact_type: 'html' | 'markdown' | 'code' | 'image' | 'diff' | 'folder' | 'generic_file'
+  title: string
+  content: string | null
+  content_ref: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+}
+type GitChangeRow = {
+  path: string
+  status: string
+  staged: boolean
+  untracked: boolean
+}
 
 function truncate(text: string, max = 160) {
   return text.length > max ? `${text.slice(0, max)}...` : text
@@ -38,6 +69,64 @@ function truncate(text: string, max = 160) {
 function toPreview(value: unknown) {
   if (typeof value === 'string') return value
   return JSON.stringify(value, null, 2)
+}
+
+function artifactTypeForPreview(preview: FilePreview) {
+  if (preview.previewKind === 'html') return 'html'
+  if (preview.previewKind === 'markdown') return 'markdown'
+  if (preview.previewKind === 'code') return 'code'
+  if (preview.previewKind === 'image') return 'image'
+  if (preview.previewKind === 'folder') return 'folder'
+  return 'generic_file'
+}
+
+function PreviewBlock({
+  preview,
+  downloadUrl,
+}: {
+  preview: Pick<FilePreview, 'previewKind' | 'content' | 'mime' | 'path' | 'name' | 'truncated'>
+  downloadUrl?: string | null
+}) {
+  if (preview.previewKind === 'html' && preview.content) {
+    return (
+      <iframe
+        data-testid="workspace-html-preview"
+        sandbox=""
+        title={preview.name}
+        srcDoc={preview.content}
+        className="h-72 w-full rounded-md border border-border bg-white"
+      />
+    )
+  }
+  if (preview.previewKind === 'markdown' && preview.content) {
+    return (
+      <div data-testid="workspace-markdown-preview" className="prose prose-sm max-w-none rounded-md border border-border bg-background p-3 dark:prose-invert">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.content}</ReactMarkdown>
+      </div>
+    )
+  }
+  if ((preview.previewKind === 'code' || preview.previewKind === 'text' || preview.previewKind === 'folder' || preview.previewKind === 'diff') && preview.content !== null) {
+    return (
+      <pre data-testid="workspace-code-preview" className="max-h-72 overflow-auto rounded-md border border-border bg-muted p-3 text-xs leading-relaxed">
+        {preview.content}
+      </pre>
+    )
+  }
+  if (preview.previewKind === 'image' && downloadUrl) {
+    return (
+      <img
+        data-testid="workspace-image-preview"
+        src={downloadUrl}
+        alt={preview.name}
+        className="max-h-72 w-full rounded-md border border-border object-contain"
+      />
+    )
+  }
+  return (
+    <div data-testid="workspace-binary-preview" className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+      该文件类型暂不支持在线预览，请下载后查看。
+    </div>
+  )
 }
 
 function metadataValue(metadata: MessageRow['metadata'], keys: string[]) {
@@ -339,56 +428,316 @@ function RolesTab() {
   return <AgentsTab />
 }
 
-function FileTreeNodeView({ node, level = 0 }: { node: FileTreeNode; level?: number }) {
+function FileTreeNodeView({
+  node,
+  level = 0,
+  onOpen,
+  onContextAction,
+}: {
+  node: FileTreeNode
+  level?: number
+  onOpen: (node: FileTreeNode) => void
+  onContextAction: (node: FileTreeNode, action: 'rename' | 'delete' | 'artifact') => void
+}) {
   const isDir = node.type === 'directory'
   return (
     <div>
-      <div className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-xs hover:bg-muted" style={{ paddingLeft: 8 + level * 12 }}>
-        {isDir ? <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-        <span className="truncate" title={node.path}>{node.name}</span>
+      <div
+        className="group flex min-w-0 items-center gap-1 rounded-sm pr-1 hover:bg-muted"
+        style={{ paddingLeft: 8 + level * 12 }}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          onContextAction(node, 'artifact')
+        }}
+      >
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left text-xs"
+          onClick={() => onOpen(node)}
+        >
+          {isDir ? <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          <span className="truncate" title={node.path}>{node.name}</span>
+        </button>
+        <button
+          type="button"
+          className="hidden rounded-sm p-1 text-muted-foreground hover:bg-background hover:text-foreground group-hover:inline-flex"
+          aria-label={`重命名 ${node.path}`}
+          onClick={() => onContextAction(node, 'rename')}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          className="hidden rounded-sm p-1 text-muted-foreground hover:bg-background hover:text-foreground group-hover:inline-flex"
+          aria-label={`存为产物 ${node.path}`}
+          onClick={() => onContextAction(node, 'artifact')}
+        >
+          <PackagePlus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          className="hidden rounded-sm p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline-flex"
+          aria-label={`删除 ${node.path}`}
+          onClick={() => onContextAction(node, 'delete')}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
-      {isDir && node.children?.map((child) => <FileTreeNodeView key={child.path} node={child} level={level + 1} />)}
+      {isDir && node.children?.map((child) => (
+        <FileTreeNodeView
+          key={child.path}
+          node={child}
+          level={level + 1}
+          onOpen={onOpen}
+          onContextAction={onContextAction}
+        />
+      ))}
     </div>
   )
 }
 
 function FileTreeTab() {
-  const { activeWorkspaceId } = useSessionStore()
+  const { activeWorkspaceId, activeSessionId } = useSessionStore()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [tree, setTree] = useState<FileTreeNode[]>([])
   const [root, setRoot] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<FilePreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [artifactStatus, setArtifactStatus] = useState<string | null>(null)
+  const [operationStatus, setOperationStatus] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadTree = async () => {
     if (!activeWorkspaceId) return
     setLoaded(false)
     setError(null)
-    fetch(`/api/workspaces/${activeWorkspaceId}/files`)
-      .then(async (res) => {
-        const body = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error((body as { error?: string }).error || `加载文件树失败（${res.status}）`)
-        return body as { root: string; tree: FileTreeNode[] }
-      })
-      .then((body) => {
-        setRoot(body.root)
-        setTree(Array.isArray(body.tree) ? body.tree : [])
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : '加载文件树失败'))
-      .finally(() => setLoaded(true))
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `加载文件树失败（${res.status}）`)
+      const payload = body as { root: string; tree: FileTreeNode[] }
+      setRoot(payload.root)
+      setTree(Array.isArray(payload.tree) ? payload.tree : [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '加载文件树失败')
+    } finally {
+      setLoaded(true)
+    }
+  }
+
+  useEffect(() => {
+    void loadTree()
   }, [activeWorkspaceId])
+
+  function emitFilesChanged() {
+    window.dispatchEvent(new CustomEvent('workspace-files:changed', { detail: { workspaceId: activeWorkspaceId } }))
+  }
+
+  async function openNode(node: FileTreeNode) {
+    if (!activeWorkspaceId) return
+    setPreviewLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/read?path=${encodeURIComponent(node.path)}`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `读取文件失败（${res.status}）`)
+      setPreview(body as FilePreview)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '读取文件失败')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  async function markFileAsArtifact(filePreview: FilePreview) {
+    if (!activeWorkspaceId) return
+    setArtifactStatus('正在保存产物...')
+    try {
+      const res = await fetch('/api/artifacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: activeWorkspaceId,
+          session_id: activeSessionId,
+          source_path: filePreview.path,
+          title: filePreview.name,
+          artifact_type: artifactTypeForPreview(filePreview),
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `保存产物失败（${res.status}）`)
+      setArtifactStatus('已保存到产物')
+      window.dispatchEvent(new CustomEvent('artifacts:changed', { detail: { workspaceId: activeWorkspaceId, sessionId: activeSessionId } }))
+    } catch (e) {
+      setArtifactStatus(e instanceof Error ? e.message : '保存产物失败')
+    }
+  }
+
+  async function markPreviewAsArtifact() {
+    if (!preview) return
+    await markFileAsArtifact(preview)
+  }
+
+  async function uploadFile(file: File | null) {
+    if (!activeWorkspaceId || !file) return
+    setOperationStatus('正在上传文件...')
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/upload`, { method: 'POST', body: form })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `上传失败（${res.status}）`)
+      setOperationStatus(`已上传 ${(body as { path?: string }).path ?? file.name}`)
+      await loadTree()
+      emitFilesChanged()
+    } catch (e) {
+      setOperationStatus(e instanceof Error ? e.message : '上传失败')
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  async function renameEntry(node: FileTreeNode) {
+    if (!activeWorkspaceId) return
+    const nextPath = window.prompt('输入新的工作区相对路径', node.path)?.trim()
+    if (!nextPath || nextPath === node.path) return
+    setOperationStatus('正在重命名...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: node.path, to: nextPath }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `重命名失败（${res.status}）`)
+      setOperationStatus(`已重命名为 ${(body as { path?: string }).path ?? nextPath}`)
+      if (preview?.path === node.path) setPreview(null)
+      await loadTree()
+      emitFilesChanged()
+    } catch (e) {
+      setOperationStatus(e instanceof Error ? e.message : '重命名失败')
+    }
+  }
+
+  async function deleteEntry(node: FileTreeNode) {
+    if (!activeWorkspaceId) return
+    if (!window.confirm(`确定删除「${node.path}」吗？`)) return
+    setOperationStatus('正在删除...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: node.path }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `删除失败（${res.status}）`)
+      setOperationStatus(`已删除 ${node.path}`)
+      if (preview?.path === node.path || preview?.path.startsWith(`${node.path}/`)) setPreview(null)
+      await loadTree()
+      emitFilesChanged()
+    } catch (e) {
+      setOperationStatus(e instanceof Error ? e.message : '删除失败')
+    }
+  }
+
+  async function handleContextAction(node: FileTreeNode, action: 'rename' | 'delete' | 'artifact') {
+    if (action === 'rename') {
+      await renameEntry(node)
+      return
+    }
+    if (action === 'delete') {
+      await deleteEntry(node)
+      return
+    }
+    if (!activeWorkspaceId) return
+    setPreviewLoading(true)
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/read?path=${encodeURIComponent(node.path)}`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `读取文件失败（${res.status}）`)
+      const filePreview = body as FilePreview
+      setPreview(filePreview)
+      await markFileAsArtifact(filePreview)
+    } catch (e) {
+      setArtifactStatus(e instanceof Error ? e.message : '保存产物失败')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
 
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其云端项目文件将在此展示" />
   if (error) return <p data-testid="artifact-files-error" className="text-sm text-destructive">{error}</p>
   if (!loaded) return <StateCard variant="loading" title="加载文件树" />
-  if (tree.length === 0) return <StateCard variant="empty" title="暂无文件" description="云端项目目录已创建，等待运行时产出文件" />
   return (
     <div data-testid="artifact-files" className="space-y-3">
       <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
-        <div className="font-medium text-foreground">云端项目目录</div>
-        <div className="mt-1 break-all">{root}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-medium text-foreground">云端项目目录</div>
+            <div className="mt-1 break-all">{root}</div>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} data-testid="workspace-file-upload-btn">
+            <Upload className="mr-1 h-3.5 w-3.5" />
+            上传
+          </Button>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          data-testid="workspace-file-upload-input"
+          onChange={(event) => void uploadFile(event.target.files?.[0] ?? null)}
+        />
       </div>
+      {operationStatus && <p className="text-xs text-muted-foreground">{operationStatus}</p>}
       <div className="rounded-md border border-border bg-background py-1">
-        {tree.map((node) => <FileTreeNodeView key={node.path} node={node} />)}
+        {tree.length === 0 ? (
+          <div className="p-3">
+            <StateCard variant="empty" title="暂无文件" description="云端项目目录已创建，可上传文件或等待运行时产出文件" />
+          </div>
+        ) : (
+          tree.map((node) => (
+            <FileTreeNodeView
+              key={node.path}
+              node={node}
+              onOpen={openNode}
+              onContextAction={handleContextAction}
+            />
+          ))
+        )}
+      </div>
+      <div data-testid="workspace-file-preview" className="space-y-2 rounded-lg border border-border bg-background p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="truncate text-sm font-medium">{preview?.name ?? '文件预览'}</span>
+            </div>
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {preview ? `${preview.path} · ${preview.mime} · ${preview.size} bytes${preview.truncated ? ' · 已截断预览' : ''}` : '点击左侧文件或文件夹查看内容'}
+            </p>
+          </div>
+          {preview && (
+            <div className="flex shrink-0 gap-1">
+              <Button size="sm" variant="outline" onClick={markPreviewAsArtifact}>
+                <PackagePlus className="mr-1 h-3.5 w-3.5" />
+                存为产物
+              </Button>
+              <a
+                href={preview.downloadUrl}
+                className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+              >
+                <Download className="mr-1 h-3.5 w-3.5" />
+                下载
+              </a>
+            </div>
+          )}
+        </div>
+        {artifactStatus && <p className="text-xs text-muted-foreground">{artifactStatus}</p>}
+        {previewLoading && <StateCard variant="loading" title="正在读取文件" />}
+        {preview && !previewLoading && <PreviewBlock preview={preview} downloadUrl={preview.downloadUrl} />}
       </div>
     </div>
   )
@@ -484,75 +833,228 @@ function ChangeRecordCard({ message }: { message: MessageRow }) {
 }
 
 function ChangesTab() {
-  const { activeSessionId, messages, error, loaded } = useSessionMessages()
-  const changes = messages.filter(
+  const { activeWorkspaceId, activeSessionId } = useSessionStore()
+  const { messages, error, loaded } = useSessionMessages()
+  const [gitChanges, setGitChanges] = useState<GitChangeRow[]>([])
+  const [gitLoaded, setGitLoaded] = useState(false)
+  const [gitError, setGitError] = useState<string | null>(null)
+  const [selectedDiffPath, setSelectedDiffPath] = useState<string | null>(null)
+  const [selectedDiff, setSelectedDiff] = useState('')
+  const [diffStatus, setDiffStatus] = useState<string | null>(null)
+  const messageChanges = messages.filter(
     (m) => m.message_type === 'result_card' || m.message_type === 'approval' || hasChangeMetadata(m.metadata),
   )
-  if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，其运行、授权和变更记录将在此展示" />
+
+  const loadGitChanges = async () => {
+    if (!activeWorkspaceId) return
+    setGitLoaded(false)
+    setGitError(null)
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/status`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `读取 Git 状态失败（${res.status}）`)
+      setGitChanges(Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : [])
+    } catch (e) {
+      setGitError(e instanceof Error ? e.message : '读取 Git 状态失败')
+    } finally {
+      setGitLoaded(true)
+    }
+  }
+
+  useEffect(() => {
+    void loadGitChanges()
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId?: string }>).detail
+      if (!detail?.workspaceId || detail.workspaceId === activeWorkspaceId) void loadGitChanges()
+    }
+    window.addEventListener('workspace-files:changed', onChanged)
+    return () => window.removeEventListener('workspace-files:changed', onChanged)
+  }, [activeWorkspaceId])
+
+  async function openDiff(filePath: string) {
+    if (!activeWorkspaceId) return
+    setSelectedDiffPath(filePath)
+    setDiffStatus('正在读取 diff...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/diff?path=${encodeURIComponent(filePath)}`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `读取 diff 失败（${res.status}）`)
+      setSelectedDiff(String((body as { diff?: string }).diff ?? ''))
+      setDiffStatus(null)
+    } catch (e) {
+      setDiffStatus(e instanceof Error ? e.message : '读取 diff 失败')
+      setSelectedDiff('')
+    }
+  }
+
+  async function saveDiffArtifact() {
+    if (!activeWorkspaceId || !selectedDiffPath) return
+    setDiffStatus('正在保存 diff 产物...')
+    try {
+      const res = await fetch('/api/artifacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: activeWorkspaceId,
+          session_id: activeSessionId,
+          title: `${selectedDiffPath}.patch`,
+          artifact_type: 'diff',
+          content: selectedDiff,
+          metadata: { source: 'git_diff', path: selectedDiffPath },
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `保存 diff 产物失败（${res.status}）`)
+      setDiffStatus('已保存到产物')
+      window.dispatchEvent(new CustomEvent('artifacts:changed', { detail: { workspaceId: activeWorkspaceId, sessionId: activeSessionId } }))
+    } catch (e) {
+      setDiffStatus(e instanceof Error ? e.message : '保存 diff 产物失败')
+    }
+  }
+
+  if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其 Git 变更和运行记录将在此展示" />
   if (error) return <p data-testid="artifact-changes-error" className="text-sm text-destructive">{error}</p>
   return (
     <div data-testid="artifact-changes" className="space-y-4">
       <OrchestratorPanel />
       <PanelSection
         icon={GitBranch}
-        title="变更记录"
-        description="Git diff、文件变更、运行结果和需要授权的动作会关联到对应会话记录"
-        action={<Badge variant="secondary">{changes.length} 条</Badge>}
+        title="Git 变更"
+        description="读取当前云端项目目录的真实 Git 状态，可查看 diff 并保存为产物"
+        action={<Badge variant="secondary">{gitChanges.length} 项</Badge>}
       >
-        {loaded && changes.length === 0 ? (
-          <StateCard variant="empty" title="暂无变更" description="当前会话还没有文件变更、diff 或运行结果" />
+        {gitError && <p className="text-sm text-destructive">{gitError}</p>}
+        {!gitLoaded ? (
+          <StateCard variant="loading" title="读取 Git 变更" />
+        ) : gitChanges.length === 0 ? (
+          <StateCard variant="empty" title="暂无 Git 变更" description="当前云端项目没有未提交的文件变更" />
         ) : (
-          changes.map((m) => <ChangeRecordCard key={m.id} message={m} />)
+          <div className="space-y-2">
+            {gitChanges.map((change) => (
+              <div key={`${change.status}-${change.path}`} className="rounded-lg border border-border bg-background p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FileCode2 className="h-4 w-4 text-muted-foreground" />
+                      <span className="truncate font-medium">{change.path}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {change.untracked ? '未跟踪文件' : change.staged ? '已暂存变更' : '工作区变更'}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => void openDiff(change.path)}>
+                    查看 diff
+                  </Button>
+                </div>
+                <Badge variant={change.untracked ? 'warning' : 'secondary'}>{change.status.trim() || 'M'}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+        {selectedDiffPath && (
+          <div className="mt-3 space-y-2 rounded-lg border border-border bg-background p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">{selectedDiffPath}</div>
+                <p className="text-xs text-muted-foreground">当前文件 diff 预览</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void saveDiffArtifact()} disabled={!selectedDiff}>
+                <PackagePlus className="mr-1 h-3.5 w-3.5" />
+                存为产物
+              </Button>
+            </div>
+            {diffStatus && <p className="text-xs text-muted-foreground">{diffStatus}</p>}
+            {selectedDiff ? <DiffPreview value={selectedDiff} /> : !diffStatus ? <StateCard variant="empty" title="无 diff 内容" description="该文件当前没有可展示的 diff" /> : null}
+          </div>
+        )}
+      </PanelSection>
+      <PanelSection
+        icon={FileCode2}
+        title="运行记录"
+        description="会话消息中的运行结果、授权动作和结构化变更记录"
+        action={<Badge variant="secondary">{messageChanges.length} 条</Badge>}
+      >
+        {!activeSessionId ? (
+          <StateCard variant="empty" title="未选择会话" description="选择会话后，其运行和授权记录将在此展示" />
+        ) : loaded && messageChanges.length === 0 ? (
+          <StateCard variant="empty" title="暂无运行记录" description="当前会话还没有运行结果、授权动作或结构化变更" />
+        ) : (
+          messageChanges.map((m) => <ChangeRecordCard key={m.id} message={m} />)
         )}
       </PanelSection>
     </div>
   )
 }
 
-function ArtifactCard({ message }: { message: MessageRow }) {
-  const artifact = message.metadata?.artifact
-  const title = typeof artifact === 'object' && artifact && 'title' in artifact
-    ? String((artifact as { title?: unknown }).title ?? '未命名产物')
-    : message.message_type === 'file'
-      ? '文件产物'
-      : '会话产物'
-  const artifactType = typeof artifact === 'object' && artifact && 'type' in artifact
-    ? String((artifact as { type?: unknown }).type ?? message.message_type)
-    : message.message_type
+function ArtifactCard({ artifact }: { artifact: ArtifactRow }) {
+  const downloadUrl = `/api/artifacts/${artifact.id}/download`
+  const preview = {
+    previewKind: artifact.artifact_type === 'generic_file' ? 'binary' : artifact.artifact_type,
+    content: artifact.content ?? (artifact.artifact_type === 'folder' ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2) : null),
+    mime: String(artifact.metadata?.mime ?? 'application/octet-stream'),
+    path: artifact.source_path ?? artifact.id,
+    name: artifact.title,
+    truncated: Boolean(artifact.metadata?.truncated),
+  } as Pick<FilePreview, 'previewKind' | 'content' | 'mime' | 'path' | 'name' | 'truncated'>
 
   return (
-    <div className="rounded-lg border border-border bg-background p-3">
+    <div className="space-y-3 rounded-lg border border-border bg-background p-3">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate text-sm font-medium">{title}</span>
+            <span className="truncate text-sm font-medium">{artifact.title}</span>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">来源消息：{message.id}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {artifact.source_path ? `来源文件：${artifact.source_path}` : `产物 ID：${artifact.id}`}
+          </p>
         </div>
-        <Badge variant="secondary">{artifactType}</Badge>
+        <Badge variant="secondary">{artifact.artifact_type}</Badge>
       </div>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{truncate(message.content, 240)}</p>
-      {artifact ? (
-        <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-2 text-xs">
-          {toPreview(artifact)}
-        </pre>
-      ) : null}
+      <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
+      <a
+        href={downloadUrl}
+        className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+      >
+        <Download className="mr-1 h-3.5 w-3.5" />
+        下载产物
+      </a>
     </div>
   )
 }
 
 function ArtifactsTab() {
-  const { activeSessionId, messages, error, loaded } = useSessionMessages()
-  const artifacts = messages.filter(
-    (m) => m.message_type === 'artifact' || m.message_type === 'file' || m.message_type === 'result_card' || (m.metadata && 'artifact' in m.metadata),
-  )
+  const { activeWorkspaceId, activeSessionId } = useSessionStore()
+  const [artifacts, setArtifacts] = useState<ArtifactRow[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    if (!activeWorkspaceId) return
+    const load = () => {
+      setLoaded(false)
+      const query = new URLSearchParams({ workspace_id: activeWorkspaceId })
+      if (activeSessionId) query.set('session_id', activeSessionId)
+      fetch(`/api/artifacts?${query.toString()}`)
+        .then((r) => { if (!r.ok) throw new Error('加载产物失败'); return r.json() })
+        .then((d: ArtifactRow[]) => setArtifacts(Array.isArray(d) ? d : []))
+        .catch((e) => setError(e instanceof Error ? e.message : '加载产物失败'))
+        .finally(() => setLoaded(true))
+    }
+    load()
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceId?: string; sessionId?: string | null }>).detail
+      if (!detail?.workspaceId || detail.workspaceId === activeWorkspaceId) load()
+    }
+    window.addEventListener('artifacts:changed', onChanged)
+    return () => window.removeEventListener('artifacts:changed', onChanged)
+  }, [activeWorkspaceId, activeSessionId])
+  if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，Agent 产出的产物将在此展示" />
   if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，Agent 产出的产物将在此展示" />
   if (error) return <p data-testid="artifact-output-error" className="text-sm text-destructive">{error}</p>
   if (loaded && artifacts.length === 0) return <StateCard variant="empty" title="暂无产物" description="当前会话还没有 Agent 产出的代码、文件或结果" />
   return (
     <div data-testid="artifact-output" className="space-y-2">
-      {artifacts.map((m) => <ArtifactCard key={m.id} message={m} />)}
+      {artifacts.map((artifact) => <ArtifactCard key={artifact.id} artifact={artifact} />)}
     </div>
   )
 }

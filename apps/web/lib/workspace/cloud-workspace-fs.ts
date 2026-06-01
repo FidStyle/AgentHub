@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
@@ -23,6 +23,53 @@ export type FileTreeNode = {
 }
 
 const IGNORED = new Set(['.git', 'node_modules', '.next', 'dist', 'build'])
+const MAX_PREVIEW_BYTES = 256 * 1024
+
+const MIME_BY_EXT: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
+  '.markdown': 'text/markdown; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.jsx': 'text/javascript; charset=utf-8',
+  '.ts': 'text/typescript; charset=utf-8',
+  '.tsx': 'text/typescript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+}
+
+export type WorkspacePreviewKind = 'html' | 'markdown' | 'code' | 'image' | 'text' | 'binary' | 'folder'
+
+export type WorkspaceFilePreview = {
+  path: string
+  name: string
+  type: 'file' | 'directory'
+  size: number
+  mime: string
+  previewKind: WorkspacePreviewKind
+  content: string | null
+  truncated: boolean
+}
+
+export type WorkspaceBundleFile = {
+  path: string
+  size: number
+}
+
+export type WorkspaceGitChange = {
+  path: string
+  status: string
+  staged: boolean
+  untracked: boolean
+}
 
 function slug(value: string, fallback: string) {
   const normalized = value
@@ -96,4 +143,229 @@ export async function readCloudWorkspaceTree(rootDir: string, maxDepth = 4): Pro
   }
 
   return walk(rootDir, '', 0)
+}
+
+export function resolveWorkspacePath(rootDir: string, relativePath: string) {
+  const root = path.resolve(rootDir)
+  const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
+  if (!normalized || normalized.includes('\0')) {
+    throw new Error('路径不能为空')
+  }
+  const resolved = path.resolve(root, normalized)
+  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
+    throw new Error('路径超出工作区范围')
+  }
+  return { root, relativePath: normalized, fullPath: resolved }
+}
+
+export function mimeForPath(filePath: string) {
+  return MIME_BY_EXT[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream'
+}
+
+export function previewKindForPath(filePath: string, mime = mimeForPath(filePath)): WorkspacePreviewKind {
+  const ext = path.extname(filePath).toLowerCase()
+  if (mime.startsWith('image/')) return 'image'
+  if (ext === '.html' || ext === '.htm') return 'html'
+  if (ext === '.md' || ext === '.markdown') return 'markdown'
+  if (['.js', '.jsx', '.ts', '.tsx', '.css', '.json', '.sql', '.sh', '.yml', '.yaml', '.toml'].includes(ext)) return 'code'
+  if (mime.startsWith('text/') || ext === '.txt') return 'text'
+  return 'binary'
+}
+
+export async function readCloudWorkspacePreview(rootDir: string, relativePath: string): Promise<WorkspaceFilePreview> {
+  const { relativePath: rel, fullPath } = resolveWorkspacePath(rootDir, relativePath)
+  const info = await stat(fullPath).catch(() => null)
+  if (!info) throw new Error('文件不存在')
+  if (info.isDirectory()) {
+    return {
+      path: rel,
+      name: path.basename(rel),
+      type: 'directory',
+      size: info.size,
+      mime: 'application/vnd.agenthub.folder+json',
+      previewKind: 'folder',
+      content: JSON.stringify(await buildWorkspaceFolderManifest(rootDir, rel), null, 2),
+      truncated: false,
+    }
+  }
+  if (!info.isFile()) throw new Error('仅支持预览普通文件或文件夹')
+  const mime = mimeForPath(rel)
+  const previewKind = previewKindForPath(rel, mime)
+  const canInlineText = previewKind !== 'binary' && previewKind !== 'image'
+  let content: string | null = null
+  let truncated = false
+  if (canInlineText) {
+    const buffer = await readFile(fullPath)
+    truncated = buffer.length > MAX_PREVIEW_BYTES
+    content = buffer.subarray(0, MAX_PREVIEW_BYTES).toString('utf8')
+  }
+  return {
+    path: rel,
+    name: path.basename(rel),
+    type: 'file',
+    size: info.size,
+    mime,
+    previewKind,
+    content,
+    truncated,
+  }
+}
+
+export async function buildWorkspaceFolderManifest(rootDir: string, relativePath: string): Promise<{ path: string; files: WorkspaceBundleFile[] }> {
+  const { relativePath: rel, fullPath } = resolveWorkspacePath(rootDir, relativePath)
+  const info = await stat(fullPath).catch(() => null)
+  if (!info?.isDirectory()) throw new Error('路径不是文件夹')
+  const files: WorkspaceBundleFile[] = []
+  async function walk(dir: string, prefix: string) {
+    const entries = await readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (IGNORED.has(entry.name)) continue
+      const entryFull = path.join(dir, entry.name)
+      const entryRel = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (entry.isDirectory()) {
+        await walk(entryFull, entryRel)
+      } else if (entry.isFile()) {
+        const entryInfo = await stat(entryFull)
+        files.push({ path: entryRel, size: entryInfo.size })
+      }
+    }
+  }
+  await walk(fullPath, rel)
+  return { path: rel, files: files.sort((a, b) => a.path.localeCompare(b.path)) }
+}
+
+function crc32(buffer: Buffer) {
+  let crc = 0xffffffff
+  for (const byte of buffer) {
+    crc ^= byte
+    for (let i = 0; i < 8; i += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1))
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function u16(value: number) {
+  const buffer = Buffer.allocUnsafe(2)
+  buffer.writeUInt16LE(value)
+  return buffer
+}
+
+function u32(value: number) {
+  const buffer = Buffer.allocUnsafe(4)
+  buffer.writeUInt32LE(value >>> 0)
+  return buffer
+}
+
+export async function createWorkspaceFolderZip(rootDir: string, relativePath: string) {
+  const manifest = await buildWorkspaceFolderManifest(rootDir, relativePath)
+  const locals: Buffer[] = []
+  const centrals: Buffer[] = []
+  let offset = 0
+  for (const file of manifest.files) {
+    const { fullPath } = resolveWorkspacePath(rootDir, file.path)
+    const data = await readFile(fullPath)
+    const name = Buffer.from(file.path, 'utf8')
+    const crc = crc32(data)
+    const local = Buffer.concat([
+      u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), name, data,
+    ])
+    const central = Buffer.concat([
+      u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0),
+      u16(0), u16(0), u32(0), u32(offset), name,
+    ])
+    locals.push(local)
+    centrals.push(central)
+    offset += local.length
+  }
+  const centralDir = Buffer.concat(centrals)
+  const end = Buffer.concat([
+    u32(0x06054b50), u16(0), u16(0), u16(centrals.length), u16(centrals.length),
+    u32(centralDir.length), u32(offset), u16(0),
+  ])
+  return Buffer.concat([...locals, centralDir, end])
+}
+
+async function runGit(rootDir: string, args: string[]) {
+  return await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+    const child = spawn('git', args, { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] })
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    child.stdout.on('data', (chunk) => stdout.push(Buffer.from(chunk)))
+    child.stderr.on('data', (chunk) => stderr.push(Buffer.from(chunk)))
+    child.on('error', (error) => resolve({ code: 1, stdout: '', stderr: error.message }))
+    child.on('close', (code) => resolve({
+      code: code ?? 1,
+      stdout: Buffer.concat(stdout).toString('utf8'),
+      stderr: Buffer.concat(stderr).toString('utf8'),
+    }))
+  })
+}
+
+export async function readWorkspaceGitStatus(rootDir: string): Promise<WorkspaceGitChange[]> {
+  const result = await runGit(rootDir, ['status', '--porcelain=v1', '-uall'])
+  if (result.code !== 0) throw new Error(result.stderr || '读取 Git 状态失败')
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => {
+      const status = line.slice(0, 2)
+      const rawPath = line.slice(3).trim()
+      const renameIndex = rawPath.lastIndexOf(' -> ')
+      const filePath = renameIndex >= 0 ? rawPath.slice(renameIndex + 4) : rawPath
+      return {
+        path: filePath,
+        status,
+        staged: status[0] !== ' ' && status[0] !== '?',
+        untracked: status === '??',
+      }
+    })
+}
+
+export async function readWorkspaceGitDiff(rootDir: string, relativePath?: string | null) {
+  const args = ['diff', '--']
+  if (relativePath) {
+    const { relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
+    args.push(rel)
+  }
+  const result = await runGit(rootDir, args)
+  if (result.code !== 0) throw new Error(result.stderr || '读取 Git diff 失败')
+  if (result.stdout || !relativePath) return result.stdout
+
+  // Untracked files have no `git diff` output. Return a synthetic diff so the
+  // Changes tab can still show meaningful content before the file is staged.
+  const preview = await readCloudWorkspacePreview(rootDir, relativePath)
+  if (!preview.content) return ''
+  const lines = preview.content.split('\n')
+  return [
+    `diff --git a/${preview.path} b/${preview.path}`,
+    'new file mode 100644',
+    '--- /dev/null',
+    `+++ b/${preview.path}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    ...lines.map((line) => `+${line}`),
+  ].join('\n')
+}
+
+export async function writeWorkspaceFile(rootDir: string, relativePath: string, content: string | Buffer) {
+  const { fullPath, relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
+  await mkdir(path.dirname(fullPath), { recursive: true })
+  await writeFile(fullPath, content)
+  return rel
+}
+
+export async function renameWorkspaceEntry(rootDir: string, fromPath: string, toPath: string) {
+  const from = resolveWorkspacePath(rootDir, fromPath)
+  const to = resolveWorkspacePath(rootDir, toPath)
+  await mkdir(path.dirname(to.fullPath), { recursive: true })
+  await rename(from.fullPath, to.fullPath)
+  return to.relativePath
+}
+
+export async function deleteWorkspaceEntry(rootDir: string, relativePath: string) {
+  const { fullPath } = resolveWorkspacePath(rootDir, relativePath)
+  await rm(fullPath, { recursive: true, force: true })
 }

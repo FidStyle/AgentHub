@@ -191,6 +191,23 @@ CREATE TABLE IF NOT EXISTS public.actions (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.artifacts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  session_id uuid REFERENCES public.sessions(id) ON DELETE SET NULL,
+  source_message_id uuid REFERENCES public.messages(id) ON DELETE SET NULL,
+  source_run_id uuid REFERENCES public.runtime_sessions(id) ON DELETE SET NULL,
+  source_path text,
+  artifact_type text NOT NULL DEFAULT 'generic_file' CHECK (artifact_type IN ('html','markdown','code','image','diff','folder','generic_file')),
+  title text NOT NULL,
+  content text,
+  content_ref text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_by text NOT NULL REFERENCES public."user"(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id text NOT NULL REFERENCES public."user"(id),
@@ -262,6 +279,8 @@ CREATE INDEX IF NOT EXISTS idx_device_login_intents_code ON public.device_login_
 CREATE INDEX IF NOT EXISTS idx_plans_session ON public.plans(session_id);
 CREATE INDEX IF NOT EXISTS idx_plan_nodes_plan ON public.plan_nodes(plan_id);
 CREATE INDEX IF NOT EXISTS idx_actions_session ON public.actions(session_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_workspace ON public.artifacts(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artifacts_session ON public.artifacts(session_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications(user_id) WHERE read = false;
 CREATE INDEX IF NOT EXISTS idx_runtime_sessions_session ON public.runtime_sessions(session_id);
 CREATE INDEX IF NOT EXISTS idx_runtime_logs_session ON public.runtime_logs(runtime_session_id, seq);

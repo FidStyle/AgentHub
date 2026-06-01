@@ -7,7 +7,7 @@ import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/
  *
  * P0 harness boundary: no Redis / runtime worker, so the public_cloud chat path emits
  * endpoint_unavailable and no agent reply streams back. This spec therefore asserts the
- * runtime-independent golden path: workspace create → default 架构师 auto-seeds in picker →
+ * runtime-independent golden path: workspace create → default Orchestrator auto-seeds in picker →
  * @-select → send persists the user message with role context → reload retains it.
  * Agent-reply role-badge assertion is deferred to a Redis+worker-enabled environment.
  */
@@ -18,7 +18,7 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
     storageState = await ensureP0StorageState()
   })
 
-  test('创建工作区 → 默认架构师 → @架构师选择 → 发送持久化 → reload 保留', async ({ browser }) => {
+  test('创建工作区 → 默认 Orchestrator → @Orchestrator 选择 → 发送持久化 → reload 保留', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
 
@@ -36,19 +36,25 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
     await page.getByRole('button', { name: '新建会话' }).click()
     await expect(page.getByTestId('session-list')).toBeVisible()
 
-    // 打开 @角色选择器，默认架构师已自动 seed
+    // 打开 @角色选择器，默认 Orchestrator 已自动 seed
     await page.getByRole('button', { name: '提及角色' }).click()
     const picker = page.getByTestId('role-picker')
     await expect(picker).toBeVisible()
-    await expect(picker.getByText('@架构师')).toBeVisible()
-    await picker.getByText('@架构师').click()
+    await expect(picker.getByText('@Orchestrator')).toBeVisible()
+    await picker.getByText('@Orchestrator').click()
 
     // 已选角色 Badge
-    await expect(page.getByTestId('selected-role')).toHaveText(/架构师/)
+    await expect(page.getByTestId('selected-role')).toHaveText(/Orchestrator/)
+
+    // Slash 命令可展开并把常用任务模板写回多行 composer。
+    await page.getByTestId('composer-input').fill('/')
+    await expect(page.getByTestId('slash-command-menu')).toBeVisible()
+    await page.getByTestId('slash-command-menu').getByText('/plan').click()
+    await expect(page.getByTestId('composer-input')).toHaveValue(/请先制定执行计划/)
 
     // 发送消息（经 /api/chat 真实持久化 user message + role_agent_id）
     const msg = `E2E-ASK-${Date.now()}`
-    await page.getByPlaceholder(/输入消息/).fill(msg)
+    await page.getByTestId('composer-input').fill(msg)
     await page.getByRole('button', { name: /发送/ }).click()
     await page.waitForResponse((r) => r.url().includes('/api/chat') && r.request().method() === 'POST')
 

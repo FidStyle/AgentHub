@@ -6,8 +6,8 @@ import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import 'highlight.js/styles/github.css'
-import { Input, Card, StateCard, IconButton, Badge } from '@agenthub/ui'
-import { AtSign, Plus, Send, PanelRight, ShieldCheck } from 'lucide-react'
+import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
+import { AtSign, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 
 interface RoleAgent {
@@ -33,6 +33,11 @@ const PERMISSION_MODES = [
   { value: 'standard', label: '标准', description: '常规读写和构建可执行' },
   { value: 'auto', label: '自动执行', description: '本 Session 常规动作自动继续' },
   { value: 'full_control', label: '完全控制', description: '最大授权，保留审计和安全阻断' },
+] as const
+const SLASH_COMMANDS = [
+  { command: '/plan', label: '生成计划', template: '请先制定执行计划，列出关键步骤、风险和验收方式。' },
+  { command: '/review', label: '审查当前结果', template: '请审查当前实现，优先指出阻塞验收的问题、风险和缺失测试。' },
+  { command: '/fix', label: '修复问题', template: '请定位并修复当前问题，完成后说明验证结果。' },
 ] as const
 
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
@@ -140,10 +145,12 @@ function MessageComposer({
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [slashOpen, setSlashOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number; placement: 'above' | 'below' } | null>(null)
   const [mounted, setMounted] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const { sendMessage, activeSessionId } = useSessionStore()
   const currentMode = PERMISSION_MODES.find((mode) => mode.value === permissionMode)
   const defaultRole = roleAgents.find((role) => role.is_orchestrator || role.name === 'Orchestrator') ?? roleAgents[0] ?? null
@@ -177,15 +184,29 @@ function MessageComposer({
   const handleSend = async () => {
     if (!input.trim() || !activeSessionId || sending || readOnly) return
     setSending(true)
-    await sendMessage({
-      content: input.trim(),
-      roleAgentIds: effectiveRoles.map((role) => role.id),
-      attachmentIds: attachments.map((attachment) => attachment.id),
-      permissionMode,
-    })
-    setInput('')
-    setAttachments([])
-    setSending(false)
+    const controller = new AbortController()
+    abortRef.current = controller
+    try {
+      await sendMessage({
+        content: input.trim(),
+        roleAgentIds: effectiveRoles.map((role) => role.id),
+        attachmentIds: attachments.map((attachment) => attachment.id),
+        permissionMode,
+        signal: controller.signal,
+      })
+      if (!controller.signal.aborted) {
+        setInput('')
+        setAttachments([])
+        setSlashOpen(false)
+      }
+    } finally {
+      abortRef.current = null
+      setSending(false)
+    }
+  }
+
+  const stopSending = () => {
+    abortRef.current?.abort()
   }
 
   const uploadFiles = async (files: File[]) => {
@@ -327,16 +348,52 @@ function MessageComposer({
             ))}
           </div>
         )}
-        <div data-testid="composer-input-row" className="flex gap-2">
-          <Input
+        {slashOpen && input.trim().startsWith('/') && (
+          <div data-testid="slash-command-menu" className="mb-2 rounded-md border border-border bg-popover p-1 shadow-sm">
+            {SLASH_COMMANDS
+              .filter((item) => item.command.startsWith(input.trim()))
+              .map((item) => (
+                <button
+                  key={item.command}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                  onClick={() => {
+                    setInput(item.template)
+                    setSlashOpen(false)
+                  }}
+                >
+                  <WandSparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium">{item.command}</span>
+                  <span className="text-xs text-muted-foreground">{item.label}</span>
+                </button>
+              ))}
+          </div>
+        )}
+        <div data-testid="composer-input-row" className="flex items-end gap-2">
+          <textarea
             data-testid="composer-input"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            rows={1}
+            onChange={(e) => {
+              setInput(e.target.value)
+              setSlashOpen(e.target.value.trim().startsWith('/'))
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSlashOpen(false)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void handleSend()
+              }
+            }}
             placeholder={readOnly ? '只读模式下不能发送消息' : effectiveRoles.length > 0 ? `发送给 ${effectiveRoles.map((role) => `@${role.name}`).join('、')}...` : '输入消息...'}
             disabled={!activeSessionId || sending || readOnly}
+            className="max-h-40 min-h-10 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           />
-          <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending || readOnly || uploadingAttachment} />
+          {sending ? (
+            <IconButton icon={Square} label="停止" data-testid="stop-btn" onClick={stopSending} disabled={!activeSessionId} />
+          ) : (
+            <IconButton icon={Send} label="发送" data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || readOnly || uploadingAttachment} />
+          )}
         </div>
       </div>
     </div>

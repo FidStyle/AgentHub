@@ -1,5 +1,6 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Sidebar } from './Sidebar'
@@ -19,6 +20,8 @@ export function WorkspaceShell({
   requestedMode?: WorkspaceMode
 }) {
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const [rightPanelWidth, setRightPanelWidth] = useState(360)
+  const [resizingRightPanel, setResizingRightPanel] = useState(false)
   const [leftPanelOpen, setLeftPanelOpen] = useState(false)
   const [executionDomain, setExecutionDomain] = useState<'cloud' | 'local_desktop' | null>(null)
   const runtimeStatus = useWorkspaceRuntimeStatus()
@@ -41,14 +44,41 @@ export function WorkspaceShell({
       .catch(() => setExecutionDomain(null))
   }, [workspaceId])
 
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem('agenthub:right-panel-width') ?? '')
+    if (Number.isFinite(saved) && saved >= 300 && saved <= 560) setRightPanelWidth(saved)
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem('agenthub:right-panel-width', String(rightPanelWidth))
+  }, [rightPanelWidth])
+
+  useEffect(() => {
+    if (!resizingRightPanel) return
+    const onMove = (event: PointerEvent) => {
+      const width = Math.min(560, Math.max(300, window.innerWidth - event.clientX))
+      setRightPanelWidth(width)
+    }
+    const onUp = () => {
+      setResizingRightPanel(false)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp, { once: true })
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [resizingRightPanel])
+
   return (
     <div
       data-testid="workspace-shell"
       className={`relative grid h-screen min-h-0 grid-cols-1 overflow-hidden ${
         rightPanelOpen
-          ? 'lg:grid-cols-[280px_minmax(480px,1fr)_320px]'
+          ? 'lg:grid-cols-[280px_minmax(480px,1fr)_var(--artifact-width)]'
           : 'lg:grid-cols-[280px_minmax(480px,1fr)]'
       }`}
+      style={{ '--artifact-width': `${rightPanelWidth}px` } as CSSProperties}
     >
       {/* 桌面：左栏常驻；移动：抽屉 overlay，由顶部入口触发 */}
       <div
@@ -156,6 +186,20 @@ export function WorkspaceShell({
             data-testid="artifact-overlay"
             className="fixed inset-y-0 right-0 z-30 w-[320px] max-w-[85vw] border-l border-border bg-card lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-auto lg:max-w-none lg:overflow-hidden"
           >
+            <button
+              type="button"
+              data-testid="artifact-resize-handle"
+              aria-label="拖动调整右侧面板宽度"
+              className="absolute left-0 top-0 hidden h-full w-1 cursor-col-resize bg-transparent hover:bg-primary/40 lg:block"
+              onPointerDown={(event) => {
+                event.preventDefault()
+                setResizingRightPanel(true)
+              }}
+              onDoubleClick={() => {
+                setRightPanelWidth(360)
+                window.localStorage.setItem('agenthub:right-panel-width', '360')
+              }}
+            />
             <ArtifactPanel onClose={() => setRightPanelOpen(false)} />
           </div>
         </>

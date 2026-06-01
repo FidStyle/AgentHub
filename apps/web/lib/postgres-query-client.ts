@@ -24,6 +24,7 @@ const tableNames = new Set([
   'plans',
   'plan_nodes',
   'actions',
+  'artifacts',
   'notifications',
   'runtime_endpoints',
   'runtime_sessions',

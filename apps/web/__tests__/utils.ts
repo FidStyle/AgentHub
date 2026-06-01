@@ -61,6 +61,23 @@ export const mockRoleAgent = {
   updated_at: '2026-01-01T00:00:00.000Z',
 }
 
+export const mockArtifact = {
+  id: 'artifact-001',
+  workspace_id: 'ws-001',
+  session_id: 'session-001',
+  source_message_id: null,
+  source_run_id: null,
+  source_path: null,
+  artifact_type: 'markdown',
+  title: '测试产物',
+  content: '# 测试产物',
+  content_ref: null,
+  metadata: {},
+  created_by: 'user-001',
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+}
+
 // ---------------------------------------------------------------------------
 // Auth mock
 // ---------------------------------------------------------------------------
@@ -139,6 +156,7 @@ export function createPostgresChain(
   sessions: unknown[] = [mockSession],
   messages: unknown[] = [mockMessage],
   roleAgents: unknown[] = [mockRoleAgent],
+  artifacts: unknown[] = [mockArtifact],
 ) {
   let cell = { data: undefined as unknown, error: null as { message: string } | null }
 
@@ -262,6 +280,37 @@ export function createPostgresChain(
             }),
           }),
           update: makeUpdateChain(roleAgents[0] ?? mockRoleAgent),
+          delete: () => ({ eq: () => chain(null, null) }),
+        }
+      }
+      if (table === 'artifacts') {
+        return {
+          select: () => ({
+            eq: (field: string, value: string) => {
+              if (field === 'id') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return { single: () => chain((artifacts as any[]).find(a => a.id === value) ?? null, null) }
+              }
+              if (field === 'workspace_id') {
+                return {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  order: () => chain(artifacts.filter(a => (a as any).workspace_id === value), null),
+                  eq: (_field2: string, value2: string) => ({
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    order: () => chain(artifacts.filter(a => (a as any).workspace_id === value && (a as any).session_id === value2), null),
+                  }),
+                }
+              }
+              return chain(artifacts, null)
+            },
+            order: () => chain(artifacts, null),
+          }),
+          insert: (vals: Record<string, unknown>) => ({
+            select: () => ({
+              single: () => chain({ ...mockArtifact, ...vals, id: `artifact-${Date.now()}` }, null),
+            }),
+          }),
+          update: makeUpdateChain(artifacts[0] ?? mockArtifact),
           delete: () => ({ eq: () => chain(null, null) }),
         }
       }

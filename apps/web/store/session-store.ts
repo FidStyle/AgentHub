@@ -28,7 +28,7 @@ interface SessionState {
   fetchSessions: (workspaceId: string) => Promise<void>
   createSession: (workspaceId: string) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
-  sendMessage: (input: { content: string; roleAgentIds?: string[]; attachmentIds?: string[]; permissionMode?: string }) => Promise<void>
+  sendMessage: (input: { content: string; roleAgentIds?: string[]; attachmentIds?: string[]; permissionMode?: string; signal?: AbortSignal }) => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -59,8 +59,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       let sessions: Session[] = data.map((s: Record<string, unknown>) => ({
         id: s.id,
         title: s.name || '未命名会话',
-        lastMessage: '',
-        updatedAt: s.updated_at || s.created_at || '',
+        lastMessage: (s.last_message as string | undefined) || '',
+        updatedAt: (s.last_message_at as string | undefined) || s.updated_at || s.created_at || '',
       }))
       if (sessions.length === 0) {
         const createRes = await fetch('/api/sessions', {
@@ -137,7 +137,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  sendMessage: async ({ content, roleAgentIds = [], attachmentIds = [], permissionMode }) => {
+  sendMessage: async ({ content, roleAgentIds = [], attachmentIds = [], permissionMode, signal }) => {
     const { activeSessionId, messages } = get()
     if (!activeSessionId) return
     const primaryRoleAgentId = roleAgentIds[0] ?? null
@@ -151,11 +151,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       roleAgentId: primaryRoleAgentId,
     }
     set({ messages: [...messages, optimistic] })
+    set((state) => ({
+      sessions: state.sessions.map((session) => (
+        session.id === activeSessionId
+          ? { ...session, lastMessage: content, updatedAt: optimistic.createdAt }
+          : session
+      )),
+    }))
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal,
         body: JSON.stringify({
           sessionId: activeSessionId,
           content,
@@ -253,6 +261,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }
       }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        set((state) => ({
+          messages: [
+            ...state.messages,
+            {
+              id: `sys-${Date.now()}`,
+              sessionId: activeSessionId,
+              role: 'agent',
+              content: '已停止本次回复。',
+              createdAt: new Date().toISOString(),
+              roleAgentId: null,
+            } as Message,
+          ],
+        }))
+        return
+      }
       set({ error: (e as Error).message })
     }
   },

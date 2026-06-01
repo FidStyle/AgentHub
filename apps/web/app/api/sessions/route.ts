@@ -26,7 +26,24 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  const sessions = Array.isArray(data) ? data : []
+  const enriched = await Promise.all(sessions.map(async (session: Record<string, unknown>) => {
+    const { data: messages } = await db
+      .from('messages')
+      .select('content, sender_type, created_at')
+      .eq('session_id', String(session.id))
+      .order('created_at', { ascending: false })
+    const lastMessage = Array.isArray(messages) ? messages[0] as { content?: string; sender_type?: string; created_at?: string } | undefined : undefined
+    return {
+      ...session,
+      last_message: lastMessage?.content ?? '',
+      last_message_sender_type: lastMessage?.sender_type ?? null,
+      last_message_at: lastMessage?.created_at ?? null,
+    }
+  }))
+
+  return NextResponse.json(enriched)
 }
 
 export async function POST(request: Request) {
