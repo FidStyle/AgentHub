@@ -26,6 +26,14 @@ async function callRoute(
   return { status: response.status, data: await response.json() }
 }
 
+async function callConfirmPlan(planId: string) {
+  const { POST } = await import('@/app/api/plans/[planId]/confirm/route')
+  const response = await POST(new Request('http://localhost/api/plans/plan-001/confirm', { method: 'POST' }), {
+    params: Promise.resolve({ planId }),
+  })
+  return { status: response.status, data: await response.json() }
+}
+
 function sessionOwnedByOtherUserChain() {
   const targetTableCalls: string[] = []
   const sessionQuery = {
@@ -58,6 +66,68 @@ function sessionOwnedByOtherUserChain() {
   }))
 
   return { chainFactory, targetTableCalls }
+}
+
+function confirmPlanCreatesActionsChain() {
+  const writes: Array<{ table: string; values: Record<string, unknown> }> = []
+  const plan = { id: 'plan-001', session_id: 'session-001', owner_id: 'user-001', title: '测试计划', status: 'pending_confirm' }
+  const nodes = [
+    {
+      id: '00000000-0000-4000-8000-000000000101',
+      plan_id: 'plan-001',
+      label: '运行测试',
+      status: 'pending',
+      depends_on: [],
+      action_type: 'shell',
+      action_payload: { command: 'rm -rf dist', cwd: '/workspace' },
+    },
+  ]
+  const chainFactory = vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'plans') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({ single: () => ({ data: plan, error: null }) }),
+            }),
+          }),
+          update: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { eq: () => ({ data: null, error: null }) }
+          },
+        }
+      }
+      if (table === 'plan_nodes') {
+        return {
+          select: () => ({ eq: () => ({ data: nodes, error: null }) }),
+          update: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { eq: () => ({ data: null, error: null }) }
+          },
+        }
+      }
+      if (table === 'actions') {
+        return {
+          insert: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { select: () => ({ single: () => ({ data: { id: 'action-001', ...values }, error: null }) }) }
+          },
+        }
+      }
+      if (table === 'notifications') {
+        return {
+          insert: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { data: { id: 'notification-001', ...values }, error: null }
+          },
+        }
+      }
+      return {
+        select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+      }
+    }),
+  }))
+  return { chainFactory, writes }
 }
 
 describe('plans/actions API session ownership', () => {
@@ -123,5 +193,21 @@ describe('plans/actions API session ownership', () => {
     expect(result.data).toEqual({ error: '无权限' })
     expect(targetTableCalls).not.toContain('actions')
     expect(targetTableCalls).not.toContain('notifications')
+  })
+
+  it('confirming a plan marks ready nodes and creates action authorization records', async () => {
+    const { chainFactory, writes } = confirmPlanCreatesActionsChain()
+    setupMockClient(chainFactory)
+
+    const result = await callConfirmPlan('plan-001')
+
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual({ status: 'running', ready_nodes: 1, created_actions: 1 })
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'plans', values: expect.objectContaining({ status: 'running' }) }),
+      expect.objectContaining({ table: 'plan_nodes', values: expect.objectContaining({ status: 'ready' }) }),
+      expect.objectContaining({ table: 'actions', values: expect.objectContaining({ command: 'rm -rf dist', risk_level: 'high', status: 'pending', requires_approval: true }) }),
+      expect.objectContaining({ table: 'notifications', values: expect.objectContaining({ type: 'approval_required', ref_type: 'action', ref_id: 'action-001' }) }),
+    ]))
   })
 })

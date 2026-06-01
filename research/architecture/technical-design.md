@@ -642,6 +642,14 @@ P0 scheduler 使用拓扑层思想：只有 `dependsOn` 全部 completed/skipped
 
 同一 `wave` 的 ready 节点可并行派发；P1/P2 再扩展 quorum、优先级、取消传播和更复杂的失败恢复。
 
+P0 已落地的计划确认闭环：
+
+- `POST /api/plans/:planId/confirm` 只能确认当前用户拥有且 `pending_confirm` 的计划。
+- 确认后计划状态进入 `running`，无依赖或依赖已完成的节点进入 `ready`。
+- 如果 ready node 带 `action_type` 和 `action_payload.command`，后端创建对应 `actions` 记录，使用统一 permission engine 计算 risk 和 `requires_approval`。
+- 高风险或策略要求授权的 action 会同步创建 `approval_required` notification；Web 右栏和 Mobile 审批页都读取同一数据源。
+- 当前 P0 仍不在 confirm route 内直接执行 action；执行/恢复由后续 runtime/action dispatcher 消费 `approved` action。
+
 ### 11.3 状态机如何驱动 DAG
 
 ```mermaid

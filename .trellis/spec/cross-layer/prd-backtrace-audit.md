@@ -242,6 +242,7 @@ Decision:
 | Git command failure/non-git root | 400 with readable Git status/diff error |
 | Runtime unavailable | SSE terminal event rendered as system notice, no fake agent success |
 | User clicks stop | Abort current stream and show stopped notice |
+| Plan confirm only changes plan status | `partial_shell` until it marks ready nodes and creates real action/notification rows |
 
 #### 5. Good/Base/Bad Cases
 
@@ -255,6 +256,7 @@ Decision:
 - API: `/api/chat` with tool/permission/diff/artifact SSE events persists `metadata.runtimeParts` and does not persist fake success on incomplete runtime.
 - API smoke: real auth cookie + Postgres fixture + `/api/workspaces`, `/api/sessions`, file upload/rename/delete, git status/diff, artifact create/download.
 - Web E2E: `workbench-file-ops.spec.ts` for file/preview/diff/artifact; `role-chat-core.spec.ts` for default Orchestrator, multi-role picker path, textarea/slash, send persistence.
+- Plan/action API: confirming a `pending_confirm` plan must mark ready nodes and create action + notification rows when nodes define executable actions.
 - Build gate: `pnpm --filter @agenthub/web type-check`, `pnpm --filter @agenthub/web test`, `NEXT_TELEMETRY_DISABLED=1 pnpm --filter @agenthub/web build`.
 
 #### 7. Wrong vs Correct
