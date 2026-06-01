@@ -47,7 +47,7 @@
 | 端 | 修订后职责 |
 | --- | --- |
 | Web | 完整 Session 工作台：会话、Run 卡、Composer、权限模式、授权卡、Context/Changes/Artifacts、Git diff、artifact、搜索 |
-| Desktop | 本机 Host/控制台：本机策略预设、Runtime/CLI 状态、本机执行代理、执行日志、越权授权记录、策略镜像和本地校验 |
+| Desktop | 本机 Host/控制台：本机策略预设、Runtime/CLI 状态、本机执行代理、执行日志、本机策略审计记录、策略镜像和本地校验 |
 | Mobile/PWA | 远程监督控制端：查看 Session/Run/diff/artifact/测试结果、轻量输入、授权卡、权限模式查看和有限控制 |
 | 后端 | 策略事实源、授权记录、审计、通知和三端状态同步 |
 
@@ -125,7 +125,7 @@ Web 工作台结构：
 需要新增或调整：
 
 - Web E2E：Session 工作台、Composer、权限模式、授权卡、Run 卡、Context/Changes/Artifacts 双向定位、Git diff。
-- Desktop E2E/集成：本机策略预设、Runtime 状态、执行日志、越权授权记录；确认不出现审批中心和二次确认。
+- Desktop E2E/集成：本机策略预设、Runtime 状态、执行日志、本机策略审计记录；确认不出现审批中心和二次确认。
 - Mobile/PWA E2E：远程监督视图、Run 摘要、diff/artifact 摘要、授权卡。
 - API/integration：策略事实源、授权记录、Run/Message/Diff/Artifact/Attachment 关联。
 - 视觉断言：三端同一视觉语言，参考 codeg/AionUi 工作台密度，不再像三个不同产品。
@@ -136,7 +136,7 @@ Web 工作台结构：
 
 无。用户已确认：
 
-- Desktop 不做审批中心，改为本机策略、Runtime、执行日志和越权授权记录。
+- Desktop 不做审批中心，改为本机策略、Runtime、执行日志和本机策略审计记录。
 - Web/Mobile 统一做授权入口。
 - Mobile 参考 Codex，定位为远程监督控制端，不只是审批页。
 - Web/Desktop 可参考 codeg/AionUi 桌面工作台风格。

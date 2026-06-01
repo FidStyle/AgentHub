@@ -48,7 +48,7 @@
 
 - Desktop 是 Connector Console 和本地 Agent 轻量工作台，不是 Web 工作台复制品，也不是单页检测面板。
 - 启动后默认界面必须是桌面主壳：左侧导航/Session，中间本地 Agent 轻量会话，右侧 Agent 配置中心与 Runtime 状态。
-- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、Agent 配置中心、本地 Agent 轻量会话、执行活动、本机策略和越权授权记录。
+- 必须突出设备在线状态、Workspace 绑定、Runtime 检测、Agent 配置中心、本地 Agent 轻量会话、执行活动、本机策略和本机策略审计记录。
 - 本地 Claude Code / Codex 只展示安装、版本、CLI path、认证状态、能力声明、最近诊断、进入轻量会话动作和本机修复引导。
 - Agent 配置中心必须展示 Codex、Claude Code、OpenCode 和其他预留 Runtime；Codex/Claude Code 为 P0 已接入，OpenCode 等为“待接入”且不可进入会话。
 - 本地 Agent 轻量会话只服务当前 Local Desktop Workspace：最近消息、Runtime 流式输出、执行活动、本机策略摘要、授权记录和诊断。复杂 Context/Changes/Artifacts 仍跳转 Web 工作台。

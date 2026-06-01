@@ -1,24 +1,24 @@
 import { Card, CardHeader, CardTitle, CardContent, Badge, StateCard } from '@agenthub/ui'
 import { Activity, ShieldCheck } from 'lucide-react'
-import { useConsoleStore, type AuthorizationRecord } from '../../store/console-store'
+import { useConsoleStore } from '../../store/console-store'
+import { getPolicyAuditRecords, type PolicyAuditStatus } from '../../utils/policy-audit'
 
-const STATUS_LABEL: Record<AuthorizationRecord['status'], string> = {
-  executable: '已授权',
-  needs_authorization: '需要授权',
-  cancelled: '已取消',
-  security_blocked: '安全阻断',
+const STATUS_LABEL: Record<PolicyAuditStatus, string> = {
+  executed: '已执行',
+  pending: '等待处理',
+  blocked: '已阻断',
 }
 
-const STATUS_VARIANT: Record<AuthorizationRecord['status'], 'success' | 'warning' | 'secondary' | 'destructive'> = {
-  executable: 'success',
-  needs_authorization: 'warning',
-  cancelled: 'secondary',
-  security_blocked: 'destructive',
+const STATUS_VARIANT: Record<PolicyAuditStatus, 'success' | 'warning' | 'destructive'> = {
+  executed: 'success',
+  pending: 'warning',
+  blocked: 'destructive',
 }
 
 export function PolicyPanel() {
-  const { permissionPreset, policyPresets, authorizationRecords } = useConsoleStore()
+  const { permissionPreset, policyPresets, activities } = useConsoleStore()
   const current = policyPresets.find((item) => item.preset === permissionPreset)
+  const policyAuditRecords = getPolicyAuditRecords(activities)
 
   if (!current) {
     return <StateCard variant="empty" title="未配置本机策略" description="请在本机策略页选择权限预设" />
@@ -47,20 +47,20 @@ export function PolicyPanel() {
             <div className="mt-1 font-medium">Web/Mobile</div>
           </div>
           <div className="rounded-md border border-border p-2">
-            <div className="text-muted-foreground">记录</div>
-            <div className="mt-1 font-medium">{authorizationRecords.length} 条</div>
+            <div className="text-muted-foreground">审计</div>
+            <div className="mt-1 font-medium">{policyAuditRecords.length} 条</div>
           </div>
         </div>
         <div className="rounded-md border border-border p-3">
           <div className="flex items-center gap-2 text-xs font-medium">
             <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-            越权授权记录
+            本机策略审计
           </div>
-          {authorizationRecords.length === 0 ? (
-            <p className="mt-1 text-xs text-muted-foreground">暂无 Web/Mobile 授权后的本机执行记录</p>
+          {policyAuditRecords.length === 0 ? (
+            <p className="mt-1 text-xs text-muted-foreground">暂无本机执行或阻断记录；远程审批请在 Web/Mobile 会话中处理。</p>
           ) : (
             <div className="mt-2 flex flex-col gap-2">
-              {authorizationRecords.slice(0, 3).map((record) => (
+              {policyAuditRecords.slice(0, 3).map((record) => (
                 <div key={record.id} className="rounded-md bg-muted/50 p-2">
                   <div className="flex items-center gap-2">
                     <Badge variant={STATUS_VARIANT[record.status]}>{STATUS_LABEL[record.status]}</Badge>

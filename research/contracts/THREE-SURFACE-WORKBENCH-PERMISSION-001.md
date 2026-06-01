@@ -54,7 +54,7 @@
 | 端 | 职责 | 不做什么 |
 | --- | --- | --- |
 | Web | 完整 Session 工作台；Session 列表/切换；Composer；权限模式；授权卡；Run 卡；`Context / Changes / Artifacts`；Git diff；artifact/结果面板；标题和内容搜索 | 不直连本机端口；不保存本地 CLI 凭证；不把 Desktop 状态 mock 成在线 |
-| Desktop | 本机 Host/控制台；本机权限预设；Runtime/CLI 检测；本机执行代理；执行日志；越权授权记录；策略镜像和本地校验；当前本机会话运行态 | 不做审批中心；不弹二次确认；不复制完整 Web 工作台；不保存本地 Claude/Codex API Key/Base URL |
+| Desktop | 本机 Host/控制台；本机权限预设；Runtime/CLI 检测；本机执行代理；执行日志；本机策略审计记录；策略镜像和本地校验；当前本机会话运行态 | 不做审批中心；不弹二次确认；不复制完整 Web 工作台；不保存本地 Claude/Codex API Key/Base URL |
 | Mobile/PWA | 远程监督控制端；查看 Session/Run/diff/artifact/测试结果；轻量输入；授权卡；权限模式查看和有限切换 | 不接入本地 Runtime；不选择本地目录；不做完整 IDE 文件管理；不持有本机凭证 |
 | 后端 | 策略事实源；授权记录；审计；通知和状态广播；三端一致性 | 不用 mock 主链路状态证明完成 |
 | Cloud/Desktop Runtime | 各自执行域内执行动作并回传结果、日志、diff、artifact | 不绕过后端策略和授权记录 |
@@ -102,7 +102,7 @@ Desktop 默认结构：
 
 - 本机策略和权限预设。
 - Runtime/CLI 状态。
-- 本机执行日志和越权授权记录。
+- 本机执行日志和本机策略审计记录。
 - 当前本机会话运行态和轻量输入。
 
 Mobile/PWA 默认结构：
@@ -171,7 +171,7 @@ Mobile/PWA 默认结构：
 
 - API/integration：策略事实源、授权记录、Run/Message/Diff/Artifact 关联。
 - Web E2E：发送任务、选择权限模式、出现授权卡、查看 diff/artifact、双向定位。
-- Desktop E2E/集成：同步策略、本机权限预设、Runtime 状态、执行日志、越权授权记录；不出现审批中心和二次确认。
+- Desktop E2E/集成：同步策略、本机权限预设、Runtime 状态、执行日志、本机策略审计记录；不出现审批中心和二次确认。
 - Mobile/PWA E2E：查看 Session/Run/diff/artifact 摘要、授权卡、轻量输入。
 - 视觉/布局断言：三端同一视觉语言，文本不溢出，右侧面板和 Run 卡联动可见。
 
@@ -200,7 +200,7 @@ Mobile/PWA 默认结构：
 
 | 样本 | 只给执行者的合同描述 | 不应预置的答案 | 通过标准 |
 | --- | --- | --- | --- |
-| Desktop 审批重复样本 | 用户在 Web/Mobile 已授权本地执行后，不应被迫打开 Desktop 再点批准/拒绝 | 不直接说“删除 DesktopApprovalsPage”作为唯一修复 | 执行系统自行发现 Desktop 审批中心语义与合同冲突，并改为策略/日志/越权授权记录 |
+| Desktop 审批重复样本 | 用户在 Web/Mobile 已授权本地执行后，不应被迫打开 Desktop 再点批准/拒绝 | 不直接说“删除 DesktopApprovalsPage”作为唯一修复 | 执行系统自行发现 Desktop 审批中心语义与合同冲突，并改为策略/日志/本机策略审计记录 |
 | 右侧面板孤岛样本 | diff/artifact/context 必须回链 Message/Run | 不预置具体组件名 | 点击右侧条目能定位到对应对话记录，点击 Run 卡能定位右侧条目 |
 
 ---

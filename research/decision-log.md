@@ -171,7 +171,7 @@ Desktop 的“批准/拒绝”功能如果作为独立审批中心，会和 Web/
 AgentHub 采用统一三端会话工作台与权限模型：
 
 - Web 是完整 Session 工作台，承载 Composer、Run 卡、权限模式、授权卡、Context/Changes/Artifacts、Git diff、artifact、搜索。
-- Desktop 是本机 Host/控制台，承载本机权限预设、Runtime/CLI 状态、本机执行代理、执行日志、越权授权记录、策略镜像和本地校验。
+- Desktop 是本机 Host/控制台，承载本机权限预设、Runtime/CLI 状态、本机执行代理、执行日志、本机策略审计记录、策略镜像和本地校验。
 - Mobile/PWA 是远程监督控制端，参考 OpenAI Codex mobile 形态，查看线程、Run、diff、artifact、测试结果并处理授权。
 - 后端是策略事实源、授权记录、审计和三端状态同步源。
 - Desktop 不做审批中心，不弹二次确认。超出策略但可授权的动作回 Web/Mobile 当前 Session 请求授权。

@@ -1,27 +1,27 @@
 import { Card, CardContent, Badge, Button } from '@agenthub/ui'
 import { Activity, CheckCircle2, Clock3, LockKeyhole, ShieldCheck } from 'lucide-react'
-import { useConsoleStore, type AuthorizationRecord } from '../../store/console-store'
+import { useConsoleStore } from '../../store/console-store'
+import { getPolicyAuditRecords, type PolicyAuditStatus } from '../../utils/policy-audit'
 
-const STATUS_LABEL: Record<AuthorizationRecord['status'], string> = {
-  executable: '已授权可执行',
-  needs_authorization: '需要授权',
-  cancelled: '已取消',
-  security_blocked: '安全阻断',
+const STATUS_LABEL: Record<PolicyAuditStatus, string> = {
+  executed: '本机已执行',
+  pending: '等待处理',
+  blocked: '本机阻断',
 }
 
-const STATUS_VARIANT: Record<AuthorizationRecord['status'], 'success' | 'warning' | 'secondary' | 'destructive'> = {
-  executable: 'success',
-  needs_authorization: 'warning',
-  cancelled: 'secondary',
-  security_blocked: 'destructive',
+const STATUS_VARIANT: Record<PolicyAuditStatus, 'success' | 'warning' | 'destructive'> = {
+  executed: 'success',
+  pending: 'warning',
+  blocked: 'destructive',
 }
 
 export function DesktopPolicyPage() {
-  const { policyPresets, permissionPreset, setPermissionPreset, authorizationRecords } = useConsoleStore()
+  const { policyPresets, permissionPreset, setPermissionPreset, activities } = useConsoleStore()
   const current = policyPresets.find((item) => item.preset === permissionPreset)
-  const executableCount = authorizationRecords.filter((record) => record.status === 'executable').length
-  const blockedCount = authorizationRecords.filter((record) => record.status === 'security_blocked').length
-  const pendingCount = authorizationRecords.filter((record) => record.status === 'needs_authorization').length
+  const policyAuditRecords = getPolicyAuditRecords(activities)
+  const executableCount = policyAuditRecords.filter((record) => record.status === 'executed').length
+  const blockedCount = policyAuditRecords.filter((record) => record.status === 'blocked').length
+  const pendingCount = policyAuditRecords.filter((record) => record.status === 'pending').length
 
   return (
     <section data-testid="desktop-policy-page" className="flex-1 h-full overflow-y-auto">
@@ -33,7 +33,7 @@ export function DesktopPolicyPage() {
               <h1 className="text-base font-semibold">本机策略</h1>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Desktop 设置本机权限上限、同步策略并记录执行结果；授权入口统一在 Web/Mobile 当前会话中。
+              Desktop 设置本机权限上限并记录本机执行/阻断结果；远程授权入口统一在 Web/Mobile 当前会话中。
             </p>
           </div>
           <Badge variant="secondary">当前：{current?.label ?? '未配置'}</Badge>
@@ -46,7 +46,7 @@ export function DesktopPolicyPage() {
             <CardContent className="py-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 text-success" />
-                已授权执行
+                本机已执行
               </div>
               <div className="mt-2 text-2xl font-semibold">{executableCount}</div>
             </CardContent>
@@ -55,7 +55,7 @@ export function DesktopPolicyPage() {
             <CardContent className="py-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock3 className="h-4 w-4 text-warning" />
-                等待授权
+                等待处理
               </div>
               <div className="mt-2 text-2xl font-semibold">{pendingCount}</div>
             </CardContent>
@@ -120,15 +120,15 @@ export function DesktopPolicyPage() {
         <section data-testid="desktop-authorization-records" className="grid gap-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-medium">越权授权记录</h2>
-              <p className="mt-1 text-xs text-muted-foreground">记录 Web/Mobile 授权后落到本机执行的策略越界动作。</p>
+              <h2 className="text-sm font-medium">本机策略审计</h2>
+              <p className="mt-1 text-xs text-muted-foreground">仅展示 Desktop 本机已执行、等待处理或被阻断的真实活动；Web/Mobile 审批历史以会话内通知和动作记录为准。</p>
             </div>
-            <Badge variant="secondary">{authorizationRecords.length} 条</Badge>
+            <Badge variant="secondary">{policyAuditRecords.length} 条</Badge>
           </div>
-          {authorizationRecords.length === 0 && (
-            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">暂无由 Web/Mobile 授权后越过本机策略的执行记录</p>
+          {policyAuditRecords.length === 0 && (
+            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">暂无本机策略审计记录；需要远程审批的动作请在 Web/Mobile 会话中处理。</p>
           )}
-          {authorizationRecords.map((record) => (
+          {policyAuditRecords.map((record) => (
             <Card key={record.id}>
               <CardContent className="py-3">
                 <div className="flex items-start justify-between gap-3">
@@ -142,7 +142,7 @@ export function DesktopPolicyPage() {
                   <Badge variant={STATUS_VARIANT[record.status]}>{STATUS_LABEL[record.status]}</Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>授权端：{record.surface}</span>
+                  <span>来源：{record.source}</span>
                   <span>时间：{record.createdAt}</span>
                 </div>
                 {record.commandPreview && (
