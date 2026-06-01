@@ -13,9 +13,16 @@
 
 ## Acceptance Criteria
 
-- [ ] `createExecutor()` 默认策略对验收真实，不再静默 fake。
-- [ ] 单测覆盖 fake 仅测试、real CLI unavailable、配置错误。
-- [ ] `dev:acceptance`/文档/脚本不把 scripted 当产品成功。
+- [x] `createExecutor()` 默认策略对验收真实，不再静默 fake。
+- [x] 单测覆盖 fake 仅测试、real CLI unavailable、配置错误。
+- [x] `dev:acceptance`/文档/脚本不把 scripted 当产品成功。
+
+## Verification Notes
+
+- `apps/web/server/runtime-worker.ts#createExecutor()` 在无 `RUNTIME_EXECUTOR` 或 `RUNTIME_EXECUTOR=real` 时默认使用真实 CLI executor，`fake`/`script` 仅显式测试模式。
+- `scripts/acceptance-env.mjs dev` 默认设置 `RUNTIME_EXECUTOR=real`，验收链路不再静默 fake/script。
+- 本轮本地链路使用 Electron `RuntimeHost` + 真实 Claude CLI 跑通；远程 cloud 和 Mobile/PWA 链路使用 real executor 跑通并落库。
+- 验证命令：`pnpm --filter @agenthub/web test -- __tests__/runtime __tests__/api/chat.test.ts` PASS（7 files / 31 tests）；`pnpm env:acceptance:smoke` PASS。
 
 ## References
 

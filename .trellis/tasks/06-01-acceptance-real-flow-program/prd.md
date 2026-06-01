@@ -24,11 +24,16 @@
 
 ## Acceptance Criteria
 
-- [ ] 总合同和 6 个子任务 PRD/context 都已建立。
-- [ ] 本地链路与远程链路各有自动化或 opencli UAT 证据。
-- [ ] `FakeExecutor` 不再是验收默认成功路径。
-- [ ] 附件和 artifact 有真实存储/读取/展示证据。
-- [ ] tracker、ledger、execution report、治理门禁同步。
+- [x] 总合同和 6 个子任务 PRD/context 都已建立。
+- [x] 本地链路与远程链路各有自动化或 opencli UAT 证据。
+- [x] `FakeExecutor` 不再是验收默认成功路径。
+- [x] 附件和 artifact 有真实存储/读取/展示证据。
+- [x] tracker、ledger、execution report、治理门禁同步。
+
+## Verification Notes
+
+- 本地链路、远程链路、Mobile/PWA、附件、artifact、opencli、Electron 验收证据已分别记录在 6 个子任务 PRD 和 `research/execution-reports/acceptance-real-flow-2026-06-01-report.md`。
+- 最终治理门禁命令：`bash scripts/verify-governance-gate.sh ACCEPTANCE-REAL-FLOW-2026-06-01`。
 
 ## Subtasks
 

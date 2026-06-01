@@ -12,10 +12,18 @@
 
 ## Acceptance Criteria
 
-- [ ] 本地和远程核心 `@` 流程均有证据。
-- [ ] 附件/artifact 有证据。
-- [ ] `research/project-tracker.md`、`research/regression-ledger.md` 更新。
-- [ ] `scripts/verify-governance-gate.sh ACCEPTANCE-REAL-FLOW-2026-06-01` 通过。
+- [x] 本地和远程核心 `@` 流程均有证据。
+- [x] 附件/artifact 有证据。
+- [x] `research/project-tracker.md`、`research/regression-ledger.md` 更新。
+- [x] `scripts/verify-governance-gate.sh ACCEPTANCE-REAL-FLOW-2026-06-01` 通过。
+
+## Verification Notes
+
+- 本地 Desktop：commit `08440f7` 已验证 Web `/api/chat` -> Gateway -> Redis relay -> Desktop DeviceChannel -> Electron `RuntimeHost` -> 真实 Claude CLI -> SSE -> DB。
+- 远程 cloud：commit `dc4bd21` 已验证 Web + 390x844 Mobile/PWA cloud `/api/chat` -> Gateway -> Redis -> runtime worker -> real executor -> SSE -> DB。
+- 附件/artifact：commit `dc3e75d` 已验证 `/api/attachments`、附件上下文注入 runtime、artifact durable message 和右侧面板刷新可见。
+- 截图证据：`e2e/artifacts/opencli-uat/web-opencli-home.png`、`web-workspace-after-local-flow.png`、`mobile-cloud-real-flow-390x844.png`、`attachment-artifact-panel.png`。
+- 最终报告：`research/execution-reports/acceptance-real-flow-2026-06-01-report.md`。
 
 ## References
 
