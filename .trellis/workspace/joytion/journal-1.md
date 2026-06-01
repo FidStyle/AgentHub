@@ -104,3 +104,39 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: 验收真实闭环收口
+
+**Date**: 2026-06-01
+**Task**: 验收真实闭环收口
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+完成 ACCEPTANCE-REAL-FLOW-2026-06-01：本地 Desktop 与远程 cloud @ 链路真实落库，Mobile/PWA 视口验证，附件内容和 artifact durable output 接入，最终报告与治理门禁通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `08440f7` | (see git log) |
+| `dc4bd21` | (see git log) |
+| `dc3e75d` | (see git log) |
+| `c2cb16f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
