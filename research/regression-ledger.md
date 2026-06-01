@@ -46,6 +46,21 @@
 | **当前进展** | 已关闭（2026-06-01）。已建立合同/任务树/opencli skill；worker 默认改 real；Web Gateway 新增 `sendRuntimeInvokeToDevice` relay、ws-gateway response/runtime_event 分发；Desktop `RuntimeHost` 改用 `runtimeType/prompt` 调 `LocalRuntimeAdapter` 固定 CLI 映射；新增 Redis 跨进程 DeviceChannel request/event relay，修复 Next API 与 WS Gateway 不同进程导致的假 offline；`local_desktop` 核心 @ 链路已用真实 Electron + Claude CLI 跑通并落库。cloud `@架构师` 链路与 390x844 Mobile/PWA 视口已用 Gateway/Redis/runtime worker/real executor 跑通，返回非 echo 回复并落库；public cloud `runtime_logs` 已去除 Gateway/worker 双写。附件上传已通过真实 API 落 `messages.metadata.attachment.content/contentRef`，`@角色` 请求可携带附件上下文，runtime artifact 块已持久化为 pinned message 并在右侧面板刷新后可读。证据：`runtime_sessions.status=completed`，`runtime_logs` 包含本地与远程 runtime output/completed，agent message 持久化；Desktop E2E 45 passed/2 skipped，Web/Desktop type-check PASS，acceptance smoke PASS，Mobile/PWA 截图 `e2e/artifacts/opencli-uat/mobile-cloud-real-flow-390x844.png`，artifact 截图 `e2e/artifacts/opencli-uat/attachment-artifact-panel.png`，最终报告 `research/execution-reports/acceptance-real-flow-2026-06-01-report.md`。 |
 | **下一步** | 已关闭。后续增强另拆：大文件/二进制附件对象存储、原生 Android 模拟器人工验收。 |
 
+### REG-20260601-002 — PRD 反查发现 P0 必做未落实与残留假入口
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | prd-gap / unfinished / stale-or-ghost / security |
+| **优先级** | P0 |
+| **状态** | `open` |
+| **关联 FR/PRD** | FR-AUTH-001, FR-WS-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-ORCH-001, FR-CTX-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-NOTIFY-001 |
+| **关联任务/合同** | PRD 反查审计：`research/execution-reports/prd-backtrace-gap-audit-2026-06-01.md`；规范：`.trellis/spec/cross-layer/prd-backtrace-audit.md` |
+| **影响功能面** | 本地工作区创建门禁、plans/actions 权限边界、多角色 @、默认 Orchestrator、编排计划调度、pin/handoff/native session、富消息/结果卡/预览、Action 执行、通知/审批、Desktop 旧组件与静态授权记录 |
+| **发现方式** | Codex 从 `research/prd.md` P0 FR 逐项反查实际代码入口/API/UI/测试（2026-06-01），本轮未改产品代码、未重新跑 UAT。 |
+| **证据** | 详见审计报告 PBA-001..PBA-012。关键 P0 证据：`apps/web/app/api/workspaces/route.ts` 未在 `desktop.ok === false` 时阻止 `local_desktop` 创建；`apps/web/app/api/plans/route.ts` 与 `apps/web/app/api/actions/route.ts` 缺 `session_id -> workspace.owner_id` 校验；`ChatPanel`/`session-store` 只支持单 role；`OrchestratorPanel` 只读已有 plan/action，confirm 不调度执行；Desktop `authorizationRecords` 是 zustand 静态 seed；Mobile preview 仍为占位。 |
+| **关闭条件** | 按审计报告优先级拆修并逐项关闭：P0 安全/执行域先修；主旅程补多角色与编排调度；删除或接真实数据的 stale/ghost 入口；富消息、pin/handoff、Action executor 补真实闭环；所有完成结论必须附真实入口、数据/API/runtime、刷新后和负向错误态证据。 |
+| **下一步** | 先拆 P0 修复任务：`WORKSPACE-LOCAL-GATE-REAL-001`、`PLANS-ACTIONS-OWNERSHIP-001`、`CHAT-MULTIROLE-ORCH-001`、`DESKTOP-GHOST-CLEANUP-001`；再处理富消息/Action/handoff 增强。 |
+
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
 
 | 字段 | 内容 |

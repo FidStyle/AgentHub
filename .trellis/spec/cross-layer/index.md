@@ -11,3 +11,5 @@
 | [本地 Runtime 凭证边界](./runtime-credential-boundary.md) | 本地 Claude Code / Codex 的检测、绑定、认证诊断和密钥禁止托管规则 | 生效 |
 | [Cloud Runtime Gateway 契约](./runtime-gateway-contract.md) | Cloud Runtime Gateway 必需实体、runtime endpoint、DB/API/事件和错误语义 | 生效 |
 | [自建基础设施策略](./self-hosted-infra-policy.md) | 禁止包装型托管平台依赖，优先官方镜像/开源实现自部署 | 生效 |
+| [真实主链路验收规范](./real-flow-acceptance.md) | 本地/远端对话、@角色、附件和 artifact 的真实通过口径与禁止假绿规则 | 生效 |
+| [PRD 反查实现审计规范](./prd-backtrace-audit.md) | 从 PRD 反推代码实现，发现必做未落实和不该保留的假入口/残留组件 | 生效 |

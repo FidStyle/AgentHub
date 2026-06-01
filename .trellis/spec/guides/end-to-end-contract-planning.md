@@ -10,6 +10,10 @@ An AgentHub P0/MVP plan is valid only when each task proves user-visible behavio
 
 Plans must not replace product behavior with placeholder code, file-existence checks, test listing, mocked APIs, or unstated browser/session assumptions.
 
+For local conversation, remote conversation, `@role`, attachment, and artifact closure, the executable contract is `.trellis/spec/cross-layer/real-flow-acceptance.md`. If a plan cannot satisfy that spec, it must say "deferred" or "not accepted" instead of "passed".
+
+Before broad acceptance or "what is still missing" reviews, run a PRD backtrace using `.trellis/spec/cross-layer/prd-backtrace-audit.md`. The review must find both missing P0 behavior and stale/ghost UI or tests that should be deleted or explicitly downgraded.
+
 ---
 
 ## Plan Anti-Patterns
@@ -24,6 +28,7 @@ Reject or revise a plan if any task uses these as completion evidence:
 - Electron renderer polling Web auth session after OAuth in an external browser without an explicit token, device binding, deep link payload, or main-process bridge that transfers identity.
 - "TODO later" for auth, DB, permission, persistence, or runtime routing inside a P0 main path.
 - Reports that say "completed" while verification data says `passed: false`, `NO-GO`, `DONE_WITH_CONCERNS`, or equivalent.
+- Reports that merge skipped external-login, missing worker, missing Desktop app path, or mock-route tests into the passed count for a P0 main chain.
 
 ---
 
@@ -37,6 +42,7 @@ Before a plan may execute, review every task against this checklist:
 - [ ] If the task uses auth fixtures, it still verifies real authorization boundaries and real database rows.
 - [ ] If the task touches Desktop auth, it explains the identity transfer mechanism explicitly: device binding token/code, deep link with one-time token, or main-process mediated session exchange.
 - [ ] If the task touches runtime/agent behavior, it distinguishes unavailable runtime errors from successful responses and never emits fake Agent success.
+- [ ] If the task claims local/remote conversation, `@role`, attachment, or artifact closure, it names the exact Web/API/runtime/Desktop path, persistence rows, refresh assertion, and artifact/contentRef evidence.
 - [ ] If a minimal adapter is used, UI/API labels it honestly as a minimal/local test adapter and the plan states what real contract it proves.
 - [ ] Each wave has a behavior-level verification artifact in `research/execution-reports/`.
 - [ ] Product runtime mock removal is verified separately from test fixture use.
@@ -84,4 +90,3 @@ Plans must specify one of:
 - Electron main process owns a supported auth/session bridge and documents cookie/session boundaries.
 
 Plans must not assume `fetch('/api/auth/session', { credentials: 'include' })` from the renderer can read cookies stored in an external browser.
-
