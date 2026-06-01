@@ -27,6 +27,7 @@
 - `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts` PASS（6 tests）。
 - `pnpm env:acceptance:smoke` PASS（CRUD 5/5，chat 14/14）。
 - `npx playwright test --config e2e/playwright.desktop.config.ts --workers=1` PASS（45 passed，2 skipped）。
+- `bash scripts/verify-governance-gate.sh ACCEPTANCE-REAL-FLOW-2026-06-01` PASS。
 
 ## 定向验收样本
 
@@ -53,3 +54,9 @@
 - 本轮自动化不把 Android Studio 原生模拟器作为阻塞项；Mobile/PWA 已使用 390x844 真实浏览器视口验证。
 - opencli extension 和 CLI 有版本更新提示，但 doctor 连接状态为 OK，不影响当前验收。
 - 附件当前限制 64KB 轻量文本上下文；后续大文件、二进制和对象存储应拆独立增强任务。
+
+## 收尾记录
+
+- 工作提交：`08440f7`、`dc4bd21`、`dc3e75d`、`c2cb16f`。
+- Trellis 归档：`chore(task): archive 06-01-acceptance-real-e2e-uat`。
+- Journal 记录：`chore: record journal`。
