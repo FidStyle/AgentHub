@@ -1,0 +1,6 @@
+{"file":"research/regression-ledger.md","reason":"Tracks REG-20260601-002 stale/ghost and native session cleanup scope."}
+{"file":"research/workflow/ai-workflow-control.md","reason":"Defines real product closure and no fake success workflow rules."}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"Defines Local Desktop workspace operability and one-shot local runtime constraints."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Defines runtime fake-success prohibition and acceptance boundaries."}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"Defines stale_or_ghost cleanup expectations for unused components and old APIs."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Defines UI wording and disabled/explicit-boundary requirements."}

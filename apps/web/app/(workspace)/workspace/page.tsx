@@ -77,7 +77,8 @@ export default function WorkspacePage() {
                   </div>
                   <p className={`mt-3 text-xs ${operable ? 'text-success' : 'text-warning'}`}>
                     {local
-                      ? operable ? '可操作：Desktop 与本地 Runtime 已就绪' : `只读：${reason}`
+                      ? operable ? `一次性可执行：Desktop 与本地 Runtime 已就绪；${runtimeStatus.status?.runtime.nativeSessionDescription ?? '原生会话暂不可恢复'}`
+                        : `只读：${reason}`
                       : '可操作：云端工作区'}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">

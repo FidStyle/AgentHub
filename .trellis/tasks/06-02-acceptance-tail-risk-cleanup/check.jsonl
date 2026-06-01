@@ -1,0 +1,6 @@
+{"file":"research/regression-ledger.md","reason":"Verify ledger records fixed scope and remaining risk honestly."}
+{"file":"research/project-tracker.md","reason":"Verify tracker records completed cleanup and residual risks."}
+{"file":"research/execution-reports/acceptance-tail-risk-cleanup-2026-06-02.md","reason":"Verify executed checks and unverified scope are documented."}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"Check runtime status wording against native session limitation contract."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Check no fake runtime success remains in the changed route."}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"Check stale/ghost files are removed rather than retained."}

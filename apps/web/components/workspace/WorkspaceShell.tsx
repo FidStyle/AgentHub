@@ -31,6 +31,9 @@ export function WorkspaceShell({
   const localWorkspace = executionDomain === 'local_desktop'
   const readOnly = localWorkspace && (requestedMode === 'read-only' || runtimeStatus.status?.operable !== true)
   const blockReason = runtimeStatus.status?.blockReasonText ?? runtimeStatus.error ?? '正在检查本地连接状态'
+  const runtimeReadyLabel = localWorkspace && runtimeStatus.status?.operable
+    ? '一次性可执行'
+    : runtimeStatus.status?.operable ? '可操作' : '只读'
 
   useEffect(() => {
     if (!workspaceId) {
@@ -142,8 +145,9 @@ export function WorkspaceShell({
           <Badge
             variant={runtimeStatus.status?.operable ? 'success' : 'secondary'}
             data-testid="workspace-runtime-status"
+            title={localWorkspace ? runtimeStatus.status?.runtime.nativeSessionDescription : undefined}
           >
-            本地 Runtime：{runtimeStatus.status?.operable ? '可操作' : '只读'}
+            本地 Runtime：{runtimeReadyLabel}
           </Badge>
           {localWorkspace && (
             <Badge variant={readOnly ? 'warning' : 'success'} data-testid="workspace-operability-status">

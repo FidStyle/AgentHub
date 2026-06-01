@@ -27,6 +27,8 @@ export type WorkspaceRuntimeStatus = {
   runtime: {
     status: 'ready' | 'unavailable'
     doctorKnown: boolean
+    nativeSessionAvailable: boolean
+    nativeSessionDescription: string
     description: string
   }
 }
