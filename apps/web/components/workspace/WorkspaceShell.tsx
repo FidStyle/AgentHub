@@ -44,7 +44,7 @@ export function WorkspaceShell({
   return (
     <div
       data-testid="workspace-shell"
-      className={`relative h-screen overflow-x-hidden grid grid-cols-1 ${
+      className={`relative grid h-screen min-h-0 grid-cols-1 overflow-hidden ${
         rightPanelOpen
           ? 'lg:grid-cols-[280px_minmax(480px,1fr)_320px]'
           : 'lg:grid-cols-[280px_minmax(480px,1fr)]'
@@ -53,7 +53,7 @@ export function WorkspaceShell({
       {/* 桌面：左栏常驻；移动：抽屉 overlay，由顶部入口触发 */}
       <div
         data-testid="sidebar-region"
-        className={`${
+        className={`min-h-0 ${
           leftPanelOpen
             ? 'fixed inset-y-0 left-0 z-30 w-[280px]'
             : 'hidden'
@@ -69,7 +69,7 @@ export function WorkspaceShell({
         />
       )}
 
-      <div className="min-w-0 flex flex-col h-full">
+      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
         {/* 移动顶栏（app bar）置于 backdrop(z-20) 之上保证导航入口可点，但低于抽屉(z-30) 使打开的抽屉覆盖顶栏；lg: 隐藏不影响桌面 */}
         <div className="relative z-[25] flex items-center gap-2 border-b border-border p-2 lg:hidden">
           <IconButton
@@ -90,7 +90,7 @@ export function WorkspaceShell({
         </div>
         <div
           data-testid="workspace-status-bar"
-          className="flex min-h-11 flex-wrap items-center gap-2 border-b border-border bg-background px-3 py-2 text-xs"
+          className="shrink-0 flex min-h-11 flex-wrap items-center gap-2 border-b border-border bg-background px-3 py-2 text-xs"
         >
           <Link
             href="/workspace"
@@ -130,7 +130,7 @@ export function WorkspaceShell({
           />
         </div>
         {readOnly && (
-          <div data-testid="workspace-readonly-banner" className="border-b border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+          <div data-testid="workspace-readonly-banner" className="shrink-0 border-b border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
             {blockReason}
           </div>
         )}
@@ -154,7 +154,7 @@ export function WorkspaceShell({
           />
           <div
             data-testid="artifact-overlay"
-            className="fixed inset-y-0 right-0 z-30 w-[320px] max-w-[85vw] border-l border-border bg-card lg:static lg:z-auto lg:w-auto lg:max-w-none"
+            className="fixed inset-y-0 right-0 z-30 w-[320px] max-w-[85vw] border-l border-border bg-card lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-auto lg:max-w-none lg:overflow-hidden"
           >
             <ArtifactPanel onClose={() => setRightPanelOpen(false)} />
           </div>

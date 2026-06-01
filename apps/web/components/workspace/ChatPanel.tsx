@@ -2,6 +2,10 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import ReactMarkdown from 'react-markdown'
+import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
+import 'highlight.js/styles/github.css'
 import { Input, Card, StateCard, IconButton, Badge } from '@agenthub/ui'
 import { AtSign, Plus, Send, PanelRight, ShieldCheck } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
@@ -86,7 +90,7 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
   const roleName = (id: string | null) => roleAgents.find((r) => r.id === id)?.name
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+    <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
       {sessionMessages.map((msg) => {
         const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : undefined
         return (
@@ -97,10 +101,18 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
             <Card className={`max-w-[75%] p-3 ${msg.role === 'user' ? 'bg-primary/10' : 'bg-muted'}`}>
               {name && (
                 <Badge data-testid="message-role-badge" variant="secondary" className="mb-1">
-                  {name}
+                  @{name}
                 </Badge>
               )}
-              <p className="text-sm">{msg.content}</p>
+              {msg.role === 'agent' ? (
+                <div className="prose prose-sm max-w-none break-words text-sm prose-pre:max-w-full prose-pre:overflow-x-auto prose-code:break-words dark:prose-invert">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap break-words text-sm">{msg.content}</p>
+              )}
             </Card>
           </div>
         )
@@ -122,7 +134,7 @@ function MessageComposer({
 }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const [selectedRole, setSelectedRole] = useState<RoleAgent | null>(null)
+  const [selectedRoles, setSelectedRoles] = useState<RoleAgent[]>([])
   const [permissionMode, setPermissionMode] = useState<(typeof PERMISSION_MODES)[number]['value']>('standard')
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
@@ -134,6 +146,8 @@ function MessageComposer({
   const fileRef = useRef<HTMLInputElement>(null)
   const { sendMessage, activeSessionId } = useSessionStore()
   const currentMode = PERMISSION_MODES.find((mode) => mode.value === permissionMode)
+  const defaultRole = roleAgents.find((role) => role.is_orchestrator || role.name === 'Orchestrator') ?? roleAgents[0] ?? null
+  const effectiveRoles = selectedRoles.length > 0 ? selectedRoles : defaultRole ? [defaultRole] : []
 
   useEffect(() => setMounted(true), [])
 
@@ -163,12 +177,12 @@ function MessageComposer({
   const handleSend = async () => {
     if (!input.trim() || !activeSessionId || sending || readOnly) return
     setSending(true)
-    const mode = PERMISSION_MODES.find((item) => item.value === permissionMode)
-    const modeLine = mode ? `\n权限预设：${mode.label}（${mode.description}）` : ''
-    const attachmentLine = attachments.length > 0
-      ? `\n附件/上下文：${attachments.map((attachment) => `${attachment.name}（${attachment.contentRef}）`).join('、')}`
-      : ''
-    await sendMessage(`${input.trim()}${modeLine}${attachmentLine}`, selectedRole?.id, attachments.map((attachment) => attachment.id))
+    await sendMessage({
+      content: input.trim(),
+      roleAgentIds: effectiveRoles.map((role) => role.id),
+      attachmentIds: attachments.map((attachment) => attachment.id),
+      permissionMode,
+    })
     setInput('')
     setAttachments([])
     setSending(false)
@@ -202,7 +216,7 @@ function MessageComposer({
   }
 
   return (
-    <div data-testid="message-composer" className="border-t border-border p-4">
+    <div data-testid="message-composer" className="shrink-0 border-t border-border p-4">
       {readOnly && (
         <div data-testid="readonly-composer-gate" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
           <span>{readOnlyReason ?? '当前为只读模式，不能继续执行本地任务。'}</span>
@@ -232,24 +246,29 @@ function MessageComposer({
               pos={pos}
               roleAgents={roleAgents}
               onSelect={(r) => {
-                setSelectedRole(r)
+                setSelectedRoles((current) => current.some((role) => role.id === r.id) ? current : [...current, r])
                 setPickerOpen(false)
               }}
             />
           </div>
-          {selectedRole && (
-            <Badge data-testid="selected-role" variant="secondary">
-              @{selectedRole.name}
+          {selectedRoles.length === 0 && defaultRole && (
+            <Badge data-testid="selected-role-default" variant="secondary">
+              默认 @{defaultRole.name}
+            </Badge>
+          )}
+          {selectedRoles.map((role) => (
+            <Badge key={role.id} data-testid="selected-role" variant="secondary">
+              @{role.name}
               <button
                 type="button"
                 aria-label="取消选择角色"
                 className="ml-1"
-                onClick={() => setSelectedRole(null)}
+                onClick={() => setSelectedRoles((current) => current.filter((item) => item.id !== role.id))}
               >
                 ×
               </button>
             </Badge>
-          )}
+          ))}
           <IconButton
             icon={Plus}
             label={uploadingAttachment ? '上传中...' : '添加附件或上下文'}
@@ -314,7 +333,7 @@ function MessageComposer({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder={readOnly ? '只读模式下不能发送消息' : selectedRole ? `@${selectedRole.name} 输入消息...` : '输入消息...'}
+            placeholder={readOnly ? '只读模式下不能发送消息' : effectiveRoles.length > 0 ? `发送给 ${effectiveRoles.map((role) => `@${role.name}`).join('、')}...` : '输入消息...'}
             disabled={!activeSessionId || sending || readOnly}
           />
           <IconButton icon={Send} label={sending ? '发送中...' : '发送'} data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || sending || readOnly || uploadingAttachment} />
@@ -386,8 +405,8 @@ export function ChatPanel({
   const roleAgents = useRoleAgents(activeWorkspaceId)
 
   return (
-    <div data-testid="chat-panel" className="flex flex-col h-full border-r border-border">
-      <div className="flex items-center justify-between p-4 border-b border-border">
+    <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border">
+      <div className="shrink-0 flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-sm font-semibold">
           {activeSession?.title ?? '选择一个会话'}
         </h2>

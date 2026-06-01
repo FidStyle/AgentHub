@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IconButton, Badge } from '@agenthub/ui'
-import { Plus, ChevronDown } from 'lucide-react'
+import { Plus, ChevronDown, Trash2 } from 'lucide-react'
 import { SessionList } from './SessionList'
 import { useSessionStore } from '@/store/session-store'
 
@@ -88,6 +88,29 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
     setWsOpen(false)
   }
 
+  const deleteWorkspace = async (workspace: Workspace) => {
+    if (!confirm(`确定删除工作区「${workspace.name}」吗？相关会话、消息和云端项目目录会一并删除。`)) return
+    const res = await fetch(`/api/workspaces/${workspace.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      alert((body as { error?: string }).error || '删除工作区失败')
+      return
+    }
+    const next = workspaces.filter((item) => item.id !== workspace.id)
+    setWorkspaces(next)
+    setWsOpen(false)
+    if (workspace.id === activeWorkspaceId) {
+      const target = next[0]?.id
+      if (target) {
+        setActiveWorkspace(target)
+        fetchSessions(target)
+        window.location.href = `/workspace/${target}`
+      } else {
+        window.location.href = '/workspace'
+      }
+    }
+  }
+
   return (
     <aside className="flex flex-col h-full border-r border-border bg-card">
       <div className="px-3 py-3 border-b border-border">
@@ -106,6 +129,7 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
           onSelect={switchWorkspace}
+          onDelete={deleteWorkspace}
         />
       </div>
       <div data-testid="session-header" className="flex items-center justify-between px-4 py-2 border-b border-border">
@@ -132,12 +156,14 @@ function WorkspaceDropdown({
   workspaces,
   activeWorkspaceId,
   onSelect,
+  onDelete,
 }: {
   open: boolean
   pos: { top: number; left: number; width: number; maxHeight: number } | null
   workspaces: Workspace[]
   activeWorkspaceId: string | null
   onSelect: (id: string) => void
+  onDelete: (workspace: Workspace) => void
 }) {
   if (!open) return null
   return createPortal(
@@ -153,16 +179,29 @@ function WorkspaceDropdown({
       className="fixed z-50 overflow-y-auto rounded-md border border-border bg-card shadow-md"
     >
       {workspaces.map(ws => (
-        <button
-          key={ws.id}
-          onClick={() => onSelect(ws.id)}
-          className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-muted ${ws.id === activeWorkspaceId ? 'bg-muted font-medium' : ''}`}
-        >
-          <span className="truncate">{ws.name}</span>
-          <Badge variant="secondary" className="text-[10px] ml-auto shrink-0">
-            {ws.execution_domain === 'cloud' ? '云端' : '本地'}
-          </Badge>
-        </button>
+        <div key={ws.id} className={`flex items-center gap-1 px-1 py-1 ${ws.id === activeWorkspaceId ? 'bg-muted' : ''}`}>
+          <button
+            onClick={() => onSelect(ws.id)}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+          >
+            <span className="truncate">{ws.name}</span>
+            <Badge variant="secondary" className="text-[10px] ml-auto shrink-0">
+              {ws.execution_domain === 'cloud' ? '云端' : '本地'}
+            </Badge>
+          </button>
+          <button
+            type="button"
+            aria-label={`删除工作区 ${ws.name}`}
+            data-testid={`delete-workspace-${ws.id}`}
+            className="rounded-sm p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDelete(ws)
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       ))}
     </div>,
     document.body,

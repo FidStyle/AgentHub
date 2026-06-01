@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
+import { ensureCloudWorkspaceProject } from '@/lib/workspace/cloud-workspace-fs'
 
 function hasDatabaseConfig() {
   return Boolean(process.env.DATABASE_URL)
@@ -120,5 +121,27 @@ export async function POST(request: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (execution_domain === 'cloud') {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('github_username, display_name')
+      .eq('id', user.id)
+      .single()
+    const projectDir = await ensureCloudWorkspaceProject(
+      {
+        id: user.id,
+        email: user.email,
+        name: (profile as { display_name?: string | null } | null)?.display_name ?? user.name,
+        githubUsername: (profile as { github_username?: string | null } | null)?.github_username,
+      },
+      data as unknown as { id: string; name: string; cloud_project_dir?: string | null },
+    )
+    await db
+      .from('workspaces')
+      .update({ cloud_project_dir: projectDir, updated_at: new Date().toISOString() })
+      .eq('id', (data as { id: string }).id)
+      .eq('owner_id', user.id)
+    return NextResponse.json({ ...(data as Record<string, unknown>), cloud_project_dir: projectDir }, { status: 201 })
+  }
   return NextResponse.json(data, { status: 201 })
 }

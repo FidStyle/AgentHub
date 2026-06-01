@@ -28,7 +28,7 @@ interface SessionState {
   fetchSessions: (workspaceId: string) => Promise<void>
   createSession: (workspaceId: string) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
-  sendMessage: (content: string, roleAgentId?: string, attachmentIds?: string[]) => Promise<void>
+  sendMessage: (input: { content: string; roleAgentIds?: string[]; attachmentIds?: string[]; permissionMode?: string }) => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -137,9 +137,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  sendMessage: async (content, roleAgentId, attachmentIds = []) => {
+  sendMessage: async ({ content, roleAgentIds = [], attachmentIds = [], permissionMode }) => {
     const { activeSessionId, messages } = get()
     if (!activeSessionId) return
+    const primaryRoleAgentId = roleAgentIds[0] ?? null
 
     const optimistic: Message = {
       id: `tmp-${Date.now()}`,
@@ -147,7 +148,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       role: 'user',
       content,
       createdAt: new Date().toISOString(),
-      roleAgentId: roleAgentId ?? null,
+      roleAgentId: primaryRoleAgentId,
     }
     set({ messages: [...messages, optimistic] })
 
@@ -158,9 +159,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         body: JSON.stringify({
           sessionId: activeSessionId,
           content,
-          roleAgentId: roleAgentId ?? null,
-          mentions: roleAgentId ? [roleAgentId] : null,
+          roleAgentId: primaryRoleAgentId,
+          roleAgentIds,
+          mentions: roleAgentIds.length > 0 ? roleAgentIds : null,
           attachmentIds,
+          permissionMode,
         }),
       })
       if (!res.ok || !res.body) {
@@ -174,6 +177,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const replyId = `reply-${Date.now()}`
       let reply = ''
       let replyCreated = false
+      let respondingRoleAgentId: string | null = primaryRoleAgentId
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -191,7 +195,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
                   role: 'agent',
                   content: reply,
                   createdAt: new Date().toISOString(),
-                  roleAgentId: roleAgentId ?? null,
+                  roleAgentId: respondingRoleAgentId,
                 } as Message,
               ],
             }
@@ -236,7 +240,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         for (const frame of frames) {
           const line = frame.trim()
           if (!line.startsWith('data:')) continue
-          const evt = JSON.parse(line.slice(5).trim()) as { type?: string; delta?: string }
+          const evt = JSON.parse(line.slice(5).trim()) as { type?: string; delta?: string; roleAgentId?: string | null }
+          if (evt.type === 'role_selected' && evt.roleAgentId) {
+            respondingRoleAgentId = evt.roleAgentId
+          }
           if (evt.type === 'runtime_output' && evt.delta) {
             reply += evt.delta
             upsertReply()

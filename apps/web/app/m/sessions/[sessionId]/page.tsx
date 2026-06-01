@@ -32,7 +32,7 @@ export default function MobileSessionPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // Resolve the session's workspace, then its role agents. GET /api/role-agents auto-seeds the
-  // default 架构师 orchestrator, guaranteeing at least one role context for the default strategy.
+  // default Orchestrator, guaranteeing at least one role context for the default strategy.
   useEffect(() => {
     let cancelled = false
     fetch(`/api/messages?session_id=${sessionId}`)
@@ -85,6 +85,7 @@ export default function MobileSessionPage() {
           sessionId,
           content,
           roleAgentId,
+          roleAgentIds: roleAgentId ? [roleAgentId] : [],
           mentions: roleAgentId ? [roleAgentId] : null,
         }),
       })
@@ -100,12 +101,13 @@ export default function MobileSessionPage() {
       const decoder = new TextDecoder()
       let buffer = ''
       let noticed = false
+      let respondingRoleAgentId = roleAgentId
 
       const upsertReply = () => {
         setMessages(prev => {
           const exists = prev.some(m => m.id === replyId)
           if (!exists) {
-            return [...prev, { id: replyId, session_id: sessionId, sender_type: 'agent', role_agent_id: roleAgentId, content: reply } as unknown as Message]
+            return [...prev, { id: replyId, session_id: sessionId, sender_type: 'agent', role_agent_id: respondingRoleAgentId, content: reply } as unknown as Message]
           }
           return prev.map(m => (m.id === replyId ? ({ ...m, content: reply } as Message) : m))
         })
@@ -124,11 +126,14 @@ export default function MobileSessionPage() {
         for (const frame of frames) {
           const line = frame.trim()
           if (!line.startsWith('data:')) continue
-          let evt: { type?: string; delta?: string }
+          let evt: { type?: string; delta?: string; roleAgentId?: string | null }
           try {
             evt = JSON.parse(line.slice(5).trim())
           } catch {
             continue
+          }
+          if (evt.type === 'role_selected' && evt.roleAgentId) {
+            respondingRoleAgentId = evt.roleAgentId
           }
           if (evt.type === 'runtime_output' && evt.delta) {
             reply += evt.delta

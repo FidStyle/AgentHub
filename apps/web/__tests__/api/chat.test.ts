@@ -104,22 +104,28 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(status).toBe(200)
     expect(invokeSpy).toHaveBeenCalledOnce()
     const arg = invokeSpy.mock.calls[0][0]
-    expect(arg.systemPrompt).toBe('You analyze things.')
+    expect(arg.systemPrompt).toContain('@Analyzer Agent')
+    expect(arg.systemPrompt).toContain('You analyze things.')
     expect(arg.roleAgentId).toBe('agent-001')
     const userMsg = insertedMessages[0]
     expect(userMsg.role_agent_id).toBe('agent-001')
-    expect(userMsg.metadata).toEqual({ mentions: ['agent-001'] })
+    expect(userMsg.metadata).toEqual({
+      mentions: ['agent-001'],
+      roleAgents: [{ id: 'agent-001', name: 'Analyzer Agent', roleType: 'analyzer', isOrchestrator: false }],
+    })
   })
 
-  it('AT-003 [high]: no roleAgentId keeps legacy behavior (no systemPrompt, null role_agent_id)', async () => {
+  it('AT-003 [high]: no roleAgentId uses the default orchestrator role instead of appending @ text', async () => {
     setupMockClient(chainCapturingInserts())
     const { status } = await callChat({ sessionId: 'session-001', content: 'hi' })
     expect(status).toBe(200)
     expect(invokeSpy).toHaveBeenCalledOnce()
     const arg = invokeSpy.mock.calls[0][0]
-    expect(arg.systemPrompt).toBeUndefined()
-    expect(arg.roleAgentId).toBeUndefined()
-    expect(insertedMessages[0].role_agent_id).toBeNull()
+    expect(arg.systemPrompt).toContain('@Analyzer Agent')
+    expect(arg.roleAgentId).toBe('agent-001')
+    expect(insertedMessages[0].content).toBe('hi')
+    expect(insertedMessages[0].content).not.toContain('权限预设')
+    expect(insertedMessages[0].role_agent_id).toBe('agent-001')
   })
 
   it('AT-004 [high]: missing sessionId or content returns 400', async () => {

@@ -37,9 +37,26 @@ const CLI_BINARY: Record<CliRuntimeType, string> = { claude_code: 'claude', code
 
 function cliArgs(runtimeType: CliRuntimeType, prompt: string) {
   if (runtimeType === 'codex') {
-    return ['exec', '-s', 'read-only', '--color', 'never', prompt]
+    return ['exec', '--json', '-s', 'read-only', '--color', 'never', prompt]
   }
   return ['-p', prompt]
+}
+
+function splitOutput(text: string) {
+  return text.match(/.{1,12}/gu) ?? [text]
+}
+
+function outputChunks(runtimeType: CliRuntimeType, line: string): ExecutorChunk[] {
+  if (runtimeType !== 'codex') return [{ delta: line + '\n' }]
+  try {
+    const evt = JSON.parse(line) as { type?: string; item?: { type?: string; text?: string } }
+    if (evt.type === 'item.completed' && evt.item?.type === 'agent_message' && evt.item.text) {
+      return splitOutput(evt.item.text).map((delta) => ({ delta }))
+    }
+    return []
+  } catch {
+    return line.trim() ? [{ delta: `${line}\n` }] : []
+  }
 }
 
 // CliRuntimeExecutor: spawns the real claude/codex CLI and streams stdout lines as chunks.
@@ -72,7 +89,10 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
     })
 
     const rl = createInterface({ input: child.stdout })
-    rl.on('line', (line) => { queue.push({ delta: line + '\n' }); wake() })
+    rl.on('line', (line) => {
+      queue.push(...outputChunks(this.options.runtimeType, line))
+      wake()
+    })
 
     // Drain stderr so a chatty CLI can't fill the pipe buffer and block, but never forward it as
     // output — stderr may carry credential-bearing error text.

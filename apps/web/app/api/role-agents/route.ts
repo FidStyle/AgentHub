@@ -2,15 +2,40 @@ import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
-// Default 架构师 role seeded into any workspace that has no role agents yet, so chat always
-// has at least one mentionable orchestrator role without requiring a schema migration.
-const DEFAULT_ARCHITECT = {
-  name: '架构师',
-  role_type: 'orchestrator',
-  system_prompt:
-    '你是一名资深软件架构师。你负责理解需求、拆解系统、评估技术权衡，并给出清晰、可落地的架构方案与实现指引。回答使用简体中文。',
-  capabilities: ['architecture', 'planning', 'review'],
-  is_orchestrator: true,
+const DEFAULT_ROLE_AGENTS = [
+  {
+    name: 'Orchestrator',
+    role_type: 'orchestrator',
+    system_prompt:
+      'You are AgentHub Orchestrator. Decide whether to answer directly or coordinate specialized roles such as Frontend Engineer and Backend Engineer. Keep user-facing replies in Simplified Chinese unless the user asks otherwise. Do not expose internal permission presets as part of the user prompt.',
+    capabilities: ['planning', 'routing', 'coordination'],
+    is_orchestrator: true,
+  },
+  {
+    name: 'Frontend Engineer',
+    role_type: 'engineer',
+    system_prompt:
+      'You are a senior frontend engineer. Focus on UI behavior, React/Next.js implementation, accessibility, layout stability, Markdown rendering, and browser acceptance evidence. Answer in Simplified Chinese.',
+    capabilities: ['frontend', 'react', 'ui', 'e2e'],
+    is_orchestrator: false,
+  },
+  {
+    name: 'Backend Engineer',
+    role_type: 'engineer',
+    system_prompt:
+      'You are a senior backend engineer. Focus on API contracts, database persistence, runtime workers, authorization, and durable artifacts. Answer in Simplified Chinese.',
+    capabilities: ['backend', 'database', 'runtime', 'api'],
+    is_orchestrator: false,
+  },
+]
+
+async function ensureDefaultRoleAgents(db: Awaited<ReturnType<typeof createClient>>, workspaceId: string, existing: Array<{ name: string }>) {
+  const existingNames = new Set(existing.map((row) => row.name))
+  const missing = DEFAULT_ROLE_AGENTS
+    .filter((role) => !existingNames.has(role.name))
+    .map((role) => ({ workspace_id: workspaceId, ...role }))
+  if (missing.length === 0) return null
+  return db.from('role_agents').insert(missing).select()
 }
 
 // GET: list all role agents for a workspace
@@ -39,14 +64,11 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  if (!data || data.length === 0) {
-    const { data: seeded, error: seedError } = await db
-      .from('role_agents')
-      .insert({ workspace_id: workspaceId, ...DEFAULT_ARCHITECT })
-      .select()
-      .single()
-    if (seedError) return NextResponse.json({ error: seedError.message }, { status: 500 })
-    return NextResponse.json([seeded])
+  const rows = (data ?? []) as unknown as Array<{ name: string }>
+  const seedResult = await ensureDefaultRoleAgents(db, workspaceId, rows)
+  if (seedResult?.error) return NextResponse.json({ error: seedResult.error.message }, { status: 500 })
+  if (seedResult?.data && Array.isArray(seedResult.data)) {
+    return NextResponse.json([...(data ?? []), ...seedResult.data])
   }
 
   return NextResponse.json(data)

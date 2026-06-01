@@ -3,11 +3,11 @@
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, FileCode2, FileText, GitBranch, MessageSquareText, ShieldCheck, X } from 'lucide-react'
+import { Bot, Boxes, FileCode2, FileText, FolderTree, GitBranch, ShieldCheck, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 
-const TABS = ['上下文', '变更', '产物'] as const
+const TABS = ['角色', '文件', '变更', '产物'] as const
 
 type RoleAgentRow = {
   id: string
@@ -23,6 +23,12 @@ type MessageRow = {
   message_type: string
   is_pinned: boolean
   metadata: Record<string, unknown> | null
+}
+type FileTreeNode = {
+  name: string
+  path: string
+  type: 'file' | 'directory'
+  children?: FileTreeNode[]
 }
 
 function truncate(text: string, max = 160) {
@@ -46,7 +52,7 @@ function PanelSection({
   action,
   children,
 }: {
-  icon: typeof MessageSquareText
+  icon: typeof Bot
   title: string
   description?: string
   action?: React.ReactNode
@@ -329,38 +335,61 @@ function useSessionMessages() {
   return { activeSessionId, messages, error, loaded }
 }
 
-function ContextTab() {
-  const { activeSessionId, messages, error, loaded } = useSessionMessages()
-  const refs = messages.filter((m) => m.is_pinned || (m.metadata && Object.keys(m.metadata).length > 0))
-  if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，其引用上下文将在此展示" />
-  if (error) return <p data-testid="artifact-context-error" className="text-sm text-destructive">{error}</p>
+function RolesTab() {
+  return <AgentsTab />
+}
+
+function FileTreeNodeView({ node, level = 0 }: { node: FileTreeNode; level?: number }) {
+  const isDir = node.type === 'directory'
   return (
-    <div data-testid="artifact-context" className="space-y-4">
-      <PanelSection
-        icon={MessageSquareText}
-        title="会话上下文"
-        description="固定消息、引用材料与本轮运行携带的结构化上下文"
-        action={<Badge variant="secondary">{refs.length} 条</Badge>}
-      >
-        {loaded && refs.length === 0 ? (
-          <StateCard variant="empty" title="暂无上下文" description="当前会话还没有被引用或固定的上下文" />
-        ) : (
-          refs.map((m) => (
-            <div key={m.id} className="rounded-lg border border-border bg-background p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <Badge variant={m.is_pinned ? 'default' : 'secondary'}>
-                  {m.is_pinned ? '已固定' : m.message_type}
-                </Badge>
-                {m.metadata && <Badge variant="secondary">{Object.keys(m.metadata).length} 个字段</Badge>}
-              </div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{truncate(m.content, 260)}</p>
-            </div>
-          ))
-        )}
-      </PanelSection>
-      <PanelSection icon={Bot} title="Role Agents" description="当前工作区可提及和调度的角色">
-        <AgentsTab />
-      </PanelSection>
+    <div>
+      <div className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-xs hover:bg-muted" style={{ paddingLeft: 8 + level * 12 }}>
+        {isDir ? <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+        <span className="truncate" title={node.path}>{node.name}</span>
+      </div>
+      {isDir && node.children?.map((child) => <FileTreeNodeView key={child.path} node={child} level={level + 1} />)}
+    </div>
+  )
+}
+
+function FileTreeTab() {
+  const { activeWorkspaceId } = useSessionStore()
+  const [tree, setTree] = useState<FileTreeNode[]>([])
+  const [root, setRoot] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!activeWorkspaceId) return
+    setLoaded(false)
+    setError(null)
+    fetch(`/api/workspaces/${activeWorkspaceId}/files`)
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error((body as { error?: string }).error || `加载文件树失败（${res.status}）`)
+        return body as { root: string; tree: FileTreeNode[] }
+      })
+      .then((body) => {
+        setRoot(body.root)
+        setTree(Array.isArray(body.tree) ? body.tree : [])
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : '加载文件树失败'))
+      .finally(() => setLoaded(true))
+  }, [activeWorkspaceId])
+
+  if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其云端项目文件将在此展示" />
+  if (error) return <p data-testid="artifact-files-error" className="text-sm text-destructive">{error}</p>
+  if (!loaded) return <StateCard variant="loading" title="加载文件树" />
+  if (tree.length === 0) return <StateCard variant="empty" title="暂无文件" description="云端项目目录已创建，等待运行时产出文件" />
+  return (
+    <div data-testid="artifact-files" className="space-y-3">
+      <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+        <div className="font-medium text-foreground">云端项目目录</div>
+        <div className="mt-1 break-all">{root}</div>
+      </div>
+      <div className="rounded-md border border-border bg-background py-1">
+        {tree.map((node) => <FileTreeNodeView key={node.path} node={node} />)}
+      </div>
     </div>
   )
 }
@@ -529,7 +558,7 @@ function ArtifactsTab() {
 }
 
 export function ArtifactPanel({ onClose }: { onClose: () => void }) {
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('上下文')
+  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('角色')
 
   return (
     <aside data-testid="artifact-panel" className="flex flex-col h-full bg-card">
@@ -540,7 +569,7 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
               <Boxes className="h-4 w-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold">会话工作台</h2>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">上下文、变更和产物按当前 Session 关联</p>
+            <p className="mt-1 text-xs text-muted-foreground">角色、文件、变更和产物按当前工作区关联</p>
           </div>
           <Button variant="ghost" size="sm" data-testid="artifact-close-btn" onClick={onClose} aria-label="关闭右侧面板">
             <X className="h-4 w-4" />
@@ -555,16 +584,18 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
               className="flex-1"
               onClick={() => setActiveTab(tab)}
             >
+              {tab === '角色' && <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
+              {tab === '文件' && <FolderTree className="mr-1 h-3.5 w-3.5" />}
               {tab === '变更' && <GitBranch className="mr-1 h-3.5 w-3.5" />}
-              {tab === '上下文' && <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
               {tab === '产物' && <FileText className="mr-1 h-3.5 w-3.5" />}
               {tab}
             </Button>
           ))}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        {activeTab === '上下文' && <ContextTab />}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {activeTab === '角色' && <RolesTab />}
+        {activeTab === '文件' && <FileTreeTab />}
         {activeTab === '变更' && <ChangesTab />}
         {activeTab === '产物' && <ArtifactsTab />}
       </div>

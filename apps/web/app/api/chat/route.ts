@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
-  const { sessionId, content, roleAgentId, mentions, attachmentIds } = await req.json()
+  const { sessionId, content, roleAgentId, roleAgentIds, mentions, attachmentIds, permissionMode } = await req.json()
   if (!sessionId || !content) {
     return Response.json({ error: '缺少 sessionId 或 content' }, { status: 400 })
   }
@@ -101,20 +101,48 @@ export async function POST(req: NextRequest) {
     if (!operability.ok) return Response.json({ error: operability.error }, { status: 409 })
   }
 
-  // When a role is mentioned, it must belong to this workspace. Load its system prompt so the
-  // runtime executes with the role's persona; reject cross-workspace role references.
-  let systemPrompt: string | undefined
-  if (roleAgentId) {
-    const { data: roleAgent } = await db
+  const requestedRoleIds = Array.isArray(roleAgentIds)
+    ? roleAgentIds.map((id) => String(id)).filter(Boolean)
+    : roleAgentId
+      ? [String(roleAgentId)]
+      : []
+
+  let selectedRoleAgents: Array<{ id: string; workspace_id: string; name: string; role_type: string; system_prompt: string | null; capabilities: unknown; is_orchestrator: boolean }> = []
+  if (requestedRoleIds.length > 0) {
+    const { data: roles, error: roleError } = await db
       .from('role_agents')
-      .select('workspace_id, system_prompt')
-      .eq('id', roleAgentId)
-      .single()
-    if (!roleAgent || roleAgent.workspace_id !== ws.id) {
+      .select('id, workspace_id, name, role_type, system_prompt, capabilities, is_orchestrator')
+      .eq('workspace_id', ws.id)
+      .order('created_at', { ascending: true })
+    if (roleError) return Response.json({ error: roleError.message }, { status: 500 })
+    selectedRoleAgents = ((roles ?? []) as unknown as typeof selectedRoleAgents)
+      .filter((role) => requestedRoleIds.includes(role.id))
+    if (selectedRoleAgents.length !== requestedRoleIds.length) {
       return Response.json({ error: '角色不存在或无权限' }, { status: 403 })
     }
-    systemPrompt = roleAgent.system_prompt || undefined
+    selectedRoleAgents.sort((a, b) => requestedRoleIds.indexOf(a.id) - requestedRoleIds.indexOf(b.id))
+  } else {
+    const { data: roles, error: roleError } = await db
+      .from('role_agents')
+      .select('id, workspace_id, name, role_type, system_prompt, capabilities, is_orchestrator')
+      .eq('workspace_id', ws.id)
+      .order('created_at', { ascending: true })
+    if (roleError) return Response.json({ error: roleError.message }, { status: 500 })
+    const rows = ((roles ?? []) as unknown as typeof selectedRoleAgents)
+    const orchestrator = rows.find((role) => role.name === 'Orchestrator' || role.is_orchestrator) ?? rows[0]
+    if (orchestrator) selectedRoleAgents = [orchestrator]
   }
+  const primaryRoleAgentId = selectedRoleAgents[0]?.id ?? null
+  const systemPrompt = selectedRoleAgents.length > 0
+    ? [
+        'AgentHub role context:',
+        ...selectedRoleAgents.map((role, index) => [
+          `${index + 1}. @${role.name} (${role.role_type}${role.is_orchestrator ? ', orchestrator' : ''})`,
+          role.system_prompt ? `Instructions: ${role.system_prompt}` : null,
+          Array.isArray(role.capabilities) && role.capabilities.length > 0 ? `Capabilities: ${role.capabilities.join(', ')}` : null,
+        ].filter(Boolean).join('\n')),
+      ].join('\n\n')
+    : undefined
 
   const requestedAttachmentIds = Array.isArray(attachmentIds)
     ? attachmentIds.map((id) => String(id)).filter(Boolean)
@@ -127,7 +155,9 @@ export async function POST(req: NextRequest) {
   }
   const userMessage = `${content}${buildAttachmentPrompt(attachments)}`
   const metadata: Record<string, unknown> = {}
-  if (mentions) metadata.mentions = mentions
+  if (mentions || selectedRoleAgents.length > 0) metadata.mentions = mentions ?? selectedRoleAgents.map((role) => role.id)
+  if (selectedRoleAgents.length > 0) metadata.roleAgents = selectedRoleAgents.map((role) => ({ id: role.id, name: role.name, roleType: role.role_type, isOrchestrator: role.is_orchestrator }))
+  if (permissionMode) metadata.permissionMode = permissionMode
   if (attachments.length > 0) {
     metadata.attachments = attachments.map((attachment) => ({
       id: attachment.id,
@@ -143,7 +173,7 @@ export async function POST(req: NextRequest) {
     session_id: sessionId,
     content,
     sender_type: 'user',
-    role_agent_id: roleAgentId ?? null,
+    role_agent_id: primaryRoleAgentId,
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
   })
 
@@ -160,6 +190,9 @@ export async function POST(req: NextRequest) {
       let reply = ''
       let completed = false
       try {
+        if (primaryRoleAgentId) {
+          controller.enqueue(encode({ type: 'role_selected', roleAgentId: primaryRoleAgentId }))
+        }
         for await (const evt of adapter.invoke({
           userId: user.id,
           sessionId,
@@ -167,7 +200,7 @@ export async function POST(req: NextRequest) {
           workspaceId: ws.id,
           userMessage,
           systemPrompt,
-          roleAgentId: roleAgentId ?? undefined,
+          roleAgentId: primaryRoleAgentId ?? undefined,
         })) {
           if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
           if (evt.type === 'runtime_completed') completed = true
@@ -181,7 +214,7 @@ export async function POST(req: NextRequest) {
             session_id: sessionId,
             content: reply,
             sender_type: 'agent',
-            role_agent_id: roleAgentId ?? null,
+            role_agent_id: primaryRoleAgentId,
           }).select('id').single()
 
           const artifacts = parseArtifacts(reply)
@@ -190,7 +223,7 @@ export async function POST(req: NextRequest) {
               session_id: sessionId,
               content: artifact.content,
               sender_type: 'agent',
-              role_agent_id: roleAgentId ?? null,
+              role_agent_id: primaryRoleAgentId,
               message_type: 'text',
               metadata: {
                 artifact: {

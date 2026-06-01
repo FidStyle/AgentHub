@@ -124,6 +124,62 @@ for await (const event of runtimeGateway.invoke({ runtimeSession, userMessage })
 }
 ```
 
+## Scenario: Public Cloud Worker Liveness Env
+
+### 1. Scope / Trigger
+
+- Trigger: Web server, runtime worker, or acceptance scripts claim the `cloud` conversation path is live.
+- Applies to `pnpm --filter @agenthub/web start`, `apps/web/server/runtime-worker.ts`, `/api/chat`, and opencli/browser UAT.
+
+### 2. Signatures
+
+- Required Web env for live cloud runtime: `REDIS_URL=redis://<host>:<port>`.
+- Required worker env: same `REDIS_URL`, plus `RUNTIME_EXECUTOR=real|script|fake`, and for real CLI `RUNTIME_CLI=codex|claude_code`.
+- Runtime events proving liveness: `public_runtime_available=true`, at least one `runtime_output`, then `runtime_completed`.
+
+### 3. Contracts
+
+- The Web server and runtime worker must point at the same Redis instance. A live worker process alone is not enough.
+- `/api/chat` must gate `public_cloud` on both a configured endpoint and `isWorkerAlive()` using the Web process `REDIS_URL`.
+- If Web lacks `REDIS_URL`, it must emit `endpoint_unavailable` instead of enqueueing a job or fabricating a reply.
+- Acceptance commands must start Web with `REDIS_URL=redis://localhost:6379` whenever the worker is started locally.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Worker running but Web process lacks `REDIS_URL` | `endpoint_unavailable`; no fake agent reply |
+| Web and worker use different Redis URLs | `endpoint_unavailable` or timeout; test must fail |
+| Web and worker share Redis and endpoint is available | SSE has `runtime_output` chunks and terminal `runtime_completed` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `REDIS_URL=redis://localhost:6379 pnpm --filter @agenthub/web start` and `REDIS_URL=redis://localhost:6379 RUNTIME_EXECUTOR=real RUNTIME_CLI=codex pnpm --filter @agenthub/web exec tsx server/runtime-worker.ts`.
+- Base: Worker intentionally unavailable; UI shows a Chinese unavailable state and persists no fake assistant message.
+- Bad: Start only the worker with `REDIS_URL`, leave Web without it, then report cloud chat failure as a runtime bug.
+
+### 6. Tests Required
+
+- Unit/integration: endpoint unavailable path persists no agent message.
+- Browser UAT: stream body contains multiple `runtime_output` events and refresh shows the persisted agent message.
+- Evidence must record the Web and worker `REDIS_URL` values or startup commands.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+pnpm --filter @agenthub/web start
+REDIS_URL=redis://localhost:6379 pnpm --filter @agenthub/web exec tsx server/runtime-worker.ts
+```
+
+#### Correct
+
+```bash
+REDIS_URL=redis://localhost:6379 pnpm --filter @agenthub/web start
+REDIS_URL=redis://localhost:6379 RUNTIME_EXECUTOR=real RUNTIME_CLI=codex pnpm --filter @agenthub/web exec tsx server/runtime-worker.ts
+```
+
 ## Scenario: Workspace Local Desktop Creation Gate
 
 ### 1. Scope / Trigger
