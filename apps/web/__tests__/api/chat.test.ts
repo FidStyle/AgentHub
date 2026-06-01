@@ -46,7 +46,11 @@ async function callChat(body: unknown): Promise<{ status: number; text: string }
 }
 
 function chainCapturingInserts() {
-  const base = createPostgresChain()
+  return chainCapturingInsertsWithRoles()
+}
+
+function chainCapturingInsertsWithRoles(roleAgents?: unknown[]) {
+  const base = createPostgresChain(undefined, undefined, undefined, undefined, roleAgents)
   return vi.fn(() => {
     const client = base()
     const origFrom = client.from
@@ -112,6 +116,52 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(userMsg.metadata).toEqual({
       mentions: ['agent-001'],
       roleAgents: [{ id: 'agent-001', name: 'Analyzer Agent', roleType: 'analyzer', isOrchestrator: false }],
+    })
+  })
+
+  it('AT-002a [critical]: roleAgentIds dispatches each selected role instead of only the first role', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    setupMockClient(chainCapturingInsertsWithRoles([
+      {
+        id: 'agent-001',
+        workspace_id: 'ws-001',
+        name: 'Frontend Engineer',
+        role_type: 'frontend',
+        system_prompt: 'Build UI',
+        capabilities: ['ui'],
+        is_orchestrator: false,
+      },
+      {
+        id: 'agent-002',
+        workspace_id: 'ws-001',
+        name: 'Backend Engineer',
+        role_type: 'backend',
+        system_prompt: 'Build API',
+        capabilities: ['api'],
+        is_orchestrator: false,
+      },
+    ]))
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: 'hi',
+      roleAgentIds: ['agent-001', 'agent-002'],
+    })
+    expect(status).toBe(200)
+    expect(invokeSpy).toHaveBeenCalledTimes(2)
+    expect(invokeSpy.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-001', 'agent-002'])
+    expect(text).toContain('"roleAgentId":"agent-001"')
+    expect(text).toContain('"roleAgentId":"agent-002"')
+    const agentMessages = insertedMessages.filter((m) => m.sender_type === 'agent')
+    expect(agentMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
+    expect(insertedMessages[0].metadata).toMatchObject({
+      mentions: ['agent-001', 'agent-002'],
+      roleAgents: [
+        { id: 'agent-001', name: 'Frontend Engineer', roleType: 'frontend', isOrchestrator: false },
+        { id: 'agent-002', name: 'Backend Engineer', roleType: 'backend', isOrchestrator: false },
+      ],
     })
   })
 

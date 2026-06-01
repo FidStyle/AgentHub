@@ -327,7 +327,7 @@ Web Composer 是对话主入口，不是普通表单。P0 口径：
 
 - 输入组件必须是多行 `textarea`：`Enter` 发送，`Shift+Enter` 换行，`Esc` 可关闭 slash 菜单。
 - 普通消息不需要显式 `@` 才能发送；未选择角色时默认选当前 Workspace 的 `Orchestrator`，由 Orchestrator 决定直接回复还是分派到 `Frontend Engineer`、`Backend Engineer` 等角色。
-- `@` 支持多角色选择，发送到 `/api/chat` 时使用 `roleAgentIds` 数组；`roleAgentId` 只作为向后兼容的 primary role。
+- `@` 支持多角色选择，发送到 `/api/chat` 时使用 `roleAgentIds` 数组；`roleAgentId` 只作为向后兼容的 primary role。后端不能只把多个角色拼进一个 prompt 后调用第一个角色：显式选择多个 Role Agent 时必须按所选顺序分别调用 runtime，SSE 对每个角色发送 `role_selected`，完成后分别持久化 agent message 和 `role_agent_id`，刷新后仍能看到每个角色的独立回复。
 - slash 命令是 Composer 模板入口，P0 提供 `/plan`、`/review`、`/fix`，只写回用户可见输入内容，不绕过 `/api/chat`。
 - 附件上传使用 `/api/attachments`，附件作为 context 传给 runtime；附件不默认成为 Artifact。
 - 权限预设使用结构化字段 `permissionMode` 落入 message metadata 和后端策略，不拼接到用户 prompt 尾部。

@@ -301,9 +301,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return
       }
 
-      // Stream the SSE runtime events, accumulating runtime_output deltas into one agent reply
-      // tagged with the responding role so the UI can show which role answered.
-      const replyId = `reply-${Date.now()}`
+      // Stream the SSE runtime events. Each role_selected frame starts a distinct visible
+      // reply bubble so multi-role @ runs do not collapse into the first/last role.
+      let replySeq = 0
+      let replyId = `reply-${Date.now()}-${replySeq}`
       let reply = ''
       let runtimeParts: RuntimeMessagePart[] = []
       let replyCreated = false
@@ -375,6 +376,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if (!line.startsWith('data:')) continue
           const evt = JSON.parse(line.slice(5).trim()) as StreamEvent
           if (evt.type === 'role_selected' && evt.roleAgentId) {
+            if (replyCreated && (reply || runtimeParts.length > 0)) {
+              replySeq += 1
+              replyId = `reply-${Date.now()}-${replySeq}`
+              reply = ''
+              runtimeParts = []
+              replyCreated = false
+            }
             respondingRoleAgentId = evt.roleAgentId
           }
           const nextParts = reduceRuntimeParts(runtimeParts, evt)

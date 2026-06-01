@@ -233,6 +233,7 @@ Decision:
 - Composer must use textarea, stream SSE deltas into visible message text, and keep `permissionMode` as structured metadata/policy input, not prompt suffix.
 - Runtime rich events must reduce into `metadata.runtimeParts` on completed agent messages, with Web and Mobile renderers consuming the same parts. Tool/permission/question/diff/artifact cards cannot exist only as transient client state.
 - Default chat path must work without explicit `@`; default role is Orchestrator when present.
+- Multi-role `@` is not satisfied by storing an array in metadata or putting all roles into one system prompt. When `roleAgentIds` contains multiple ids, the chat API must dispatch each selected Role Agent, emit per-role `role_selected` SSE frames, render separate live reply bubbles, and persist separate agent messages with the correct `role_agent_id`. Tests must assert invocation count, persisted role ids, and stream role ids.
 - Notification/approval UI must be mounted in a real product surface. A component such as `NotificationBell` existing in the tree is not enough: Web must expose it from the workspace shell, read `/api/notifications`, approve/cancel action notifications through `/api/actions/:id/approve`, mark notifications read through `/api/notifications`, and refresh the visible action state. Mobile approval may be a separate page, but both surfaces must share the same notification/action records.
 
 #### 4. Validation & Error Matrix

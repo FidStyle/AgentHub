@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     if (orchestrator) selectedRoleAgents = [orchestrator]
   }
   const primaryRoleAgentId = selectedRoleAgents[0]?.id ?? null
-  const systemPrompt = selectedRoleAgents.length > 0
+  const roleContextPrompt = selectedRoleAgents.length > 0
     ? [
         'AgentHub role context:',
         ...selectedRoleAgents.map((role, index) => [
@@ -144,6 +144,14 @@ export async function POST(req: NextRequest) {
         ].filter(Boolean).join('\n')),
       ].join('\n\n')
     : undefined
+  const systemPromptForRole = (role: (typeof selectedRoleAgents)[number] | null) => {
+    if (!roleContextPrompt) return undefined
+    if (!role) return roleContextPrompt
+    return [
+      roleContextPrompt,
+      `Current responding role: @${role.name}. Answer from this role's responsibilities and do not pretend to be another selected role.`,
+    ].join('\n\n')
+  }
 
   const requestedAttachmentIds = Array.isArray(attachmentIds)
     ? attachmentIds.map((id) => String(id)).filter(Boolean)
@@ -235,46 +243,54 @@ export async function POST(req: NextRequest) {
   const adapter = new HostedRuntimeAdapter()
   const stream = new ReadableStream({
     async start(controller) {
-      let reply = ''
-      let runtimeParts: RuntimeMessagePart[] = []
-      let completed = false
+      const completedReplies: Array<{ roleAgentId: string | null; reply: string; runtimeParts: RuntimeMessagePart[] }> = []
       try {
-        if (primaryRoleAgentId) {
-          controller.enqueue(encode({ type: 'role_selected', roleAgentId: primaryRoleAgentId }))
-        }
-        for await (const evt of adapter.invoke({
-          userId: user.id,
-          sessionId,
-          executionDomain: ws.execution_domain,
-          workspaceId: ws.id,
-          userMessage,
-          systemPrompt,
-          roleAgentId: primaryRoleAgentId ?? undefined,
-        })) {
-          if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
-          runtimeParts = reduceRuntimeParts(runtimeParts, evt)
-          if (evt.type === 'runtime_completed') completed = true
-          controller.enqueue(encode(evt))
+        const executionTargets = selectedRoleAgents.length > 0 ? selectedRoleAgents : [null]
+        for (const role of executionTargets) {
+          const currentRoleAgentId = role?.id ?? null
+          let reply = ''
+          let runtimeParts: RuntimeMessagePart[] = []
+          let completed = false
+          if (currentRoleAgentId) {
+            controller.enqueue(encode({ type: 'role_selected', roleAgentId: currentRoleAgentId }))
+          }
+          for await (const evt of adapter.invoke({
+            userId: user.id,
+            sessionId,
+            executionDomain: ws.execution_domain,
+            workspaceId: ws.id,
+            userMessage,
+            systemPrompt: systemPromptForRole(role),
+            roleAgentId: currentRoleAgentId ?? undefined,
+          })) {
+            if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
+            runtimeParts = reduceRuntimeParts(runtimeParts, evt)
+            if (evt.type === 'runtime_completed') completed = true
+            controller.enqueue(encode(evt))
+          }
+          if (completed && (reply || runtimeParts.length > 0)) {
+            completedReplies.push({ roleAgentId: currentRoleAgentId, reply, runtimeParts })
+          }
         }
       } finally {
         // Persist the agent reply/parts so reload restores streamed text and runtime cards.
         // Failed/unavailable terminals must not fabricate a success message.
-        if (completed && (reply || runtimeParts.length > 0)) {
+        for (const completedReply of completedReplies) {
           const { data: agentMessage } = await db.from('messages').insert({
             session_id: sessionId,
-            content: reply,
+            content: completedReply.reply,
             sender_type: 'agent',
-            role_agent_id: primaryRoleAgentId,
-            metadata: runtimeParts.length > 0 ? { runtimeParts } : null,
+            role_agent_id: completedReply.roleAgentId,
+            metadata: completedReply.runtimeParts.length > 0 ? { runtimeParts: completedReply.runtimeParts } : null,
           }).select('id').single()
 
-          const artifacts = parseArtifacts(reply)
+          const artifacts = parseArtifacts(completedReply.reply)
           if (artifacts.length > 0) {
             await db.from('messages').insert(artifacts.map((artifact) => ({
               session_id: sessionId,
               content: artifact.content,
               sender_type: 'agent',
-              role_agent_id: primaryRoleAgentId,
+              role_agent_id: completedReply.roleAgentId,
               message_type: 'text',
               metadata: {
                 artifact: {
