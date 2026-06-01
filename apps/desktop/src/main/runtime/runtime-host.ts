@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import type { RuntimeEvent, RequestFrame } from '@agenthub/shared'
 import { StreamAdapter } from './stream-adapter'
+import { LocalRuntimeAdapter, type RuntimePromptRequest } from './local-adapter'
 import { RuntimeDetector, type RuntimeInfo } from './runtime-detector'
 import { RuntimeConfigStore } from './runtime-config-store'
 import type { DeviceChannel } from '../device-channel'
@@ -37,20 +38,63 @@ export class RuntimeHost {
   }
 
   private async handleInvoke(frame: RequestFrame) {
-    const { sessionId, command, args, cwd } = frame.payload as {
+    const payload = frame.payload as {
       sessionId: string
-      command: string
-      args: string[]
       cwd: string
+      runtimeType?: RuntimePromptRequest['runtimeType']
+      prompt?: string
+      command?: string
+      args?: string[]
     }
-
-    const adapter = new StreamAdapter(sessionId)
-    this.activeSessions.set(sessionId, adapter)
+    const { sessionId, cwd } = payload
 
     const onEvent = (event: RuntimeEvent) => {
       this.channel?.sendEvent('runtime_event', event as unknown as Record<string, unknown>)
     }
 
+    if (payload.runtimeType && typeof payload.prompt === 'string') {
+      onEvent({
+        type: 'started',
+        sessionId,
+        timestamp: Date.now(),
+        runtimeType: payload.runtimeType,
+        cwd,
+      })
+      const adapter = new LocalRuntimeAdapter()
+      const result = await adapter.execute({ runtimeType: payload.runtimeType, prompt: payload.prompt }, cwd)
+      if (result.stdout) {
+        onEvent({
+          type: 'text_delta',
+          sessionId,
+          timestamp: Date.now(),
+          delta: result.stdout,
+        })
+      }
+      if (result.exitCode === 0) {
+        onEvent({
+          type: 'completed',
+          sessionId,
+          timestamp: Date.now(),
+          exitCode: result.exitCode,
+          summary: 'done',
+        })
+      } else {
+        onEvent({
+          type: 'failed',
+          sessionId,
+          timestamp: Date.now(),
+          error: result.stderr || '本地 Runtime 执行失败',
+          exitCode: result.exitCode,
+        })
+      }
+      this.channel?.sendResponse(frame.requestId, result.exitCode === 0, result.exitCode === 0 ? undefined : result.stderr, { exitCode: result.exitCode })
+      return
+    }
+
+    const command = payload.command ?? ''
+    const args = payload.args ?? []
+    const adapter = new StreamAdapter(sessionId)
+    this.activeSessions.set(sessionId, adapter)
     const runtimeType = command.includes('codex') ? 'codex' : 'claude_code'
     const extraEnv = this.configStore?.getEnvForRuntime(runtimeType) ?? {}
 

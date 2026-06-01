@@ -1,0 +1,3 @@
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"核对 opencli UAT 边界"}
+{"file":".agents/skills/agenthub-opencli-uat/SKILL.md","reason":"核对 skill 是否可复用"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"核对 Desktop 身份边界"}

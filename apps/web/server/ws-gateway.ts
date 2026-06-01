@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { IncomingMessage } from 'http'
 import type { Server } from 'http'
 import { parseFrame, type AuthFrame, type HeartbeatAckFrame, type ConnectedFrame } from '@agenthub/shared'
-import { addConnection, removeConnection, updateHeartbeat, getAllConnections } from './device-connections'
+import { addConnection, removeConnection, updateHeartbeat, getAllConnections, deliverDeviceResponse, deliverDeviceRuntimeEvent } from './device-connections'
 import { createClient } from '../lib/app-db-client'
 import { markChannelConnected, markChannelDisconnected } from '../lib/runtime/device-channel-store'
 
@@ -133,13 +133,15 @@ export function setupWebSocketGateway(server: Server) {
           break
         }
         case 'response':
+          deliverDeviceResponse(frame)
           break
         case 'event':
           if (frame.eventType === 'runtime_detection') {
             const endpointId = await ensureUserLocalEndpoint(userId, deviceId)
             if (endpointId) await persistRuntimeDetection(endpointId, (frame.payload as { runtimes?: unknown }).runtimes ?? [])
+          } else if (frame.eventType === 'runtime_event') {
+            deliverDeviceRuntimeEvent(frame.payload as never)
           }
-          // 路由到对应的请求处理器（后续 TASK-008 实现）
           break
       }
     })

@@ -1,0 +1,5 @@
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"逐项核对最终验收"}
+{"file":".agents/skills/agenthub-opencli-uat/SKILL.md","reason":"核对 opencli 截图/人机边界"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"核对无假绿"}
+{"file":"research/project-tracker.md","reason":"核对 tracker 与实际状态一致"}
+{"file":"research/regression-ledger.md","reason":"核对残留风险/缺陷登记"}

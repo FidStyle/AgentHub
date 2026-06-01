@@ -18,6 +18,7 @@
 | [contracts/P1-RUNTIME-GATEWAY.md](./contracts/P1-RUNTIME-GATEWAY.md) | P1 Cloud Runtime Gateway 架构合同：必需云端 relay，统一 public_cloud 与 user_local runtime |
 | [contracts/LOCAL-DESKTOP-OPERABILITY-001.md](./contracts/LOCAL-DESKTOP-OPERABILITY-001.md) | P0 本地 Desktop 工作区只读/可操作模式、Runtime doctor 和 Web/Desktop 连通性真实性合同 |
 | [contracts/ACCEPTANCE-HARDENING-2026-06-01.md](./contracts/ACCEPTANCE-HARDENING-2026-06-01.md) | P0 验收前全功能硬化合同：质量门禁、真实环境、Web/Desktop/Mobile 主链路和最终 UAT 治理 |
+| [contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md](./contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md) | P0 验收真实闭环合同：opencli 验真、真实 runtime worker、本地/远程核心 @ 流程、附件与 artifact 产出 |
 
 ## 技术设计
 

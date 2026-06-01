@@ -5,16 +5,16 @@ import { redact } from '../lib/runtime/redact'
 
 const HEARTBEAT_TTL_SEC = Number(process.env.RUNTIME_HEARTBEAT_TTL_SEC ?? 30)
 
-// Selects the executor from env. Default is FakeExecutor so existing gateway tests and local runs
-// need no real CLI. RUNTIME_EXECUTOR=real opts into the pluggable CLI executor; =script uses the
-// deterministic non-echo ScriptedRealExecutor for delivery-path validation without a paid CLI.
+// Selects the executor from env. Product/acceptance default is the real CLI executor. Fake/scripted
+// executors are explicit test modes only and must not be used as proof of product runtime success.
 export function createExecutor(): RuntimeExecutor {
-  if (process.env.RUNTIME_EXECUTOR === 'real') {
+  if (!process.env.RUNTIME_EXECUTOR || process.env.RUNTIME_EXECUTOR === 'real') {
     const runtimeType: CliRuntimeType = process.env.RUNTIME_CLI === 'codex' ? 'codex' : 'claude_code'
     return new CliRuntimeExecutor({ runtimeType, cwd: process.env.RUNTIME_CWD })
   }
   if (process.env.RUNTIME_EXECUTOR === 'script') return new ScriptedRealExecutor()
-  return new FakeExecutor()
+  if (process.env.RUNTIME_EXECUTOR === 'fake') return new FakeExecutor()
+  throw new Error(`Unsupported RUNTIME_EXECUTOR=${process.env.RUNTIME_EXECUTOR}`)
 }
 
 type Terminal = 'completed' | 'cancelled' | 'failed'

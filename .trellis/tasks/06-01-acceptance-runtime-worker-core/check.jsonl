@@ -1,0 +1,3 @@
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"禁止 FakeExecutor/ScriptedRealExecutor 冒充验收成功"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"核对 runtime 计划是否真实闭环"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"核对 worker dispatch、日志、错误语义"}

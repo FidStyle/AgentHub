@@ -1,0 +1,4 @@
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"最终 UAT 合同"}
+{"file":".agents/skills/agenthub-opencli-uat/SKILL.md","reason":"opencli UAT 流程"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"最终验收反假完成 checklist"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"本地/远程 runtime 验收语义"}

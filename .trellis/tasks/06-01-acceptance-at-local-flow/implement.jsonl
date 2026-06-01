@@ -1,0 +1,4 @@
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"本地链路真实 @ 对话合同"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"user_local Gateway/DeviceChannel 契约"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"Desktop CLI 执行、安全 prompt、认证状态"}
+{"file":"research/modules/reference-projects.md","reason":"Device Gateway 与 transport 参考"}

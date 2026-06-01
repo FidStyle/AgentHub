@@ -1,0 +1,4 @@
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"runtime worker 验收真实执行合同"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"worker/gateway/Redis/事件契约"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"真实 CLI executor 与凭证边界"}
+{"file":"research/modules/reference-projects.md","reason":"参考 AionUi/codeg/lobehub runtime/transport 模式"}

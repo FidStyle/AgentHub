@@ -1,0 +1,33 @@
+{
+  "id": "acceptance-real-flow-program",
+  "name": "acceptance-real-flow-program",
+  "title": "验收真实闭环总控：opencli、runtime worker、核心 @ 流程",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "joytion",
+  "assignee": "joytion",
+  "createdAt": "2026-06-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "AgentHub_new_claude_test",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-01-acceptance-opencli-browser-electron",
+    "06-01-acceptance-runtime-worker-core",
+    "06-01-acceptance-at-local-flow",
+    "06-01-acceptance-at-remote-flow",
+    "06-01-acceptance-attachments-artifacts",
+    "06-01-acceptance-real-e2e-uat"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

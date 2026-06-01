@@ -30,6 +30,22 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260601-001 — 验收真实闭环缺口：默认 fake/script runtime、本地链路未执行、附件/artifact 不 durable
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | unfinished / fake-completion / acceptance-blocker |
+| **优先级** | P0 |
+| **状态** | `open`（2026-06-01 创建；部分修复已开始） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-AGENT-001, FR-RUNTIME-001, FR-DESK-001, FR-ARTIFACT-001, FR-PERM-001 |
+| **关联任务/合同** | `ACCEPTANCE-REAL-FLOW-2026-06-01`；`.trellis/tasks/06-01-acceptance-real-flow-program/` |
+| **影响功能面** | Web `@角色` 对话、本地 Desktop runtime、远程 worker、附件上传、Artifact 产出、最终 UAT |
+| **发现方式** | 用户验收前复核 + Codex 代码审计（2026-06-01） |
+| **证据** | `apps/web/server/runtime-worker.ts` 默认 fake/script 已修为 real；`apps/web/lib/runtime/gateway.ts` 原 `user_local` 只到 `tunnel_ready`，现已补基础 DeviceChannel relay；`apps/web/components/workspace/ChatPanel.tsx` 附件仍只取 `file.name`；Artifact 面板仍主要从 messages metadata 派生，缺 durable artifact 输出合同。 |
+| **关闭条件** | cloud 与 local_desktop 核心 `@角色` 流程分别跑通并落库；runtime 不可用时明确失败且不落 fake agent 回复；附件内容可被 runtime 使用；artifact 有 durable output 并可刷新读取；opencli/Playwright 留下 Web/Electron UAT 证据；tracker/report/治理门禁齐全。 |
+| **当前进展** | 已建立合同/任务树/opencli skill；worker 默认改 real；Web Gateway 新增 `sendRuntimeInvokeToDevice` relay、ws-gateway response/runtime_event 分发；Desktop `RuntimeHost` 改用 `runtimeType/prompt` 调 `LocalRuntimeAdapter` 固定 CLI 映射；Web runtime tests 25 passed，Desktop tests 24 passed，Web/Desktop type-check PASS。 |
+| **下一步** | 完成 Desktop 端真实联调与 CLI 输出安全统一；再做远程真实 executor E2E、附件上传、artifact durable output 和最终 UAT。 |
+
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
 
 | 字段 | 内容 |

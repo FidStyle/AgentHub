@@ -80,7 +80,7 @@ async function dev() {
     ...process.env,
     ...fileEnv,
     REDIS_URL: process.env.REDIS_URL ?? fileEnv.REDIS_URL ?? 'redis://localhost:6379',
-    RUNTIME_EXECUTOR: process.env.RUNTIME_EXECUTOR ?? 'script',
+    RUNTIME_EXECUTOR: process.env.RUNTIME_EXECUTOR ?? 'real',
   }
 
   const worker = spawnLong('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'server/runtime-worker.ts'], env)

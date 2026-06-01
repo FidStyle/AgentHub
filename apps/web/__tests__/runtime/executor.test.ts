@@ -23,7 +23,7 @@ vi.mock('../../lib/app-db-client', () => ({
   }),
 }))
 
-import { CliRuntimeExecutor, ExecutorUnavailableError, FakeExecutor, type RuntimeExecutor } from '../../lib/runtime/executor'
+import { CliRuntimeExecutor, ExecutorUnavailableError, FakeExecutor, ScriptedRealExecutor, type RuntimeExecutor } from '../../lib/runtime/executor'
 import { processJob, createExecutor } from '../../server/runtime-worker'
 import type { RuntimeJob } from '../../lib/runtime/redis-client'
 
@@ -106,12 +106,27 @@ describe('credential isolation', () => {
 })
 
 describe('createExecutor factory', () => {
-  it('defaults to FakeExecutor', () => {
-    expect(createExecutor()).toBeInstanceOf(FakeExecutor)
+  it('defaults to the real CLI executor', () => {
+    expect(createExecutor()).toBeInstanceOf(CliRuntimeExecutor)
   })
 
   it('returns CliRuntimeExecutor when RUNTIME_EXECUTOR=real', () => {
     process.env.RUNTIME_EXECUTOR = 'real'
     expect(createExecutor()).toBeInstanceOf(CliRuntimeExecutor)
+  })
+
+  it('returns FakeExecutor only when RUNTIME_EXECUTOR=fake', () => {
+    process.env.RUNTIME_EXECUTOR = 'fake'
+    expect(createExecutor()).toBeInstanceOf(FakeExecutor)
+  })
+
+  it('returns ScriptedRealExecutor only when RUNTIME_EXECUTOR=script', () => {
+    process.env.RUNTIME_EXECUTOR = 'script'
+    expect(createExecutor()).toBeInstanceOf(ScriptedRealExecutor)
+  })
+
+  it('rejects unknown executor modes instead of silently falling back to fake', () => {
+    process.env.RUNTIME_EXECUTOR = 'unknown'
+    expect(() => createExecutor()).toThrow(/Unsupported RUNTIME_EXECUTOR=unknown/)
   })
 })

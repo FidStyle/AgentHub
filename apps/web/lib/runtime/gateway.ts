@@ -3,6 +3,7 @@ import type { RuntimeGatewayEvent } from '@agenthub/shared'
 import { RuntimeErrorCode } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { getConnectionByUserId } from '@/server/device-connections'
+import { sendRuntimeInvokeToDevice } from '@/server/device-connections'
 import { getChannelByDevice, markChannelConnected } from './device-channel-store'
 import { enqueue, subscribeEvents, setCancel, isWorkerAlive } from './redis-client'
 import { redact } from './redact'
@@ -100,6 +101,49 @@ async function setSessionStatus(runtimeSessionId: string, status: string): Promi
   await db.from('runtime_sessions').update({ status }).eq('id', runtimeSessionId)
 }
 
+type RuntimeDetection = {
+  type?: string
+  available?: boolean
+  authenticated?: boolean
+  launchable?: boolean
+}
+
+function parseRuntimeDetection(value: unknown): RuntimeDetection[] {
+  let parsed = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value) as unknown
+    } catch {
+      parsed = []
+    }
+  }
+  return Array.isArray(parsed) ? parsed as RuntimeDetection[] : []
+}
+
+async function resolveLocalRuntimeInvoke(endpointId: string | null, prompt: string) {
+  if (!endpointId) return null
+  const db = await createClient()
+  const { data } = await db
+    .from('runtime_capabilities')
+    .select('value')
+    .eq('endpoint_id', endpointId)
+    .eq('capability', 'runtime_detection')
+    .limit(1)
+  const row = Array.isArray(data) ? data[0] : data
+  const runtimes = parseRuntimeDetection((row as { value?: unknown } | null)?.value)
+  const ready = runtimes.find((runtime) =>
+    (runtime.type === 'codex' || runtime.type === 'claude_code') &&
+    runtime.available === true &&
+    runtime.authenticated === true &&
+    runtime.launchable !== false,
+  )
+  if (!ready?.type) return null
+  if (ready.type === 'codex') {
+    return { runtimeType: 'codex' as const, prompt }
+  }
+  return { runtimeType: 'claude_code' as const, prompt }
+}
+
 export async function* invoke(input: {
   userId: string
   runtimeSession: RuntimeSessionRecord
@@ -169,6 +213,43 @@ export async function* invoke(input: {
   await markChannelConnected(conn.deviceId, endpoint.id ?? undefined)
   yield { type: 'tunnel_connected', endpointId: endpoint.id ?? '', deviceId: conn.deviceId }
   yield { type: 'runtime_status', status: 'tunnel_ready', endpointId }
+  const prompt = input.systemPrompt ? `${input.systemPrompt}\n\n${input.userMessage ?? ''}` : input.userMessage ?? ''
+  const invokePayload = await resolveLocalRuntimeInvoke(endpoint.id, prompt)
+  if (!invokePayload) {
+    yield { type: 'runtime_failed', endpointId, error: '本地 Claude Code / Codex 未登录或不可启动，无法执行本地任务。' }
+    await setSessionStatus(input.runtimeSession.id, 'failed')
+    return
+  }
+
+  await setSessionStatus(input.runtimeSession.id, 'running')
+  for await (const event of sendRuntimeInvokeToDevice(conn.deviceId, {
+    sessionId: input.runtimeSession.id,
+    runtimeType: invokePayload.runtimeType,
+    prompt: invokePayload.prompt,
+    cwd: process.env.RUNTIME_CWD ?? process.cwd(),
+  })) {
+    if (event.type === 'response') {
+      if (!event.ok) {
+        yield { type: 'runtime_failed', endpointId, error: event.error ?? '本地 Runtime 执行失败' }
+        await setSessionStatus(input.runtimeSession.id, 'failed')
+      }
+      continue
+    }
+    if (event.type === 'started') {
+      yield { type: 'runtime_status', status: 'running', endpointId }
+    } else if (event.type === 'text_delta') {
+      yield { type: 'runtime_output', delta: event.delta, endpointId }
+    } else if (event.type === 'completed') {
+      yield { type: 'runtime_completed', endpointId, summary: event.summary ?? 'done' }
+      await setSessionStatus(input.runtimeSession.id, 'completed')
+    } else if (event.type === 'failed') {
+      yield { type: 'runtime_failed', endpointId, error: event.error }
+      await setSessionStatus(input.runtimeSession.id, 'failed')
+    } else if (event.type === 'cancelled') {
+      yield { type: 'runtime_cancelled', endpointId, reason: event.reason }
+      await setSessionStatus(input.runtimeSession.id, 'cancelled')
+    }
+  }
 }
 
 export async function cancelRuntimeSession(runtimeSessionId: string): Promise<void> {

@@ -1,0 +1,5 @@
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"逐项核对总合同验收门禁"}
+{"file":"research/contracts/ACCEPTANCE-HARDENING-2026-06-01.md","reason":"继承旧验收禁止项和质量门禁"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"审查是否仍有 mock/test.skip/grep-only 假完成"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"核对本地/远程 runtime 事件与错误语义"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"核对 Desktop/CLI 登录与凭证隔离"}
