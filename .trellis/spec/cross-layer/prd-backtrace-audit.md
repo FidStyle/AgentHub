@@ -151,6 +151,7 @@ Decision:
 | 变更 Tab 只读 message metadata，不读真实 Git status/diff | `partial_shell` | 补 workspace Git status/diff API、刷新和 diff 展开测试 |
 | Artifact 只是一段消息文本或 raw metadata | `partial_shell` | 补 durable artifact 类型、source message/run、viewer/download/version |
 | HTML/Markdown/code/diff preview 只显示 `<pre>` 或占位 | `partial_shell` | 补按类型渲染器和安全边界；测试内容渲染结果而非只看容器 |
+| Mobile/PWA preview only supports placeholder/message text | `partial_shell` | 接 `/api/artifacts/:id`，按类型渲染并提供下载 |
 | 侧边栏宽度固定，PRD/用户要求可拖动 | `missing_required` | 补 resize handle、min/max、持久化、重载保持、移动端降级 |
 | 测试使用 mock API、fixture-only auth 或 skip 后仍算通过 | `stale_or_ghost` | 从通过统计剥离，改真实验真或登记 deferred |
 | 历史文档/测试仍断言旧 Tab、旧文案、旧入口 | `stale_or_ghost` | 同步合同、测试和文档，避免下一轮按旧口径实现 |
@@ -227,6 +228,7 @@ Decision:
 - Git status must use `--porcelain=v1 -uall`; untracked files must be file-level, not collapsed directories.
 - Git diff for untracked files must produce a synthetic new-file diff if native `git diff` is empty.
 - Artifact creation from file/folder/diff must create durable `artifacts` rows; message metadata is not the source of truth.
+- Mobile/PWA preview must consume the same durable artifact record through `/api/artifacts/:id` (`artifactId` or `url=artifact:<id>`), render HTML/Markdown/code/diff/folder/image by type, and expose a download action. Message preview is only a compatibility path.
 - Composer must use textarea, stream SSE deltas into visible message text, and keep `permissionMode` as structured metadata/policy input, not prompt suffix.
 - Runtime rich events must reduce into `metadata.runtimeParts` on completed agent messages, with Web and Mobile renderers consuming the same parts. Tool/permission/question/diff/artifact cards cannot exist only as transient client state.
 - Default chat path must work without explicit `@`; default role is Orchestrator when present.

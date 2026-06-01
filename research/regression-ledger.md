@@ -59,7 +59,8 @@
 | **发现方式** | Codex 从 `research/prd.md` P0 FR 逐项反查实际代码入口/API/UI/测试（2026-06-01），本轮未改产品代码、未重新跑 UAT。 |
 | **证据** | 详见审计报告 PBA-001..PBA-012。关键 P0 证据：`apps/web/app/api/workspaces/route.ts` 未在 `desktop.ok === false` 时阻止 `local_desktop` 创建；`apps/web/app/api/plans/route.ts` 与 `apps/web/app/api/actions/route.ts` 缺 `session_id -> workspace.owner_id` 校验；`ChatPanel`/`session-store` 只支持单 role；`OrchestratorPanel` 只读已有 plan/action，confirm 不调度执行；Desktop `authorizationRecords` 是 zustand 静态 seed；Mobile preview 仍为占位。 |
 | **关闭条件** | 按审计报告优先级拆修并逐项关闭：P0 安全/执行域先修；主旅程补多角色与编排调度；删除或接真实数据的 stale/ghost 入口；富消息、pin/handoff、Action executor 补真实闭环；所有完成结论必须附真实入口、数据/API/runtime、刷新后和负向错误态证据。 |
-| **下一步** | 先拆 P0 修复任务：`WORKSPACE-LOCAL-GATE-REAL-001`、`PLANS-ACTIONS-OWNERSHIP-001`、`CHAT-MULTIROLE-ORCH-001`、`DESKTOP-GHOST-CLEANUP-001`；再处理富消息/Action/handoff 增强。 |
+| **当前进展** | 2026-06-02：已补计划确认到 action/notification、审批到 runtime action dispatcher、`/api/actions/:id/run` 重试恢复、runtime worker 回写 `actions`/`plan_nodes` 终态；已补 Mobile/PWA `/m/preview` 读取 durable `/api/artifacts/:id`，支持 `artifactId` / `url=artifact:<id>`、HTML sandbox、Markdown GFM、code/diff/folder/image 只读预览和下载。Web type-check、Web Vitest、Web build 已通过。 |
+| **下一步** | 继续逐项关闭剩余 P0：`CHAT-MULTIROLE-ORCH-001` 深化多角色/Orchestrator 分派；`DESKTOP-GHOST-CLEANUP-001` 清理或接真实 Desktop 授权记录；pin/handoff/native session 另拆增强。 |
 
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
 

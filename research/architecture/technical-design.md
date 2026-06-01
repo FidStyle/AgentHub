@@ -317,6 +317,7 @@ Workspace 文件 API 必须使用 workspace root containment：
 - 变更 Tab 读取真实 Git status/diff，不只读取 message metadata；消息 metadata 里的 diff 只作为运行记录兼容展示。
 - 产物 Tab 从 Artifact API 读取 durable records，不只扫描消息 metadata。
 - 文件、变更、产物条目可回链到 source message/run；点击消息中的 artifact/diff 也应定位右栏条目。
+- Mobile/PWA 不复制完整 IDE 文件管理，但 `/m/preview` 必须能打开同一 durable artifact：支持 `artifactId` 或 `url=artifact:<id>`，调用 `/api/artifacts/:id` 读取真实记录，HTML 使用 sandbox iframe，Markdown 使用 GFM renderer，code/diff/folder 使用只读文本/manifest，并提供 `/api/artifacts/:id/download` 下载入口。`messageId` 只作为消息/附件预览兼容路径，不能替代 Artifact API。
 
 对应需求：`FR-WEB-001`, `FR-WS-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-CTX-001`, `FR-PERM-001`。
 
@@ -865,6 +866,7 @@ UI 约束：
 - 文件树必须支持打开、按类型预览、下载、将文件或文件夹标记为 Artifact；没有预览能力的类型必须显示中文原因和下载入口。
 - HTML 预览必须使用 sandbox iframe 或等价隔离，不能把用户文件作为同源可执行页面直接注入工作台。
 - Artifact 面板必须读取 durable Artifact API；message metadata 只能作为兼容和 source link，不能作为唯一数据源。
+- Mobile/PWA 预览页必须读取 durable Artifact API 并按类型渲染 HTML/Markdown/code/diff/folder/image；缺少参数、无权限、加载失败要显示中文空态/错误态，不允许保留“文件内容将在此显示”类占位。
 - 关键页面必须具备 `data-testid` 或稳定可访问定位点，供 Playwright 截图和布局断言使用。
 
 对应需求：`FR-WEB-001`, `FR-CHAT-001`, `FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-ORCH-001`, `FR-UI-001`。
