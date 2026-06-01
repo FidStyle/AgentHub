@@ -15,6 +15,7 @@ export interface Message {
   content: string
   createdAt: string
   roleAgentId: string | null
+  isPinned: boolean
   parts?: RuntimeMessagePart[]
 }
 
@@ -110,6 +111,7 @@ interface SessionState {
   fetchSessions: (workspaceId: string) => Promise<void>
   createSession: (workspaceId: string) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
+  setMessagePinned: (messageId: string, isPinned: boolean) => Promise<void>
   sendMessage: (input: { content: string; roleAgentIds?: string[]; attachmentIds?: string[]; permissionMode?: string; signal?: AbortSignal }) => Promise<void>
 }
 
@@ -212,11 +214,46 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         content: m.content,
         createdAt: m.created_at || '',
         roleAgentId: (m.role_agent_id as string | null) ?? null,
+        isPinned: Boolean(m.is_pinned),
         parts: partsFromMetadata(m.metadata),
       }))
       set({ messages, loading: false })
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
+    }
+  },
+
+  setMessagePinned: async (messageId, isPinned) => {
+    const previous = get().messages
+    set({
+      messages: previous.map((message) => (
+        message.id === messageId ? { ...message, isPinned } : message
+      )),
+    })
+    try {
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_pinned: isPinned }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body.error || res.statusText)
+      }
+      const row = await res.json()
+      set((state) => ({
+        messages: state.messages.map((message) => (
+          message.id === messageId ? { ...message, isPinned: Boolean(row.is_pinned) } : message
+        )),
+      }))
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('messages:changed', {
+          detail: { sessionId: row.session_id, messageId, isPinned: Boolean(row.is_pinned) },
+        }))
+      }
+    } catch (e) {
+      set({ messages: previous, error: (e as Error).message })
+      throw e
     }
   },
 
@@ -232,6 +269,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       content,
       createdAt: new Date().toISOString(),
       roleAgentId: primaryRoleAgentId,
+      isPinned: false,
     }
     set({ messages: [...messages, optimistic] })
     set((state) => ({
@@ -288,6 +326,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
                   content: reply,
                   createdAt: new Date().toISOString(),
                   roleAgentId: respondingRoleAgentId,
+                  isPinned: false,
                   parts: runtimeParts,
                 } as Message,
               ],
@@ -319,6 +358,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               content: text,
               createdAt: new Date().toISOString(),
               roleAgentId: null,
+              isPinned: false,
             } as Message,
           ],
         }))
@@ -362,6 +402,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               content: '已停止本次回复。',
               createdAt: new Date().toISOString(),
               roleAgentId: null,
+              isPinned: false,
             } as Message,
           ],
         }))

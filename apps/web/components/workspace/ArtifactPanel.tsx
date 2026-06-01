@@ -414,12 +414,21 @@ function useSessionMessages() {
   const [loaded, setLoaded] = useState(false)
   useEffect(() => {
     if (!activeSessionId) return
-    setLoaded(false)
-    fetch(`/api/messages?session_id=${activeSessionId}`)
-      .then((r) => { if (!r.ok) throw new Error('加载消息失败'); return r.json() })
-      .then((d: MessageRow[]) => setMessages(d))
-      .catch((e) => setError(e instanceof Error ? e.message : '加载消息失败'))
-      .finally(() => setLoaded(true))
+    const load = () => {
+      setLoaded(false)
+      fetch(`/api/messages?session_id=${activeSessionId}`)
+        .then((r) => { if (!r.ok) throw new Error('加载消息失败'); return r.json() })
+        .then((d: MessageRow[]) => setMessages(d))
+        .catch((e) => setError(e instanceof Error ? e.message : '加载消息失败'))
+        .finally(() => setLoaded(true))
+    }
+    load()
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId?: string }>).detail
+      if (!detail?.sessionId || detail.sessionId === activeSessionId) load()
+    }
+    window.addEventListener('messages:changed', onChanged)
+    return () => window.removeEventListener('messages:changed', onChanged)
   }, [activeSessionId])
   return { activeSessionId, messages, error, loaded }
 }

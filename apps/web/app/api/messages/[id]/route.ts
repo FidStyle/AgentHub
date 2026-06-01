@@ -55,7 +55,15 @@ export async function PATCH(
 
   // Only allow is_pinned for now
   const updates: Record<string, unknown> = {}
-  if (body.is_pinned !== undefined) updates.is_pinned = body.is_pinned
+  if (body.is_pinned !== undefined) {
+    if (typeof body.is_pinned !== 'boolean') {
+      return NextResponse.json({ error: 'is_pinned must be boolean' }, { status: 400 })
+    }
+    updates.is_pinned = body.is_pinned
+  }
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'No supported fields to update' }, { status: 400 })
+  }
 
   const { data, error } = await db
     .from('messages').update(updates).eq('id', id).select().single()

@@ -246,6 +246,28 @@ describe('PATCH /api/messages/[id]', () => {
     expect(msg.is_pinned).toBe(true)
   })
 
+  it('AT-M014a: rejects unsupported PATCH fields instead of empty update', async () => {
+    const { PATCH } = await import('@/app/api/messages/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(PATCH, 'PATCH', {
+      params: { id: 'msg-001' },
+      body: { content: 'should not update through this route' },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('No supported fields to update')
+  })
+
+  it('AT-M014b: rejects non-boolean is_pinned values', async () => {
+    const { PATCH } = await import('@/app/api/messages/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(PATCH, 'PATCH', {
+      params: { id: 'msg-001' },
+      body: { is_pinned: 'yes' },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('is_pinned must be boolean')
+  })
+
   it('AT-M015: returns 404 when message not found on update', async () => {
     const { PATCH } = await import('@/app/api/messages/[id]/route')
     setupMockClient(createErrorChain())

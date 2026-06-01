@@ -7,7 +7,7 @@ import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import 'highlight.js/styles/github.css'
 import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
-import { AtSign, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
+import { AtSign, Pin, PinOff, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 
@@ -83,7 +83,8 @@ function useRoleAgents(workspaceId: string | null) {
 }
 
 function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
-  const { activeSessionId, messages, loading, error } = useSessionStore()
+  const { activeSessionId, messages, loading, error, setMessagePinned } = useSessionStore()
+  const [pinningId, setPinningId] = useState<string | null>(null)
 
   if (loading) return <StateCard variant="loading" />
   if (error) return <StateCard variant="error" />
@@ -99,17 +100,45 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
     <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
       {sessionMessages.map((msg) => {
         const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : undefined
+        const canPin = !msg.id.startsWith('tmp-') && !msg.id.startsWith('reply-') && !msg.id.startsWith('sys-')
         return (
           <div
             key={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <Card className={`max-w-[75%] p-3 ${msg.role === 'user' ? 'bg-primary/10' : 'bg-muted'}`}>
-              {name && (
-                <Badge data-testid="message-role-badge" variant="secondary" className="mb-1">
-                  @{name}
-                </Badge>
-              )}
+              <div className="mb-1 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  {name && (
+                    <Badge data-testid="message-role-badge" variant="secondary">
+                      @{name}
+                    </Badge>
+                  )}
+                  {msg.isPinned && (
+                    <Badge data-testid="message-pinned-badge" variant="secondary" className={name ? 'ml-1' : ''}>
+                      已固定
+                    </Badge>
+                  )}
+                </div>
+                {canPin && (
+                  <IconButton
+                    icon={msg.isPinned ? PinOff : Pin}
+                    label={msg.isPinned ? '取消固定上下文' : '固定到上下文'}
+                    variant="ghost"
+                    size="sm"
+                    data-testid={msg.isPinned ? 'message-unpin-btn' : 'message-pin-btn'}
+                    disabled={pinningId === msg.id}
+                    onClick={async () => {
+                      setPinningId(msg.id)
+                      try {
+                        await setMessagePinned(msg.id, !msg.isPinned)
+                      } finally {
+                        setPinningId(null)
+                      }
+                    }}
+                  />
+                )}
+              </div>
               {msg.role === 'agent' ? (
                 <AgentMessageContent content={msg.content} parts={msg.parts} />
               ) : (

@@ -229,6 +229,7 @@ Decision:
 - Git diff for untracked files must produce a synthetic new-file diff if native `git diff` is empty.
 - Artifact creation from file/folder/diff must create durable `artifacts` rows; message metadata is not the source of truth.
 - Mobile/PWA preview must consume the same durable artifact record through `/api/artifacts/:id` (`artifactId` or `url=artifact:<id>`), render HTML/Markdown/code/diff/folder/image by type, and expose a download action. Message preview is only a compatibility path.
+- Message pin/handoff must start from the mounted Web workspace message card, not only an API route or an old unmounted chat component. The UI must preserve `messages.is_pinned`, PATCH only boolean `is_pinned`, optimistically roll back on failure, and trigger the right-side context/changes panel to reread real messages. Temporary SSE/local system messages without a durable DB id must not show as successfully pinnable.
 - Composer must use textarea, stream SSE deltas into visible message text, and keep `permissionMode` as structured metadata/policy input, not prompt suffix.
 - Runtime rich events must reduce into `metadata.runtimeParts` on completed agent messages, with Web and Mobile renderers consuming the same parts. Tool/permission/question/diff/artifact cards cannot exist only as transient client state.
 - Default chat path must work without explicit `@`; default role is Orchestrator when present.

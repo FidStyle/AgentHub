@@ -738,7 +738,7 @@ flowchart LR
 Handoff 规则：
 
 - 目标永远是 Role Agent，不是 Claude Code、Codex 等 Runtime 名称。
-- Context Package 可以被用户查看、引用、pin。
+- Context Package 可以被用户查看、引用、pin。Web 工作台消息卡必须为已持久化消息提供“固定到上下文/取消固定”入口，调用 `PATCH /api/messages/:id` 写入 `messages.is_pinned`，刷新或右栏重拉后仍能在 Context/变更上下文中读取；临时流式消息、本地系统提示等未持久化消息不得伪装成可 pin。
 - Handoff 到绑定 Claude Code/Codex 的 Role Agent 时，Adapter 尝试恢复该 Role Agent 在当前 Session 的 native session。
 - 文件引用必须受 Workspace execution domain 和本地 root/cloud root 约束。
 
