@@ -4,6 +4,7 @@ import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
+import type { RuntimeGatewayEvent, RuntimeMessagePart } from '@agenthub/shared'
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const conn = getConnectionByUserId(userId)
@@ -179,6 +180,53 @@ export async function POST(req: NextRequest) {
 
   const encoder = new TextEncoder()
   const encode = (data: object) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+  const partId = (prefix: string, evt: RuntimeGatewayEvent) => {
+    const record = evt as Record<string, unknown>
+    return String(record.toolCallId || record.actionId || record.questionId || record.artifactId || `${prefix}-${Date.now()}`)
+  }
+  const reduceRuntimeParts = (parts: RuntimeMessagePart[], evt: RuntimeGatewayEvent): RuntimeMessagePart[] => {
+    if (evt.type === 'tool_started') {
+      const id = partId(`tool-${evt.toolName}`, evt)
+      return [...parts.filter((part) => part.id !== id), { id, type: 'tool', status: 'running', toolName: evt.toolName, input: evt.input }]
+    }
+    if (evt.type === 'tool_delta') {
+      const id = partId('tool', evt)
+      return parts.map((part) => (
+        part.id === id && part.type === 'tool'
+          ? { ...part, delta: `${part.delta ?? ''}${evt.delta}` }
+          : part
+      ))
+    }
+    if (evt.type === 'tool_completed') {
+      const id = partId(`tool-${evt.toolName}`, evt)
+      const existing = parts.find((part) => part.id === id && part.type === 'tool')
+      return [
+        ...parts.filter((part) => part.id !== id),
+        {
+          id,
+          type: 'tool',
+          status: 'completed',
+          toolName: evt.toolName,
+          input: existing?.type === 'tool' ? existing.input : undefined,
+          delta: existing?.type === 'tool' ? existing.delta : undefined,
+          result: evt.result,
+        },
+      ]
+    }
+    if (evt.type === 'approval_requested') {
+      return [...parts, { id: partId('approval', evt), type: 'permission', status: 'pending', actionId: evt.actionId, title: evt.title, description: evt.description, riskLevel: evt.riskLevel }]
+    }
+    if (evt.type === 'question') {
+      return [...parts, { id: partId('question', evt), type: 'question', status: 'pending', questionId: evt.questionId, title: evt.title, content: evt.content }]
+    }
+    if (evt.type === 'diff_created') {
+      return [...parts, { id: partId('diff', evt), type: 'diff', status: 'created', path: evt.path, diff: evt.diff }]
+    }
+    if (evt.type === 'artifact_created') {
+      return [...parts, { id: partId('artifact', evt), type: 'artifact', status: 'created', artifactId: evt.artifactId, artifactType: evt.artifactType, title: evt.title, sourcePath: evt.sourcePath, contentRef: evt.contentRef }]
+    }
+    return parts
+  }
 
   // Both cloud and local_desktop route through the Cloud Runtime Gateway via the adapter.
   // runtime_sessions / runtime_logs persistence happens inside the gateway. For an offline
@@ -188,6 +236,7 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       let reply = ''
+      let runtimeParts: RuntimeMessagePart[] = []
       let completed = false
       try {
         if (primaryRoleAgentId) {
@@ -203,18 +252,20 @@ export async function POST(req: NextRequest) {
           roleAgentId: primaryRoleAgentId ?? undefined,
         })) {
           if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
+          runtimeParts = reduceRuntimeParts(runtimeParts, evt)
           if (evt.type === 'runtime_completed') completed = true
           controller.enqueue(encode(evt))
         }
       } finally {
-        // Persist the agent reply so reload restores it. Only on a clean completion with
-        // non-empty output — failed/unavailable terminals must not fabricate a success message.
-        if (completed && reply) {
+        // Persist the agent reply/parts so reload restores streamed text and runtime cards.
+        // Failed/unavailable terminals must not fabricate a success message.
+        if (completed && (reply || runtimeParts.length > 0)) {
           const { data: agentMessage } = await db.from('messages').insert({
             session_id: sessionId,
             content: reply,
             sender_type: 'agent',
             role_agent_id: primaryRoleAgentId,
+            metadata: runtimeParts.length > 0 ? { runtimeParts } : null,
           }).select('id').single()
 
           const artifacts = parseArtifacts(reply)

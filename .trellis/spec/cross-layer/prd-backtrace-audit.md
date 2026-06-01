@@ -228,6 +228,7 @@ Decision:
 - Git diff for untracked files must produce a synthetic new-file diff if native `git diff` is empty.
 - Artifact creation from file/folder/diff must create durable `artifacts` rows; message metadata is not the source of truth.
 - Composer must use textarea, stream SSE deltas into visible message text, and keep `permissionMode` as structured metadata/policy input, not prompt suffix.
+- Runtime rich events must reduce into `metadata.runtimeParts` on completed agent messages, with Web and Mobile renderers consuming the same parts. Tool/permission/question/diff/artifact cards cannot exist only as transient client state.
 - Default chat path must work without explicit `@`; default role is Orchestrator when present.
 
 #### 4. Validation & Error Matrix
@@ -251,6 +252,7 @@ Decision:
 #### 6. Tests Required
 
 - Unit/helper: path containment, preview kind, folder zip, write/rename/delete, `git status -uall`, untracked synthetic diff.
+- API: `/api/chat` with tool/permission/diff/artifact SSE events persists `metadata.runtimeParts` and does not persist fake success on incomplete runtime.
 - API smoke: real auth cookie + Postgres fixture + `/api/workspaces`, `/api/sessions`, file upload/rename/delete, git status/diff, artifact create/download.
 - Web E2E: `workbench-file-ops.spec.ts` for file/preview/diff/artifact; `role-chat-core.spec.ts` for default Orchestrator, multi-role picker path, textarea/slash, send persistence.
 - Build gate: `pnpm --filter @agenthub/web type-check`, `pnpm --filter @agenthub/web test`, `NEXT_TELEMETRY_DISABLED=1 pnpm --filter @agenthub/web build`.

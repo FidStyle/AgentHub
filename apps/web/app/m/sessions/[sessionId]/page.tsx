@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Card, CardContent, StateCard, Badge } from '@agenthub/ui'
 import { Paperclip } from 'lucide-react'
-import type { Message } from '@agenthub/shared'
+import type { Message, RuntimeMessagePart } from '@agenthub/shared'
 
 interface RoleAgent {
   id: string
@@ -19,6 +19,60 @@ const statusText: Record<string, string> = {
   local_runtime_offline: '⚠️ 本地 Desktop 运行时离线，未收到回复',
   tunnel_disconnected: '⚠️ 本地运行时连接已断开，未收到回复',
   runtime_failed: '⚠️ 运行时执行失败，未收到回复',
+}
+
+function messageParts(metadata: Message['metadata']): RuntimeMessagePart[] {
+  const parts = metadata?.runtimeParts
+  if (!Array.isArray(parts)) return []
+  return parts.filter((part): part is RuntimeMessagePart => (
+    Boolean(part) && typeof part === 'object' && typeof (part as { id?: unknown }).id === 'string'
+  ))
+}
+
+function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
+  if (part.type === 'tool') {
+    return (
+      <div data-testid="mobile-tool-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="flex justify-between gap-2">
+          <span>工具：{part.toolName}</span>
+          <Badge variant={part.status === 'completed' ? 'success' : 'warning'}>
+            {part.status === 'completed' ? '完成' : '运行中'}
+          </Badge>
+        </div>
+      </div>
+    )
+  }
+  if (part.type === 'permission') {
+    return (
+      <div data-testid="mobile-permission-card" className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs">
+        <div className="font-medium">{part.title ?? '需要授权'}</div>
+        <p className="mt-1 text-muted-foreground">{part.description}</p>
+      </div>
+    )
+  }
+  if (part.type === 'diff') {
+    return (
+      <div data-testid="mobile-diff-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="font-medium">{part.path ? `Diff：${part.path}` : 'Diff'}</div>
+      </div>
+    )
+  }
+  if (part.type === 'artifact') {
+    return (
+      <div data-testid="mobile-artifact-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="flex justify-between gap-2">
+          <span className="font-medium">{part.title}</span>
+          <Badge variant="secondary">{part.artifactType}</Badge>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div data-testid="mobile-question-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+      <div className="font-medium">{part.title ?? '需要确认'}</div>
+      <p className="mt-1 text-muted-foreground">{part.content}</p>
+    </div>
+  )
 }
 
 export default function MobileSessionPage() {
@@ -164,6 +218,7 @@ export default function MobileSessionPage() {
         {messages.map(msg => {
           const isUser = msg.sender_type === 'user'
           const name = !isUser ? roleName(msg.role_agent_id) : undefined
+          const parts = !isUser ? messageParts(msg.metadata) : []
           return (
             <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
               <Card className={`max-w-[80%] ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
@@ -174,6 +229,7 @@ export default function MobileSessionPage() {
                     </Badge>
                   )}
                   <p className="text-sm break-words">{msg.content}</p>
+                  {parts.map((part) => <MobilePartCard key={part.id} part={part} />)}
                 </CardContent>
               </Card>
             </div>

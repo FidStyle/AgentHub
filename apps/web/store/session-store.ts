@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { RuntimeMessagePart } from '@agenthub/shared'
 
 export interface Session {
   id: string
@@ -14,6 +15,87 @@ export interface Message {
   content: string
   createdAt: string
   roleAgentId: string | null
+  parts?: RuntimeMessagePart[]
+}
+
+type StreamEvent = {
+  type?: string
+  delta?: string
+  roleAgentId?: string | null
+  toolCallId?: string
+  toolName?: string
+  input?: unknown
+  result?: unknown
+  actionId?: string
+  title?: string
+  description?: string
+  riskLevel?: string
+  questionId?: string
+  content?: string
+  path?: string
+  diff?: string
+  artifactId?: string
+  artifactType?: string
+  sourcePath?: string
+  contentRef?: string
+}
+
+function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
+  if (!value || typeof value !== 'object') return false
+  const record = value as { id?: unknown; type?: unknown }
+  return typeof record.id === 'string' && typeof record.type === 'string'
+}
+
+function partsFromMetadata(metadata: unknown): RuntimeMessagePart[] | undefined {
+  if (!metadata || typeof metadata !== 'object') return undefined
+  const parts = (metadata as { runtimeParts?: unknown }).runtimeParts
+  return Array.isArray(parts) ? parts.filter(isRuntimeMessagePart) : undefined
+}
+
+function partId(prefix: string, evt: StreamEvent) {
+  return String(evt.toolCallId || evt.actionId || evt.questionId || evt.artifactId || `${prefix}-${Date.now()}`)
+}
+
+function reduceRuntimeParts(parts: RuntimeMessagePart[], evt: StreamEvent): RuntimeMessagePart[] {
+  if (evt.type === 'tool_started' && evt.toolName) {
+    const id = partId(`tool-${evt.toolName}`, evt)
+    return [...parts.filter((part) => part.id !== id), { id, type: 'tool', status: 'running', toolName: evt.toolName, input: evt.input }]
+  }
+  if (evt.type === 'tool_delta') {
+    const id = partId('tool', evt)
+    return parts.map((part) => (
+      part.id === id && part.type === 'tool'
+        ? { ...part, delta: `${part.delta ?? ''}${evt.delta ?? ''}` }
+        : part
+    ))
+  }
+  if (evt.type === 'tool_completed' && evt.toolName) {
+    const id = partId(`tool-${evt.toolName}`, evt)
+    const existing = parts.find((part) => part.id === id && part.type === 'tool')
+    const next: RuntimeMessagePart = {
+      id,
+      type: 'tool',
+      status: 'completed',
+      toolName: evt.toolName,
+      input: existing?.type === 'tool' ? existing.input : evt.input,
+      delta: existing?.type === 'tool' ? existing.delta : undefined,
+      result: evt.result,
+    }
+    return [...parts.filter((part) => part.id !== id), next]
+  }
+  if (evt.type === 'approval_requested' && evt.description) {
+    return [...parts, { id: partId('approval', evt), type: 'permission', status: 'pending', actionId: evt.actionId, title: evt.title, description: evt.description, riskLevel: evt.riskLevel }]
+  }
+  if (evt.type === 'question' && evt.content) {
+    return [...parts, { id: partId('question', evt), type: 'question', status: 'pending', questionId: evt.questionId, title: evt.title, content: evt.content }]
+  }
+  if (evt.type === 'diff_created' && evt.diff) {
+    return [...parts, { id: partId('diff', evt), type: 'diff', status: 'created', path: evt.path, diff: evt.diff }]
+  }
+  if (evt.type === 'artifact_created' && evt.artifactType && evt.title) {
+    return [...parts, { id: partId('artifact', evt), type: 'artifact', status: 'created', artifactId: evt.artifactId, artifactType: evt.artifactType, title: evt.title, sourcePath: evt.sourcePath, contentRef: evt.contentRef }]
+  }
+  return parts
 }
 
 interface SessionState {
@@ -130,6 +212,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         content: m.content,
         createdAt: m.created_at || '',
         roleAgentId: (m.role_agent_id as string | null) ?? null,
+        parts: partsFromMetadata(m.metadata),
       }))
       set({ messages, loading: false })
     } catch (e) {
@@ -184,6 +267,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // tagged with the responding role so the UI can show which role answered.
       const replyId = `reply-${Date.now()}`
       let reply = ''
+      let runtimeParts: RuntimeMessagePart[] = []
       let replyCreated = false
       let respondingRoleAgentId: string | null = primaryRoleAgentId
       const reader = res.body.getReader()
@@ -204,12 +288,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
                   content: reply,
                   createdAt: new Date().toISOString(),
                   roleAgentId: respondingRoleAgentId,
+                  parts: runtimeParts,
                 } as Message,
               ],
             }
           }
           return {
-            messages: state.messages.map((m) => (m.id === replyId ? { ...m, content: reply } : m)),
+            messages: state.messages.map((m) => (m.id === replyId ? { ...m, content: reply, parts: runtimeParts } : m)),
           }
         })
       }
@@ -248,9 +333,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         for (const frame of frames) {
           const line = frame.trim()
           if (!line.startsWith('data:')) continue
-          const evt = JSON.parse(line.slice(5).trim()) as { type?: string; delta?: string; roleAgentId?: string | null }
+          const evt = JSON.parse(line.slice(5).trim()) as StreamEvent
           if (evt.type === 'role_selected' && evt.roleAgentId) {
             respondingRoleAgentId = evt.roleAgentId
+          }
+          const nextParts = reduceRuntimeParts(runtimeParts, evt)
+          if (nextParts !== runtimeParts) {
+            runtimeParts = nextParts
+            upsertReply()
           }
           if (evt.type === 'runtime_output' && evt.delta) {
             reply += evt.delta

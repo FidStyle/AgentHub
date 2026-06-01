@@ -160,4 +160,29 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(status).toBe(200)
     expect(insertedMessages.some((m) => m.sender_type === 'agent')).toBe(false)
   })
+
+  it('AT-007 [high]: runtime tool/permission/diff/artifact events persist as message parts', async () => {
+    setAdapterEvents([
+      { type: 'tool_started', toolCallId: 'tool-1', toolName: 'shell', input: { command: 'pnpm test' } },
+      { type: 'tool_delta', toolCallId: 'tool-1', delta: 'running' },
+      { type: 'tool_completed', toolCallId: 'tool-1', toolName: 'shell', result: { ok: true } },
+      { type: 'approval_requested', actionId: 'action-1', description: '运行高风险命令', riskLevel: 'high' },
+      { type: 'diff_created', path: 'app.ts', diff: 'diff --git a/app.ts b/app.ts' },
+      { type: 'artifact_created', artifactId: 'artifact-1', artifactType: 'markdown', title: '报告', sourcePath: 'report.md' },
+      { type: 'runtime_completed' },
+    ])
+    setupMockClient(chainCapturingInserts())
+    const { status, text } = await callChat({ sessionId: 'session-001', content: 'hi', roleAgentId: 'agent-001' })
+    expect(status).toBe(200)
+    expect(text).toContain('tool_started')
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    expect(agentMsg).toBeDefined()
+    const parts = ((agentMsg!.metadata as { runtimeParts?: unknown[] }).runtimeParts ?? [])
+    expect(parts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'tool', status: 'completed', toolName: 'shell' }),
+      expect.objectContaining({ type: 'permission', actionId: 'action-1', riskLevel: 'high' }),
+      expect.objectContaining({ type: 'diff', path: 'app.ts' }),
+      expect.objectContaining({ type: 'artifact', artifactId: 'artifact-1', artifactType: 'markdown' }),
+    ]))
+  })
 })

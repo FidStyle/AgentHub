@@ -497,8 +497,10 @@ flowchart LR
 | text_delta | Agent 回复文本或思考片段 | Message 聚合 |
 | tool_started / tool_delta / tool_completed | 工具或命令执行过程 | Action 状态卡、诊断面板 |
 | approval_requested | Runtime 或权限策略要求用户确认 | Pending Approval |
+| question | Runtime/Orchestrator 需要用户补充信息 | Message 问题卡、Mobile 摘要 |
 | permission_mode_changed | Runtime 权限模式变化 | 审计与状态提示 |
 | artifact_created | Runtime 产生文件、预览、Diff 等产物 | Artifact |
+| diff_created | Runtime 产生 Git diff/patch | Message diff 卡、Changes 面板、Artifact |
 | file_changed | Runtime 或 Action 修改 Workspace 文件 | Changes 面板、Git status 刷新 |
 | preview_ready | HTML/Markdown/code/diff 等预览内容可读取 | Preview/Artifact 面板 |
 | completed | Runtime 正常结束 | Task Result |
@@ -520,6 +522,14 @@ type ArtifactCreatedEvent = {
 ```
 
 `file_changed` 和 `preview_ready` 不直接授权执行动作；权限确认仍由 `approval_requested` 或 Action policy 决定。Diff 展示不是审批对象。
+
+消息流事件落地规则：
+
+- `/api/chat` 保留原始 SSE event 类型并转发给前端。
+- `runtime_output.delta` 聚合为同一条 agent message 的 Markdown 文本。
+- `tool_started/tool_delta/tool_completed`、`approval_requested`、`question`、`diff_created`、`artifact_created` 归一化为 `RuntimeMessagePart[]`，在前端即时渲染 rich cards。
+- Runtime 完成时，后端把 `RuntimeMessagePart[]` 写入 agent message 的 `metadata.runtimeParts`；刷新后 Web 和 Mobile/PWA 都从同一消息 metadata 重建工具卡、权限卡、问题卡、diff 卡和 artifact 卡。
+- 如果 runtime 失败或 endpoint unavailable，不落成功 agent message，只展示系统错误态；避免把失败事件持久化成假成功回复。
 
 ### 10.4 Claude Code 与 Codex 策略
 

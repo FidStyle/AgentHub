@@ -9,6 +9,7 @@ import 'highlight.js/styles/github.css'
 import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
 import { AtSign, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
+import type { RuntimeMessagePart } from '@agenthub/shared'
 
 interface RoleAgent {
   id: string
@@ -110,11 +111,7 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
                 </Badge>
               )}
               {msg.role === 'agent' ? (
-                <div className="prose prose-sm max-w-none break-words text-sm prose-pre:max-w-full prose-pre:overflow-x-auto prose-code:break-words dark:prose-invert">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
+                <AgentMessageContent content={msg.content} parts={msg.parts} />
               ) : (
                 <p className="whitespace-pre-wrap break-words text-sm">{msg.content}</p>
               )}
@@ -122,6 +119,81 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function PartPreview({ value }: { value: unknown }) {
+  if (value === undefined || value === null || value === '') return null
+  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  return <pre className="mt-2 max-h-32 overflow-auto rounded-md bg-background/70 p-2 text-xs">{text}</pre>
+}
+
+function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
+  if (part.type === 'tool') {
+    return (
+      <div data-testid="message-tool-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">工具：{part.toolName}</span>
+          <Badge variant={part.status === 'completed' ? 'success' : part.status === 'failed' ? 'destructive' : 'warning'}>
+            {part.status === 'completed' ? '完成' : part.status === 'failed' ? '失败' : '运行中'}
+          </Badge>
+        </div>
+        <PartPreview value={part.input} />
+        <PartPreview value={part.delta} />
+        <PartPreview value={part.result} />
+      </div>
+    )
+  }
+  if (part.type === 'permission') {
+    return (
+      <div data-testid="message-permission-card" className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">{part.title ?? '需要授权'}</span>
+          <Badge variant="warning">{part.riskLevel ?? '待确认'}</Badge>
+        </div>
+        <p className="mt-1 text-muted-foreground">{part.description}</p>
+      </div>
+    )
+  }
+  if (part.type === 'question') {
+    return (
+      <div data-testid="message-question-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="font-medium">{part.title ?? '需要确认'}</div>
+        <p className="mt-1 text-muted-foreground">{part.content}</p>
+      </div>
+    )
+  }
+  if (part.type === 'diff') {
+    return (
+      <div data-testid="message-diff-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="font-medium">{part.path ? `Diff：${part.path}` : 'Diff'}</div>
+        <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-2">{part.diff}</pre>
+      </div>
+    )
+  }
+  return (
+    <div data-testid="message-artifact-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">{part.title}</span>
+        <Badge variant="secondary">{part.artifactType}</Badge>
+      </div>
+      {part.sourcePath && <p className="mt-1 text-muted-foreground">来源：{part.sourcePath}</p>}
+    </div>
+  )
+}
+
+function AgentMessageContent({ content, parts }: { content: string; parts?: RuntimeMessagePart[] }) {
+  return (
+    <div className="space-y-2">
+      {content && (
+        <div className="prose prose-sm max-w-none break-words text-sm prose-pre:max-w-full prose-pre:overflow-x-auto prose-code:break-words dark:prose-invert">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+            {content}
+          </ReactMarkdown>
+        </div>
+      )}
+      {parts?.map((part) => <RuntimePartCard key={part.id} part={part} />)}
     </div>
   )
 }

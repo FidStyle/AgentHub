@@ -1,6 +1,12 @@
 export type MessageType = 'text' | 'plan_card' | 'result_card' | 'approval' | 'system_event'
 export type SenderType = 'user' | 'agent' | 'system'
 export type StreamingStatus = 'idle' | 'streaming' | 'complete'
+export type RuntimeMessagePart =
+  | { id: string; type: 'tool'; status: 'running' | 'completed' | 'failed'; toolName: string; input?: unknown; delta?: string; result?: unknown }
+  | { id: string; type: 'permission'; status: 'pending'; actionId?: string; title?: string; description: string; riskLevel?: string }
+  | { id: string; type: 'question'; status: 'pending'; questionId?: string; title?: string; content: string }
+  | { id: string; type: 'diff'; status: 'created'; path?: string; diff: string }
+  | { id: string; type: 'artifact'; status: 'created'; artifactId?: string; artifactType: string; title: string; sourcePath?: string; contentRef?: string }
 
 export interface Message {
   id: string

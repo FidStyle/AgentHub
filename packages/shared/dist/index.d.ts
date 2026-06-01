@@ -31,6 +31,45 @@ interface Session {
 type MessageType = 'text' | 'plan_card' | 'result_card' | 'approval' | 'system_event';
 type SenderType = 'user' | 'agent' | 'system';
 type StreamingStatus = 'idle' | 'streaming' | 'complete';
+type RuntimeMessagePart = {
+    id: string;
+    type: 'tool';
+    status: 'running' | 'completed' | 'failed';
+    toolName: string;
+    input?: unknown;
+    delta?: string;
+    result?: unknown;
+} | {
+    id: string;
+    type: 'permission';
+    status: 'pending';
+    actionId?: string;
+    title?: string;
+    description: string;
+    riskLevel?: string;
+} | {
+    id: string;
+    type: 'question';
+    status: 'pending';
+    questionId?: string;
+    title?: string;
+    content: string;
+} | {
+    id: string;
+    type: 'diff';
+    status: 'created';
+    path?: string;
+    diff: string;
+} | {
+    id: string;
+    type: 'artifact';
+    status: 'created';
+    artifactId?: string;
+    artifactType: string;
+    title: string;
+    sourcePath?: string;
+    contentRef?: string;
+};
 interface Message {
     id: string;
     session_id: string;
@@ -226,6 +265,50 @@ type RuntimeGatewayEvent = {
 } | {
     type: 'runtime_output';
     delta: string;
+    endpointId?: string;
+} | {
+    type: 'tool_started';
+    toolCallId?: string;
+    toolName: string;
+    input?: unknown;
+    endpointId?: string;
+} | {
+    type: 'tool_delta';
+    toolCallId?: string;
+    toolName?: string;
+    delta: string;
+    endpointId?: string;
+} | {
+    type: 'tool_completed';
+    toolCallId?: string;
+    toolName: string;
+    result?: unknown;
+    endpointId?: string;
+} | {
+    type: 'approval_requested';
+    actionId?: string;
+    title?: string;
+    description: string;
+    riskLevel?: string;
+    endpointId?: string;
+} | {
+    type: 'question';
+    questionId?: string;
+    title?: string;
+    content: string;
+    endpointId?: string;
+} | {
+    type: 'diff_created';
+    path?: string;
+    diff: string;
+    endpointId?: string;
+} | {
+    type: 'artifact_created';
+    artifactId?: string;
+    artifactType: string;
+    title: string;
+    sourcePath?: string;
+    contentRef?: string;
     endpointId?: string;
 } | {
     type: 'runtime_completed';
@@ -457,4 +540,4 @@ interface ContextPackage {
     created_at: string;
 }
 
-export { type ActionRequest, type ActionStatus, type ActionType, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, colors, parseFrame, serializeFrame };
+export { type ActionRequest, type ActionStatus, type ActionType, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeMessagePart, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, colors, parseFrame, serializeFrame };

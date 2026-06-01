@@ -67,7 +67,7 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
     // 精确定位，避免与 agent 回显串味（P0 无 worker 时仍是唯一用户气泡）。
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
 
     await context.close()
   })
