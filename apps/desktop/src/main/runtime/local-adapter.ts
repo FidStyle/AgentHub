@@ -8,10 +8,12 @@ import { resolveCliPath, resolveShell, runShellWithExit, shellQuote, withCliPath
 export interface RuntimePromptRequest {
   runtimeType: 'claude_code' | 'codex'
   prompt: string
+  nativeSessionId?: string | null
+  continueLast?: boolean
 }
 
 export const RUNTIME_EXEC_COMMANDS: Record<RuntimePromptRequest['runtimeType'], string> = {
-  claude_code: 'claude --print "$AGENTHUB_PROMPT"',
+  claude_code: 'claude --print --output-format json "$AGENTHUB_PROMPT"',
   codex: 'codex exec --skip-git-repo-check --sandbox read-only --color never --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"',
 }
 
@@ -42,6 +44,47 @@ function readTextFile(filePath: string | null) {
   }
 }
 
+function parseJsonObject(value: string): Record<string, unknown> | null {
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('{')) return null
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function normalizeClaudePrintOutput(stdout: string) {
+  const parsed = parseJsonObject(stripAnsi(stdout))
+  const result = parsed?.result
+  if (typeof result === 'string') return result.trim()
+  return stripAnsi(stdout).trim()
+}
+
+export function extractClaudeNativeSessionId(stdout: string) {
+  const parsed = parseJsonObject(stripAnsi(stdout))
+  const sessionId = parsed?.session_id ?? parsed?.sessionId
+  return typeof sessionId === 'string' && sessionId ? sessionId : null
+}
+
+export function extractCodexNativeSessionId(stdout: string) {
+  for (const line of stripAnsi(stdout).split(/\r?\n/)) {
+    const parsed = parseJsonObject(line)
+    if (!parsed) continue
+    const sessionId = parsed.session_id ?? parsed.sessionId ?? parsed.conversation_id ?? parsed.conversationId
+    if (typeof sessionId === 'string' && sessionId) return sessionId
+    const item = parsed.item
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const itemSessionId = (item as Record<string, unknown>).session_id ?? (item as Record<string, unknown>).sessionId
+      if (typeof itemSessionId === 'string' && itemSessionId) return itemSessionId
+    }
+  }
+  return null
+}
+
 export function normalizeCodexExecOutput(stdout: string, outputLastMessage = '') {
   const finalMessage = outputLastMessage.trim()
   if (finalMessage) return finalMessage
@@ -59,6 +102,28 @@ export function normalizeCodexExecOutput(stdout: string, outputLastMessage = '')
   return answer
     .replace(/\n\s*tokens used\b[\s\S]*$/i, '')
     .trim()
+}
+
+export function buildRuntimeCommand(runtimeType: RuntimePromptRequest['runtimeType'], cliPath: string, request: RuntimePromptRequest) {
+  if (runtimeType === 'codex') {
+    const base = `${shellQuote(cliPath)} exec`
+    if (request.nativeSessionId) {
+      return `${base} resume --skip-git-repo-check --output-last-message "$AGENTHUB_OUTPUT_FILE" ${shellQuote(request.nativeSessionId)} "$AGENTHUB_PROMPT"`
+    }
+    if (request.continueLast) {
+      return `${base} resume --last --skip-git-repo-check --output-last-message "$AGENTHUB_OUTPUT_FILE" "$AGENTHUB_PROMPT"`
+    }
+    return `${base} --skip-git-repo-check --sandbox read-only --color never --json --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"`
+  }
+
+  const base = `${shellQuote(cliPath)} --print --output-format json`
+  if (request.nativeSessionId) {
+    return `${base} --resume ${shellQuote(request.nativeSessionId)} "$AGENTHUB_PROMPT"`
+  }
+  if (request.continueLast) {
+    return `${base} --continue "$AGENTHUB_PROMPT"`
+  }
+  return `${base} "$AGENTHUB_PROMPT"`
 }
 
 export class LocalRuntimeAdapter {
@@ -92,8 +157,7 @@ export class LocalRuntimeAdapter {
       }
     }
 
-    const command = RUNTIME_EXEC_COMMANDS[request.runtimeType]
-    if (!command) {
+    if (!RUNTIME_EXEC_COMMANDS[request.runtimeType]) {
       return {
         exitCode: 1,
         stdout: '',
@@ -125,9 +189,7 @@ export class LocalRuntimeAdapter {
       ? mkdtempSync(path.join(tmpdir(), 'agenthub-codex-'))
       : null
     const outputFile = outputDir ? path.join(outputDir, 'last-message.txt') : null
-    const cliCommand = request.runtimeType === 'codex'
-      ? `${shellQuote(cliPath)} exec --skip-git-repo-check --sandbox read-only --color never --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"`
-      : `${shellQuote(cliPath)} --print "$AGENTHUB_PROMPT"`
+    const cliCommand = buildRuntimeCommand(request.runtimeType, cliPath, request)
     const resolvedCommand = withCliPathEnv(cliPath, cliCommand)
 
     return new Promise<RuntimeResult>((resolve) => {
@@ -179,7 +241,7 @@ export class LocalRuntimeAdapter {
         const missingCli = error.code === 'ENOENT' || error.message.includes('ENOENT')
         const finalMessage = request.runtimeType === 'codex'
           ? normalizeCodexExecOutput(stdout, readTextFile(outputFile))
-          : stdout.trim()
+          : normalizeClaudePrintOutput(stdout)
         finish({
           exitCode: 1,
           stdout: finalMessage,
@@ -194,7 +256,10 @@ export class LocalRuntimeAdapter {
         const exitCode = code ?? 1
         const finalStdout = request.runtimeType === 'codex'
           ? normalizeCodexExecOutput(stdout, readTextFile(outputFile))
-          : stdout.trim()
+          : normalizeClaudePrintOutput(stdout)
+        const nativeSessionId = request.runtimeType === 'codex'
+          ? extractCodexNativeSessionId(stdout) ?? request.nativeSessionId ?? null
+          : extractClaudeNativeSessionId(stdout) ?? request.nativeSessionId ?? null
         const timeoutWithFinalMessage = timedOut && Boolean(finalStdout)
         finish({
           exitCode: timeoutWithFinalMessage ? 0 : timedOut ? 1 : exitCode,
@@ -203,6 +268,7 @@ export class LocalRuntimeAdapter {
             ? `${request.runtimeType === 'codex' ? 'Codex' : 'Claude Code'} 响应超时，请稍后重试或在本机终端运行诊断`
             : stderr,
           duration: Date.now() - start,
+          nativeSessionId,
         })
       })
     })

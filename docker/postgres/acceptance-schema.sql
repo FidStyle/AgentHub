@@ -191,6 +191,32 @@ CREATE TABLE IF NOT EXISTS public.actions (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.runtime_endpoints (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id text REFERENCES public."user"(id) ON DELETE CASCADE,
+  kind text NOT NULL CHECK (kind IN ('public_cloud','user_local')),
+  runtime_type text NOT NULL DEFAULT 'hosted',
+  device_id uuid REFERENCES public.devices(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'unconfigured' CHECK (status IN ('available','offline','unconfigured')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.runtime_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
+  endpoint_id uuid REFERENCES public.runtime_endpoints(id) ON DELETE SET NULL,
+  role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL,
+  native_session_id text,
+  cwd text,
+  status text NOT NULL DEFAULT 'idle' CHECK (status IN ('idle','running','completed','failed','cancelled')),
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.runtime_sessions
+  ADD COLUMN IF NOT EXISTS role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS public.artifacts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
@@ -219,32 +245,6 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   read boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE TABLE IF NOT EXISTS public.runtime_endpoints (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id text REFERENCES public."user"(id) ON DELETE CASCADE,
-  kind text NOT NULL CHECK (kind IN ('public_cloud','user_local')),
-  runtime_type text NOT NULL DEFAULT 'hosted',
-  device_id uuid REFERENCES public.devices(id) ON DELETE SET NULL,
-  status text NOT NULL DEFAULT 'unconfigured' CHECK (status IN ('available','offline','unconfigured')),
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS public.runtime_sessions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
-  endpoint_id uuid REFERENCES public.runtime_endpoints(id) ON DELETE SET NULL,
-  role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL,
-  native_session_id text,
-  cwd text,
-  status text NOT NULL DEFAULT 'idle' CHECK (status IN ('idle','running','completed','failed','cancelled')),
-  started_at timestamptz,
-  completed_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.runtime_sessions
-  ADD COLUMN IF NOT EXISTS role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS public.runtime_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

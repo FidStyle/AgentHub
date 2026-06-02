@@ -11,6 +11,7 @@ export interface RuntimeResult {
   stdout: string
   stderr: string
   duration: number
+  nativeSessionId?: string | null
 }
 
 export interface OrchestratorConfig {

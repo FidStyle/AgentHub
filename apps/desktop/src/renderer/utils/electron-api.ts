@@ -14,11 +14,14 @@ export interface RuntimeExecResult {
   stdout: string
   stderr: string
   duration: number
+  nativeSessionId?: string | null
 }
 
 export interface RuntimePromptRequest {
   runtimeType: 'claude_code' | 'codex'
   prompt: string
+  nativeSessionId?: string | null
+  continueLast?: boolean
 }
 
 interface ElectronRuntimeApi {

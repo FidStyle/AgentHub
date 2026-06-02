@@ -40,24 +40,20 @@ function loadLocalEnv() {
 loadLocalEnv()
 
 const databaseUrl =
-  process.env.DATABASE_URL ?? 'postgresql://agenthub:agenthub_dev@localhost:5432/agenthub_p0_test'
-const shouldCreateFixture =
-  process.env.ACCEPTANCE_CREATE_GITHUB_FIXTURE === 'true' ||
-  process.env.P0_CREATE_GITHUB_FIXTURE === 'true'
+  process.env.DATABASE_URL ?? 'postgresql://agenthub:agenthub_dev@localhost:5432/agenthub_acceptance'
+const shouldCreateFixture = process.env.ACCEPTANCE_CREATE_GITHUB_FIXTURE === 'true'
 const fixtureUserId = '00000000-0000-4000-8000-000000000001'
-const fixtureGithubAccountId = 'agenthub-p0-test-github'
+const fixtureGithubAccountId = 'agenthub-acceptance-github'
 const testUserId = process.env.TEST_USER_ID ?? (shouldCreateFixture ? fixtureUserId : undefined)
-const testUserEmail = process.env.TEST_USER_EMAIL ?? 'p0-test@agenthub.local'
+const testUserEmail = process.env.TEST_USER_EMAIL ?? 'acceptance-test@agenthub.local'
 const testUserName = process.env.TEST_USER_NAME ?? '验收测试用户'
 const testGithubAccountId =
   process.env.TEST_GITHUB_ACCOUNT_ID ?? (shouldCreateFixture ? fixtureGithubAccountId : undefined)
 const sessionToken = process.env.TEST_AUTH_SESSION_TOKEN ?? randomUUID()
-const schemaPath = path.join(repoRoot, 'docker/postgres/p0-test-schema.sql')
+const schemaPath = path.join(repoRoot, 'docker/postgres/acceptance-schema.sql')
 const envPath = process.env.ACCEPTANCE_ENV_FILE
   ? path.resolve(process.env.ACCEPTANCE_ENV_FILE)
-  : process.env.P0_TEST_ENV_FILE
-    ? path.resolve(process.env.P0_TEST_ENV_FILE)
-    : path.join(repoRoot, 'docker/.acceptance.env')
+  : path.join(repoRoot, 'docker/.acceptance.env')
 
 async function findExistingGithubUser(pool: Pool): Promise<GithubTestUser | null> {
   const filters: string[] = [`a.provider = 'github'`]

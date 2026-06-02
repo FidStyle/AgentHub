@@ -6,14 +6,14 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-agenthub}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agenthub_dev}
-      POSTGRES_DB: ${POSTGRES_DB:-agenthub_p0_test}
+      POSTGRES_DB: ${POSTGRES_DB:-agenthub_acceptance}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - agenthub_runtime_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agenthub} -d ${POSTGRES_DB:-agenthub_p0_test}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agenthub} -d ${POSTGRES_DB:-agenthub_acceptance}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -44,7 +44,7 @@ services:
     working_dir: /app
     command: ["npx", "tsx", "apps/web/server/runtime-worker.ts"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://agenthub:agenthub_dev@postgres:5432/agenthub_p0_test}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://agenthub:agenthub_dev@postgres:5432/agenthub_acceptance}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       RUNTIME_EXECUTOR: ${RUNTIME_EXECUTOR:-real}
       RUNTIME_CLI: ${RUNTIME_CLI:-claude_code}

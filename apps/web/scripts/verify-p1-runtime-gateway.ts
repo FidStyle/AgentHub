@@ -19,7 +19,7 @@ import { isLocalNetworkTarget } from '../lib/runtime/gateway'
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 const DATABASE_URL = process.env.DATABASE_URL
 const TEST_AUTH_COOKIE = process.env.TEST_AUTH_COOKIE
-const SCHEMA_PATH = join(__dirname, '../../../docker/postgres/p0-test-schema.sql')
+const SCHEMA_PATH = join(__dirname, '../../../docker/postgres/acceptance-schema.sql')
 
 let passed = 0
 let failed = 0

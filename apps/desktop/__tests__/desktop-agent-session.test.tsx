@@ -46,7 +46,7 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     await user.click(screen.getByRole('button', { name: '发送' }))
 
     await waitFor(() => expect(execute).toHaveBeenCalledTimes(1))
-    expect(execute).toHaveBeenCalledWith({ runtimeType: 'codex', prompt: 'hello' }, DEFAULT_WORKDIR)
+    expect(execute).toHaveBeenCalledWith({ runtimeType: 'codex', prompt: 'hello', nativeSessionId: null }, DEFAULT_WORKDIR)
 
     // 活动来自真实返回：成功 + stdout 内容
     expect(await screen.findByText(/real-output-xyz/)).toBeInTheDocument()
@@ -114,7 +114,28 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     await user.type(screen.getByPlaceholderText('输入给 Claude Code 的消息...'), 'hello')
     await user.click(screen.getByRole('button', { name: '发送' }))
 
-    await waitFor(() => expect(execute).toHaveBeenCalledWith({ runtimeType: 'claude_code', prompt: 'hello' }, DEFAULT_WORKDIR))
+    await waitFor(() => expect(execute).toHaveBeenCalledWith({ runtimeType: 'claude_code', prompt: 'hello', nativeSessionId: null }, DEFAULT_WORKDIR))
+  })
+
+  it('同一 Desktop 本地会话会复用官方 native session id 继续发送', async () => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce({ exitCode: 0, stdout: 'first', stderr: '', duration: 12, nativeSessionId: 'native-codex-1' })
+      .mockResolvedValueOnce({ exitCode: 0, stdout: 'second', stderr: '', duration: 12, nativeSessionId: 'native-codex-1' })
+    ;(window as unknown as { electronAPI: unknown }).electronAPI = { runtime: { execute, detect: vi.fn(), available: vi.fn() } }
+
+    const user = userEvent.setup()
+    render(<DesktopAgentSession />)
+
+    await user.type(screen.getByPlaceholderText('输入给 Codex 的消息...'), 'first')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1))
+
+    await user.type(screen.getByPlaceholderText('输入给 Codex 的消息...'), 'second')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(2))
+
+    expect(execute).toHaveBeenNthCalledWith(1, { runtimeType: 'codex', prompt: 'first', nativeSessionId: null }, DEFAULT_WORKDIR)
+    expect(execute).toHaveBeenNthCalledWith(2, { runtimeType: 'codex', prompt: 'second', nativeSessionId: 'native-codex-1' }, DEFAULT_WORKDIR)
   })
 
   it('本地会话内可以直接切换 Agent 类型', async () => {

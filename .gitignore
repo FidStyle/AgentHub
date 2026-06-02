@@ -22,7 +22,6 @@ test-results/
 e2e/.env.test
 e2e/.web-server-pid
 e2e/tests/artifacts/
-docker/.p0-test.env
 docker/.acceptance.env
 .agenthub/
 apps/web/.agenthub/

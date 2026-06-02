@@ -140,6 +140,8 @@ interface WorkspaceOperabilityStatus {
   runtime: {
     status: 'ready' | 'unavailable';
     doctorKnown: boolean;
+    nativeSessionAvailable: boolean;
+    nativeSessionDescription: string;
     description: string;
   };
 }
@@ -148,7 +150,8 @@ interface WorkspaceOperabilityStatus {
 ### 3. 契约
 
 - Cloud Workspace 不受 Desktop 状态影响。
-- Local Desktop Workspace 在 Desktop 离线、未绑定、Runtime 未检测、Runtime 未登录或 native session 不可恢复时，只能只读查看历史。
+- Local Desktop Workspace 在 Desktop 离线、未绑定、Runtime 未检测或 Runtime 未登录时，只能只读查看历史。
+- Desktop native session resume/continue 使用官方 CLI 能力：Claude Code `--resume/--continue`，Codex `codex exec resume`；Web gateway 必须持久化并复用 `runtime_sessions.native_session_id`。
 - 只读模式允许展示 AgentHub DB 中的消息、计划、产物和错误状态；禁止发送消息、恢复本地 session、执行 Action 或把失败包装成 agent 成功回复。
 - Desktop Runtime doctor 必须检测 CLI 是否存在、版本、认证/可启动状态，并通过 DeviceChannel 回传 runtime capability snapshot。
 - Desktop Runtime doctor 的 P0 基线命令必须使用真实 CLI 命令：
@@ -169,7 +172,7 @@ interface WorkspaceOperabilityStatus {
 | Desktop 在线但没有 Runtime doctor snapshot | `runtime_status_unknown` |
 | doctor 显示 CLI 不存在 | `runtime_missing` |
 | doctor 显示 CLI 未登录或不可启动 | `runtime_auth_required` |
-| runtime session 需要恢复但 native session 不可用 | `native_session_unavailable` |
+| runtime session 需要恢复但 CLI 不支持或未返回 native id | 明确 `runtime_failed`，不得伪造成成功续接 |
 | Local Desktop Workspace 发消息但不可操作 | HTTP 409 + 中文阻塞原因 |
 
 ### 5. 正常/基线/错误用例
@@ -230,18 +233,18 @@ type RuntimeExecResult = {
 
 ### 3. Contracts
 
-- Renderer 输入框的语义是“发送给当前本地 Runtime 的一次性消息”，不是 shell command。
+- Renderer 输入框的语义是“发送给当前本地 Runtime 的消息”，不是 shell command；同一 runtime/cwd 的后续消息应复用官方 native session id。
 - Renderer 只能提交 `RuntimePromptRequest`，不得提交任意 command 字符串。
 - Main process 负责把 `runtimeType` 映射到固定 CLI 命令：
-  - `codex` -> `codex exec --skip-git-repo-check --sandbox read-only --color never --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"`
-  - `claude_code` -> `claude --print "$AGENTHUB_PROMPT"`
+  - `codex` -> 新会话 `codex exec --skip-git-repo-check --sandbox read-only --color never --json --output-last-message "$AGENTHUB_OUTPUT_FILE" -- "$AGENTHUB_PROMPT"`；续接 `codex exec resume <session-id> "$AGENTHUB_PROMPT"` 或 `codex exec resume --last "$AGENTHUB_PROMPT"`。
+  - `claude_code` -> 新会话 `claude --print --output-format json "$AGENTHUB_PROMPT"`；续接 `claude --print --output-format json --resume <session-id> "$AGENTHUB_PROMPT"` 或 `--continue`。
 - Prompt 必须通过环境变量或等价安全参数传递，不能拼接进 shell 字符串。
 - Codex stdout 是运行转录流，不是稳定的“最终回复”协议；main process 必须优先读取 `--output-last-message` 写入的文件作为用户可见回复，并只在该文件缺失时才从 stdout 兜底提取。
 - Codex stdout 兜底提取必须剥离 `Reading additional input from stdin...`、版本横幅、`user`/`codex` 转录标签和 `tokens used` 尾部，避免 Desktop UI 把运行日志当成 Agent 回复。
 - CLI 路径解析和执行应使用用户登录 shell，兼容 macOS Finder 启动的 Electron 进程 PATH 不完整问题。
-- 一次性消息必须有超时上限，超时后返回中文错误，不能让 UI 永久停留在“发送中”。
-- Main process 应使用可取消的进程句柄执行一次性 CLI，renderer 的“停止”按钮必须调用真实 cancel IPC，不能只是 disabled 占位。
-- Desktop “最近会话”只展示本机 Runtime 会话型活动，例如 `[Codex] prompt` 或 `[Claude Code] prompt` 的一次性消息记录；诊断、连接器启动和审批不应伪装成会话历史。完整 IM 历史、Artifact、Agents 和编排仍属于 Web 工作台。
+- 本地 Runtime 消息必须有超时上限，超时后返回中文错误，不能让 UI 永久停留在“发送中”。
+- Main process 应使用可取消的进程句柄执行 CLI，renderer 的“停止”按钮必须调用真实 cancel IPC，不能只是 disabled 占位。
+- Desktop “最近会话”只展示本机 Runtime 会话型活动，例如 `[Codex] prompt` 或 `[Claude Code] prompt` 的消息记录；诊断、连接器启动和审批不应伪装成会话历史。完整 IM 历史、Artifact、Agents 和编排仍属于 Web 工作台。
 
 ### 4. Validation & Error Matrix
 

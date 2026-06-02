@@ -15,6 +15,7 @@ export interface RuntimeGatewayInvokeInput {
 export type RuntimeGatewayEvent =
   | { type: 'gateway_connected'; endpointId: string }
   | { type: 'runtime_status'; status: string; endpointId?: string }
+  | { type: 'native_session'; nativeSessionId: string; endpointId?: string }
   | { type: 'public_runtime_available'; available: boolean; endpointId?: string }
   | { type: 'endpoint_unavailable'; endpointId?: string; reason: string }
   | { type: 'local_runtime_offline'; endpointId?: string; deviceId?: string }

@@ -4,6 +4,9 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "paths": {
+      "@agenthub/shared": ["../../packages/shared/src/index.ts"]
+    },
     "noEmit": true
   },
   "include": ["src/renderer"]

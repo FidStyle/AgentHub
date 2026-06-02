@@ -26,12 +26,12 @@
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-WEB-001, FR-CHAT-001, FR-RUNTIME-001, FR-DESK-001, FR-ARTIFACT-001, FR-NOTIFY-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-02-p0-acceptance-env-uat-closure` |
-| **当前状态** | ✅ 完成（2026-06-02）：验收环境入口从历史 `docker/.p0-test.env` 规范化为 `docker/.acceptance.env`；`env:acceptance:*` 成为主命令，旧 `env:p0:*` 仅作兼容别名。Playwright acceptance profile 固定串行 worker，解决共享 Auth.js 测试用户下 DB 变更型 E2E 多 worker 污染；普通开发 CLI/非共享状态测试仍可并行。旧 E2E 口径同步到当前 UI：默认角色为 `Orchestrator`，右栏为「角色/文件/变更/产物」，durable artifact 不再从 message metadata 假装产物。native session resume/continue 明确不可用，不再作为 P0 passed。 |
+| **当前状态** | ✅ 完成（2026-06-02，用户复核后追加统一）：验收环境入口统一为 `docker/.acceptance.env`、`docker/docker-compose.acceptance.yml`、`docker/postgres/acceptance-schema.sql` 和 `env:acceptance:*`；历史 env fallback 与旧别名已删除。Playwright acceptance profile 固定串行 worker，解决共享 Auth.js 测试用户下 DB 变更型 E2E 多 worker 污染；普通开发 CLI/非共享状态测试仍可并行。旧 E2E 口径同步到当前 UI：默认角色为 `Orchestrator`，右栏为「角色/文件/变更/产物」，durable artifact 不再从 message metadata 假装产物。Desktop native session resume/continue 已接官方 CLI 能力：Claude Code 使用 `--resume/--continue`，Codex 使用 `codex exec resume`，AgentHub 持久化并复用 native session id。 |
 | **目标** | 关闭 P0 报告中剩余的环境入口、旧 E2E 假绿、多角色/通知/pin/附件/artifact/文件预览主入口复验和报告漂移问题。 |
 | **验收方式** | 使用 `pnpm env:acceptance:up` / `pnpm dev:acceptance` / `pnpm env:acceptance:smoke` 准备真实 Postgres/Redis/Auth.js session；Web acceptance E2E 使用 `pnpm test:e2e:acceptance`、`pnpm test:e2e:acceptance:runtime`、`pnpm test:e2e:acceptance:no-worker`，全部真实 API/DB/session，无主链路 mock。 |
-| **测试证据** | `pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 12/12）；`pnpm test:e2e:acceptance` PASS（18 passed）；`pnpm test:e2e:acceptance:runtime` PASS（2 passed）；`pnpm test:e2e:acceptance:no-worker` PASS（1 passed）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web test` PASS（19 files / 146 tests）；`pnpm --filter @agenthub/web build` PASS。 |
-| **阻塞问题** | P0 blocker 已关闭。仍未自动化的范围：外部 OAuth/登录绑定人工点击、原生 RN 设备/模拟器 GUI；Desktop native session resume/continue 是明确不可用能力，后续若需要按 P1/P2 增强处理。 |
-| **下一步动作** | P0 验收收口完成；后续人工演示使用 acceptance 命令，不再引用 `docker/.p0-test.env` 作为主入口。 |
+| **测试证据** | `pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 11/11，smoke 可自动临时启动 Web）；`pnpm test:e2e:acceptance` PASS（18 passed）；`pnpm test:e2e:acceptance:runtime` PASS（2 passed，串行复跑）；`pnpm test:e2e:acceptance:no-worker` PASS（1 passed，先关闭 orphan worker 后串行复跑）；`pnpm --filter @agenthub/shared build` PASS；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/runtime-status.test.ts __tests__/api/chat.test.ts __tests__/runtime` PASS（8 files / 35 tests）；`pnpm --filter @agenthub/desktop test` PASS（5 files / 27 tests）。 |
+| **阻塞问题** | P0 blocker 已关闭。仍未自动化的范围：外部 OAuth/登录绑定人工点击、原生 RN 设备/模拟器 GUI。 |
+| **下一步动作** | P0 验收收口完成；后续人工演示只使用 acceptance 命令和 `docker/.acceptance.env`。 |
 
 ### ACCEPTANCE-REAL-FLOW-2026-06-01: 验收真实闭环
 
@@ -60,7 +60,7 @@
 | **目标** | 最终验收前确保所有核心功能真实可用，所有门禁真实全绿，测试不假绿，环境可复现，三端用户链路可人工验收。 |
 | **验收方式** | 按合同第 11 节完成 lint/type-check/build/Web Vitest/真实环境 smoke/Web E2E/Desktop/Mobile/治理门禁/Codex 独立验收。 |
 | **测试证据** | 质量门禁证据：`pnpm lint` PASS；`pnpm type-check` PASS；`pnpm test` PASS（shared 27 + mobile 5 + web 112 + desktop 23）；`pnpm build` PASS；`pnpm --filter @agenthub/web test` PASS（11 files / 112 tests）；`pnpm --filter @agenthub/mobile type-check` PASS；`pnpm --filter @agenthub/mobile build` PASS。环境证据：`pnpm env:acceptance:up` PASS；`pnpm dev:acceptance` 启动 Web + worker；`pnpm env:acceptance:smoke` PASS（CRUD 5/5，chat 14/14）。Web E2E：`RUNTIME_E2E=1 ... p0-main-flow/messaging/artifact/web-orchestrator-ui/artifact-panel-data` PASS（7 passed）；`RUNTIME_E2E_NOWORKER=1 ... role-chat-no-worker/messaging` PASS（2 passed）。Desktop：`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/desktop test` PASS（5 files / 23 tests）；`pnpm --filter @agenthub/desktop build` PASS；`npx playwright test --config e2e/playwright.desktop.config.ts --workers=1` PASS（45 passed，2 skipped，skipped 为外部登录环境门槛）。Mobile：`RUNTIME_E2E=1 ... mobile-chat-deliver/mobile-pwa/visual-gate` PASS（13 passed）；`RUNTIME_E2E_NOWORKER=1 ... mobile-chat-deliver` PASS（1 passed）；`pnpm --filter @agenthub/mobile test/type-check/build` PASS；`pnpm --filter @agenthub/mobile exec react-native start --help` PASS；Metro 启动到 `Dev server ready`。执行报告：`research/execution-reports/acceptance-quality-gates-2026-06-01.md`；`research/execution-reports/acceptance-env-bootstrap-2026-06-01.md`；`research/execution-reports/acceptance-web-core-flow-2026-06-01.md`；`research/execution-reports/acceptance-desktop-runtime-2026-06-01.md`；`research/execution-reports/acceptance-mobile-surfaces-2026-06-01.md`；`research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。 |
-| **阻塞问题** | 已解除：Desktop lint hard failure、Web Vitest failure、根 test 漏 Web、Mobile type/build echo skip、验收环境手工拼装、runtime worker 快速 pub/sub 丢输出竞态、Web Artifact `result_card` 不展示、`/api/plans` 本地 Postgres `uuid[]` 写入 500、Web E2E 过期 Tab/外部 env 依赖、Desktop E2E 启动端口错误、Desktop 待接入/诊断/会话输入框过期断言、Mobile PWA service worker 开发态导航干扰、`/m/sessions` 无效预缓存、Mobile `expo start` 假入口。2026-06-02 追加解除：旧 `/api/runtime/invoke` 已停用，不再返回 invoked 假成功；未挂载旧 Web chat/detail/sidebar/store 已删除；Web runtime status 明确标注 native session 不可恢复、当前仅一次性 CLI 执行。残留风险：Desktop 登录绑定 E2E 两项依赖外部登录/构建 app 环境；RN 设备/模拟器 GUI 未纳入自动验收；runtime worker 使用 deterministic script executor 验证链路；native session resume/continue 尚未实现但已明确降级。 |
+| **阻塞问题** | 已解除：Desktop lint hard failure、Web Vitest failure、根 test 漏 Web、Mobile type/build echo skip、验收环境手工拼装、runtime worker 快速 pub/sub 丢输出竞态、Web Artifact `result_card` 不展示、`/api/plans` 本地 Postgres `uuid[]` 写入 500、Web E2E 过期 Tab/外部 env 依赖、Desktop E2E 启动端口错误、Desktop 待接入/诊断/会话输入框过期断言、Mobile PWA service worker 开发态导航干扰、`/m/sessions` 无效预缓存、Mobile `expo start` 假入口。2026-06-02 追加解除：旧 `/api/runtime/invoke` 已停用，不再返回 invoked 假成功；未挂载旧 Web chat/detail/sidebar/store 已删除；Desktop native session resume/continue 已接官方 CLI 续接能力。残留风险：Desktop 登录绑定 E2E 两项依赖外部登录/构建 app 环境；RN 设备/模拟器 GUI 未纳入自动验收；runtime worker 使用 deterministic script executor 验证链路。 |
 | **下一步动作** | 已完成。后续如进入人工演示，可直接使用 `pnpm env:acceptance:up`、`pnpm dev:acceptance`、`pnpm env:acceptance:smoke` 复现验收环境。 |
 
 ### THREE-SURFACE-WORKBENCH-PERMISSION-001: 三端会话工作台与权限模型统一
@@ -89,8 +89,8 @@
 | **目标** | 防止 Web 在 Desktop 离线或本地 CLI 未通过 doctor 时假装可以继续执行；允许历史只读查看，只有真实连通后才可操作 |
 | **验收方式** | type-check + Web build + Desktop vitest + Web API vitest；人工验收路径见合同 |
 | **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/web build` PASS；`pnpm --filter @agenthub/desktop test -- --run` 6 passed；`DATABASE_URL=postgresql://test pnpm exec vitest run apps/web/__tests__/api/chat.test.ts apps/web/__tests__/api/workspaces.test.ts` 23 passed |
-| **阻塞问题** | 完整 Claude Code / Codex native session resume/continue provider 适配未实现，按合同保留为后续任务；本轮禁止伪造 resume 成功 |
-| **下一步动作** | 后续独立实现 native session resume/continue；可补真实 Electron GUI 截图和完整 Web/Desktop 联调 E2E |
+| **阻塞问题** | 无当前阻塞。Claude Code / Codex native session resume/continue provider 已在 Desktop `LocalRuntimeAdapter` 与 Web gateway 接入；真实 Electron GUI 截图仍可后续补强。 |
+| **下一步动作** | 可补真实 Electron GUI 截图和完整 Web/Desktop 联调 E2E |
 
 ### P0-END-TO-END-PRODUCT-FLOW: MVP 端到端产品主链路合同与验真
 
@@ -523,7 +523,7 @@
 | **当前状态** | ✅ 审计完成（2026-05-31）：真实浏览器三视口（1440/1280/768）几何审计，14 findings。发现 GAP-001(high) workspace selector 下拉 ×3 视口下越界且无内部滚动、GAP-002(medium) 移动 artifact 抽屉无 backdrop/无点击外部关闭；T1 tooltip 母版（UI-TOOLTIP-POSITION-001）无回归。已登记 REG-20260531-002/003，未修复产品代码。 |
 | **目标** | 只读审计 Web tooltip/dropdown/popover/role picker/workspace selector/mobile drawer/artifact overlay 等浮层定位与裁切问题，几何断言发现缺口并入账，不 execute |
 | **方案摘要** | refer_proj（cherry-studio/lobehub/AionUi/claudecodeui）只读提炼 R1–R11 浮层规则（未复制代码、未提交 refer_proj）；`floating-ui-uat-audit.spec.ts` 只读证据采集器对每个浮层真实 hover/focus/click 打开，采集 trigger + floating boundingBox 做几何断言，归档 findings.json |
-| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_p0_test` + 真实 Auth.js session；几何断言（越界/裁切/遮挡/横滚/变形），禁止 `toBeVisible` 充数 |
+| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_acceptance` + 真实 Auth.js session；几何断言（越界/裁切/遮挡/横滚/变形），禁止 `toBeVisible` 充数 |
 | **测试证据** | `research/execution-reports/floating-ui-uat-audit-001-report.md` + `floating-ui-uat-audit-001-findings.json`（14 findings：D1×3 high / O1 medium / 其余 ok）+ `e2e/tests/web/floating-ui-uat-audit.spec.ts`（只读审计 spec）+ `e2e/artifacts/floating-ui-uat-audit/*.png`（三视口截图证据） |
 | **阻塞问题** | 无（审计任务，发现项已转 REG-20260531-002/003 待 FIX-D1/FIX-O1 后续 execute） |
 | **下一步动作** | GAP-001 → `FIX-D1`（high，✅ 已由 FLOATING-UI-FIX-D1-001 关闭）；GAP-002 → `FIX-O1`（medium，待办）；本审计任务关闭 |
@@ -540,7 +540,7 @@
 | **当前状态** | ✅ 完成（2026-05-31）：`Sidebar.tsx` workspace 下拉从裸 `absolute z-10` 改为 portal 浮层——抽出 `WorkspaceDropdown`（与 Tooltip 母版 `TooltipContent` 同构）`createPortal` 到 body + `computeDropdown` flip/clamp + `maxHeight`(≤60%vh)+`overflow-y-auto` 内部滚动 + `z-50` + document `pointerdown` 外部关闭。真实浏览器三视口 **3 passed**，D1 high→ok。 |
 | **目标** | workspace 下拉不再越界/撑高页面，长列表内部滚动；3 视口 floating bbox 在视口内、无横滚；不碰 workspace 切换业务逻辑 |
 | **方案摘要** | 复用 packages/ui Tooltip 母版 portal+clamp 模式（R1/R2/R3/R8），按下拉语义补 R4 size/max-height+内部滚动；外部关闭用 pointerdown 监听而非全屏 backdrop（避免拦截 trigger 二次点击） |
-| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_p0_test` + 真实 Auth.js session；D1 段升级为几何硬门禁（floating bbox 在视口内 + bottom≤vh + 无横滚 + symptoms 空），禁止 `toBeVisible` |
+| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_acceptance` + 真实 Auth.js session；D1 段升级为几何硬门禁（floating bbox 在视口内 + bottom≤vh + 无横滚 + symptoms 空），禁止 `toBeVisible` |
 | **测试证据** | `research/execution-reports/floating-ui-fix-d1-001-report.md` + `floating-ui-uat-audit-001-findings.json`（D1×3 ok，severity `ok×13/medium×1`）+ `e2e/tests/web/floating-ui-uat-audit.spec.ts`（D1 硬断言）+ `e2e/artifacts/floating-ui-uat-audit/*-D1-workspace-dropdown.png`（下拉有界+内部滚动） |
 | **阻塞问题** | 无。结转 concern：`apps/web` 全量 tsc 的 pre-existing dual `@types/react` 冲突（`ReactPortal`，母版 tooltip 同款），本修复同源同类 +1，非新缺陷，E2E/SWC 不受影响，属 DEV-ENV 范畴范围外 |
 | **下一步动作** | 关闭。剩余浮层：FIX-O1（REG-20260531-003，medium）/ FIX-D2（role picker 预防项）按需另起 |
@@ -557,7 +557,7 @@
 | **当前状态** | ✅ 完成（2026-05-31）：**FIX-O1** `WorkspaceShell.tsx` artifact 移动抽屉补 `artifact-backdrop`（`fixed inset-0 z-20 bg-black/40 lg:hidden`，onClick 关闭）+ 移动顶栏 `z-[25]`（高于 backdrop、低于抽屉，修复 backdrop 拦截 `open-sidebar` 回归），桌面三栏零影响。**FIX-D2** `ChatPanel.tsx` role picker 从裸 `absolute z-10` 预防升级为 portal-to-body——抽出 `RolePicker` `createPortal` 到 body + `computeRolePicker`（上方优先/不足翻下方 flip + clamp）+ `maxHeight`(≤60%vh)+`overflow-y-auto` + `max-w-[320px]`/`break-words` + `z-50` + pointerdown 外部关闭；@角色业务逻辑零改动。真实浏览器三视口 **3 passed**。 |
 | **目标** | artifact 移动抽屉对齐 sidebar drawer（backdrop+点击外部关闭+z 分层）；role picker 浮层不越界/不裁切/不撑横滚/长角色名不撑爆；不回退 FIX-D1、不改 @角色业务逻辑、不影响桌面三栏 |
 | **方案摘要** | 复用 FIX-D1 母版（`Sidebar.tsx` `WorkspaceDropdown`）portal+computeXxx flip/clamp+pointerdown 外部关闭思路；FIX-O1 backdrop 对齐 `sidebar-backdrop` 实现；FIX-D2 按 role-picker 语义补 max-width/break-words |
-| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_p0_test` + 真实 Auth.js session；O1/D2 段升级为几何硬门禁（O1 backdrop 覆盖全视口+点击关闭+z 分层；D2 floating bbox 在视口内+width≤320+无裁切+无横滚），D1 保持 pass，禁止 `toBeVisible` |
+| **验收方式** | Playwright 真实浏览器（1440/1280/768）+ 真实 Postgres `agenthub_acceptance` + 真实 Auth.js session；O1/D2 段升级为几何硬门禁（O1 backdrop 覆盖全视口+点击关闭+z 分层；D2 floating bbox 在视口内+width≤320+无裁切+无横滚），D1 保持 pass，禁止 `toBeVisible` |
 | **测试证据** | `research/execution-reports/floating-ui-fix-remaining-001-report.md` + `floating-ui-uat-audit-001-findings.json`（全 16 ok，O1/D2/D1×3 视口 symptoms 空）+ `e2e/tests/web/floating-ui-uat-audit.spec.ts`（O1/D2 硬断言）+ `e2e/artifacts/floating-ui-uat-audit/*-{O1,D2}-*.png` |
 | **阻塞问题** | 无。此前结转的 pre-existing dual `@types/react` tsc 冲突已由 WEB-BUILD-REACT-TYPES-001（REG-20260531-004）在依赖解析层根治关闭，本任务 web type-check 全绿、无新增类型错误 |
 | **下一步动作** | 关闭。FLOATING-UI-UAT-AUDIT-001 全部 GAP（D1/O1）已闭环，FIX-D2 预防项一并完成 |
@@ -592,7 +592,7 @@
 | **当前状态** | ✅ 完成（2026-05-31）：Web Workspace 状态栏/返回入口、本地 Desktop 创建门禁、Agents CRUD、编排错误细分、附件禁用说明，以及 Desktop `device-channel:connect` IPC fallback 全部落地。 |
 | **目标** | 用户在 `/workspace/:id` 能看到登录/本地连接/runtime 状态，未连接 Desktop 时不能创建不可用本地工作区；当前右栏能管理 Role Agents 并同步 @角色；Desktop 不再暴露 `No handler registered` 低层错误。 |
 | **方案摘要** | 新增 `/api/runtime/status` 真实读取 Auth.js user + devices + device_runtime_channels；`POST /api/workspaces` 对 `local_desktop` 做服务端 409 门禁；`WorkspaceShell` 状态栏 + `CreateWorkspaceDialog` 前端门禁；`ArtifactPanel` Agents Tab 接 `/api/role-agents` CRUD 并派发 `role-agents:changed`；`ChatPanel` 刷新 @角色；`OrchestratorPanel` 显示 plans/actions 具体错误；Desktop 新增 `device-channel-ipc.ts` active/fallback handler 注册单点。 |
-| **验收方式** | 真实 Postgres `agenthub_p0_test` + Auth.js session + Chromium UAT；Web/Desktop type-check；Desktop IPC vitest。 |
+| **验收方式** | 真实 Postgres `agenthub_acceptance` + Auth.js session + Chromium UAT；Web/Desktop type-check；Desktop IPC vitest。 |
 | **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/desktop test -- device-channel-ipc.test.ts` 2 passed；`npx playwright test e2e/tests/web/workspace-local-desktop-uat.spec.ts --config e2e/playwright.config.ts --project=web-desktop --workers=1` 1 passed（6.5s，提升权限后真实 Chromium 通过）。报告 `research/execution-reports/workspace-local-desktop-uat-001-report.md`。 |
 | **后续修复** | 2026-05-31 关闭 `REG-20260531-013`：Desktop Codex 一次性消息改用 `--output-last-message "$AGENTHUB_OUTPUT_FILE"` 读取最终回复，清理 stdout 转录噪声，Codex timeout 调整到 180s，失败活动不再重复长输出。验证：Desktop 定向测试 12 passed、全量 vitest 23 passed、type-check PASS、build PASS。 |
 | **阻塞问题** | 无。附件上传后端未实现，按合同诚实禁用并登记为范围外；默认 `.env.local` 引导问题仍归属 DEV-ENV-BOOTSTRAP-001 / REG-20260530-008。 |

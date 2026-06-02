@@ -43,6 +43,8 @@ export class RuntimeHost {
       cwd: string
       runtimeType?: RuntimePromptRequest['runtimeType']
       prompt?: string
+      nativeSessionId?: string | null
+      continueLast?: boolean
       command?: string
       args?: string[]
     }
@@ -61,7 +63,20 @@ export class RuntimeHost {
         cwd,
       })
       const adapter = new LocalRuntimeAdapter()
-      const result = await adapter.execute({ runtimeType: payload.runtimeType, prompt: payload.prompt }, cwd)
+      const result = await adapter.execute({
+        runtimeType: payload.runtimeType,
+        prompt: payload.prompt,
+        nativeSessionId: payload.nativeSessionId ?? null,
+        continueLast: payload.continueLast === true,
+      }, cwd)
+      if (result.nativeSessionId) {
+        onEvent({
+          type: 'session_discovered',
+          sessionId,
+          timestamp: Date.now(),
+          nativeSessionId: result.nativeSessionId,
+        })
+      }
       if (result.stdout) {
         onEvent({
           type: 'text_delta',

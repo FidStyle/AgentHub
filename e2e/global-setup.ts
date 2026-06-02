@@ -52,9 +52,10 @@ async function globalSetup(_config: FullConfig) {
   execFileSync('pnpm', ['env:acceptance:db:up'], { cwd: rootDir, stdio: 'inherit' })
   execFileSync('pnpm', ['env:acceptance:seed:fixture'], { cwd: rootDir, stdio: 'inherit' })
 
-  const envFile = fs.existsSync(path.join(rootDir, 'docker/.acceptance.env'))
-    ? path.join(rootDir, 'docker/.acceptance.env')
-    : path.join(rootDir, 'docker/.p0-test.env')
+  const envFile = path.join(rootDir, 'docker/.acceptance.env')
+  if (!fs.existsSync(envFile)) {
+    throw new Error('缺少 docker/.acceptance.env。请先运行 pnpm env:acceptance:up。')
+  }
   const seededEnv = Object.fromEntries(
     fs.readFileSync(envFile, 'utf8')
       .split('\n')
@@ -74,8 +75,8 @@ async function globalSetup(_config: FullConfig) {
   if (process.env.RUNTIME_E2E === '1') {
     const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379'
     execFileSync(
-      'docker',
-      ['compose', '-f', 'docker/docker-compose.runtime.yml', 'up', '-d', 'redis'],
+        'docker',
+        ['compose', '-p', 'agenthub_runtime', '-f', 'docker/docker-compose.runtime.yml', 'up', '-d', 'redis'],
       { cwd: rootDir, stdio: 'inherit' },
     )
     runtimeEnv.REDIS_URL = redisUrl
@@ -95,14 +96,14 @@ async function globalSetup(_config: FullConfig) {
     const testUserId = seededEnv.TEST_USER_ID ?? process.env.TEST_USER_ID
     if (testUserId) {
       const pgUser = seededEnv.POSTGRES_USER ?? 'agenthub'
-      const pgDb = seededEnv.POSTGRES_DB ?? 'agenthub_p0_test'
+      const pgDb = seededEnv.POSTGRES_DB ?? 'agenthub_acceptance'
       const sql = `INSERT INTO public.runtime_endpoints (user_id, kind, runtime_type, status)
         SELECT '${testUserId}', 'public_cloud', 'hosted', 'available'
         WHERE NOT EXISTS (SELECT 1 FROM public.runtime_endpoints WHERE user_id = '${testUserId}' AND kind = 'public_cloud');
         UPDATE public.runtime_endpoints SET status = 'available' WHERE user_id = '${testUserId}' AND kind = 'public_cloud';`
       execFileSync(
         'docker',
-        ['exec', '-i', 'agenthub_p0_postgres', 'psql', '-U', pgUser, '-d', pgDb, '-c', sql],
+        ['exec', '-i', 'agenthub_acceptance_postgres', 'psql', '-U', pgUser, '-d', pgDb, '-c', sql],
         { cwd: rootDir, stdio: 'inherit' },
       )
     }
@@ -118,7 +119,7 @@ async function globalSetup(_config: FullConfig) {
     const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379'
     execFileSync(
       'docker',
-      ['compose', '-f', 'docker/docker-compose.runtime.yml', 'up', '-d', 'redis'],
+      ['compose', '-p', 'agenthub_runtime', '-f', 'docker/docker-compose.runtime.yml', 'up', '-d', 'redis'],
       { cwd: rootDir, stdio: 'inherit' },
     )
     execFileSync(

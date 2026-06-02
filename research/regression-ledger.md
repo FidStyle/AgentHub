@@ -24,7 +24,7 @@
 
 > REG-20260530-001（Web Workspace 真实交互闭环缺口）与 ROLE-CHAT-CORE-001 可见 agent 回复 deferred 项（重定级 REG-20260530-003）已在 `RUNTIME_E2E=1` + worker(FakeExecutor) 下复验并移入「关闭记录」。
 >
-> ⚠️ **更正（2026-05-30，PRODUCT-UAT-GAP-AUDIT-001）**：REG-20260530-003 的「关闭」仅在 `RUNTIME_E2E=1` + FakeExecutor 下成立；真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 对话仍 0 可见回复。该过早关闭的产品缺口由新登记的 **REG-20260530-006** 接管，REG-20260530-003 的「closed」仅代表「测试态 FakeExecutor 回环已建立」，不代表产品目标达成。2026-06-02 收口后，REG-20260601-002、REG-20260530-008、REG-20260530-002 已关闭；当前 P0 验收无开放 blocker，原生 RN 设备 GUI、外部 OAuth 人工点击和 native session resume/continue 属明确未自动化/不可用残留风险，不计入 P0 passed。
+> ⚠️ **更正（2026-05-30，PRODUCT-UAT-GAP-AUDIT-001）**：REG-20260530-003 的「关闭」仅在 `RUNTIME_E2E=1` + FakeExecutor 下成立；真实用户默认入口（`pnpm dev:web`/`dev:full`，无 worker）下 @架构师/Agent 对话仍 0 可见回复。该过早关闭的产品缺口由新登记的 **REG-20260530-006** 接管，REG-20260530-003 的「closed」仅代表「测试态 FakeExecutor 回环已建立」，不代表产品目标达成。2026-06-02 收口后，REG-20260601-002、REG-20260530-008、REG-20260530-002 已关闭；当前 P0 验收无开放 blocker。原生 RN 设备 GUI、外部 OAuth 人工点击仍是未自动化残留风险；Desktop native session resume/continue 已接官方 CLI 续接能力。
 >
 > ✅ **build blocker 闭环（2026-05-31，WEB-BUILD-REACT-TYPES-001）**：此前在多份报告中以 carried-over concern 形式滚动的「`apps/web` 全量 tsc 的 pre-existing dual `@types/react` 冲突」已正式升级为 build blocker **REG-20260531-004** 并关闭——根因为 pnpm 把 mobile 的 `@types/react@18` hoist 进虚拟仓库根污染 web 编译图，已在 `.npmrc` 用 `hoist-pattern` 排除根治，web build/type-check + ui type-check 全绿。
 >
@@ -59,8 +59,8 @@
 | **发现方式** | Codex 从 `research/prd.md` P0 FR 逐项反查实际代码入口/API/UI/测试（2026-06-01），本轮未改产品代码、未重新跑 UAT。 |
 | **证据** | 详见审计报告 PBA-001..PBA-012。关键 P0 证据：`apps/web/app/api/workspaces/route.ts` 未在 `desktop.ok === false` 时阻止 `local_desktop` 创建；`apps/web/app/api/plans/route.ts` 与 `apps/web/app/api/actions/route.ts` 缺 `session_id -> workspace.owner_id` 校验；`ChatPanel`/`session-store` 只支持单 role；`OrchestratorPanel` 只读已有 plan/action，confirm 不调度执行；Desktop `authorizationRecords` 是 zustand 静态 seed；Mobile preview 仍为占位。 |
 | **关闭条件** | 按审计报告优先级拆修并逐项关闭：P0 安全/执行域先修；主旅程补多角色与编排调度；删除或接真实数据的 stale/ghost 入口；富消息、pin/handoff、Action executor 补真实闭环；所有完成结论必须附真实入口、数据/API/runtime、刷新后和负向错误态证据。 |
-| **当前进展** | 2026-06-02：已补计划确认到 action/notification、审批到 runtime action dispatcher、`/api/actions/:id/run` 重试恢复、runtime worker 回写 `actions`/`plan_nodes` 终态；已补 Mobile/PWA `/m/preview` 读取 durable `/api/artifacts/:id`；已清理 Desktop 静态授权记录；已补 Web 主工作台消息 pin、通知铃和审批流；已删除 Desktop/Web 未挂载旧组件与旧 `/api/runtime/invoke` 假成功入口；`/api/runtime/status` 与 Web 工作区列表/状态栏明确暴露 `nativeSessionAvailable=false` 和“当前只支持一次性 CLI 执行”，native session resume/continue 不再伪装成 P0 可用能力。2026-06-02 收口复验：`pnpm env:acceptance:smoke` PASS（CRUD 5/5 + `/api/chat` 12/12）；`pnpm test:e2e:acceptance` 18 passed（真实 Auth.js DB session、真实 API、Web 主工作台、角色/文件/产物、附件、Agents CRUD、本地工作区门禁、布局）；`pnpm test:e2e:acceptance:runtime` 2 passed（Redis+worker 可见非 echo agent 回复与 reload）；`pnpm test:e2e:acceptance:no-worker` 1 passed（无 worker 快速中文错误态）；`pnpm --filter @agenthub/web type-check`、`test` 146 passed、`build` PASS。 |
-| **下一步** | 已关闭。native session resume/continue 明确为不可用能力；若产品后续要求原生会话续接，另拆 P1/P2 接官方 CLI resume/continue。原生 RN 设备 GUI 和外部 OAuth 人工点击仍按非 P0 自动化残留风险记录，不并入 P0 passed。 |
+| **当前进展** | 2026-06-02：已补计划确认到 action/notification、审批到 runtime action dispatcher、`/api/actions/:id/run` 重试恢复、runtime worker 回写 `actions`/`plan_nodes` 终态；已补 Mobile/PWA `/m/preview` 读取 durable `/api/artifacts/:id`；已清理 Desktop 静态授权记录；已补 Web 主工作台消息 pin、通知铃和审批流；已删除 Desktop/Web 未挂载旧组件与旧 `/api/runtime/invoke` 假成功入口；Desktop native session resume/continue 已接官方 CLI：Claude Code 使用 `--resume/--continue`，Codex 使用 `codex exec resume`，Web gateway 持久化并复用 `runtime_sessions.native_session_id`。2026-06-02 收口复验：`pnpm env:acceptance:smoke` PASS（CRUD 5/5 + `/api/chat` 11/11）；`pnpm test:e2e:acceptance` 18 passed（真实 Auth.js DB session、真实 API、Web 主工作台、角色/文件/产物、附件、Agents CRUD、本地工作区门禁、布局）；`pnpm test:e2e:acceptance:runtime` 2 passed（Redis+worker 可见非 echo agent 回复与 reload）；`pnpm test:e2e:acceptance:no-worker` 1 passed（无 worker 快速中文错误态）；`pnpm --filter @agenthub/web type-check`、Web runtime/API 定向测试 35 passed、Desktop test 27 passed。 |
+| **下一步** | 已关闭。原生 RN 设备 GUI 和外部 OAuth 人工点击仍按非 P0 自动化残留风险记录，不并入 P0 passed。 |
 
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）
 
@@ -94,7 +94,7 @@
 | **发现方式** | 测试层静态扫描 + 主进程 grep 核验（2026-05-31） |
 | **证据** | `artifact.spec.ts:41-83` 全程 `page.route` fulfill 伪造 sessions/messages/role-agents，4 test 只 `toBeVisible`（且断言的 Plan/Result/Artifact Detail 文案与当前恒空态 `ArtifactPanel.tsx` 不符——测试green 但产品空壳）；`messaging.spec.ts:39` mock `/api/chat`，行 57 只断言用户消息气泡 `.bg-blue-500`，**从不断言 agent 回复**；`workspace.spec.ts:9-55` 全 mock 只 `toBeVisible`；`p0-main-flow.spec.ts:12-71` 用 `if (await x.isVisible())` 条件保护跳过核心断言、无 reload 验证 |
 | **关闭条件** | 移除主链路 `page.route` mock 改真实 API/DB；断言 agent 回复非空非 echo + reload 持久化；移除条件保护；与既有「好测试」白名单（`role-chat-uat-reply.spec.ts`/`mobile-chat-deliver.spec.ts`/`chat.test.ts` AT-005/006）对齐标准 |
-| **关闭证据** | 四 spec 全改真实 `POST /api/workspaces+role-agents+sessions+messages` + `/api/chat` 真实链路；删除所有 `page.route` 与 `if(isVisible)` 守卫；断言真实数据/agent 回复或明确错误终态/reload 持久化；`playwright.config.ts` web-desktop `testMatch` 补齐此前从不被收集的 `workspace/artifact/messaging.spec`。真实栈实跑（cleaned DB + `docker/.p0-test.env` 真实 authjs cookie + 真实 Supabase + Next API）**14 passed**（4 spec 7 test + 审计锚点 7 test），`/api/chat` 实际 compiled+被调用。审计锚点 `product-reality-gap-audit.spec.ts` PRGA-005/007/008/009/010 反转为修复后事实（顺带反转 sibling 任务遗漏的 PRGA-001/004） |
+| **关闭证据** | 四 spec 全改真实 `POST /api/workspaces+role-agents+sessions+messages` + `/api/chat` 真实链路；删除所有 `page.route` 与 `if(isVisible)` 守卫；断言真实数据/agent 回复或明确错误终态/reload 持久化；`playwright.config.ts` web-desktop `testMatch` 补齐此前从不被收集的 `workspace/artifact/messaging.spec`。真实栈实跑（cleaned DB + `docker/.acceptance.env` 真实 authjs cookie + 真实 Supabase + Next API）**14 passed**（4 spec 7 test + 审计锚点 7 test），`/api/chat` 实际 compiled+被调用。审计锚点 `product-reality-gap-audit.spec.ts` PRGA-005/007/008/009/010 反转为修复后事实（顺带反转 sibling 任务遗漏的 PRGA-001/004） |
 | **下一步** | 已关闭；RUNTIME_E2E worker-mode（真实 agent 回复路径，本次仅覆盖 no-worker 错误终态）实跑 DEFERRED → `RUNTIME-REAL-EXECUTOR-E2E-001`（P1）；GUI 截图 DEFERRED |
 
 ### REG-20260531-002 — workspace selector 下拉越界且无内部滚动（FLOATING-UI-UAT-AUDIT-001 GAP-001）
@@ -107,7 +107,7 @@
 | **关联 FR/PRD** | `FR-WEB-001`, `FR-UI-001`；`research/product/ui-design-system.md`（浮层定位） |
 | **关联任务/合同** | `FLOATING-UI-UAT-AUDIT-001`（发现）→ `FLOATING-UI-FIX-D1-001`（修复闭环）；母版 `UI-TOOLTIP-POSITION-001`（packages/ui Tooltip portal+flip+max-width 正向对照） |
 | **影响功能面** | `apps/web/components/workspace/Sidebar.tsx` 工作区切换下拉（裸 `absolute left-2 right-2 top-full`，无 portal/flip/max-height，`z-10`） |
-| **发现方式** | FLOATING-UI-UAT-AUDIT-001 真实浏览器（Chromium）+ 真实 DB(`agenthub_p0_test`) + 真实 Auth.js session 几何审计（`e2e/tests/web/floating-ui-uat-audit.spec.ts`，非 `toBeVisible`） |
+| **发现方式** | FLOATING-UI-UAT-AUDIT-001 真实浏览器（Chromium）+ 真实 DB(`agenthub_acceptance`) + 真实 Auth.js session 几何审计（`e2e/tests/web/floating-ui-uat-audit.spec.ts`，非 `toBeVisible`） |
 | **证据** | `research/execution-reports/floating-ui-uat-audit-001-findings.json` D1×3 视口：floating 263×4358/4394/4430，bottom 4418/4454/4490 远超 vh(900/800/900)，无内部滚动；截图 `e2e/artifacts/floating-ui-uat-audit/{1440x900,1280x800,768x900}-D1-workspace-dropdown.png` |
 | **关闭条件** | FIX-D1：workspace 下拉 portal-to-body + flip/shift（参考 Tooltip `computePosition`）+ `max-h` 内部 `overflow-y-auto` 滚动 + z-index 提升至 popover 层；3 视口 floating bbox 完整落在视口内、超长列表内部滚动而非撑高页面、不引发横滚（几何断言，非 `toBeVisible`） |
 | **关闭证据** | FLOATING-UI-FIX-D1-001（2026-05-31）：`Sidebar.tsx` 抽出 `WorkspaceDropdown` portal-to-body + `computeDropdown` flip/clamp + `maxHeight`(≤60%vh)+`overflow-y-auto` + `z-50` + pointerdown 外部关闭。真实浏览器三视口 **3 passed**，D1 floating 高 540/480/540（修复前 ~4400）、bottom 588/528/588 全在视口内、symptoms 空、severity=ok。findings.json `ok×13/medium×1`（剩 medium=O1/REG-003，范围外）。报告 `research/execution-reports/floating-ui-fix-d1-001-report.md` |
@@ -139,7 +139,7 @@
 | **关联 FR/PRD** | `FR-CHAT-001`, `FR-WEB-001`, `FR-MOB-001`, `FR-RUNTIME-001`, `FR-UI-001`；`research/prd.md` 多 Agent 协作主链路 |
 | **关联任务/合同** | `P0-END-TO-END-PRODUCT-FLOW`；`ROLE-CHAT-CORE-001`；`ROLE-CHAT-UAT-REPLY-001`（其 REG-20260530-003「关闭」仅测试态成立）；`research/contracts/P0-END-TO-END-PRODUCT-FLOW.md` §3.1.8/§6 |
 | **影响功能面** | Web `/api/chat` runtime 链路；Mobile `/m/sessions/:id` 发送；公共云端 Runtime worker 部署；唯一可见回复断言 |
-| **发现方式** | PRODUCT-UAT-GAP-AUDIT-001 真实浏览器 + 真实 DB(`agenthub_p0_test`) + 真实 Auth.js session 审计（非只看代码/测试） |
+| **发现方式** | PRODUCT-UAT-GAP-AUDIT-001 真实浏览器 + 真实 DB(`agenthub_acceptance`) + 真实 Auth.js session 审计（非只看代码/测试） |
 | **证据** | `research/execution-reports/product-uat-gap-audit-001-browser-findings.json`（两 regime `saw_real_agent_reply:false`）；regime2 `POST /api/chat 200 in 8469ms`（idle 超时空等）；P0 DB `runtime_endpoints=0`/`runtime_sessions=0`/`messages` user41:agent13；`apps/web/lib/runtime/gateway.ts:117` 仅以 `REDIS_URL` gating，`resolveEndpoint` 的 `unconfigured` 状态(line52)从不 gating；`apps/web/server/runtime-worker.ts:11` 默认 `FakeExecutor`；`apps/web/app/m/sessions/[sessionId]/page.tsx` 发送走 `/api/messages` 不走 `/api/chat`；`e2e/tests/web/role-chat-uat-reply.spec.ts:26` `test.skip(!RUNTIME_E2E)` |
 | **为什么此前漏掉** | 唯一断言「可见 agent 回复」的 E2E 默认 `skip`，执行时也只验 FakeExecutor 回显；verify/review/goal-audit 以 HTTP 200 / 落库 / `toBeVisible` 收口，未对照合同「用户目标达成」 |
 | **关闭条件** | 默认运行入口（无 `RUNTIME_E2E`）下：有真实 worker(非 FakeExecutor) → 用户看到非空带角色回复并落 `messages`；无 worker/endpoint `unconfigured` → gateway **立即**短路明确中文错误态（不空等 60s）；Mobile 发送走同一 runtime 链路或明确闭环文案；可见回复断言改为不可默认跳过的常驻门禁 |
@@ -174,7 +174,7 @@
 | **关联任务/合同** | `PRODUCT-UAT-GAP-AUDIT-001` |
 | **影响功能面** | 默认开发入口 `pnpm dev:web` 的 DB/Runtime 连接；新环境可复现性与可演示性 |
 | **发现方式** | PRODUCT-UAT-GAP-AUDIT-001（须切换 P0 harness env 才能跑通登录与主链路） |
-| **证据** | 原证据：`apps/web/.env.local` 实际值为 Supabase 占位符，无可用 DB/`REDIS_URL`；审计须切换历史 `docker/.p0-test.env` 才能跑通。2026-06-02 已改：统一主入口为 `pnpm env:acceptance:up` / `pnpm dev:acceptance` / `pnpm env:acceptance:smoke`，seed 写入 `docker/.acceptance.env`；`apps/web/server.ts` 优先读取 `.env.local` 后读取 `docker/.acceptance.env`，旧 `docker/.p0-test.env` 只作兼容 fallback。 |
+| **证据** | 原证据：`apps/web/.env.local` 实际值为 Supabase 占位符，无可用 DB/`REDIS_URL`；审计须切换历史验收 env 才能跑通。2026-06-02 已改：统一主入口为 `pnpm env:acceptance:up` / `pnpm dev:acceptance` / `pnpm env:acceptance:smoke`，seed 只写入 `docker/.acceptance.env`；`apps/web/server.ts`、`scripts/acceptance-env.mjs`、`e2e/global-setup.ts` 均只读取 `docker/.acceptance.env`，无旧 env fallback。 |
 | **关闭条件** | 提供可复现的本地真实 DB/Redis env（或 `dev:full` 自动指向 p0/dev DB）；补「默认入口启动 → 登录 → 主链路可用」冒烟 |
 | **下一步** | 已关闭。普通 `pnpm dev:web` 仍保留开发者自带 `.env.local` 模式；可复现验收/演示入口统一使用 acceptance 命令。 |
 

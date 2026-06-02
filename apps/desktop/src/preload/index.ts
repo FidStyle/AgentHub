@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runtime: {
     detect: () => ipcRenderer.invoke('runtime:detect'),
     cached: () => ipcRenderer.invoke('runtime:cached'),
-    execute: (request: { runtimeType: 'claude_code' | 'codex'; prompt: string }, cwd: string) =>
+    execute: (request: { runtimeType: 'claude_code' | 'codex'; prompt: string; nativeSessionId?: string | null; continueLast?: boolean }, cwd: string) =>
       ipcRenderer.invoke('runtime:execute', request, cwd),
     cancel: () => ipcRenderer.invoke('runtime:cancel'),
     available: () => ipcRenderer.invoke('runtime:available'),

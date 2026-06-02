@@ -32,6 +32,7 @@ export function DesktopAgentSession() {
   const [input, setInput] = React.useState('')
   const [sending, setSending] = React.useState(false)
   const [diagnosing, setDiagnosing] = React.useState(false)
+  const [nativeSessions, setNativeSessions] = React.useState<Record<string, string>>({})
   const selectedRuntimeType = selectedAgent ? toSupportedRuntimeType(selectedAgent.id) : null
   const selectedRuntime = selectedRuntimeType ? runtimes.find((rt) => rt.type === selectedRuntimeType) : null
   const selectedAgentId = selectedAgent?.id ?? ''
@@ -121,7 +122,15 @@ export function DesktopAgentSession() {
     }
 
     try {
-      const result = await runtime.execute({ runtimeType: selectedRuntimeType, prompt }, cwd)
+      const nativeSessionKey = `${selectedRuntimeType}:${cwd}`
+      const result = await runtime.execute({
+        runtimeType: selectedRuntimeType,
+        prompt,
+        nativeSessionId: nativeSessions[nativeSessionKey] ?? null,
+      }, cwd)
+      if (result.nativeSessionId) {
+        setNativeSessions((current) => ({ ...current, [nativeSessionKey]: result.nativeSessionId as string }))
+      }
       const ok = result.exitCode === 0
       const output = (ok ? result.stdout : result.stderr || result.stdout).trim()
       addActivity({

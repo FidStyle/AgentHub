@@ -73,7 +73,7 @@ Questions to answer:
   - Looks for an existing `account.provider = 'github'` row joined to `public."user"`.
   - Supports optional filters `TEST_GITHUB_ACCOUNT_ID` and `TEST_USER_EMAIL`.
   - Writes `docker/.acceptance.env` with `DATABASE_URL`, `AUTH_TRUST_HOST`, `AUTH_SECRET`, `TEST_USER_ID`, `TEST_USER_EMAIL`, `TEST_GITHUB_ACCOUNT_ID`, `TEST_AUTH_SESSION_TOKEN`, and `TEST_AUTH_COOKIE`.
-  - Legacy `docker/.p0-test.env` may be read for compatibility, but it is not the canonical acceptance entry.
+  - No legacy env fallback: `docker/.acceptance.env` is the only acceptance env file read by scripts and E2E setup.
 - `pnpm env:acceptance:seed:fixture`:
   - Sets `ACCEPTANCE_CREATE_GITHUB_FIXTURE=true`.
   - Creates or updates a real DB `user` row and a test `account(provider='github')` row.

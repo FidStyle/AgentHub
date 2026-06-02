@@ -28,7 +28,13 @@ describe('RuntimeHost DeviceChannel runtime_invoke', () => {
   })
 
   it('maps runtimeType/prompt payload to LocalRuntimeAdapter and emits runtime events', async () => {
-    localExec.mockResolvedValue({ exitCode: 0, stdout: 'clean final answer', stderr: '', duration: 12 })
+    localExec.mockResolvedValue({
+      exitCode: 0,
+      stdout: 'clean final answer',
+      stderr: '',
+      duration: 12,
+      nativeSessionId: 'native-1',
+    })
     const requests = new Map<string, (frame: RequestFrame) => void>()
     const events: Array<{ type: string; payload: Record<string, unknown> }> = []
     const responses: Array<Record<string, unknown>> = []
@@ -57,8 +63,14 @@ describe('RuntimeHost DeviceChannel runtime_invoke', () => {
     })
 
     await vi.waitFor(() => expect(responses.length).toBe(1))
-    expect(localExec).toHaveBeenCalledWith({ runtimeType: 'codex', prompt: 'hello' }, '/tmp')
-    expect(events.map((event) => event.payload.type)).toEqual(['started', 'text_delta', 'completed'])
+    expect(localExec).toHaveBeenCalledWith({
+      runtimeType: 'codex',
+      prompt: 'hello',
+      nativeSessionId: null,
+      continueLast: false,
+    }, '/tmp')
+    expect(events.map((event) => event.payload.type)).toEqual(['started', 'session_discovered', 'text_delta', 'completed'])
+    expect(events[1].payload.nativeSessionId).toBe('native-1')
     expect(responses[0]).toMatchObject({ requestId: 'req-1', ok: true, payload: { exitCode: 0 } })
   })
 })

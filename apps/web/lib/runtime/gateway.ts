@@ -20,6 +20,7 @@ export interface ResolvedEndpoint {
 
 export interface RuntimeSessionRecord {
   id: string
+  nativeSessionId?: string | null
   endpoint: ResolvedEndpoint
 }
 
@@ -146,12 +147,22 @@ export async function createSession(input: {
   roleAgentId?: string
 }): Promise<RuntimeSessionRecord> {
   const db = await createClient()
+  const { data: previousRows } = await db
+    .from('runtime_sessions')
+    .select('native_session_id')
+    .eq('session_id', input.sessionId)
+    .order('created_at', { ascending: false })
+    .limit(5)
+  const previous = Array.isArray(previousRows)
+    ? (previousRows as Array<{ native_session_id?: string | null }>).find((row) => row.native_session_id)
+    : undefined
   const { data, error } = await db
     .from('runtime_sessions')
     .insert({
       session_id: input.sessionId,
       endpoint_id: input.endpoint.id,
       role_agent_id: input.roleAgentId ?? null,
+      native_session_id: previous?.native_session_id ?? null,
       status: 'idle',
     })
     .select('id')
@@ -159,7 +170,7 @@ export async function createSession(input: {
   if (error || !data?.id) {
     throw new Error(error?.message ?? '创建 Runtime Session 失败')
   }
-  return { id: data?.id ?? '', endpoint: input.endpoint }
+  return { id: data?.id ?? '', nativeSessionId: previous?.native_session_id ?? null, endpoint: input.endpoint }
 }
 
 export async function persistRuntimeEvent(
@@ -182,6 +193,12 @@ async function setSessionStatus(runtimeSessionId: string, status: string): Promi
   if (!runtimeSessionId) return
   const db = await createClient()
   await db.from('runtime_sessions').update({ status }).eq('id', runtimeSessionId)
+}
+
+async function setNativeSessionId(runtimeSessionId: string, nativeSessionId: string): Promise<void> {
+  if (!runtimeSessionId || !nativeSessionId) return
+  const db = await createClient()
+  await db.from('runtime_sessions').update({ native_session_id: nativeSessionId }).eq('id', runtimeSessionId)
 }
 
 type RuntimeDetection = {
@@ -310,6 +327,7 @@ export async function* invoke(input: {
     sessionId: input.runtimeSession.id,
     runtimeType: invokePayload.runtimeType,
     prompt: invokePayload.prompt,
+    nativeSessionId: input.runtimeSession.nativeSessionId ?? null,
     cwd: process.env.RUNTIME_CWD ?? process.cwd(),
   })) {
     if (event.type === 'response') {
@@ -321,6 +339,9 @@ export async function* invoke(input: {
     }
     if (event.type === 'started') {
       yield { type: 'runtime_status', status: 'running', endpointId }
+    } else if (event.type === 'session_discovered') {
+      await setNativeSessionId(input.runtimeSession.id, event.nativeSessionId)
+      yield { type: 'native_session', nativeSessionId: event.nativeSessionId, endpointId }
     } else if (event.type === 'text_delta') {
       yield { type: 'runtime_output', delta: event.delta, endpointId }
     } else if (event.type === 'completed') {

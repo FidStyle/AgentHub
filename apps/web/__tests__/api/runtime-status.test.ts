@@ -82,7 +82,7 @@ describe('/api/runtime/status', () => {
     getConnectionByUserIdMock.mockReset()
   })
 
-  it('reports one-shot runtime readiness separately from native session resume support', async () => {
+  it('reports native session resume support when Desktop runtime is ready', async () => {
     const { GET } = await import('@/app/api/runtime/status/route')
     setupMockClient(createRuntimeStatusChain())
     getConnectionByUserIdMock.mockReturnValue({ deviceId: 'device-001' })
@@ -102,8 +102,8 @@ describe('/api/runtime/status', () => {
     expect(data.operable).toBe(true)
     expect(data.blockReason).toBeNull()
     expect(data.runtime.status).toBe('ready')
-    expect(data.runtime.nativeSessionAvailable).toBe(false)
-    expect(data.runtime.nativeSessionDescription).toContain('原生会话暂不可恢复')
-    expect(data.runtime.description).toContain('当前只支持一次性 CLI 执行')
+    expect(data.runtime.nativeSessionAvailable).toBe(true)
+    expect(data.runtime.nativeSessionDescription).toContain('支持官方原生会话续接')
+    expect(data.runtime.description).toContain('AgentHub 会记录并复用 native session id')
   })
 })

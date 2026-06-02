@@ -2,6 +2,12 @@ import { test, expect, _electron as electron } from '@playwright/test'
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL || 'http://localhost:3000'
 
+function authCookieHeader() {
+  const cookie = process.env.TEST_AUTH_COOKIE
+  if (!cookie) return null
+  return cookie.includes('=') ? cookie : `authjs.session-token=${cookie}`
+}
+
 async function webServiceAvailable() {
   try {
     const res = await fetch(WEB_BASE_URL, { method: 'HEAD' })
@@ -30,13 +36,14 @@ test.describe('P0 Desktop 登录流程', () => {
 
     // 3. 模拟 Web 端绑定（需要真实 auth session）
     // 真实绑定需要已登录 Web session 访问 /auth/device-bind?code=xxx
-    if (!process.env.TEST_AUTH_COOKIE) {
+    const cookie = authCookieHeader()
+    if (!cookie) {
       test.skip(true, '需要 TEST_AUTH_COOKIE 完成绑定验证')
     }
 
     // 4. 绑定后 bind-status 应返回 bound:true
     const bindRes = await fetch(`${WEB_BASE_URL}/auth/device-bind?code=${code}`, {
-      headers: { Cookie: `authjs.session-token=${process.env.TEST_AUTH_COOKIE}` },
+      headers: { Cookie: cookie },
       redirect: 'manual',
     })
     expect(bindRes.status).toBeLessThan(400)

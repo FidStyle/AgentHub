@@ -122,8 +122,10 @@ export async function GET() {
         ? 'runtime_auth_required'
         : null
   const operable = connectedDevice !== null && doctor.ready
-  const nativeSessionAvailable = false
-  const nativeSessionDescription = '本地 Claude Code / Codex 原生会话暂不可恢复；当前只支持一次性 CLI 执行。'
+  const nativeSessionAvailable = operable
+  const nativeSessionDescription = nativeSessionAvailable
+    ? '本地 Claude Code / Codex 支持官方原生会话续接；AgentHub 会记录并复用 native session id。'
+    : '本地 Claude Code / Codex 原生会话续接需 Desktop 在线且 CLI 通过真实检测。'
   const blockReasonText: Record<BlockReason, string> = {
     desktop_not_bound: '尚未绑定 AgentHub Desktop，只能查看历史。',
     desktop_offline: '本地 Desktop 未连接云端，只能查看历史。',

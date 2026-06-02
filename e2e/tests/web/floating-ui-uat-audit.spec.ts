@@ -116,7 +116,7 @@ function persistFindings() {
   const summary = {
     task: 'FLOATING-UI-UAT-AUDIT-001',
     generatedAt: new Date().toISOString(),
-    method: 'real browser (Chromium) + real DB (agenthub_p0_test) + real Auth.js session',
+    method: 'real browser (Chromium) + real DB (agenthub_acceptance) + real Auth.js session',
     viewports: VIEWPORTS.map((v) => v.name),
     geometricAssertionsOnly: true,
     findings: merged,

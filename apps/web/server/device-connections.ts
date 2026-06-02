@@ -129,6 +129,8 @@ export async function* sendRuntimeInvokeToDevice(
     sessionId: string
     runtimeType: 'claude_code' | 'codex'
     prompt: string
+    nativeSessionId?: string | null
+    continueLast?: boolean
     cwd: string
   },
   timeoutMs = Number(process.env.DEVICE_RUNTIME_INVOKE_TIMEOUT_MS ?? 300000),

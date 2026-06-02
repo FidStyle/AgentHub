@@ -25,7 +25,7 @@ pnpm env:acceptance:smoke
 pnpm env:acceptance:down
 ```
 
-主环境文件是 `docker/.acceptance.env`。旧 `docker/.p0-test.env` 仅作为历史兼容读取，不再作为文档主入口。
+主环境文件只使用 `docker/.acceptance.env`；脚本不读取其他验收 env fallback。
 
 以下命令保留用于分步调试。
 
@@ -38,7 +38,7 @@ pnpm env:acceptance:db:up
 连接串：
 
 ```bash
-DATABASE_URL=postgresql://agenthub:agenthub_dev@localhost:5432/agenthub_p0_test
+DATABASE_URL=postgresql://agenthub:agenthub_dev@localhost:5432/agenthub_acceptance
 ```
 
 初始化 schema，并基于数据库里已有的 GitHub 关联测试用户生成 Auth.js 测试 session：
@@ -53,7 +53,7 @@ pnpm env:acceptance:seed
 2. `TEST_USER_EMAIL` 指定的用户邮箱，且该用户已有 GitHub account 关联
 3. 任意已有 `account.provider='github'` 的用户
 
-默认模式会排除内置 bootstrap fixture（`00000000-0000-4000-8000-000000000001` / `agenthub-p0-test-github`），避免把本地合成账号误当成真实 GitHub 链接测试用户。
+默认模式会排除内置 bootstrap fixture（`00000000-0000-4000-8000-000000000001` / `agenthub-acceptance-github`），避免把本地合成账号误当成真实 GitHub 链接测试用户。
 
 如果空库需要 bootstrap 一个本地 fixture，必须显式启用：
 
@@ -96,14 +96,13 @@ pnpm test:e2e:acceptance
 ```
 
 普通 `pnpm test:e2e` 仍可用于本地开发调试；风险点不是 CLI 不能并行，而是共享 Auth.js 测试用户的 DB 变更型 spec 在多 worker 下会同时创建/选择/删除同一用户下的 workspace/session，不能作为 P0 验收通过证据。
-```
 
 ## pgAdmin
 
 需要图形化查看数据库时启动：
 
 ```bash
-docker compose -f docker/docker-compose.p0-test.yml --profile tools up -d
+docker compose -p agenthub_acceptance -f docker/docker-compose.acceptance.yml --profile tools up -d
 ```
 
 访问 `http://localhost:5050`，默认账号：
@@ -122,7 +121,7 @@ pnpm env:acceptance:db:down
 删除测试数据卷：
 
 ```bash
-docker compose -f docker/docker-compose.p0-test.yml down -v
+docker compose -p agenthub_acceptance -f docker/docker-compose.acceptance.yml down -v
 ```
 
 ## 规则

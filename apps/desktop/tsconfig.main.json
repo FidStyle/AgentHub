@@ -4,9 +4,11 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "outDir": "dist/main",
-    "rootDir": "src",
     "declaration": false,
     "declarationMap": false,
+    "paths": {
+      "@agenthub/shared": ["../../packages/shared/src/index.ts"]
+    },
     "types": ["node"]
   },
   "include": ["src/main", "src/preload"]
