@@ -7,7 +7,10 @@ export interface Session {
   title: string
   lastMessage: string
   updatedAt: string
+  status: 'active' | 'archived'
 }
+
+type SessionStatusFilter = 'active' | 'archived'
 
 export interface Message {
   id: string
@@ -108,13 +111,18 @@ interface SessionState {
   sessions: Session[]
   activeSessionId: string | null
   activeWorkspaceId: string | null
+  sessionStatusFilter: SessionStatusFilter
   messages: Message[]
   loading: boolean
   error: string | null
   setActiveSession: (id: string) => void
   setActiveWorkspace: (id: string) => void
+  setSessionStatusFilter: (status: SessionStatusFilter) => Promise<void>
   fetchSessions: (workspaceId: string) => Promise<void>
   createSession: (workspaceId: string) => Promise<void>
+  archiveSession: (sessionId: string) => Promise<void>
+  restoreSession: (sessionId: string) => Promise<void>
+  deleteSession: (sessionId: string) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
   setMessagePinned: (messageId: string, isPinned: boolean) => Promise<void>
   sendMessage: (input: { content: string; roleAgentIds?: string[]; attachmentIds?: string[]; permissionMode?: string; signal?: AbortSignal }) => Promise<void>
@@ -124,6 +132,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   activeWorkspaceId: null,
+  sessionStatusFilter: 'active',
   messages: [],
   loading: false,
   error: null,
@@ -135,10 +144,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
 
+  setSessionStatusFilter: async (status) => {
+    set({ sessionStatusFilter: status })
+    const { activeWorkspaceId } = get()
+    if (activeWorkspaceId) await get().fetchSessions(activeWorkspaceId)
+  },
+
   fetchSessions: async (workspaceId) => {
+    const { sessionStatusFilter } = get()
     set({ loading: true, error: null })
     try {
-      const res = await fetch(`/api/sessions?workspace_id=${workspaceId}`)
+      const res = await fetch(`/api/sessions?workspace_id=${workspaceId}&status=${sessionStatusFilter}`)
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
         set({ error: body.error || res.statusText, loading: false })
@@ -150,8 +166,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         title: s.name || '未命名会话',
         lastMessage: (s.last_message as string | undefined) || '',
         updatedAt: (s.last_message_at as string | undefined) || s.updated_at || s.created_at || '',
+        status: s.status === 'archived' ? 'archived' : 'active',
       }))
-      if (sessions.length === 0) {
+      if (sessions.length === 0 && sessionStatusFilter === 'active') {
         const createRes = await fetch('/api/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -168,6 +185,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           title: s.name || '新会话',
           lastMessage: '',
           updatedAt: s.updated_at || s.created_at || '',
+          status: 'active',
         }]
       }
       set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: sessions[0]?.id ?? null, loading: false })
@@ -195,10 +213,95 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         title: s.name || '新会话',
         lastMessage: '',
         updatedAt: s.updated_at || s.created_at || '',
+        status: 'active',
       }
-      set((state) => ({ sessions: [session, ...state.sessions], activeSessionId: session.id, messages: [] }))
+      set((state) => ({
+        sessions: state.sessionStatusFilter === 'active' ? [session, ...state.sessions] : [session],
+        sessionStatusFilter: 'active',
+        activeSessionId: session.id,
+        messages: [],
+      }))
     } catch (e) {
       set({ error: (e as Error).message })
+    }
+  },
+
+  archiveSession: async (sessionId) => {
+    const previous = get()
+    const nextSessions = previous.sessions.filter((session) => session.id !== sessionId)
+    const nextActiveSessionId = previous.activeSessionId === sessionId ? nextSessions[0]?.id ?? null : previous.activeSessionId
+    set({
+      sessions: nextSessions,
+      activeSessionId: nextActiveSessionId,
+      messages: previous.activeSessionId === sessionId ? [] : previous.messages,
+      error: null,
+    })
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'archived' }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body.error || res.statusText)
+      }
+      if (nextActiveSessionId && previous.activeSessionId === sessionId) get().fetchMessages(nextActiveSessionId)
+    } catch (e) {
+      set({
+        sessions: previous.sessions,
+        activeSessionId: previous.activeSessionId,
+        messages: previous.messages,
+        error: (e as Error).message,
+      })
+      throw e
+    }
+  },
+
+  restoreSession: async (sessionId) => {
+    const previous = get()
+    set({ sessions: previous.sessions.filter((session) => session.id !== sessionId), error: null })
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body.error || res.statusText)
+      }
+    } catch (e) {
+      set({ sessions: previous.sessions, error: (e as Error).message })
+      throw e
+    }
+  },
+
+  deleteSession: async (sessionId) => {
+    const previous = get()
+    const nextSessions = previous.sessions.filter((session) => session.id !== sessionId)
+    const nextActiveSessionId = previous.activeSessionId === sessionId ? nextSessions[0]?.id ?? null : previous.activeSessionId
+    set({
+      sessions: nextSessions,
+      activeSessionId: nextActiveSessionId,
+      messages: previous.activeSessionId === sessionId ? [] : previous.messages,
+      error: null,
+    })
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body.error || res.statusText)
+      }
+      if (nextActiveSessionId && previous.activeSessionId === sessionId) get().fetchMessages(nextActiveSessionId)
+    } catch (e) {
+      set({
+        sessions: previous.sessions,
+        activeSessionId: previous.activeSessionId,
+        messages: previous.messages,
+        error: (e as Error).message,
+      })
+      throw e
     }
   },
 

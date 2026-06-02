@@ -110,3 +110,76 @@ server.on('upgrade', (req, socket, head) => {
   })
 })
 ```
+
+## Scenario: Session Lifecycle API
+
+### 1. Scope / Trigger
+
+- Trigger: Web workspace sessions support active listing, archived listing, restore, and hard delete.
+- Applies to `apps/web/app/api/sessions/route.ts`, `apps/web/app/api/sessions/[id]/route.ts`, and frontend callers that mutate session lifecycle state.
+
+### 2. Signatures
+
+- `GET /api/sessions?workspace_id=<uuid>&status=active|archived|all`
+- `PATCH /api/sessions/[id]` with `{ "status": "active" | "archived" }`
+- `DELETE /api/sessions/[id]`
+
+### 3. Contracts
+
+- `workspace_id` is required for session lists.
+- `status` defaults to `active`; archived sessions must not appear in the default list.
+- `status=archived` returns only archived sessions; `status=all` returns active and archived sessions.
+- `PATCH status=archived` is a soft archive; `PATCH status=active` restores.
+- `DELETE` is a hard delete of an owned session. Related rows follow the database FK contract in `docker/postgres/acceptance-schema.sql`: messages, plans, mailbox items, actions, and runtime sessions cascade; artifacts keep the artifact row and clear `session_id`.
+- Every read or mutation must verify session workspace ownership through the workspace owner, not only by session id.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Missing auth | `401 { error: "未授权" }` |
+| Missing `workspace_id` in list | `400 { error: "缺少 workspace_id" }` |
+| Invalid list or patch status | `400 { error: "无效的会话状态" }` |
+| Workspace not owned for list/create | `403` with a Chinese ownership error |
+| Session missing for GET/PATCH/DELETE | `404 { error: "会话不存在" }` |
+| Session workspace not owned | `403 { error: "无权限" }` |
+| Database mutation error | `500 { error: <db message> }` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: default workspace load calls `GET /api/sessions?workspace_id=<id>&status=active`, so archived sessions stay hidden until the user opens the archive view.
+- Base: archived view calls `status=archived`, restore calls `PATCH status=active`, and the restored session disappears from the archive list.
+- Bad: deleting a session without ownership lookup; listing all sessions by default; creating fake sessions in the archived list when it is empty.
+
+### 6. Tests Required
+
+- API unit tests for default active filtering, archived filtering, invalid status, delete auth, delete missing session, delete ownership, and successful delete.
+- Store/component tests for archive, restore/delete list removal, active-session reselection, and rollback on failed mutation.
+- Run `pnpm --filter @agenthub/web test -- __tests__/api/sessions.test.ts __tests__/session-store.test.ts`.
+- Run `pnpm --filter @agenthub/web type-check`.
+- Run `pnpm --filter @agenthub/web lint`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+await db.from('sessions').delete().eq('id', id)
+```
+
+#### Correct
+
+```ts
+const { data: session } = await db.from('sessions').select('workspace_id').eq('id', id).single()
+if (!session) return NextResponse.json({ error: '会话不存在' }, { status: 404 })
+
+const { data: ws } = await db
+  .from('workspaces')
+  .select('id')
+  .eq('id', session.workspace_id)
+  .eq('owner_id', user.id)
+  .single()
+if (!ws) return NextResponse.json({ error: '无权限' }, { status: 403 })
+
+await db.from('sessions').delete().eq('id', id)
+```

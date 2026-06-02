@@ -3,7 +3,7 @@
 import React from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Card, StateCard, IconButton, Badge, Button } from '@agenthub/ui'
+import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
 import { AtSign, Pin, PinOff, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
 import { useSessionStore, type Message } from '@/store/session-store'
 import { MessageContent } from './MessageContent'

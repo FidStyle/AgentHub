@@ -72,3 +72,33 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
+
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const db = await createClient()
+  const { user, error: authError } = await requireAuth()
+  if (authError) return authError
+
+  const { data: session } = await db
+    .from('sessions')
+    .select('workspace_id')
+    .eq('id', id)
+    .single()
+  if (!session) return NextResponse.json({ error: '会话不存在' }, { status: 404 })
+
+  const { data: ws } = await db
+    .from('workspaces')
+    .select('id')
+    .eq('id', session.workspace_id)
+    .eq('owner_id', user.id)
+    .single()
+  if (!ws) return NextResponse.json({ error: '无权限' }, { status: 403 })
+
+  const { error } = await db
+    .from('sessions')
+    .delete()
+    .eq('id', id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

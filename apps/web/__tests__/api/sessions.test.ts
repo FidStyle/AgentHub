@@ -25,7 +25,7 @@ import {
 async function callRoute<T>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: any,
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   options: {
     body?: unknown
     params?: { id: string }
@@ -53,12 +53,14 @@ async function callRoute<T>(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
     })
-  } else {
+  } else if (method === 'PATCH') {
     request = new Request(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
     })
+  } else {
+    request = new Request(url, { method: 'DELETE' })
   }
 
   const context = params ? { params: Promise.resolve(params) } : undefined
@@ -246,6 +248,35 @@ describe('GET /api/sessions', () => {
     expect(sessions[0].last_message).toBe('最新会话摘要')
     expect(sessions[0].last_message_sender_type).toBe('agent')
     expect(sessions[0].last_message_at).toBe('2026-01-02T00:00:00.000Z')
+  })
+
+  it('AT-S004c: hides archived sessions by default and can list archived sessions', async () => {
+    const { GET } = await import('@/app/api/sessions/route')
+    setupMockClient(createPostgresChain(
+      mockUser,
+      undefined,
+      [
+        { id: 'session-active', workspace_id: 'ws-001', name: '活跃会话', status: 'active', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z' },
+        { id: 'session-archived', workspace_id: 'ws-001', name: '归档会话', status: 'archived', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z' },
+      ],
+      [],
+    ))
+
+    const activeResult = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001' } })
+    expect(activeResult.status).toBe(200)
+    expect((activeResult.data as Array<Record<string, unknown>>).map((session) => session.id)).toEqual(['session-active'])
+
+    const archivedResult = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001', status: 'archived' } })
+    expect(archivedResult.status).toBe(200)
+    expect((archivedResult.data as Array<Record<string, unknown>>).map((session) => session.id)).toEqual(['session-archived'])
+  })
+
+  it('AT-S004d: returns 400 for invalid status filter', async () => {
+    const { GET } = await import('@/app/api/sessions/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(GET, 'GET', { query: { workspace_id: 'ws-001', status: 'deleted' } })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('无效的会话状态')
   })
 
   it('AT-S005: returns 403 when workspace not found (ownership check precedes DB query)', async () => {
@@ -473,5 +504,50 @@ describe('PATCH /api/sessions/[id]', () => {
     })
     expect(result.status).toBe(404)
     expect((result.data as { error: string }).error).toBe('会话不存在')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// DELETE /api/sessions/[id]
+// ---------------------------------------------------------------------------
+
+describe('DELETE /api/sessions/[id]', () => {
+  beforeEach(() => {
+    resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
+  })
+
+  it('AT-S023: returns 401 when not authenticated', async () => {
+    const { DELETE } = await import('@/app/api/sessions/[id]/route')
+    setupMockAuth(null)
+    setupMockClient(createNoAuthChain())
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'session-001' } })
+    expect(result.status).toBe(401)
+    expect(result.data).toEqual({ error: '未授权' })
+  })
+
+  it('AT-S024: returns 404 when session not found for delete', async () => {
+    const { DELETE } = await import('@/app/api/sessions/[id]/route')
+    setupMockClient(createPostgresChain(mockUser, [{ id: 'ws-001' }], []))
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'nonexistent' } })
+    expect(result.status).toBe(404)
+    expect((result.data as { error: string }).error).toBe('会话不存在')
+  })
+
+  it('AT-S025: returns 403 when session workspace is not owned by user', async () => {
+    const { DELETE } = await import('@/app/api/sessions/[id]/route')
+    setupMockClient(sessionWorkspaceNotOwnedChainForUpdate())
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'session-001' } })
+    expect(result.status).toBe(403)
+    expect((result.data as { error: string }).error).toBe('无权限')
+  })
+
+  it('AT-S026: deletes an owned session', async () => {
+    const { DELETE } = await import('@/app/api/sessions/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'session-001' } })
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual({ ok: true })
   })
 })

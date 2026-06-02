@@ -29,6 +29,7 @@ afterEach(() => {
     sessions: [],
     activeSessionId: null,
     activeWorkspaceId: null,
+    sessionStatusFilter: 'active',
     messages: [],
     loading: false,
     error: null,
@@ -100,7 +101,7 @@ describe('session store streaming replies', () => {
     ]))
     useSessionStore.setState({
       activeSessionId: 'session-001',
-      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z' }],
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
     })
 
     await useSessionStore.getState().sendMessage({ content: '开始' })
@@ -111,5 +112,69 @@ describe('session store streaming replies', () => {
       content: '第一段第二段',
       streaming: false,
     })
+  })
+})
+
+describe('session store lifecycle actions', () => {
+  it('fetches active sessions with status filter and maps archived state', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([
+      {
+        id: 'session-archived',
+        name: '归档会话',
+        status: 'archived',
+        last_message: '已归档',
+        updated_at: '2026-06-01T00:00:00.000Z',
+      },
+    ]))
+    useSessionStore.setState({ sessionStatusFilter: 'archived' })
+
+    await useSessionStore.getState().fetchSessions('ws-001')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/sessions?workspace_id=ws-001&status=archived')
+    expect(useSessionStore.getState().sessions).toEqual([
+      {
+        id: 'session-archived',
+        title: '归档会话',
+        lastMessage: '已归档',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        status: 'archived',
+      },
+    ])
+  })
+
+  it('archives the active session and selects the next session', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({ id: 'session-001', status: 'archived' }))
+      .mockResolvedValueOnce(jsonResponse([]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [
+        { id: 'session-001', title: '当前', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' },
+        { id: 'session-002', title: '下一个', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' },
+      ],
+    })
+
+    await useSessionStore.getState().archiveSession('session-001')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/sessions/session-001', expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'archived' }),
+    }))
+    expect(useSessionStore.getState().activeSessionId).toBe('session-002')
+    expect(useSessionStore.getState().sessions.map((session) => session.id)).toEqual(['session-002'])
+  })
+
+  it('deletes a session and rolls back on failure', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ error: '删除失败' }, { status: 500 }))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [
+        { id: 'session-001', title: '当前', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' },
+      ],
+    })
+
+    await expect(useSessionStore.getState().deleteSession('session-001')).rejects.toThrow('删除失败')
+    expect(useSessionStore.getState().activeSessionId).toBe('session-001')
+    expect(useSessionStore.getState().sessions).toHaveLength(1)
   })
 })

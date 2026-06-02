@@ -260,6 +260,7 @@ export function createPostgresChain(
             }),
           }),
           update: makeUpdateChain(sessions[0] ?? mockSession),
+          delete: () => ({ eq: () => chain(null, null) }),
         }
       }
       if (table === 'messages') {

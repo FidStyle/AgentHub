@@ -9,7 +9,11 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const workspaceId = searchParams.get('workspace_id')
+  const status = searchParams.get('status') ?? 'active'
   if (!workspaceId) return NextResponse.json({ error: '缺少 workspace_id' }, { status: 400 })
+  if (!['active', 'archived', 'all'].includes(status)) {
+    return NextResponse.json({ error: '无效的会话状态' }, { status: 400 })
+  }
 
   const { data: ws } = await db
     .from('workspaces')
@@ -27,7 +31,8 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const sessions = Array.isArray(data) ? data : []
+  const sessions = (Array.isArray(data) ? data : [])
+    .filter((session: Record<string, unknown>) => status === 'all' || session.status === status)
   const enriched = await Promise.all(sessions.map(async (session: Record<string, unknown>) => {
     const { data: messages } = await db
       .from('messages')
