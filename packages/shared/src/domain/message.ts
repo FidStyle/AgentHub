@@ -1,4 +1,4 @@
-export type MessageType = 'text' | 'plan_card' | 'result_card' | 'approval' | 'system_event'
+export type MessageType = 'text' | 'plan_card' | 'result_card' | 'approval' | 'system_event' | 'role_acknowledgement'
 export type SenderType = 'user' | 'agent' | 'system'
 export type StreamingStatus = 'idle' | 'streaming' | 'complete'
 export type RuntimeMessagePart =

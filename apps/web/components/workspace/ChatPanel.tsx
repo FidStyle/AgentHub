@@ -2,14 +2,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import ReactMarkdown from 'react-markdown'
-import rehypeHighlight from 'rehype-highlight'
-import remarkGfm from 'remark-gfm'
-import 'highlight.js/styles/github.css'
 import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
 import { AtSign, Pin, PinOff, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 import type { RuntimeMessagePart } from '@agenthub/shared'
+import { MessageMarkdown } from './MessageMarkdown'
 
 interface RoleAgent {
   id: string
@@ -139,11 +136,7 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
                   />
                 )}
               </div>
-              {msg.role === 'agent' ? (
-                <AgentMessageContent content={msg.content} parts={msg.parts} />
-              ) : (
-                <p className="whitespace-pre-wrap break-words text-sm">{msg.content}</p>
-              )}
+              <AgentMessageContent content={msg.content} parts={msg.parts} />
             </Card>
           </div>
         )
@@ -216,11 +209,7 @@ function AgentMessageContent({ content, parts }: { content: string; parts?: Runt
   return (
     <div className="space-y-2">
       {content && (
-        <div className="prose prose-sm max-w-none break-words text-sm prose-pre:max-w-full prose-pre:overflow-x-auto prose-code:break-words dark:prose-invert">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-            {content}
-          </ReactMarkdown>
-        </div>
+        <MessageMarkdown content={content} />
       )}
       {parts?.map((part) => <RuntimePartCard key={part.id} part={part} />)}
     </div>

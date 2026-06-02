@@ -21,6 +21,7 @@
 | [contracts/ACCEPTANCE-HARDENING-2026-06-01.md](./contracts/ACCEPTANCE-HARDENING-2026-06-01.md) | P0 验收前全功能硬化合同：质量门禁、真实环境、Web/Desktop/Mobile 主链路和最终 UAT 治理 |
 | [contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md](./contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md) | P0 验收真实闭环合同：opencli 验真、真实 runtime worker、本地/远程核心 @ 流程、附件与 artifact 产出 |
 | [contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md](./contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md) | P1 完整多 Agent 编排与交接合同：中文角色 runtime 配置、Orchestrator DAG、mailbox/handoff、plan retry/resume、Claude+Codex 真实 UAT |
+| [contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md](./contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md) | P0 Orchestrator IM、Markdown 渲染、结构化权限确认与 Git Changes/Get Diff 合同：自定义角色确认、同工作区串行执行、AionUi Markdown 复用和 stage/unstage/discard/revert 安全闭环 |
 
 ## 技术设计
 

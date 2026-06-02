@@ -61,6 +61,9 @@ type GitChangeRow = {
   status: string
   staged: boolean
   untracked: boolean
+  unstaged?: boolean
+  indexStatus?: string
+  workingTreeStatus?: string
 }
 
 function truncate(text: string, max = 160) {
@@ -871,8 +874,11 @@ function ChangesTab() {
   const [gitLoaded, setGitLoaded] = useState(false)
   const [gitError, setGitError] = useState<string | null>(null)
   const [selectedDiffPath, setSelectedDiffPath] = useState<string | null>(null)
+  const [selectedDiffStaged, setSelectedDiffStaged] = useState(false)
   const [selectedDiff, setSelectedDiff] = useState('')
   const [diffStatus, setDiffStatus] = useState<string | null>(null)
+  const [actionStatus, setActionStatus] = useState<string | null>(null)
+  const [pendingDiscardPath, setPendingDiscardPath] = useState<string | null>(null)
   const messageChanges = messages.filter(
     (m) => m.message_type === 'result_card' || m.message_type === 'approval' || hasChangeMetadata(m.metadata),
   )
@@ -903,12 +909,13 @@ function ChangesTab() {
     return () => window.removeEventListener('workspace-files:changed', onChanged)
   }, [activeWorkspaceId])
 
-  async function openDiff(filePath: string) {
+  async function openDiff(filePath: string, staged = false) {
     if (!activeWorkspaceId) return
     setSelectedDiffPath(filePath)
+    setSelectedDiffStaged(staged)
     setDiffStatus('正在读取 diff...')
     try {
-      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/diff?path=${encodeURIComponent(filePath)}`)
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/diff?path=${encodeURIComponent(filePath)}&staged=${staged ? 'true' : 'false'}`)
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((body as { error?: string }).error || `读取 diff 失败（${res.status}）`)
       setSelectedDiff(String((body as { diff?: string }).diff ?? ''))
@@ -916,6 +923,33 @@ function ChangesTab() {
     } catch (e) {
       setDiffStatus(e instanceof Error ? e.message : '读取 diff 失败')
       setSelectedDiff('')
+    }
+  }
+
+  async function runGitAction(action: 'stage' | 'unstage' | 'discard', filePath: string, confirm = false) {
+    if (!activeWorkspaceId) return
+    if (action === 'discard' && !confirm) {
+      setPendingDiscardPath(filePath)
+      setActionStatus(null)
+      return
+    }
+    const labels = { stage: '暂存', unstage: '取消暂存', discard: '丢弃改动' }
+    setActionStatus(`正在${labels[action]}...`)
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath, confirm, session_id: activeSessionId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `${labels[action]}失败（${res.status}）`)
+      setGitChanges(Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : [])
+      setPendingDiscardPath(null)
+      setSelectedDiff('')
+      setSelectedDiffPath(null)
+      setActionStatus(`${labels[action]}完成`)
+    } catch (e) {
+      setActionStatus(e instanceof Error ? e.message : `${labels[action]}失败`)
     }
   }
 
@@ -946,6 +980,45 @@ function ChangesTab() {
 
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其 Git 变更和运行记录将在此展示" />
   if (error) return <p data-testid="artifact-changes-error" className="text-sm text-destructive">{error}</p>
+  const stagedChanges = gitChanges.filter((change) => change.staged)
+  const unstagedChanges = gitChanges.filter((change) => change.unstaged || change.untracked || !change.staged)
+  const renderChange = (change: GitChangeRow, group: 'staged' | 'unstaged') => (
+    <div key={`${group}-${change.status}-${change.path}`} className="rounded-lg border border-border bg-background p-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <FileCode2 className="h-4 w-4 text-muted-foreground" />
+            <span className="truncate font-medium">{change.path}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {change.untracked ? '未跟踪文件' : group === 'staged' ? '已暂存变更' : '工作区变更'}
+          </p>
+        </div>
+        <Badge variant={change.untracked ? 'warning' : group === 'staged' ? 'success' : 'secondary'}>{change.status.trim() || 'M'}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => void openDiff(change.path, group === 'staged')}>
+          查看 diff
+        </Button>
+        {group === 'unstaged' && (
+          <Button size="sm" variant="outline" onClick={() => void runGitAction('stage', change.path)}>
+            暂存
+          </Button>
+        )}
+        {group === 'staged' && (
+          <Button size="sm" variant="outline" onClick={() => void runGitAction('unstage', change.path)}>
+            取消暂存
+          </Button>
+        )}
+        {group === 'unstaged' && (
+          <Button size="sm" variant="outline" onClick={() => void runGitAction('discard', change.path)}>
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            丢弃
+          </Button>
+        )}
+      </div>
+    </div>
+  )
   return (
     <div data-testid="artifact-changes" className="space-y-4">
       <OrchestratorPanel />
@@ -956,31 +1029,41 @@ function ChangesTab() {
         action={<Badge variant="secondary">{gitChanges.length} 项</Badge>}
       >
         {gitError && <p className="text-sm text-destructive">{gitError}</p>}
+        {actionStatus && <p className="text-xs text-muted-foreground">{actionStatus}</p>}
+        {pendingDiscardPath && (
+          <div data-testid="git-discard-approval" className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm">
+            <div className="font-medium text-destructive">确认丢弃未暂存改动</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              将丢弃 `{pendingDiscardPath}` 的工作区改动。该操作会修改真实 Git 工作区，不能通过 AgentHub 自动恢复。
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" onClick={() => void runGitAction('discard', pendingDiscardPath, true)}>
+                允许单次执行
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPendingDiscardPath(null)}>
+                拒绝
+              </Button>
+            </div>
+          </div>
+        )}
         {!gitLoaded ? (
           <StateCard variant="loading" title="读取 Git 变更" />
         ) : gitChanges.length === 0 ? (
           <StateCard variant="empty" title="暂无 Git 变更" description="当前云端项目没有未提交的文件变更" />
         ) : (
-          <div className="space-y-2">
-            {gitChanges.map((change) => (
-              <div key={`${change.status}-${change.path}`} className="rounded-lg border border-border bg-background p-3 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <FileCode2 className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate font-medium">{change.path}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {change.untracked ? '未跟踪文件' : change.staged ? '已暂存变更' : '工作区变更'}
-                    </p>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => void openDiff(change.path)}>
-                    查看 diff
-                  </Button>
-                </div>
-                <Badge variant={change.untracked ? 'warning' : 'secondary'}>{change.status.trim() || 'M'}</Badge>
-              </div>
-            ))}
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">未暂存</div>
+              {unstagedChanges.length > 0 ? unstagedChanges.map((change) => renderChange(change, 'unstaged')) : (
+                <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">没有未暂存变更</div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">已暂存</div>
+              {stagedChanges.length > 0 ? stagedChanges.map((change) => renderChange(change, 'staged')) : (
+                <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">没有已暂存变更</div>
+              )}
+            </div>
           </div>
         )}
         {selectedDiffPath && (
@@ -988,7 +1071,7 @@ function ChangesTab() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{selectedDiffPath}</div>
-                <p className="text-xs text-muted-foreground">当前文件 diff 预览</p>
+                <p className="text-xs text-muted-foreground">{selectedDiffStaged ? '已暂存 diff 预览' : '工作区 diff 预览'}</p>
               </div>
               <Button size="sm" variant="outline" onClick={() => void saveDiffArtifact()} disabled={!selectedDiff}>
                 <PackagePlus className="mr-1 h-3.5 w-3.5" />

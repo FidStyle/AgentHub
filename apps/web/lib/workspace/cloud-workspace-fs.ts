@@ -69,6 +69,9 @@ export type WorkspaceGitChange = {
   status: string
   staged: boolean
   untracked: boolean
+  indexStatus: string
+  workingTreeStatus: string
+  unstaged: boolean
 }
 
 function slug(value: string, fallback: string) {
@@ -304,6 +307,18 @@ async function runGit(rootDir: string, args: string[]) {
   })
 }
 
+function porcelainStatusLabel(status: string) {
+  if (status === '?') return 'untracked'
+  if (status === ' ') return 'unmodified'
+  if (status === 'A') return 'added'
+  if (status === 'M') return 'modified'
+  if (status === 'D') return 'deleted'
+  if (status === 'R') return 'renamed'
+  if (status === 'C') return 'copied'
+  if (status === 'U') return 'conflicted'
+  return 'modified'
+}
+
 export async function readWorkspaceGitStatus(rootDir: string): Promise<WorkspaceGitChange[]> {
   const result = await runGit(rootDir, ['status', '--porcelain=v1', '-uall'])
   if (result.code !== 0) throw new Error(result.stderr || '读取 Git 状态失败')
@@ -321,12 +336,15 @@ export async function readWorkspaceGitStatus(rootDir: string): Promise<Workspace
         status,
         staged: status[0] !== ' ' && status[0] !== '?',
         untracked: status === '??',
+        indexStatus: porcelainStatusLabel(status[0]),
+        workingTreeStatus: porcelainStatusLabel(status[1]),
+        unstaged: status[1] !== ' ' || status === '??',
       }
     })
 }
 
-export async function readWorkspaceGitDiff(rootDir: string, relativePath?: string | null) {
-  const args = ['diff', '--']
+export async function readWorkspaceGitDiff(rootDir: string, relativePath?: string | null, staged = false) {
+  const args = staged ? ['diff', '--cached', '--'] : ['diff', '--']
   if (relativePath) {
     const { relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
     args.push(rel)
@@ -348,6 +366,31 @@ export async function readWorkspaceGitDiff(rootDir: string, relativePath?: strin
     `@@ -0,0 +1,${lines.length} @@`,
     ...lines.map((line) => `+${line}`),
   ].join('\n')
+}
+
+export async function stageWorkspaceGitPath(rootDir: string, relativePath: string) {
+  const { relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
+  const result = await runGit(rootDir, ['add', '--', rel])
+  if (result.code !== 0) throw new Error(result.stderr || '暂存文件失败')
+}
+
+export async function unstageWorkspaceGitPath(rootDir: string, relativePath: string) {
+  const { relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
+  const result = await runGit(rootDir, ['restore', '--staged', '--', rel])
+  if (result.code !== 0) throw new Error(result.stderr || '取消暂存失败')
+}
+
+export async function discardWorkspaceGitPath(rootDir: string, relativePath: string) {
+  const { relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
+  const statusRows = await readWorkspaceGitStatus(rootDir)
+  const row = statusRows.find((item) => item.path === rel)
+  if (row?.untracked) {
+    const { fullPath } = resolveWorkspacePath(rootDir, rel)
+    await rm(fullPath, { recursive: true, force: true })
+    return
+  }
+  const result = await runGit(rootDir, ['restore', '--worktree', '--', rel])
+  if (result.code !== 0) throw new Error(result.stderr || '丢弃工作区改动失败')
 }
 
 export async function writeWorkspaceFile(rootDir: string, relativePath: string, content: string | Buffer) {

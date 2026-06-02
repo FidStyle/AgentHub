@@ -199,8 +199,16 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('done')
     expect(text).toContain('"roleAgentId":"agent-001"')
     expect(text).toContain('"roleAgentId":"agent-002"')
+    expect(text).toContain('"type":"role_acknowledgement"')
     expect(text).toContain('"type":"role_handoff"')
     expect(text).toContain('"handoffs"')
+    const acknowledgementMessages = insertedMessages.filter((m) => m.message_type === 'role_acknowledgement')
+    expect(acknowledgementMessages).toHaveLength(2)
+    expect(acknowledgementMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
+    expect(acknowledgementMessages.map((m) => String(m.content))).toEqual([
+      expect.stringContaining('收到，我是 @Frontend Engineer'),
+      expect.stringContaining('收到，我是 @Backend Engineer'),
+    ])
     const agentMessages = insertedMessages.filter((m) => m.sender_type === 'agent')
     expect(agentMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
     expect((agentMessages[1].metadata as { handoffsReceived?: unknown[] }).handoffsReceived).toEqual([

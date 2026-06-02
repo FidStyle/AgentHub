@@ -6,11 +6,14 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   createWorkspaceFolderZip,
   deleteWorkspaceEntry,
+  discardWorkspaceGitPath,
   readCloudWorkspacePreview,
   readWorkspaceGitDiff,
   readWorkspaceGitStatus,
   renameWorkspaceEntry,
   resolveWorkspacePath,
+  stageWorkspaceGitPath,
+  unstageWorkspaceGitPath,
   writeWorkspaceFile,
 } from '@/lib/workspace/cloud-workspace-fs'
 
@@ -100,5 +103,34 @@ describe('workspace file preview and artifact bundle helpers', () => {
 
     await deleteWorkspaceEntry(root, 'docs/manual.md')
     await expect(readCloudWorkspacePreview(root, 'docs/manual.md')).rejects.toThrow('文件不存在')
+  })
+
+  it('stages, unstages and discards real git workspace changes', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await runGit(root, ['config', 'user.email', 'agenthub@example.com'])
+    await runGit(root, ['config', 'user.name', 'AgentHub Test'])
+    await writeFile(path.join(root, 'tracked.txt'), 'before\n')
+    await runGit(root, ['add', 'tracked.txt'])
+    await runGit(root, ['commit', '-m', 'initial'])
+
+    await writeWorkspaceFile(root, 'tracked.txt', 'after\n')
+    let status = await readWorkspaceGitStatus(root)
+    expect(status).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'tracked.txt', staged: false, unstaged: true })]))
+
+    await stageWorkspaceGitPath(root, 'tracked.txt')
+    status = await readWorkspaceGitStatus(root)
+    expect(status).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'tracked.txt', staged: true })]))
+    const stagedDiff = await readWorkspaceGitDiff(root, 'tracked.txt', true)
+    expect(stagedDiff).toContain('+after')
+
+    await unstageWorkspaceGitPath(root, 'tracked.txt')
+    status = await readWorkspaceGitStatus(root)
+    expect(status).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'tracked.txt', staged: false, unstaged: true })]))
+
+    await discardWorkspaceGitPath(root, 'tracked.txt')
+    const preview = await readCloudWorkspacePreview(root, 'tracked.txt')
+    expect(preview.content).toBe('before\n')
+    expect(await readWorkspaceGitStatus(root)).toEqual([])
   })
 })

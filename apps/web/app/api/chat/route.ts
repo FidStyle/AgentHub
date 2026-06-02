@@ -377,6 +377,32 @@ export async function POST(req: NextRequest) {
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
   }).select('id').single()
 
+  const acknowledgementRows: Array<{ id?: string; role_agent_id: string; content: string; created_at?: string }> = []
+  for (const role of selectedRoleAgents) {
+    const capabilities = Array.isArray(role.capabilities) ? role.capabilities.map((item) => String(item)).filter(Boolean) : []
+    const firstStep = role.is_orchestrator
+      ? '我会先梳理任务、确认分工和需要用户确认的动作'
+      : capabilities.length > 0
+        ? `我会先从「${capabilities.slice(0, 2).join('、')}」方向检查`
+        : '我会先检查和我职责相关的实现入口'
+    const ackContent = `收到，我是 @${role.name}，${firstStep}。`
+    const { data: ack } = await db.from('messages').insert({
+      session_id: sessionId,
+      content: ackContent,
+      sender_type: 'system',
+      role_agent_id: role.id,
+      message_type: 'role_acknowledgement',
+      streaming_status: 'complete',
+      metadata: {
+        sourceUserMessageId: userMessageRow?.id ?? null,
+        acknowledgementKind: 'task_understood',
+        mentionedRoleIds: selectedRoleAgents.map((item) => item.id),
+        plannedFirstStep: firstStep,
+      },
+    }).select('id, role_agent_id, content, created_at').single()
+    acknowledgementRows.push((ack ?? { role_agent_id: role.id, content: ackContent }) as unknown as { id?: string; role_agent_id: string; content: string; created_at?: string })
+  }
+
   const encoder = new TextEncoder()
   const encode = (data: object) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
   const partId = (prefix: string, evt: RuntimeGatewayEvent) => {
@@ -444,6 +470,15 @@ export async function POST(req: NextRequest) {
       }> = []
       const persistedHandoffs: RoleHandoffPackage[] = []
       try {
+        for (const ack of acknowledgementRows) {
+          controller.enqueue(encode({
+            type: 'role_acknowledgement',
+            messageId: ack.id,
+            roleAgentId: ack.role_agent_id,
+            content: ack.content,
+            createdAt: ack.created_at,
+          }))
+        }
         const orchestration = generateOrchestration(selectedRoleAgents, content)
         const useOrchestratedRun = orchestration.useOrchestratedRun
         const executionTargets: ExecutionTarget[] = orchestration.targets

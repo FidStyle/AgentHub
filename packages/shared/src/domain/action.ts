@@ -1,6 +1,6 @@
 import type { ExecutionDomain } from './workspace'
 
-export type ActionType = 'preview' | 'test' | 'build' | 'shell'
+export type ActionType = 'preview' | 'test' | 'build' | 'shell' | 'git_stage' | 'git_unstage' | 'git_discard'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 export type ActionStatus = 'pending' | 'approved' | 'running' | 'completed' | 'failed' | 'cancelled'
 

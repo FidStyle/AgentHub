@@ -46,24 +46,24 @@ function attempt(partial: Partial<PlanNodeAttempt> & Pick<PlanNodeAttempt, 'id' 
 }
 
 describe('mailbox scheduling helpers', () => {
-  it('selects one queued inbound item per role while allowing cross-role ready wave', () => {
+  it('selects the earliest queued inbound item for a session and keeps later roles queued', () => {
     const ready = selectReadyMailboxItems([
       mailbox({ id: 'mail-2', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:02.000Z' }),
       mailbox({ id: 'mail-1', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:01.000Z' }),
       mailbox({ id: 'mail-3', to_role_agent_id: 'agent-be', status: 'queued', created_at: '2026-06-02T00:00:03.000Z' }),
     ])
 
-    expect(ready.map((item) => item.id)).toEqual(['mail-1', 'mail-3'])
+    expect(ready.map((item) => item.id)).toEqual(['mail-1'])
   })
 
-  it('does not select queued work for a role that already has running inbound work', () => {
+  it('does not select queued work when the session already has running inbound work', () => {
     const ready = selectReadyMailboxItems([
       mailbox({ id: 'running-fe', to_role_agent_id: 'agent-fe', status: 'running', created_at: '2026-06-02T00:00:01.000Z' }),
       mailbox({ id: 'queued-fe', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:02.000Z' }),
       mailbox({ id: 'queued-be', to_role_agent_id: 'agent-be', status: 'queued', created_at: '2026-06-02T00:00:03.000Z' }),
     ])
 
-    expect(ready.map((item) => item.id)).toEqual(['queued-be'])
+    expect(ready.map((item) => item.id)).toEqual([])
   })
 
   it('accepts Date timestamps from local Postgres rows when selecting ready work', () => {
@@ -73,7 +73,17 @@ describe('mailbox scheduling helpers', () => {
       mailbox({ id: 'mail-3', to_role_agent_id: 'agent-be', status: 'queued', created_at: new Date('2026-06-02T00:00:03.000Z') as unknown as string }),
     ])
 
-    expect(ready.map((item) => item.id)).toEqual(['mail-1', 'mail-3'])
+    expect(ready.map((item) => item.id)).toEqual(['mail-1'])
+  })
+
+  it('allows one queued item in each independent session', () => {
+    const ready = selectReadyMailboxItems([
+      mailbox({ id: 'session-a-2', session_id: 'session-a', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:02.000Z' }),
+      mailbox({ id: 'session-a-1', session_id: 'session-a', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:01.000Z' }),
+      mailbox({ id: 'session-b-1', session_id: 'session-b', to_role_agent_id: 'agent-be', status: 'queued', created_at: '2026-06-02T00:00:03.000Z' }),
+    ])
+
+    expect(ready.map((item) => item.id)).toEqual(['session-a-1', 'session-b-1'])
   })
 
   it('creates retry attempt drafts without overwriting previous attempt lineage', () => {

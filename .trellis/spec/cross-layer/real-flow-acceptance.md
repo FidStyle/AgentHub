@@ -63,6 +63,7 @@
 - runtime prompt 中包含角色能力/职责上下文；测试至少断言角色 ID 持久化和用户可见角色标识。
 - 角色运行时绑定必须来自 `role_agents.runtime_type`，不能来自 `capabilities` 中的 `runtime:*` 标签；多角色链路必须断言每个角色按自己的 Claude Code / Codex 配置调度。
 - 多角色顺序执行时，下游角色必须收到结构化 handoff context，且 `messages.metadata.handoffsReceived` 或等价字段刷新后可读回。
+- 被 `@` 的自定义角色必须产生一条简短确认消息，表达它理解了任务和准备怎么执行；禁止把确认固定成只有“收到”两个字，也禁止只更新隐藏状态而不在 IM 流里显示角色反馈。
 
 ### 附件
 
@@ -266,4 +267,243 @@ const runtimeType = role.runtime_type;
 if (runtimeType !== 'codex' && runtimeType !== 'claude_code') {
   throw new Error('角色运行时配置无效');
 }
+```
+
+## Scenario: Serial Role Activation In One Workspace
+
+### 1. Scope / Trigger
+
+- Trigger: Any implementation of multi-role `@` mention, Orchestrator planning, role acknowledgment, handoff, or role execution in the same workspace.
+- Applies to Web chat UI, `/api/chat`, plan nodes, role mailbox/handoff state, runtime worker dispatch, `messages` persistence, and acceptance tests.
+- P0 decision: role messages may show multiple roles being mentioned, but only one role may be actively doing work in a workspace at a time.
+
+### 2. Signatures
+
+```typescript
+type RoleActivationState =
+  | 'mentioned'
+  | 'acknowledged'
+  | 'queued'
+  | 'active_reading'
+  | 'active_writing'
+  | 'active_approval_wait'
+  | 'submitted'
+  | 'completed'
+  | 'blocked';
+
+interface RoleAcknowledgementMessage {
+  sessionId: string;
+  roleAgentId: string;
+  planNodeId?: string;
+  content: string;
+  metadata: {
+    kind: 'role_acknowledgement';
+    roleActivationState: 'acknowledged';
+    understoodTask: string;
+    intendedAction: string;
+  };
+}
+
+interface WorkspaceRoleLease {
+  workspaceId: string;
+  activeRoleAgentId: string | null;
+  activePlanNodeId?: string | null;
+  state: Extract<RoleActivationState, 'active_reading' | 'active_writing' | 'active_approval_wait'> | 'idle';
+}
+```
+
+### 3. Contracts
+
+- Role Agents are user-defined. Do not hardcode `前端工程师` or `后端工程师` as product roles; those are seed/example roles only.
+- When Orchestrator mentions multiple roles, each mentioned role may emit a short acknowledgement message that says it understands the task and gives a minimal execution intent.
+- Acknowledgement text must be role-specific and task-aware, for example: `收到，我会先检查现有 API 路由规范，等待 Orchestrator 分配执行。`
+- Only Orchestrator or the scheduler may move a role from `queued` into an `active_*` state.
+- In P0, a workspace has a single active role lease. No second role may enter `active_reading`, `active_writing`, or `active_approval_wait` until the current active role reaches `submitted`, `completed`, or `blocked`.
+- Permission prompts must remain structured Approval/Action UI. Role acknowledgement messages must not ask the user to grant permissions in plain Markdown text.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Multiple roles are mentioned | Each relevant role may persist a task-aware acknowledgement, then enters `queued` | Roles start reading/writing concurrently in the same workspace |
+| A second role tries to become active while lease is held | Reject or keep `queued`; emit visible waiting state | Silent concurrent execution |
+| Role acknowledgement content is empty or only `收到` | Regenerate or reject as insufficient acknowledgement | Treat as completed role feedback |
+| Role needs a permission grant | Create structured Approval/Action request | Ask for permission only inside ordinary chat text |
+| Current active role blocks | Orchestrator marks it `blocked` and decides retry/skip/next role | Scheduler activates another role without recording the block |
+
+### 5. Good/Base/Bad Cases
+
+- Good: User asks `@Orchestrator` to implement a feature; Orchestrator mentions two custom roles; both roles write brief acknowledgement messages; role A becomes `active_reading`; role B remains `queued`; role B becomes active only after role A submits.
+- Base: A role acknowledges but runtime is unavailable; Orchestrator records the role as `blocked` with a visible Chinese reason and does not fake completion.
+- Bad: Two role workers read/write the same workspace concurrently because both were mentioned in one user message.
+- Bad: The UI only shows a hidden status chip for role receipt and no IM message from the mentioned role.
+
+### 6. Tests Required
+
+- API/integration: multi-role mention persists one acknowledgement message per mentioned role with `metadata.kind='role_acknowledgement'` and non-empty `understoodTask` / `intendedAction`.
+- Scheduler: while a `WorkspaceRoleLease` is active, a second role cannot enter any `active_*` state.
+- UI: message list shows the role acknowledgement as a real role message with role badge/name, not only a task-card status.
+- Approval: permission-required work creates a structured approval card/request; tests must assert the approval source is `plan`, `action`, `permission_escalation`, or `retry`.
+- Refresh: after reload, acknowledgements, queued state, active/blocked state, and role badges recover from durable data.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+@前端工程师: 收到
+@后端工程师: 收到
+```
+
+Problem: the messages do not prove the roles understood their work, and they do not show Orchestrator-controlled execution state.
+
+#### Correct
+
+```text
+@界面实现: 收到，我会按现有 ChatPanel 组件规范检查消息渲染，等待 Orchestrator 分配执行。
+@接口实现: 收到，我会检查 /api/chat 和角色状态契约，等待 Orchestrator 分配执行。
+```
+
+Then the scheduler records:
+
+```typescript
+workspaceRoleLease = {
+  workspaceId,
+  activeRoleAgentId: uiRoleId,
+  activePlanNodeId: uiPlanNodeId,
+  state: 'active_reading',
+};
+```
+
+## Scenario: Git Diff And Change Actions Surface
+
+### 1. Scope / Trigger
+
+- Trigger: Any implementation that claims to support `get diff`, change review, staging, unstaging, reverting/discarding workspace changes, or "undo latest staged/local change" controls.
+- Applies to Web change panel, Desktop local workspace bridge, `/api/git/*` or equivalent route handlers, Action/Approval cards, git command execution, and UAT evidence.
+- Reference implementations to reuse first:
+  - `refer_proj/zhukunpenglinyutong__desktop-cc-gui/src/services/tauri.ts` and `src-tauri/src/git/commands.rs` for status/diff/stage/unstage/revert command shape.
+  - `refer_proj/siteboon__claudecodeui/server/routes/git.js` and `src/components/git-panel/` for Web API/UI flow.
+  - `refer_proj/j3n5en__EnsoAI/src/main/services/git/GitService.ts` for path traversal, symlink, binary, and staged/unstaged file diff handling.
+
+### 2. Signatures
+
+```typescript
+type GitFileStatusCode = 'M' | 'A' | 'D' | 'U' | 'R' | 'T';
+type GitChangeSection = 'staged' | 'unstaged' | 'untracked';
+
+interface GitStatusSnapshot {
+  isGitRepository: boolean;
+  branchName: string;
+  files: GitFileStatus[];
+  stagedFiles: GitFileStatus[];
+  unstagedFiles: GitFileStatus[];
+  totalAdditions: number;
+  totalDeletions: number;
+}
+
+interface GitFileStatus {
+  path: string;
+  status: GitFileStatusCode | string;
+  additions: number;
+  deletions: number;
+  section?: GitChangeSection;
+}
+
+interface GitFileDiffRequest {
+  workspaceId: string;
+  path: string;
+  staged?: boolean;
+}
+
+interface GitFileDiffResponse {
+  path: string;
+  diff?: string;
+  oldContent?: string;
+  currentContent?: string;
+  isBinary?: boolean;
+  isDeleted?: boolean;
+  isUntracked?: boolean;
+  truncated?: boolean;
+}
+
+type GitChangeAction =
+  | 'stage_file'
+  | 'stage_all'
+  | 'unstage_file'
+  | 'unstage_all'
+  | 'discard_file'
+  | 'discard_all'
+  | 'revert_latest_local_commit';
+```
+
+Minimum API/bridge surface:
+
+- `GET /api/git/status?workspaceId=...`
+- `GET /api/git/diff?workspaceId=...&path=...&staged=true|false`
+- `POST /api/git/stage-file`
+- `POST /api/git/stage-all`
+- `POST /api/git/unstage-file`
+- `POST /api/git/unstage-all`
+- `POST /api/git/discard-file`
+- `POST /api/git/discard-all`
+- `POST /api/git/revert-latest-local-commit`
+
+### 3. Contracts
+
+- "Get diff" is a change review surface, not only a raw diff string. It must include status grouping, per-file diff, staged/unstaged distinction, and actions to stage, unstage, discard/revert, and refresh state.
+- Path inputs must be repository-relative and validated against the workspace root or repository root. Reject path traversal, NUL bytes, and symlink discard/diff paths that cannot be safely read.
+- Staged diff uses index vs `HEAD` (`git diff --cached` or equivalent). Unstaged diff uses worktree vs index (`git diff`). Untracked files render as full-file additions when safe.
+- Stage file should use `git add -A -- <path>` or equivalent so rename/delete pairs move together. Unstage file should use `git restore --staged -- <path>` or `git reset HEAD -- <path>` consistently.
+- Discard/revert is destructive. It must require a structured `Approval`/`Action` confirmation unless the user's policy explicitly allows this action. Do not ask for discard approval only in chat text.
+- Discard tracked changes should restore both index/worktree when requested; discard untracked files should delete only after path validation and explicit confirmation.
+- UI must refresh status/diff after every stage/unstage/discard action and keep large diffs bounded/truncated so the tab remains responsive.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Workspace is not a git repository | `isGitRepository=false` or 400 with Chinese explanation | Empty success that looks like no changes |
+| Path is outside workspace/repo root | 400 / rejected action | Running git/fs command on resolved external path |
+| File is symlink and action is discard/read unsafe | Reject with explicit error | Follow symlink and mutate/read outside root |
+| File is binary | Return `isBinary=true` and no raw text diff | Render binary bytes in UI |
+| Untracked file diff requested | Render full-file additions or directory warning | Return empty diff and hide the file |
+| Discard file/all requested | Structured Approval/Action required | Silent destructive git restore/clean |
+| Large diff requested | Truncate/virtualize with visible notice | Freeze UI rendering all lines |
+
+### 5. Good/Base/Bad Cases
+
+- Good: UI shows staged and unstaged groups, expands a file diff, stages one file, refreshes the file from unstaged to staged, then allows unstage with another refresh.
+- Good: User requests discard for a tracked file; system shows an Approval card explaining affected path and command category; only after approval runs restore/clean.
+- Base: Non-git workspace shows a clear Chinese "not a git repository" state and hides stage/discard buttons.
+- Bad: Only renders `git diff` text and calls the feature complete without stage/unstage/discard controls.
+- Bad: `discard_all` runs without approval because it is "just a simple git operation".
+
+### 6. Tests Required
+
+- Unit/API: status splits staged, unstaged, and untracked files correctly.
+- Unit/API: staged and unstaged diff use different sources and return different content when a file has both index and worktree changes.
+- Security: path traversal, NUL path, unsafe symlink, and binary file cases are rejected or represented safely.
+- Action/Approval: discard file/all and revert latest local commit create structured confirmation before execution.
+- UI/E2E: stage, unstage, discard, and refresh are visible and update the DOM; large diff shows a truncation notice.
+- Regression: untracked file diff renders additions; deleted file diff renders deletions.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+const diff = await exec(`git diff ${path}`);
+return { diff };
+```
+
+#### Correct
+
+```typescript
+const status = await gitStatus(workspaceId);
+const diff = await gitFileDiff({ workspaceId, path, staged });
+const approval = action === 'discard_file'
+  ? await createApproval({ sourceType: 'action', riskLevel: 'high', sourceId: actionId })
+  : null;
+return { status, diff, approval };
 ```

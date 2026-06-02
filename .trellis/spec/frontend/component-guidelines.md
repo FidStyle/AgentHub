@@ -11,9 +11,51 @@
 优先顺序：
 
 1. 复用现有项目组件。
-2. 按 shadcn/ui 模式抽取可组合组件。
-3. 页面内写小型私有组件。
-4. 只有在确实无法复用时，才新增组件变体。
+2. 复用或改造已授权参考项目中的组件/模块实现。
+3. 按 shadcn/ui 模式抽取可组合组件。
+4. 页面内写小型私有组件。
+5. 只有在确实无法复用时，才新增组件变体。
+
+### Convention: 已授权参考组件优先复用
+
+**What**: `refer_proj/` 中已纳入项目参考范围、且用户明确授权的组件和模块，可以直接复用实现思路或代码结构，再按 AgentHub 的产品模型、类型、中文文案和样式系统改造。
+
+**Why**: Markdown 渲染、消息气泡、代码块复制、审批卡、任务状态卡等通用能力不应重复从零试错。实现时优先把可复用部分落成本项目组件，而不是因为许可顾虑停在讨论阶段。
+
+**Rules**:
+
+- 复用时必须改成 AgentHub 的领域类型和 props，不能把参考项目的数据模型、路由、全局 store 或运行时假设原样带入。
+- 复用 UI 时必须接入本项目的 Tailwind 变量、中文文案、`data-testid`、可访问名称和视觉测试要求。
+- Markdown 渲染类组件优先直接复用并改造 `refer_proj/AionUi/packages/desktop/src/renderer/components/Markdown/` 的组件拆分：`Markdown/index.tsx`、`CodeBlock.tsx`、`markdownUtils.ts`。必须保留换行、列表、代码块、表格、链接、代码复制和宽表格横向滚动等富文本语义；禁止把 agent 消息作为普通纯文本 `<div>` 渲染后声称支持 Markdown。
+- 可直接复用依赖组合、组件拆分、队列/lease 算法和边界处理；样式、类型、产品状态、权限语义和持久化模型必须按 AgentHub 当前 PRD/spec 调整。
+
+**Example**:
+
+```tsx
+// Good: copy the reference renderer shape, but bind to AgentHub props and styling.
+type MessageMarkdownProps = {
+  content: string
+  role: 'user' | 'agent' | 'orchestrator'
+}
+
+export function MessageMarkdown({ content, role }: MessageMarkdownProps) {
+  return (
+    <div data-testid={`message-markdown-${role}`} className="prose prose-sm max-w-none text-foreground">
+      {/* Use the chosen markdown renderer stack here; component API remains AgentHub-owned. */}
+      <MarkdownRenderer source={content} />
+    </div>
+  )
+}
+```
+
+```tsx
+// Bad: reference project store/model leaks into AgentHub UI.
+export function MessageMarkdown({ externalConversationNode }: ReferenceProjectMessageProps) {
+  return <div>{externalConversationNode.rawText}</div>
+}
+```
+
+**Related**: `research/modules/im-foundation.md` requires Markdown rendering and code-block copy as P0 chat capability.
 
 ---
 

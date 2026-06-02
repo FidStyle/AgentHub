@@ -19,6 +19,20 @@
 
 ## P0 任务
 
+### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-ARTIFACT-001, FR-RESULT-001, FR-WEB-001, FR-MOB-001, FR-UI-001 |
+| **合同路径** | `research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md` |
+| **当前状态** | 🟡 部分完成（2026-06-03）：已完成详细合同、AionUi 风格 Markdown renderer 接入、被 @ 角色任务相关确认消息、同 session mailbox 串行 ready selection、cloud Git staged/unstaged diff 与 stage/unstage/discard 基础闭环；discard 确认后写入 actions 审计记录。 |
+| **目标** | 让 Orchestrator IM 呈现真实公司协作式多角色交互；Markdown 正确渲染；权限确认使用结构化交互；Changes/Get Diff 覆盖 status/diff/stage/unstage/discard。 |
+| **验收方式** | Web/API/shared tests + 后续 Playwright acceptance：真实 workspace/session 中 @ 多个自定义角色，刷新后确认消息可恢复；Markdown 表格/代码块无布局溢出；Git status 与真实 repo 一致；destructive discard 需要确认。 |
+| **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/api/plans-actions-owner.test.ts` PASS（3 files / 22 tests）；`pnpm --filter @agenthub/shared test` PASS（5 files / 32 tests）；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plans-actions-owner.test.ts` PASS（2 files / 17 tests）。执行报告：`research/execution-reports/orchestrator-im-markdown-git-diff-2026-06-03-report.md`。 |
+| **阻塞问题** | 统一 pending approval -> approve endpoint -> dispatch 状态机尚未完全覆盖 Git discard；local desktop Git bridge、Playwright 视觉截图和 Mobile/PWA 审批视图仍未收口。 |
+| **下一步动作** | 补统一 approval/action record、Desktop Connector Git 操作分支、Web/Mobile E2E 和视觉截图；最后运行治理门禁。 |
+
 ### P0-ACCEPTANCE-ENV-UAT-CLOSURE: P0 验收环境、E2E 与报告收口
 
 | 字段 | 内容 |

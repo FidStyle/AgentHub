@@ -31,7 +31,7 @@ export function classifyRisk(actionType: string, command: string): RiskLevel {
     /chmod/i, /chown/i, /sudo/i,
   ]
 
-  if (actionType === 'deploy') return 'high'
+  if (actionType === 'deploy' || actionType === 'git_discard') return 'high'
   if (highRiskPatterns.some(p => p.test(command))) return 'high'
   if (mediumRiskPatterns.some(p => p.test(command))) return 'medium'
   return 'low'

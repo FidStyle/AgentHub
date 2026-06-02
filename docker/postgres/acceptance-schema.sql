@@ -15,7 +15,14 @@ BEGIN
     CREATE TYPE sender_type AS ENUM ('user', 'agent', 'system');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'message_type') THEN
-    CREATE TYPE message_type AS ENUM ('text', 'plan_card', 'result_card', 'approval', 'system_event');
+    CREATE TYPE message_type AS ENUM ('text', 'plan_card', 'result_card', 'approval', 'system_event', 'role_acknowledgement');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_enum
+    WHERE enumtypid = 'message_type'::regtype
+      AND enumlabel = 'role_acknowledgement'
+  ) THEN
+    ALTER TYPE message_type ADD VALUE 'role_acknowledgement';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'streaming_status') THEN
     CREATE TYPE streaming_status AS ENUM ('idle', 'streaming', 'complete');

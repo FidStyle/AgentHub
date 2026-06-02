@@ -16,6 +16,7 @@ export interface Message {
   createdAt: string
   roleAgentId: string | null
   isPinned: boolean
+  messageType?: string
   parts?: RuntimeMessagePart[]
 }
 
@@ -39,6 +40,8 @@ type StreamEvent = {
   artifactType?: string
   sourcePath?: string
   contentRef?: string
+  messageId?: string
+  createdAt?: string
 }
 
 function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
@@ -215,6 +218,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         createdAt: m.created_at || '',
         roleAgentId: (m.role_agent_id as string | null) ?? null,
         isPinned: Boolean(m.is_pinned),
+        messageType: String(m.message_type ?? 'text'),
         parts: partsFromMetadata(m.metadata),
       }))
       set({ messages, loading: false })
@@ -326,10 +330,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
                   role: 'agent',
                   content: reply,
                   createdAt: new Date().toISOString(),
-                  roleAgentId: respondingRoleAgentId,
-                  isPinned: false,
-                  parts: runtimeParts,
-                } as Message,
+              roleAgentId: respondingRoleAgentId,
+              isPinned: false,
+              messageType: 'text',
+              parts: runtimeParts,
+            } as Message,
               ],
             }
           }
@@ -360,6 +365,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               createdAt: new Date().toISOString(),
               roleAgentId: null,
               isPinned: false,
+              messageType: 'system_event',
             } as Message,
           ],
         }))
@@ -384,6 +390,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               replyCreated = false
             }
             respondingRoleAgentId = evt.roleAgentId
+          }
+          if (evt.type === 'role_acknowledgement' && evt.roleAgentId && evt.content) {
+            set((state) => ({
+              messages: [
+                ...state.messages,
+                {
+                  id: evt.messageId ?? `ack-${Date.now()}`,
+                  sessionId: activeSessionId,
+                  role: 'agent',
+                  content: evt.content ?? '',
+                  createdAt: evt.createdAt ?? new Date().toISOString(),
+                  roleAgentId: evt.roleAgentId ?? null,
+                  isPinned: false,
+                  messageType: 'role_acknowledgement',
+                } as Message,
+              ],
+            }))
           }
           const nextParts = reduceRuntimeParts(runtimeParts, evt)
           if (nextParts !== runtimeParts) {
@@ -411,6 +434,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               createdAt: new Date().toISOString(),
               roleAgentId: null,
               isPinned: false,
+              messageType: 'system_event',
             } as Message,
           ],
         }))
