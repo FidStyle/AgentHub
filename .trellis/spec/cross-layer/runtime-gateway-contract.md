@@ -489,6 +489,8 @@ Required API contract:
 - Final handoff is durable mailbox data. `messages.metadata.roleHandoffs` is not enough for final completion.
 - Every role consumes inbound mailbox items serially. Cross-role dispatch may run concurrently when dependencies and runtime capacity allow it.
 - Retry and resume create new `plan_node_attempts` or equivalent lineage rows. They must keep previous runtime logs, runtime session ids, mailbox items and error evidence readable.
+- Retry, resume, and requeue are recovery controls. After creating queued attempt/mailbox evidence, they must move the parent plan back to `running` so `failed` is not treated as final while recoverable work exists.
+- Cancel is a terminal control. After recording the cancelled attempt/node, it must call the same plan progress service used by runtime terminal events so downstream nodes become blocked and parent plan settlement is consistent.
 - Reply is a durable event addressed to an agent or Orchestrator, not a direct in-memory callback.
 - Dead-letter or failed inbox state is required when a handoff cannot be delivered, the target runtime is unavailable, or retry limit is exceeded.
 - Runtime inventory is informational and diagnostic. It may show alternatives, but product routing still uses `role_agents.runtime_type` as a hard requirement.
@@ -499,9 +501,10 @@ Required API contract:
 | Condition | Required result |
 | --- | --- |
 | Retry a failed plan node | New attempt row; old attempt/log/session remains readable; downstream nodes recompute from new attempt |
+| Retry/resume/requeue creates queued work | Parent plan status becomes `running` |
 | Resume a node with matching native session | Uses newest native id in same session/role/runtime/cwd scope |
 | Resume a node with only another role/runtime native id | Does not reuse; returns explicit non-resumable or starts a new allowed attempt according to API contract |
-| Cancel a running node | Runtime/session/log/node attempt record `cancelled`; downstream policy is persisted |
+| Cancel a running node | Runtime/session/log/node attempt record `cancelled`; downstream policy is persisted through plan progress |
 | Handoff target role has queued item already running | New inbound waits; same role is not concurrently invoked |
 | Frontend and backend roles are both ready | Different roles may run concurrently if dependencies and runtime inventory allow it |
 | Runtime inventory says Codex unavailable for Codex-bound role | Plan node blocks/fails with explicit error; no Claude fallback |
@@ -518,6 +521,7 @@ Required API contract:
 
 - Shared/domain tests for mailbox status transitions, lineage invariants, per-role serialization and ready wave calculation.
 - API tests for `GET /api/runtime/inventory`, `GET /api/plans/:planId/timeline`, and all plan-node control APIs.
+- Plan-node control tests for retry/resume/requeue parent plan recovery to `running` and cancel downstream blocked propagation.
 - Worker tests for cancel/interrupt, retry attempt creation, pure plan-node jobs, and parent plan settlement after resume.
 - Web E2E for timeline, node detail, handoff viewer, retry/resume/cancel/requeue and refresh persistence.
 - Desktop UAT/E2E for machine inventory, auth/launch/native session doctor and per-role runtime health.

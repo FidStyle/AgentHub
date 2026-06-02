@@ -1,5 +1,6 @@
 import type { CliRuntimeType, PlanNodeControl } from '@agenthub/shared'
 import type { AppDbClient } from '@/lib/postgres-query-client'
+import { advancePlanProgress } from './plan-progress'
 
 type Control = PlanNodeControl
 type MailboxStatus = 'queued' | 'cancelled'
@@ -194,6 +195,7 @@ export async function controlPlanNode(input: {
       .eq('id', (attempt as { id: string }).id)
   }
 
+  const now = new Date().toISOString()
   await input.db
     .from('plan_nodes')
     .update({
@@ -202,10 +204,16 @@ export async function controlPlanNode(input: {
         control: input.control,
         attemptId: (attempt as { id: string }).id,
         mailboxItemId: (mailboxItem as { id?: string } | null)?.id ?? null,
-        at: new Date().toISOString(),
+        at: now,
       },
     })
     .eq('id', input.nodeId)
+
+  if (input.control === 'cancel') {
+    await advancePlanProgress(input.db, { planId: context.plan.id, planNodeId: input.nodeId })
+  } else {
+    await input.db.from('plans').update({ status: 'running', updated_at: now }).eq('id', context.plan.id)
+  }
 
   return {
     ok: true as const,

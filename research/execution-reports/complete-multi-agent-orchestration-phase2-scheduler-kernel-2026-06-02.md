@@ -8,8 +8,9 @@
 2. `plan_nodes` 终态回写后会重新评估同 plan 的 DAG，支持 validator、wait-all/fan-in 解锁和失败上游阻断下游节点。
 3. mailbox `reply` / `dead-letter` API 已接入同一 plan progress 服务，reply 完成节点后可解锁下游，dead-letter 失败节点后可传播 blocked。
 4. newly-ready `runtime_invoke` 节点会自动创建 queued attempt 和 inbound mailbox，进入 `dispatch-ready` 可消费的 durable ready wave。
+5. plan-node recovery control 已接入恢复语义：retry/resume/requeue 使 parent plan 回到 `running`，cancel 通过同一 plan progress 服务传播 downstream blocked。
 
-本报告不宣称完整 Phase 2 完成。当前证明 scheduler 已能消费现有 queued mailbox/attempt、复用 Phase 1 的 per-role serialization helper，在 worker 终态与 mailbox reply/dead-letter 路径推进 downstream ready/blocked，并为 newly-ready runtime node 生成下一轮 durable attempt/mailbox。动态 DAG 生成、retry/resume 后 lineage 再调度和真实 Claude+Codex UAT 仍未完成。
+本报告不宣称完整 Phase 2 完成。当前证明 scheduler 已能消费现有 queued mailbox/attempt、复用 Phase 1 的 per-role serialization helper，在 worker 终态与 mailbox reply/dead-letter 路径推进 downstream ready/blocked，为 newly-ready runtime node 生成下一轮 durable attempt/mailbox，并让 plan-node recovery control 正确恢复或终止 parent plan。动态 DAG 生成、更深 retry/resume native-session UAT 和真实 Claude+Codex UAT 仍未完成。
 
 ## 完成范围
 
@@ -26,6 +27,7 @@
 | Plan progress service | 新增 `advancePlanProgress`，统一 worker、mailbox reply、mailbox dead-letter 三条入口的 DAG 推进和 parent plan 结算语义。 |
 | Reply/dead-letter progression | `reply` 会完成原 inbound mailbox、attempt 和 plan node 后推进下游；`dead-letter` 会失败原 plan node 并传播 downstream blocked，不再只更新 mailbox/attempt 孤立证据。 |
 | Auto ready mailbox | `advancePlanProgress` 将 `runtime_invoke + agent_id` 节点推进为 `ready` 时，会创建 queued `plan_node_attempts` 与 inbound `agent_mailbox_items`，保持 lineage 并使用 canonical `role_agents.runtime_type`。 |
+| Recovery controls | plan-node `retry/resume/requeue` 创建 queued attempt/mailbox 后把 parent plan 恢复为 `running`；`cancel` 记录取消后调用 `advancePlanProgress`，由 DAG 规则阻断下游并结算 parent plan。 |
 
 ## 验证命令
 
@@ -39,7 +41,6 @@
 
 ## 剩余风险
 
-- 仍未实现动态 DAG generator；当前只验证并推进已有 `plan_nodes.depends_on`。
-- retry/resume 后 lineage 与 DAG 再调度尚未做真实链路 UAT。
 - dynamic DAG generator 尚未根据任务与角色配置生成更深 DAG；当前仍推进已有 `depends_on`。
+- retry/resume 的 native session 续接与真实失败恢复 UAT 尚未覆盖。
 - 仍未执行真实 Claude+Codex 双 CLI UAT；当前为 API/unit 级 scheduler kernel 验证。

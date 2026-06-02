@@ -75,12 +75,21 @@ function controlChain() {
   const session = { id: 'session-001', workspace_id: 'ws-001' }
   const role = { id: 'agent-be', name: '后端工程师', runtime_type: 'codex' }
   const previousAttempt = { id: 'attempt-001', attempt_number: 1 }
+  const planNodesForProgress = [
+    { ...node, status: 'cancelled', depends_on: [], action_type: 'runtime_invoke' },
+    { id: 'node-downstream', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke' },
+  ]
 
   const chainFactory = vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === 'plan_nodes') {
         return {
-          select: () => ({ eq: () => ({ single: () => ({ data: node, error: null }) }) }),
+          select: () => ({
+            eq: (field: string) => {
+              if (field === 'plan_id') return { data: planNodesForProgress, error: null }
+              return { single: () => ({ data: node, error: null }) }
+            },
+          }),
           update: (values: Record<string, unknown>) => ({
             eq: (_field: string, id: string) => {
               writes.push({ table, values, id })
@@ -90,7 +99,15 @@ function controlChain() {
         }
       }
       if (table === 'plans') {
-        return { select: () => ({ eq: () => ({ eq: () => ({ single: () => ({ data: plan, error: null }) }) }) }) }
+        return {
+          select: () => ({ eq: () => ({ eq: () => ({ single: () => ({ data: plan, error: null }) }) }) }),
+          update: (values: Record<string, unknown>) => ({
+            eq: (_field: string, id: string) => {
+              writes.push({ table, values, id })
+              return { data: null, error: null }
+            },
+          }),
+        }
       }
       if (table === 'sessions') {
         return { select: () => ({ eq: () => ({ single: () => ({ data: session, error: null }) }) }) }
@@ -217,6 +234,11 @@ describe('plan node controls, timeline, and runtime inventory APIs', () => {
         values: expect.objectContaining({ status: 'ready' }),
         id: 'node-001',
       }),
+      expect.objectContaining({
+        table: 'plans',
+        values: expect.objectContaining({ status: 'running' }),
+        id: 'plan-001',
+      }),
     ]))
   })
 
@@ -237,6 +259,16 @@ describe('plan node controls, timeline, and runtime inventory APIs', () => {
       expect.objectContaining({
         table: 'plan_nodes',
         values: expect.objectContaining({ status: 'cancelled' }),
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        values: expect.objectContaining({ status: 'blocked', result: expect.objectContaining({ reason: expect.stringContaining('node-001') }) }),
+        id: 'node-downstream',
+      }),
+      expect.objectContaining({
+        table: 'plans',
+        values: expect.objectContaining({ status: 'failed' }),
+        id: 'plan-001',
       }),
     ]))
     expect(writes.some((write) => write.table === 'agent_mailbox_items')).toBe(false)
