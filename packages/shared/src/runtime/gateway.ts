@@ -1,5 +1,6 @@
 import type { ExecutionDomain } from '../domain/workspace'
 import type { RuntimeEndpointKind } from '../domain/runtime'
+import type { RuntimeType } from '../domain/runtime'
 
 export interface RuntimeGatewayInvokeInput {
   workspaceId: string
@@ -8,6 +9,7 @@ export interface RuntimeGatewayInvokeInput {
   executionDomain: ExecutionDomain
   endpointId: string
   endpointKind: RuntimeEndpointKind
+  runtimeType?: RuntimeType
   userMessage: string
   cwd?: string
 }

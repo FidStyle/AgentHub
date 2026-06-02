@@ -4,27 +4,27 @@ import { NextResponse } from 'next/server'
 
 const DEFAULT_ROLE_AGENTS = [
   {
-    name: 'Orchestrator',
+    name: '架构师',
     role_type: 'orchestrator',
     system_prompt:
-      'You are AgentHub Orchestrator. Decide whether to answer directly or coordinate specialized roles such as Frontend Engineer and Backend Engineer. Keep user-facing replies in Simplified Chinese unless the user asks otherwise. Do not expose internal permission presets as part of the user prompt.',
-    capabilities: ['planning', 'routing', 'coordination'],
+      '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
+    capabilities: ['规划', '路由', '协调', 'runtime:claude_code'],
     is_orchestrator: true,
   },
   {
-    name: 'Frontend Engineer',
+    name: '前端工程师',
     role_type: 'engineer',
     system_prompt:
-      'You are a senior frontend engineer. Focus on UI behavior, React/Next.js implementation, accessibility, layout stability, Markdown rendering, and browser acceptance evidence. Answer in Simplified Chinese.',
-    capabilities: ['frontend', 'react', 'ui', 'e2e'],
+      '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
+    capabilities: ['前端', 'React', 'UI', 'E2E', 'runtime:claude_code'],
     is_orchestrator: false,
   },
   {
-    name: 'Backend Engineer',
+    name: '后端工程师',
     role_type: 'engineer',
     system_prompt:
-      'You are a senior backend engineer. Focus on API contracts, database persistence, runtime workers, authorization, and durable artifacts. Answer in Simplified Chinese.',
-    capabilities: ['backend', 'database', 'runtime', 'api'],
+      '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
+    capabilities: ['后端', '数据库', 'Runtime', 'API', 'runtime:codex'],
     is_orchestrator: false,
   },
 ]

@@ -5,12 +5,17 @@ import { redact } from '../lib/runtime/redact'
 
 const HEARTBEAT_TTL_SEC = Number(process.env.RUNTIME_HEARTBEAT_TTL_SEC ?? 30)
 
+function runtimeTypeForJob(job?: RuntimeJob): CliRuntimeType {
+  if (job?.runtimeType === 'codex' || job?.runtimeType === 'claude_code') return job.runtimeType
+  return process.env.RUNTIME_CLI === 'codex' ? 'codex' : 'claude_code'
+}
+
 // Selects the executor from env. Product/acceptance default is the real CLI executor. Fake/scripted
 // executors are explicit test modes only and must not be used as proof of product runtime success.
-export function createExecutor(): RuntimeExecutor {
+// Real mode is selected per job so one worker can dispatch all available machine CLIs.
+export function createExecutor(job?: RuntimeJob): RuntimeExecutor {
   if (!process.env.RUNTIME_EXECUTOR || process.env.RUNTIME_EXECUTOR === 'real') {
-    const runtimeType: CliRuntimeType = process.env.RUNTIME_CLI === 'codex' ? 'codex' : 'claude_code'
-    return new CliRuntimeExecutor({ runtimeType, cwd: process.env.RUNTIME_CWD })
+    return new CliRuntimeExecutor({ runtimeType: runtimeTypeForJob(job), cwd: process.env.RUNTIME_CWD })
   }
   if (process.env.RUNTIME_EXECUTOR === 'script') return new ScriptedRealExecutor()
   if (process.env.RUNTIME_EXECUTOR === 'fake') return new FakeExecutor()
@@ -138,7 +143,6 @@ export async function reclaimDeadSession(runtimeSessionId: string, endpointId?: 
 
 async function main(): Promise<void> {
   console.log('[runtime-worker] started, consuming queue...')
-  const executor = createExecutor()
   const shutdown = async () => {
     await clearWorkerAlive().catch(() => {})
     process.exit(0)
@@ -152,7 +156,7 @@ async function main(): Promise<void> {
     const job = await dequeue(5)
     if (!job) continue
     try {
-      await processJob(job, executor)
+      await processJob(job, createExecutor(job))
     } catch (err) {
       console.error('[runtime-worker] job error', err)
     }

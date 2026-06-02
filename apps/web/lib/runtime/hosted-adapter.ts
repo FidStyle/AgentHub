@@ -1,6 +1,7 @@
 import type { RuntimeGatewayEvent } from '@agenthub/shared'
 import { resolveEndpoint, createSession, invoke, persistRuntimeEvent } from './gateway'
 import type { ExecutionDomain } from '@agenthub/shared'
+import type { RuntimeType } from '@agenthub/shared'
 
 export type { RuntimeGatewayEvent }
 
@@ -14,6 +15,7 @@ export class HostedRuntimeAdapter {
     userMessage?: string
     systemPrompt?: string
     roleAgentId?: string
+    runtimeType?: RuntimeType
   }): AsyncGenerator<RuntimeGatewayEvent> {
     const endpoint = await resolveEndpoint({
       userId: input.userId,
@@ -41,6 +43,7 @@ export class HostedRuntimeAdapter {
       runtimeSession,
       userMessage: input.userMessage,
       systemPrompt: input.systemPrompt,
+      runtimeType: input.runtimeType,
     })) {
       if (shouldPersistGatewayEvent(event)) {
         await persistRuntimeEvent(runtimeSession.id, event, seq++)

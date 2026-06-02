@@ -1,5 +1,6 @@
 import type { ExecutionDomain } from '@agenthub/shared'
 import type { RuntimeGatewayEvent } from '@agenthub/shared'
+import type { RuntimeType } from '@agenthub/shared'
 import { RuntimeErrorCode } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { getConnectionByUserId } from '@/server/device-connections'
@@ -249,6 +250,7 @@ export async function* invoke(input: {
   runtimeSession: RuntimeSessionRecord
   userMessage?: string
   systemPrompt?: string
+  runtimeType?: RuntimeType
 }): AsyncGenerator<RuntimeGatewayEvent> {
   const { endpoint } = input.runtimeSession
   const endpointId = endpoint.id ?? undefined
@@ -281,6 +283,7 @@ export async function* invoke(input: {
     for await (const raw of subscribeEvents(input.runtimeSession.id, () => enqueue({
       runtimeSessionId: input.runtimeSession.id,
       endpointId: endpoint.id ?? undefined,
+      runtimeType: input.runtimeType === 'codex' ? 'codex' : input.runtimeType === 'claude_code' ? 'claude_code' : undefined,
       prompt: input.userMessage ?? '',
       systemPrompt: input.systemPrompt,
     }))) {

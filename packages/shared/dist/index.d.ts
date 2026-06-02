@@ -217,6 +217,7 @@ interface RuntimeResult {
     stdout: string;
     stderr: string;
     duration: number;
+    nativeSessionId?: string | null;
 }
 interface OrchestratorConfig {
     maxConcurrent: number;
@@ -232,6 +233,7 @@ interface RuntimeGatewayInvokeInput {
     executionDomain: ExecutionDomain;
     endpointId: string;
     endpointKind: RuntimeEndpointKind;
+    runtimeType?: RuntimeType;
     userMessage: string;
     cwd?: string;
 }
@@ -241,6 +243,10 @@ type RuntimeGatewayEvent = {
 } | {
     type: 'runtime_status';
     status: string;
+    endpointId?: string;
+} | {
+    type: 'native_session';
+    nativeSessionId: string;
     endpointId?: string;
 } | {
     type: 'public_runtime_available';

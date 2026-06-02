@@ -131,7 +131,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: 'Frontend Engineer',
         role_type: 'frontend',
         system_prompt: 'Build UI',
-        capabilities: ['ui'],
+        capabilities: ['ui', 'runtime:claude_code'],
         is_orchestrator: false,
       },
       {
@@ -140,7 +140,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: 'Backend Engineer',
         role_type: 'backend',
         system_prompt: 'Build API',
-        capabilities: ['api'],
+        capabilities: ['api', 'runtime:codex'],
         is_orchestrator: false,
       },
     ]))
@@ -152,8 +152,13 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(status).toBe(200)
     expect(invokeSpy).toHaveBeenCalledTimes(2)
     expect(invokeSpy.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-001', 'agent-002'])
+    expect(invokeSpy.mock.calls.map((call) => call[0].runtimeType)).toEqual(['claude_code', 'codex'])
+    expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('上游角色交接上下文')
+    expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('@Frontend Engineer 的产出')
+    expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('done')
     expect(text).toContain('"roleAgentId":"agent-001"')
     expect(text).toContain('"roleAgentId":"agent-002"')
+    expect(text).toContain('"type":"role_handoff"')
     const agentMessages = insertedMessages.filter((m) => m.sender_type === 'agent')
     expect(agentMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
     expect(insertedMessages[0].metadata).toMatchObject({

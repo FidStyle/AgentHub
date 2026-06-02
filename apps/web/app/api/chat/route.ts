@@ -5,6 +5,7 @@ import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
 import type { RuntimeGatewayEvent, RuntimeMessagePart } from '@agenthub/shared'
+import type { RuntimeType } from '@agenthub/shared'
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const conn = getConnectionByUserId(userId)
@@ -130,27 +131,51 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: true })
     if (roleError) return Response.json({ error: roleError.message }, { status: 500 })
     const rows = ((roles ?? []) as unknown as typeof selectedRoleAgents)
-    const orchestrator = rows.find((role) => role.name === 'Orchestrator' || role.is_orchestrator) ?? rows[0]
+    const orchestrator = rows.find((role) => role.name === '架构师' || role.name === 'Orchestrator' || role.is_orchestrator) ?? rows[0]
     if (orchestrator) selectedRoleAgents = [orchestrator]
   }
+  const roleCapabilities = (role: (typeof selectedRoleAgents)[number]) =>
+    Array.isArray(role.capabilities) ? role.capabilities.map((item) => String(item)) : []
+  const runtimeTypeForRole = (role: (typeof selectedRoleAgents)[number] | null): RuntimeType | undefined => {
+    if (!role) return undefined
+    const tag = roleCapabilities(role).find((capability) => capability === 'runtime:codex' || capability === 'runtime:claude_code')
+    if (tag === 'runtime:codex') return 'codex'
+    if (tag === 'runtime:claude_code') return 'claude_code'
+    return undefined
+  }
+  const displayCapabilitiesForRole = (role: (typeof selectedRoleAgents)[number]) =>
+    roleCapabilities(role).filter((capability) => !capability.startsWith('runtime:'))
   const primaryRoleAgentId = selectedRoleAgents[0]?.id ?? null
   const roleContextPrompt = selectedRoleAgents.length > 0
     ? [
-        'AgentHub role context:',
+        'AgentHub 角色上下文：',
         ...selectedRoleAgents.map((role, index) => [
           `${index + 1}. @${role.name} (${role.role_type}${role.is_orchestrator ? ', orchestrator' : ''})`,
-          role.system_prompt ? `Instructions: ${role.system_prompt}` : null,
-          Array.isArray(role.capabilities) && role.capabilities.length > 0 ? `Capabilities: ${role.capabilities.join(', ')}` : null,
+          role.system_prompt ? `角色指令：${role.system_prompt}` : null,
+          displayCapabilitiesForRole(role).length > 0 ? `能力标签：${displayCapabilitiesForRole(role).join('、')}` : null,
+          runtimeTypeForRole(role) ? `执行 Runtime：${runtimeTypeForRole(role) === 'codex' ? 'Codex' : 'Claude Code'}` : null,
         ].filter(Boolean).join('\n')),
       ].join('\n\n')
     : undefined
-  const systemPromptForRole = (role: (typeof selectedRoleAgents)[number] | null) => {
+  const handoffContextPrompt = (handoffs: Array<{ roleName: string; output: string }>) => {
+    if (handoffs.length === 0) return null
+    return [
+      '上游角色交接上下文：',
+      ...handoffs.map((handoff, index) => [
+        `${index + 1}. @${handoff.roleName} 的产出：`,
+        handoff.output,
+      ].join('\n')),
+      '请基于以上交接上下文继续推进，不要重复上游角色已经完成的工作；如有冲突，请明确指出并给出你的角色判断。',
+    ].join('\n\n')
+  }
+  const systemPromptForRole = (role: (typeof selectedRoleAgents)[number] | null, handoffs: Array<{ roleName: string; output: string }>) => {
     if (!roleContextPrompt) return undefined
     if (!role) return roleContextPrompt
     return [
       roleContextPrompt,
-      `Current responding role: @${role.name}. Answer from this role's responsibilities and do not pretend to be another selected role.`,
-    ].join('\n\n')
+      handoffContextPrompt(handoffs),
+      `当前回复角色：@${role.name}。请只从该角色职责出发回答，不要冒充其他被选中的角色。`,
+    ].filter(Boolean).join('\n\n')
   }
 
   const requestedAttachmentIds = Array.isArray(attachmentIds)
@@ -246,6 +271,7 @@ export async function POST(req: NextRequest) {
       const completedReplies: Array<{ roleAgentId: string | null; reply: string; runtimeParts: RuntimeMessagePart[] }> = []
       try {
         const executionTargets = selectedRoleAgents.length > 0 ? selectedRoleAgents : [null]
+        const handoffs: Array<{ roleAgentId: string | null; roleName: string; output: string }> = []
         for (const role of executionTargets) {
           const currentRoleAgentId = role?.id ?? null
           let reply = ''
@@ -254,14 +280,22 @@ export async function POST(req: NextRequest) {
           if (currentRoleAgentId) {
             controller.enqueue(encode({ type: 'role_selected', roleAgentId: currentRoleAgentId }))
           }
+          if (role && handoffs.length > 0) {
+            controller.enqueue(encode({
+              type: 'role_handoff',
+              toRoleAgentId: currentRoleAgentId,
+              fromRoleAgentIds: handoffs.map((handoff) => handoff.roleAgentId).filter(Boolean),
+            }))
+          }
           for await (const evt of adapter.invoke({
             userId: user.id,
             sessionId,
             executionDomain: ws.execution_domain,
             workspaceId: ws.id,
             userMessage,
-            systemPrompt: systemPromptForRole(role),
+            systemPrompt: systemPromptForRole(role, handoffs),
             roleAgentId: currentRoleAgentId ?? undefined,
+            runtimeType: runtimeTypeForRole(role),
           })) {
             if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
@@ -270,6 +304,13 @@ export async function POST(req: NextRequest) {
           }
           if (completed && (reply || runtimeParts.length > 0)) {
             completedReplies.push({ roleAgentId: currentRoleAgentId, reply, runtimeParts })
+            if (role && reply.trim()) {
+              handoffs.push({
+                roleAgentId: currentRoleAgentId,
+                roleName: role.name,
+                output: reply.trim().slice(-4000),
+              })
+            }
           }
         }
       } finally {

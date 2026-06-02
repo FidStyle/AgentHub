@@ -150,6 +150,17 @@ describe('createExecutor factory', () => {
     expect(createExecutor()).toBeInstanceOf(CliRuntimeExecutor)
   })
 
+  it('selects the real CLI executor per queued job runtimeType', () => {
+    process.env.RUNTIME_EXECUTOR = 'real'
+    const codex = createExecutor({ runtimeSessionId: 's-codex', prompt: 'hi', runtimeType: 'codex' })
+    const claude = createExecutor({ runtimeSessionId: 's-claude', prompt: 'hi', runtimeType: 'claude_code' })
+
+    expect(codex).toBeInstanceOf(CliRuntimeExecutor)
+    expect(claude).toBeInstanceOf(CliRuntimeExecutor)
+    expect((codex as unknown as { options: { runtimeType: string } }).options.runtimeType).toBe('codex')
+    expect((claude as unknown as { options: { runtimeType: string } }).options.runtimeType).toBe('claude_code')
+  })
+
   it('returns FakeExecutor only when RUNTIME_EXECUTOR=fake', () => {
     process.env.RUNTIME_EXECUTOR = 'fake'
     expect(createExecutor()).toBeInstanceOf(FakeExecutor)

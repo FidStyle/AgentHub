@@ -16,6 +16,7 @@ const SUB_TOTAL_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS ?? 
 export interface RuntimeJob {
   runtimeSessionId: string
   endpointId?: string
+  runtimeType?: 'claude_code' | 'codex'
   prompt: string
   systemPrompt?: string
   fail?: boolean
