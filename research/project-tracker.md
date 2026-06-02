@@ -26,12 +26,12 @@
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-ARTIFACT-001, FR-RESULT-001, FR-WEB-001, FR-MOB-001, FR-UI-001 |
 | **合同路径** | `research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md` |
-| **当前状态** | 🟡 部分完成（2026-06-03）：已完成详细合同、AionUi 风格 Markdown renderer 接入、被 @ 角色任务相关确认消息、同 session mailbox 串行 ready selection、cloud Git staged/unstaged diff 与 stage/unstage/discard 基础闭环；discard 确认后写入 actions 审计记录。 |
+| **当前状态** | ✅ 完成（2026-06-03，全量验收通过）：已完成详细合同、AionUi 风格 Markdown renderer 接入、被 @ 角色任务相关确认消息、同 session mailbox 串行 ready selection、cloud Git staged/unstaged diff、stage/unstage/discard 和 discard pending approval -> approve endpoint -> Git API 执行闭环。 |
 | **目标** | 让 Orchestrator IM 呈现真实公司协作式多角色交互；Markdown 正确渲染；权限确认使用结构化交互；Changes/Get Diff 覆盖 status/diff/stage/unstage/discard。 |
-| **验收方式** | Web/API/shared tests + 后续 Playwright acceptance：真实 workspace/session 中 @ 多个自定义角色，刷新后确认消息可恢复；Markdown 表格/代码块无布局溢出；Git status 与真实 repo 一致；destructive discard 需要确认。 |
-| **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/api/plans-actions-owner.test.ts` PASS（3 files / 22 tests）；`pnpm --filter @agenthub/shared test` PASS（5 files / 32 tests）；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plans-actions-owner.test.ts` PASS（2 files / 17 tests）；opencli Web UAT PASS：工作区页可渲染、`message-markdown=7`、Changes 面板 `README.md` 未暂存、diff preview 可见、布局未横向溢出。截图：`e2e/artifacts/opencli-uat/web-workspace-fixed-2026-06-03.png`、`web-changes-panel-2026-06-03.png`、`web-changes-diff-2026-06-03.png`。执行报告：`research/execution-reports/orchestrator-im-markdown-git-diff-2026-06-03-report.md`。 |
-| **阻塞问题** | 统一 pending approval -> approve endpoint -> dispatch 状态机尚未完全覆盖 Git discard；local desktop Git bridge、完整 Playwright acceptance 和 Mobile/PWA 审批视图仍未收口。 |
-| **下一步动作** | 补统一 approval/action record、Desktop Connector Git 操作分支、Web/Mobile E2E 和视觉截图；最后运行治理门禁。 |
+| **验收方式** | Web/API/shared tests + opencli Web UAT：真实 workspace/session 中 @ 多个自定义角色，刷新后确认消息可恢复；Markdown 表格/代码块无布局溢出；Git status 与真实 repo 一致；destructive discard 必须进入结构化审批确认。 |
+| **测试证据** | `pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/api/plans-actions-owner.test.ts __tests__/api/workspace-git-discard-approval.test.ts __tests__/orchestrator/action-dispatcher.test.ts` PASS（5 files / 25 tests）；`pnpm --filter @agenthub/shared test` PASS（5 files / 32 tests）；opencli Web UAT PASS：工作区页可渲染、`message-markdown=7`、Changes 面板 `README.md` 未暂存、diff preview 可见、discard 审批卡显示“确认丢弃未暂存改动 / 允许单次执行 / 拒绝”，点击“拒绝”后显示“已拒绝丢弃改动”，布局未横向溢出。截图：`e2e/artifacts/opencli-uat/web-workspace-fixed-2026-06-03.png`、`web-changes-panel-2026-06-03.png`、`web-changes-diff-2026-06-03.png`、`web-git-discard-approval-2026-06-03.png`。执行报告：`research/execution-reports/orchestrator-im-markdown-git-diff-2026-06-03-report.md`。 |
+| **阻塞问题** | 已解除。本合同 P0 不再有阻塞；local desktop Git bridge、latest commit revert/stash/conflict resolution、Mobile/PWA 专项审批视图作为后续增强另行拆任务。 |
+| **下一步动作** | 已完成；后续增强按新合同/任务拆分。 |
 
 ### P0-ACCEPTANCE-ENV-UAT-CLOSURE: P0 验收环境、E2E 与报告收口
 

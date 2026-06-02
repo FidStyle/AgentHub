@@ -64,6 +64,14 @@ export async function dispatchApprovedAction(
   db: AppDb,
   action: ActionRecordForDispatch,
 ): Promise<ActionDispatchResult> {
+  if (action.action_type.startsWith('git_')) {
+    const now = new Date().toISOString()
+    await db.from('actions').update({
+      result: { dispatch: 'approved_waiting_git_api', at: now },
+    }).eq('id', action.id)
+    return { status: 'unsupported', error: 'Git 动作已授权，等待 Git API 执行。' }
+  }
+
   const { data: session } = await db
     .from('sessions')
     .select('workspace_id')

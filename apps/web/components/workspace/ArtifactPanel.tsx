@@ -879,6 +879,7 @@ function ChangesTab() {
   const [diffStatus, setDiffStatus] = useState<string | null>(null)
   const [actionStatus, setActionStatus] = useState<string | null>(null)
   const [pendingDiscardPath, setPendingDiscardPath] = useState<string | null>(null)
+  const [pendingDiscardActionId, setPendingDiscardActionId] = useState<string | null>(null)
   const messageChanges = messages.filter(
     (m) => m.message_type === 'result_card' || m.message_type === 'approval' || hasChangeMetadata(m.metadata),
   )
@@ -929,8 +930,23 @@ function ChangesTab() {
   async function runGitAction(action: 'stage' | 'unstage' | 'discard', filePath: string, confirm = false) {
     if (!activeWorkspaceId) return
     if (action === 'discard' && !confirm) {
-      setPendingDiscardPath(filePath)
-      setActionStatus(null)
+      setActionStatus('正在创建丢弃改动授权...')
+      try {
+        const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/discard`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: filePath, session_id: activeSessionId }),
+        })
+        const body = await res.json().catch(() => ({}))
+        if (res.status !== 409 || !(body as { approvalRequired?: boolean }).approvalRequired) {
+          if (!res.ok) throw new Error((body as { error?: string }).error || `创建授权失败（${res.status}）`)
+        }
+        setPendingDiscardPath(filePath)
+        setPendingDiscardActionId((body as { action?: { id?: string } }).action?.id ?? null)
+        setActionStatus(null)
+      } catch (e) {
+        setActionStatus(e instanceof Error ? e.message : '创建授权失败')
+      }
       return
     }
     const labels = { stage: '暂存', unstage: '取消暂存', discard: '丢弃改动' }
@@ -939,17 +955,46 @@ function ChangesTab() {
       const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: filePath, confirm, session_id: activeSessionId }),
+        body: JSON.stringify({ path: filePath, confirm, session_id: activeSessionId, action_id: pendingDiscardActionId }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((body as { error?: string }).error || `${labels[action]}失败（${res.status}）`)
       setGitChanges(Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : [])
       setPendingDiscardPath(null)
+      setPendingDiscardActionId(null)
       setSelectedDiff('')
       setSelectedDiffPath(null)
       setActionStatus(`${labels[action]}完成`)
     } catch (e) {
       setActionStatus(e instanceof Error ? e.message : `${labels[action]}失败`)
+    }
+  }
+
+  async function approveDiscard(approved: boolean) {
+    if (!pendingDiscardPath) return
+    if (!pendingDiscardActionId) {
+      if (approved) await runGitAction('discard', pendingDiscardPath, true)
+      else setPendingDiscardPath(null)
+      return
+    }
+    setActionStatus(approved ? '正在授权丢弃改动...' : '正在拒绝丢弃改动...')
+    try {
+      const res = await fetch(`/api/actions/${pendingDiscardActionId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `更新授权失败（${res.status}）`)
+      if (approved) {
+        await runGitAction('discard', pendingDiscardPath, true)
+      } else {
+        setPendingDiscardPath(null)
+        setPendingDiscardActionId(null)
+        setActionStatus('已拒绝丢弃改动')
+      }
+    } catch (e) {
+      setActionStatus(e instanceof Error ? e.message : '更新授权失败')
     }
   }
 
@@ -1037,10 +1082,10 @@ function ChangesTab() {
               将丢弃 `{pendingDiscardPath}` 的工作区改动。该操作会修改真实 Git 工作区，不能通过 AgentHub 自动恢复。
             </p>
             <div className="mt-3 flex gap-2">
-              <Button size="sm" onClick={() => void runGitAction('discard', pendingDiscardPath, true)}>
+              <Button size="sm" onClick={() => void approveDiscard(true)}>
                 允许单次执行
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPendingDiscardPath(null)}>
+              <Button size="sm" variant="outline" onClick={() => void approveDiscard(false)}>
                 拒绝
               </Button>
             </div>

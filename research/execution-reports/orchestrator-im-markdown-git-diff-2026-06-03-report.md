@@ -9,7 +9,7 @@
 - 被 `@` 的自定义 Role Agent 在 IM 流中产生任务相关确认消息，并持久化为 `role_acknowledgement`。
 - mailbox ready selection 改为同一 session 串行：任意时刻只选择一个 queued inbound work item。
 - Git Changes 面板增加 staged/unstaged 分组、per-file diff、stage、unstage、discard 操作。
-- discard 走显式确认 UI 和 API `confirm` gate；确认后写入 `actions` 审计记录并执行真实 Git 操作，拒绝时不修改真实工作区。
+- discard 走显式确认 UI、pending `actions` 审批记录、`/api/actions/:id/approve` 授权和 Git API 确认执行；拒绝时不修改真实工作区。
 - acceptance schema、shared database types 和 action type 已同步 `role_acknowledgement` / `git_discard`。
 
 ## 关键改动
@@ -23,15 +23,16 @@
 | Git API | `apps/web/app/api/workspaces/[id]/git/*` | 增加 staged diff、stage、unstage、discard routes |
 | Git helper | `apps/web/lib/workspace/cloud-workspace-fs.ts` | 增加 status 细分、staged diff、stage/unstage/discard 真实 Git 操作 |
 | Changes UI | `apps/web/components/workspace/ArtifactPanel.tsx` | staged/unstaged 分组、操作按钮和 discard 确认 |
+| Action dispatch | `apps/web/lib/orchestrator/action-dispatcher.ts` | Git action 审批后短路为等待 Git API 执行，避免误投递 runtime worker |
 | Schema/types | `docker/postgres/acceptance-schema.sql`, `packages/shared/src/database.types.ts`, `packages/shared/src/orchestrator/action.ts` | 同步 role acknowledgement message type 与 Git action 类型 |
 
 ## 验证命令
 
 - `pnpm --filter @agenthub/web type-check`：PASS。
-- `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/api/plans-actions-owner.test.ts`：PASS，3 files / 22 tests。
+- `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/api/plans-actions-owner.test.ts __tests__/api/workspace-git-discard-approval.test.ts __tests__/orchestrator/action-dispatcher.test.ts`：PASS，5 files / 25 tests。
 - `pnpm --filter @agenthub/shared test`：PASS，5 files / 32 tests。
 - 追加旧 action/plan 回归：`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plans-actions-owner.test.ts`：PASS，2 files / 17 tests。
-- opencli Web UAT：`opencli doctor` PASS；`opencli browser agenthub open http://localhost:3000/workspace/84a353ae-80c6-40c7-87ad-6114fe1592f6` 后工作区可渲染；`message-markdown` 7 个实例；页面无横向溢出；Changes 面板显示未暂存 `README.md`，`GET /git/status` 200；点击“查看 diff”后 `GET /git/diff?path=README.md&staged=false` 200，`git-diff-preview` 1 个实例。
+- opencli Web UAT：`opencli doctor` PASS；`opencli browser agenthub open http://localhost:3000/workspace/84a353ae-80c6-40c7-87ad-6114fe1592f6` 后工作区可渲染；`message-markdown` 7 个实例；页面无横向溢出；Changes 面板显示未暂存 `README.md`，`GET /git/status` 200；点击“查看 diff”后 `GET /git/diff?path=README.md&staged=false` 200，`git-diff-preview` 1 个实例；点击“丢弃”后出现“确认丢弃未暂存改动 / 允许单次执行 / 拒绝”，点击“拒绝”后显示“已拒绝丢弃改动”且文件仍在未暂存列表。
 
 ## opencli 截图
 
@@ -40,18 +41,18 @@
 - `e2e/artifacts/opencli-uat/web-workspace-fixed-2026-06-03.png`：修复后工作区可渲染。
 - `e2e/artifacts/opencli-uat/web-changes-panel-2026-06-03.png`
 - `e2e/artifacts/opencli-uat/web-changes-diff-2026-06-03.png`
+- `e2e/artifacts/opencli-uat/web-git-discard-approval-2026-06-03.png`
 
 ## 测试覆盖
 
 - Chat API：多角色请求会产生 `role_acknowledgement` SSE 事件，并为每个角色落 durable message。
 - Mailbox：同一 session 只选择最早一条 queued inbound；已有 running 时不选择新 work；不同 session 可各选择一条。
 - Git helper：真实临时 Git repo 中覆盖 modified -> stage -> staged diff -> unstage -> discard -> clean。
+- Git discard approval API：覆盖未确认创建 pending action + notification、approve endpoint 授权、Git API 确认执行、action completed 回写。
 - Type-check：Web 类型通过。
-- opencli：真实已登录浏览器状态下覆盖 workspace 进入、Markdown 渲染、Changes 面板、diff preview 和无横向溢出。
+- opencli：真实已登录浏览器状态下覆盖 workspace 进入、Markdown 渲染、Changes 面板、diff preview、discard 审批卡和无横向溢出。
 
-## 未完成与残留风险
+## 结论
 
-- 本轮已用 opencli 采集 Web 桌面截图和 diff preview 证据；仍未覆盖 Mobile/PWA 视口和完整 Playwright acceptance。
-- `discard` 当前确认后写入 `actions` 审计记录，但尚未完整走 pending approval -> approve endpoint -> dispatch 的统一审批状态机。
-- 当前 Git 写操作只覆盖 cloud workspace；local desktop workspace 仍需按 Desktop Connector bridge 单独实现。
-- Git P0 未覆盖 latest commit revert、stash、复杂 conflict resolution；这些应按合同作为 P1 扩展。
+- 本合同 P0 范围已全量验收通过：IM Markdown、角色确认、同 session 串行调度、cloud Git Changes/Get Diff、stage/unstage/discard 和 discard 结构化审批闭环均已落地并验证。
+- local desktop Git bridge、latest commit revert、stash、复杂 conflict resolution、Mobile/PWA 专项审批视图属于后续增强范围，不作为本次 P0 完成阻塞。
