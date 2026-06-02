@@ -59,7 +59,9 @@
 
 ### Main Changes
 
-(Add details)
+- 首轮 `/api/chat` 多角色编排改为通过共享 runtime-node dispatcher 调度，首轮 attempt/mailbox 从 `queued` 开始，并携带 `planNodeId` / `attemptId` / `mailboxItemId` 投递 worker job。
+- Web Orchestrator timeline 补齐 role/runtime、attempt/mailbox、runtime session、native session 和 runtime log evidence。
+- 同步 cross-layer spec、共享合同、project tracker、regression ledger 和最终补全执行报告。
 
 ### Git Commits
 
@@ -70,7 +72,11 @@
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plan-node-controls-inventory.test.ts __tests__/runtime/executor.test.ts --run`
+- [OK] `pnpm --filter @agenthub/shared test -- --run`
+- [OK] `pnpm --filter @agenthub/web type-check`
+- [OK] `pnpm --filter @agenthub/web lint`
+- [OK] `bash scripts/verify-governance-gate.sh COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02`
 
 ### Status
 
@@ -205,6 +211,39 @@
 | `5ec2d68` | (see git log) |
 | `6268de7` | (see git log) |
 | `b371190` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 7: 完整多 Agent 编排最终补全
+
+**Date**: 2026-06-03
+**Task**: 完整多 Agent 编排最终补全
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+补齐首轮多 Agent durable mailbox 调度：/api/chat 首轮节点通过共享 runtime-node dispatcher 创建 runtime session、更新 attempt/mailbox/plan node 并投递 worker job；补齐 Web timeline evidence、cross-layer spec、合同/tracker/ledger/report，相关测试/type-check/lint 与治理门禁通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a5384fd` | (see git log) |
 
 ### Testing
 
