@@ -10,18 +10,37 @@ interface DeviceConnection {
   lastHeartbeat: number
 }
 
-const connections = new Map<string, DeviceConnection>()
-const seq = new SeqGenerator()
-const requestToSession = new Map<string, string>()
 const DEVICE_REQUEST_CHANNEL = 'agenthub:device:requests'
 const DEVICE_EVENT_CHANNEL = 'agenthub:device:events'
-let redisBridgeStarted = false
-const runtimeRelays = new Map<string, {
+
+type RuntimeRelay = {
   queue: Array<RuntimeEvent | ResponseFrame>
   done: boolean
   wake: (() => void) | null
   timer: NodeJS.Timeout
-}>()
+}
+
+type DeviceConnectionState = {
+  connections: Map<string, DeviceConnection>
+  seq: SeqGenerator
+  requestToSession: Map<string, string>
+  redisBridgeStarted: boolean
+  runtimeRelays: Map<string, RuntimeRelay>
+}
+
+const DEVICE_CONNECTION_STATE_KEY = '__agenthubDeviceConnectionState'
+const deviceConnectionGlobal = globalThis as typeof globalThis & {
+  [DEVICE_CONNECTION_STATE_KEY]?: DeviceConnectionState
+}
+const deviceConnectionState = deviceConnectionGlobal[DEVICE_CONNECTION_STATE_KEY] ??= {
+  connections: new Map<string, DeviceConnection>(),
+  seq: new SeqGenerator(),
+  requestToSession: new Map<string, string>(),
+  redisBridgeStarted: false,
+  runtimeRelays: new Map<string, RuntimeRelay>(),
+}
+
+const { connections, seq, requestToSession, runtimeRelays } = deviceConnectionState
 
 type DeviceRequestRelayMessage = {
   deviceId: string
@@ -64,8 +83,8 @@ export function sendRequestToDevice(deviceId: string, request: RequestFrame): bo
 }
 
 export async function startDeviceRequestRedisBridge(): Promise<void> {
-  if (redisBridgeStarted) return
-  redisBridgeStarted = true
+  if (deviceConnectionState.redisBridgeStarted) return
+  deviceConnectionState.redisBridgeStarted = true
   const subscriber = (await getRedis()).duplicate()
   await subscriber.connect()
   await subscriber.subscribe(DEVICE_REQUEST_CHANNEL, (msg) => {
