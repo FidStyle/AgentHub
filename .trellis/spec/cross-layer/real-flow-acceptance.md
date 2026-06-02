@@ -135,6 +135,76 @@ Web cloud @角色通过：
 - 限制：未覆盖外部 GitHub 人工登录，登录状态使用 fixture，只能证明 auth 后主链路。
 ```
 
+## Scenario: OpenCLI Real Browser Acceptance
+
+### 1. Scope / Trigger
+
+- Trigger: Any feature implementation or fix that needs a real browser to verify Web, Desktop, Electron, OAuth/session, DeviceChannel, local runtime, or cross-surface user flow behavior.
+- Applies to post-change acceptance, UAT evidence, screenshots, browser-session checks, and any report claiming "真实浏览器已验收".
+- Conventional Playwright remains valid for unit-like browser automation, component tests, layout assertions, and deterministic E2E regression, but it is not the default real-browser UAT tool.
+
+### 2. Signatures
+
+- OpenCLI UAT command/session:
+  - Target: Web URL, Desktop/Electron entry, or Browser target.
+  - Inputs: base URL, reusable browser state when applicable, test user/session source, runtime/worker prerequisites, screenshot path.
+  - Outputs: action log, screenshot/video evidence when available, explicit pass/fail/blocked status.
+- Report fields:
+  - `tool=opencli`
+  - `target=<web|desktop|electron|browser>`
+  - `url_or_entry=<real entry>`
+  - `auth_state=<fixture|real-login|manual-handoff|not-needed>`
+  - `evidence=<screenshot/log/artifact path>`
+  - `result=<passed|failed|blocked|not-run>`
+
+### 3. Contracts
+
+- If a test requires a real browser, use OpenCLI first. Do not replace it with ad hoc Playwright unless OpenCLI is unavailable or the task is explicitly a Playwright regression test.
+- OpenCLI must start from the same real product entry a user would use: no direct internal route, no mocked API route, no hidden test-only DOM shortcut.
+- Authentication-sensitive flows may use a documented fixture only after login/session scope is declared; external login or sensitive permission steps must be marked as manual handoff when needed.
+- A conventional Playwright run can support the evidence, but the acceptance report must distinguish `Playwright regression passed` from `OpenCLI real-browser UAT passed`.
+- If OpenCLI cannot run, the report must say `OpenCLI not run` and mark real-browser acceptance as blocked or not covered.
+
+### 4. Validation & Error Matrix
+
+| 条件 | 必须结果 | 禁止结果 |
+| --- | --- | --- |
+| 功能改动需要真实浏览器验收 | 使用 OpenCLI 跑真实入口并记录证据 | 只跑常规 Playwright 后写“真实浏览器通过” |
+| OpenCLI 未登录或缺少权限 | 记录 manual handoff / blocked | 把跳过的登录合并进 passed |
+| OpenCLI 不可用 | 写明原因和未覆盖范围 | 用截图存在或 `playwright --list` 顶替 |
+| Playwright 回归通过但未跑 OpenCLI | 报告为回归通过、UAT 未验收 | 报告为完整验收通过 |
+| 真实入口失败但内部测试入口通过 | 真实验收失败 | 以内部门户通过关闭任务 |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 功能改完后，OpenCLI 打开真实 Web 工作台，使用声明的 auth state 发送消息，截图和 DOM 证据显示刷新后状态仍正确；报告同时列出补充 Playwright 回归命令。
+- Base: OpenCLI 因外部 OAuth 需要用户授权而阻塞，报告写 `blocked: manual login required`，不把该链路计入通过。
+- Bad: 只运行 `npx playwright test e2e/foo.spec.ts`，然后在验收报告写“真实浏览器 UAT 通过”。
+
+### 6. Tests Required
+
+- OpenCLI UAT: every user-visible feature change that needs real browser behavior must include one OpenCLI run or an explicit blocked/not-run statement.
+- Regression: keep Playwright tests for deterministic behavior, layout, screenshot, sensitive text, and no-overlap assertions.
+- Evidence assertions: capture the real entry, user action, resulting UI state, refresh/reopen state when relevant, and any DB/API/runtime IDs required by this spec.
+- Report assertion: separate OpenCLI UAT result from Playwright regression result; skipped/blocked OpenCLI cannot be counted as passed.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+验收通过：npx playwright test e2e/workspace.spec.ts 通过，截图存在。
+```
+
+#### Correct
+
+```text
+真实浏览器验收：
+- OpenCLI：target=web，url=http://localhost:3000/workspace/...，auth_state=fixture，result=passed，evidence=...
+- Playwright 回归：npx playwright test e2e/workspace.spec.ts，exit 0。
+- 限制：未覆盖外部 OAuth 人工登录；该项不计入 passed。
+```
+
 ## Scenario: Final Multi-Agent Orchestration Acceptance
 
 ### 1. Scope / Trigger

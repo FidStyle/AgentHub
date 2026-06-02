@@ -32,6 +32,7 @@
 - 任何 UI 任务必须引用 `research/product/ui-design-system.md` 和 `.trellis/spec/frontend/ui-style-guidelines.md`。
 - 本地 Runtime 凭证边界必须遵守 `.trellis/spec/cross-layer/runtime-credential-boundary.md`：本地 CLI 只检测原生认证状态，不托管密钥。
 - 关键页面必须有稳定定位点，供 Playwright 功能断言、截图和布局断言使用。
+- 需要真实浏览器验证的功能改动，验收证据必须优先使用 OpenCLI；常规 Playwright 只作为确定性回归、组件、布局和截图断言补充，不能替代 `.trellis/spec/cross-layer/real-flow-acceptance.md` 中的 OpenCLI 真实浏览器验收口径。
 - 状态 UI 必须覆盖空、加载、失败、未登录、离线、执行中、需要授权、成功、重试。
 - 用户可见的交互控件必须二选一：接入真实行为并验证结果，或显式禁用并给出中文原因（`aria-label`/tooltip/title/可见说明至少一种）。禁止按钮可点击但无效果，尤其是附件、授权、运行时连接、本地工作区创建等主链路入口。
 - 涉及本地对话、远端对话、`@角色`、附件或 artifact 的 UI，不得仅凭按钮可见、HTTP 200、用户消息落库或截图存在声明通过；必须同时满足 `.trellis/spec/cross-layer/real-flow-acceptance.md` 的真实主链路验收口径。
@@ -51,7 +52,7 @@
 | 视觉与布局断言 | 必须截图；必须断言无横向滚动、关键卡片不重叠、文本不溢出。 |
 | 敏感信息断言 | 本地 Runtime UI 和截图中不得出现 API Key、Base URL、敏感环境变量入口。 |
 
-Playwright 不能只写 `toBeVisible`。核心 UI 至少包含：
+真实浏览器 UAT 按 `.trellis/spec/cross-layer/real-flow-acceptance.md` 的 OpenCLI 契约执行。Playwright 不能只写 `toBeVisible`；作为回归和布局证据时，核心 UI 至少包含：
 
 - `page.screenshot()` 或快照留存。
 - `document.body.scrollWidth <= window.innerWidth + 1`。
