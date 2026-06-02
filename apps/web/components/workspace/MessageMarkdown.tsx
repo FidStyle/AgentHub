@@ -2,7 +2,7 @@
 
 import { Check, Copy } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
@@ -30,8 +30,8 @@ function CodeBlock({ children }: { children: ReactNode }) {
   const text = textFromChildren(codeChildren)
 
   return (
-    <div className="my-2 overflow-hidden rounded-md border border-border bg-muted/80" data-testid="markdown-code-block">
-      <div className="flex h-8 items-center justify-between border-b border-border px-2 text-xs text-muted-foreground">
+    <div className="my-2 overflow-hidden rounded-lg border border-border/80 bg-muted/70" data-testid="markdown-code-block">
+      <div className="flex h-8 items-center justify-between px-3 text-xs leading-4 text-muted-foreground">
         <span>{language ?? 'text'}</span>
         <IconButton
           icon={copied ? Check : Copy}
@@ -46,47 +46,50 @@ function CodeBlock({ children }: { children: ReactNode }) {
           }}
         />
       </div>
-      <pre className="max-w-full overflow-x-auto p-3 text-xs leading-relaxed">
+      <pre className="max-w-full overflow-x-auto px-3 pb-3 text-[13px] leading-5">
         <code className={className}>{codeChildren}</code>
       </pre>
     </div>
   )
 }
 
-export function MessageMarkdown({ content }: { content: string }) {
+export function MessageMarkdown({ content, streaming = false }: { content: string; streaming?: boolean }) {
+  const components = useMemo(() => ({
+    a: ({ href, children }: { href?: string; children?: ReactNode }) => (
+      <a href={href} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+        {children}
+      </a>
+    ),
+    table: ({ children }: { children?: ReactNode }) => (
+      <div className="my-2 max-w-full overflow-x-auto rounded-md border border-border" data-testid="markdown-table">
+        <table className="m-0 min-w-full border-collapse">{children}</table>
+      </div>
+    ),
+    th: ({ children }: { children?: ReactNode }) => <th className="border-b border-border bg-muted px-2 py-1.5 text-left font-medium">{children}</th>,
+    td: ({ children }: { children?: ReactNode }) => <td className="min-w-[120px] border-t border-border px-2 py-1.5 align-top">{children}</td>,
+    pre: ({ children }: { children?: ReactNode }) => <CodeBlock>{children}</CodeBlock>,
+    code: ({ className, children, ...props }: { className?: string; children?: ReactNode }) => (
+      <code className={className ? `${className} rounded bg-transparent` : 'rounded bg-muted px-1.5 py-0.5 text-[0.92em] font-semibold'} {...props}>
+        {children}
+      </code>
+    ),
+  }), [])
+
   if (!content) return null
 
   return (
     <div
       data-testid="message-markdown"
-      className="prose prose-sm max-w-none break-words text-sm dark:prose-invert prose-headings:mb-2 prose-headings:mt-3 prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-blockquote:my-2 prose-blockquote:border-l-2 prose-blockquote:pl-3 prose-pre:m-0 prose-pre:bg-transparent prose-pre:p-0 prose-code:break-words prose-table:text-xs"
+      className="prose max-w-none break-words text-[15px] leading-[22px] text-foreground dark:prose-invert prose-headings:mb-2 prose-headings:mt-3 prose-headings:leading-snug prose-p:my-1 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-li:leading-[22px] prose-blockquote:my-2 prose-blockquote:border-l-[3px] prose-blockquote:border-border prose-blockquote:pl-3 prose-blockquote:text-muted-foreground prose-pre:m-0 prose-pre:bg-transparent prose-pre:p-0 prose-code:break-words prose-table:text-[13px] prose-table:leading-5"
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
-        components={{
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
-              {children}
-            </a>
-          ),
-          table: ({ children }) => (
-            <div className="my-2 max-w-full overflow-x-auto rounded-md border border-border" data-testid="markdown-table">
-              <table className="m-0 min-w-full border-collapse">{children}</table>
-            </div>
-          ),
-          th: ({ children }) => <th className="border-b border-border bg-muted px-2 py-1 text-left font-medium">{children}</th>,
-          td: ({ children }) => <td className="border-t border-border px-2 py-1 align-top">{children}</td>,
-          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-          code: ({ className, children, ...props }: { className?: string; children?: ReactNode }) => (
-            <code className={className ? `${className} rounded bg-transparent` : 'rounded bg-muted px-1 py-0.5 text-[0.9em]'} {...props}>
-              {children}
-            </code>
-          ),
-        }}
+        components={components}
       >
         {content}
       </ReactMarkdown>
+      {streaming && <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse rounded-full bg-muted-foreground" aria-hidden="true" />}
     </div>
   )
 }

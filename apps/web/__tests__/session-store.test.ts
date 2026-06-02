@@ -8,6 +8,21 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   })
 }
 
+function sseResponse(frames: unknown[]) {
+  const encoder = new TextEncoder()
+  return new Response(new ReadableStream({
+    start(controller) {
+      for (const frame of frames) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`))
+      }
+      controller.close()
+    },
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' },
+  })
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
   useSessionStore.setState({
@@ -72,5 +87,29 @@ describe('session store message pinning', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'Forbidden' }, { status: 403 }))
     await expect(useSessionStore.getState().setMessagePinned('msg-001', false)).rejects.toThrow('Forbidden')
     expect(useSessionStore.getState().messages[0].isPinned).toBe(true)
+  })
+})
+
+describe('session store streaming replies', () => {
+  it('marks temporary runtime replies as non-streaming after the SSE stream ends', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
+      { type: 'runtime_status', status: 'running' },
+      { type: 'runtime_output', delta: '第一段' },
+      { type: 'runtime_output', delta: '第二段' },
+      { type: 'runtime_completed' },
+    ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z' }],
+    })
+
+    await useSessionStore.getState().sendMessage({ content: '开始' })
+
+    const reply = useSessionStore.getState().messages.find((message) => message.id.startsWith('reply-'))
+    expect(reply).toMatchObject({
+      role: 'agent',
+      content: '第一段第二段',
+      streaming: false,
+    })
   })
 })

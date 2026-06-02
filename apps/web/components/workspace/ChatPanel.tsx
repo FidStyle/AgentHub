@@ -37,6 +37,9 @@ const SLASH_COMMANDS = [
   { command: '/review', label: '审查当前结果', template: '请审查当前实现，优先指出阻塞验收的问题、风险和缺失测试。' },
   { command: '/fix', label: '修复问题', template: '请定位并修复当前问题，完成后说明验证结果。' },
 ] as const
+const STREAM_TICK_MS = 28
+const STREAM_MIN_STEP = 1
+const STREAM_MAX_STEP = 4
 
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
 // 语义默认向上展开（对齐裸 absolute 的 bottom-full）；上方空间不足时翻下方；宽度对齐 trigger 与上限取大并 clamp；
@@ -136,11 +139,62 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
                   />
                 )}
               </div>
-              <AgentMessageContent content={msg.content} parts={msg.parts} />
+              <AgentMessageContent content={msg.content} parts={msg.parts} streaming={msg.streaming === true} />
             </Card>
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function nextStreamStep(pending: number) {
+  if (pending <= 0) return 0
+  if (pending > 80) return STREAM_MAX_STEP
+  if (pending > 28) return 3
+  if (pending > 10) return 2
+  return STREAM_MIN_STEP
+}
+
+function useSmoothStreamingText(content: string, streaming: boolean) {
+  const [visible, setVisible] = useState(content)
+
+  useEffect(() => {
+    if (!streaming) {
+      setVisible(content)
+      return
+    }
+    setVisible((current) => {
+      if (content.startsWith(current)) return current
+      return content
+    })
+  }, [content, streaming])
+
+  useEffect(() => {
+    if (!streaming) return
+    const timer = window.setInterval(() => {
+      setVisible((current) => {
+        if (!content.startsWith(current)) return content
+        const pending = content.length - current.length
+        if (pending <= 0) return current
+        return content.slice(0, current.length + nextStreamStep(pending))
+      })
+    }, STREAM_TICK_MS)
+    return () => window.clearInterval(timer)
+  }, [content, streaming])
+
+  return visible
+}
+
+function ThinkingIndicator() {
+  return (
+    <div data-testid="message-thinking" className="flex items-center gap-2 py-1 text-[13px] leading-[20px] text-muted-foreground">
+      <span>思考中</span>
+      <span className="flex items-center gap-1" aria-hidden="true">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-160ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-80ms]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+      </span>
     </div>
   )
 }
@@ -205,11 +259,20 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
   )
 }
 
-function AgentMessageContent({ content, parts }: { content: string; parts?: RuntimeMessagePart[] }) {
+function AgentMessageContent({ content, parts, streaming }: { content: string; parts?: RuntimeMessagePart[]; streaming?: boolean }) {
+  const visibleContent = useSmoothStreamingText(content, streaming === true)
+  const hasVisibleContent = visibleContent.trim().length > 0
   return (
     <div className="space-y-2">
-      {content && (
-        <MessageMarkdown content={content} />
+      {hasVisibleContent ? (
+        <MessageMarkdown content={visibleContent} streaming={streaming === true && visibleContent.length < content.length} />
+      ) : streaming ? (
+        <ThinkingIndicator />
+      ) : null}
+      {streaming && hasVisibleContent && visibleContent.length >= content.length && (
+        <div className="mt-1">
+          <ThinkingIndicator />
+        </div>
       )}
       {parts?.map((part) => <RuntimePartCard key={part.id} part={part} />)}
     </div>

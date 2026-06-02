@@ -18,6 +18,7 @@ export interface Message {
   isPinned: boolean
   messageType?: string
   parts?: RuntimeMessagePart[]
+  streaming?: boolean
 }
 
 type StreamEvent = {
@@ -284,6 +285,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       )),
     }))
 
+    let activeStreamingReplyId: string | null = null
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -317,10 +320,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const decoder = new TextDecoder()
       let buffer = ''
 
+      const finishReply = (id = replyId) => {
+        if (activeStreamingReplyId === id) activeStreamingReplyId = null
+        set((state) => ({
+          messages: state.messages.map((m) => (m.id === id ? { ...m, streaming: false } : m)),
+        }))
+      }
+
       const upsertReply = () => {
         set((state) => {
           if (!replyCreated) {
             replyCreated = true
+            activeStreamingReplyId = replyId
             return {
               messages: [
                 ...state.messages,
@@ -330,16 +341,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
                   role: 'agent',
                   content: reply,
                   createdAt: new Date().toISOString(),
-              roleAgentId: respondingRoleAgentId,
-              isPinned: false,
-              messageType: 'text',
-              parts: runtimeParts,
-            } as Message,
+                  roleAgentId: respondingRoleAgentId,
+                  isPinned: false,
+                  messageType: 'text',
+                  parts: runtimeParts,
+                  streaming: true,
+                } as Message,
               ],
             }
           }
           return {
-            messages: state.messages.map((m) => (m.id === replyId ? { ...m, content: reply, parts: runtimeParts } : m)),
+            messages: state.messages.map((m) => (m.id === replyId ? { ...m, content: reply, parts: runtimeParts, streaming: true } : m)),
           }
         })
       }
@@ -383,6 +395,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           const evt = JSON.parse(line.slice(5).trim()) as StreamEvent
           if (evt.type === 'role_selected' && evt.roleAgentId) {
             if (replyCreated && (reply || runtimeParts.length > 0)) {
+              finishReply(replyId)
               replySeq += 1
               replyId = `reply-${Date.now()}-${replySeq}`
               reply = ''
@@ -390,6 +403,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               replyCreated = false
             }
             respondingRoleAgentId = evt.roleAgentId
+          }
+          if (evt.type === 'runtime_status' && !replyCreated) {
+            upsertReply()
           }
           if (evt.type === 'role_acknowledgement' && evt.roleAgentId && evt.content) {
             set((state) => ({
@@ -421,7 +437,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }
         }
       }
+      finishReply()
     } catch (e) {
+      if (activeStreamingReplyId) {
+        const id = activeStreamingReplyId
+        activeStreamingReplyId = null
+        set((state) => ({
+          messages: state.messages.map((m) => (m.id === id ? { ...m, streaming: false } : m)),
+        }))
+      }
       if (e instanceof DOMException && e.name === 'AbortError') {
         set((state) => ({
           messages: [
