@@ -41,9 +41,9 @@
 | **关联任务/合同** | `COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02`；`.trellis/tasks/06-02-complete-multi-agent-orchestration`；`research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md` |
 | **影响功能面** | Web 多角色工作台、Orchestrator DAG、角色间上下文/session handoff、runtime worker、native session resume、计划恢复、Desktop runtime inventory、Mobile 监督 |
 | **发现方式** | 用户要求按最终完整实现目标复盘当前代码和 refer_proj（2026-06-02）。 |
-| **证据** | 当前代码已支持 role runtime binding、基础 `ContextPackage`、durable plan/nodes、planner -> worker -> summarizer 基础编排、native session resume 和 `runtime_invoke` 投递；2026-06-02 已统一合同/PRD/task/技术设计/spec/tracker 的最终完整计划口径。Phase 1 首切片已补 `plan_node_attempts` / `agent_mailbox_items` schema、shared/database types、plan node `retry/resume/cancel/requeue` API、plan timeline API、runtime inventory API，`runtime_invoke` 初始投递写 initial attempt 和 inbound mailbox。但实现仍缺 reply/dead-letter scheduler、动态 DAG、per-role inbound serialization、真实 Claude+Codex 多角色 UAT、三端完整 timeline/doctor/supervision。 |
+| **证据** | 当前代码已支持 role runtime binding、基础 `ContextPackage`、durable plan/nodes、planner -> worker -> summarizer 基础编排、native session resume 和 `runtime_invoke` 投递；2026-06-02 已统一合同/PRD/task/技术设计/spec/tracker 的最终完整计划口径。Phase 1 首切片已补 `plan_node_attempts` / `agent_mailbox_items` schema、shared/database types、plan node `retry/resume/cancel/requeue` API、plan timeline API、runtime inventory API，`runtime_invoke` 初始投递写 initial attempt 和 inbound mailbox；已补 mailbox ready wave/per-role serialization helper、旧 `runtime:*` capability tag 负向 API 测试，并通过 `pnpm env:acceptance:up` + `pnpm env:acceptance:smoke`。但实现仍缺 reply/dead-letter scheduler、动态 DAG、真实 Claude+Codex 多角色 UAT、三端完整 timeline/doctor/supervision。 |
 | **关闭条件** | 按合同完成 Phase 1-5：Phase 1 数据内核/API/no-compat schema；Phase 2 动态 DAG 与 mailbox 调度；Phase 3 runtime/native session/recovery；Phase 4 三端 UI；Phase 5 真实 Claude+Codex UAT；tracker/report/治理门禁齐全。 |
-| **下一步** | Phase 1 剩余：真实 Postgres acceptance drop/reseed/smoke；补 reply/dead-letter 数据写入与 scheduler 边界；补 per-role serialization / ready wave shared domain tests；补 no-compat 负向测试证明旧 runtime tag、fake/script product executor、old payload 不参与产品路由。 |
+| **下一步** | Phase 1 剩余：补 reply/dead-letter 数据写入与 scheduler 边界；补 no-compat 负向测试证明 fake/script product executor、old payload 不参与产品路由；随后进入 Phase 2 动态 DAG 与 mailbox scheduler。 |
 
 ### REG-20260601-001 — 验收真实闭环缺口：默认 fake/script runtime、本地链路未执行、附件/artifact 不 durable
 

@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-06-02，Phase 1 已完成第一组可验证后端切片：durable mailbox/attempt schema、shared/database types、plan node 控制 API、plan timeline API、runtime inventory API，以及 `runtime_invoke` 初始投递的 attempt/mailbox 记录。
+2026-06-02，Phase 1 已完成第一组可验证后端切片：durable mailbox/attempt schema、shared/database types、plan node 控制 API、plan timeline API、runtime inventory API、`runtime_invoke` 初始投递的 attempt/mailbox 记录、mailbox ready wave/per-role serialization 纯函数，以及旧 `runtime:*` capability tag 的 no-compat API 拒绝。
 
 本报告不宣称完整多 Agent 编排完成。当前只证明 Phase 1 数据内核和 API 控制面已开始落地；动态 DAG 调度、per-role inbound serialization、三端 UI、真实 Claude+Codex UAT 仍未完成。
 
@@ -17,6 +17,8 @@
 | Timeline API | 新增 `GET /api/plans/:planId/timeline`，从 durable rows 返回 plan、nodes、attempts、mailbox、runtime sessions/logs、artifacts。 |
 | Runtime inventory API | 新增 `GET /api/runtime/inventory?workspace_id=`，返回 machine-wide Claude Code/Codex inventory，并按 role runtime binding 映射 health。 |
 | Local Postgres client | `apps/web/lib/postgres-query-client.ts` 白名单加入新表，acceptance 模式可读写。 |
+| Mailbox scheduling | `selectReadyMailboxItems` 保证同一角色一次只消费一个 inbound item，跨角色可形成 ready wave；`nextPlanNodeAttemptDraft` 保留 retry lineage。 |
+| No-compat guard | `/api/role-agents` POST/PATCH 拒绝 `capabilities` 中的 `runtime:*` 旧标签，要求使用 `runtime_type`。 |
 
 ## 验证命令
 
@@ -25,10 +27,15 @@
 - `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/role-agents.test.ts __tests__/runtime/gateway-gating.test.ts __tests__/runtime/local-device-relay.test.ts __tests__/runtime/executor.test.ts __tests__/api/plans-actions-owner.test.ts __tests__/api/plan-node-controls-inventory.test.ts __tests__/orchestrator/action-dispatcher.test.ts` PASS（8 files / 64 tests）。
 - `pnpm --filter @agenthub/shared test` PASS（4 files / 27 tests）。
 - `pnpm --filter @agenthub/shared build` PASS。
+- 追加验证：`pnpm --filter @agenthub/shared test` PASS（5 files / 30 tests）。
+- 追加验证：`pnpm --filter @agenthub/web test -- __tests__/api/role-agents.test.ts` PASS（1 file / 23 tests）。
+- 追加验证：`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/role-agents.test.ts __tests__/api/plan-node-controls-inventory.test.ts __tests__/orchestrator/action-dispatcher.test.ts __tests__/runtime/executor.test.ts __tests__/runtime/gateway-gating.test.ts __tests__/runtime/local-device-relay.test.ts` PASS（7 files / 58 tests）。
+- 追加验证：`pnpm --filter @agenthub/web type-check && pnpm --filter @agenthub/shared type-check` PASS。
+- 追加验证：`pnpm env:acceptance:up` PASS，重新 seed acceptance DB 并应用当前 schema。
+- 追加验证：`pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 11/11；cloud SSE 包含 `gateway_connected`、`endpoint_unavailable`、`done`，local_desktop 未连接创建 409）。
 
 ## 剩余风险
 
-- 尚未运行 `pnpm env:acceptance:smoke` 验证新 schema 在真实 Postgres drop/reseed 下执行；下一切片应补。
-- 当前 mailbox 只覆盖 initial/control inbound item；reply event、dead-letter scheduler、per-role serial consumer 和 ready wave calculation 仍待 Phase 2。
+- 当前 mailbox 只覆盖 initial/control inbound item；reply event、dead-letter scheduler 和真实 worker 级 per-role consumer 仍待 Phase 2。
 - Web/Desktop/Mobile 尚未消费 timeline/inventory API，三端 UI 仍是后续 Phase 4。
 - 真实 Claude+Codex 多角色 UAT 尚未执行，不能把本切片作为最终完成证据。

@@ -6,6 +6,10 @@ function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
   return value === 'claude_code' || value === 'codex'
 }
 
+function hasLegacyRuntimeTag(value: unknown): boolean {
+  return Array.isArray(value) && value.some((item) => typeof item === 'string' && item.startsWith('runtime:'))
+}
+
 // Helper: auth + workspace ownership check
 async function authAndOwn(userId: string, agentId: string) {
   const db = await createClient()
@@ -67,6 +71,9 @@ export async function PATCH(
   const { name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator } = body
   if (runtime_type !== undefined && !isRuntimeType(runtime_type)) {
     return NextResponse.json({ error: 'runtime_type 必须是 claude_code 或 codex' }, { status: 400 })
+  }
+  if (hasLegacyRuntimeTag(capabilities)) {
+    return NextResponse.json({ error: 'capabilities 不能包含 runtime:* 旧标签，请使用 runtime_type' }, { status: 400 })
   }
 
   const updates: Record<string, unknown> = {}

@@ -36,3 +36,49 @@ export interface PlanNodeAttempt {
   created_at: string
   updated_at: string
 }
+
+export interface PlanNodeAttemptDraft {
+  plan_node_id: string
+  attempt_number: number
+  control: PlanNodeAttemptControl
+  previous_attempt_id: string | null
+  status: MailboxStatus
+}
+
+const ACTIVE_MAILBOX_STATUSES = new Set<MailboxStatus>(['running', 'waiting'])
+
+export function selectReadyMailboxItems(items: AgentMailboxItem[]): AgentMailboxItem[] {
+  const ordered = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const activeRoles = new Set(
+    ordered
+      .filter((item) => item.direction === 'inbound' && ACTIVE_MAILBOX_STATUSES.has(item.status))
+      .map((item) => item.to_role_agent_id),
+  )
+  const selectedRoles = new Set<string>()
+
+  return ordered.filter((item) => {
+    if (item.direction !== 'inbound' || item.status !== 'queued') return false
+    if (activeRoles.has(item.to_role_agent_id)) return false
+    if (selectedRoles.has(item.to_role_agent_id)) return false
+    selectedRoles.add(item.to_role_agent_id)
+    return true
+  })
+}
+
+export function nextPlanNodeAttemptDraft(input: {
+  planNodeId: string
+  control: PlanNodeAttemptControl
+  attempts: PlanNodeAttempt[]
+}): PlanNodeAttemptDraft {
+  const previous = input.attempts
+    .filter((attempt) => attempt.plan_node_id === input.planNodeId)
+    .sort((a, b) => b.attempt_number - a.attempt_number)[0]
+
+  return {
+    plan_node_id: input.planNodeId,
+    attempt_number: (previous?.attempt_number ?? 0) + 1,
+    control: input.control,
+    previous_attempt_id: previous?.id ?? null,
+    status: input.control === 'cancel' ? 'cancelled' : 'queued',
+  }
+}

@@ -36,6 +36,10 @@ function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
   return value === 'claude_code' || value === 'codex'
 }
 
+function hasLegacyRuntimeTag(value: unknown): boolean {
+  return Array.isArray(value) && value.some((item) => typeof item === 'string' && item.startsWith('runtime:'))
+}
+
 async function ensureDefaultRoleAgents(db: Awaited<ReturnType<typeof createClient>>, workspaceId: string, existing: Array<{ name: string }>) {
   const existingNames = new Set(existing.map((row) => row.name))
   const missing = DEFAULT_ROLE_AGENTS
@@ -94,6 +98,9 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: '缺少 name' }, { status: 400 })
   if (runtime_type !== undefined && !isRuntimeType(runtime_type)) {
     return NextResponse.json({ error: 'runtime_type 必须是 claude_code 或 codex' }, { status: 400 })
+  }
+  if (hasLegacyRuntimeTag(capabilities)) {
+    return NextResponse.json({ error: 'capabilities 不能包含 runtime:* 旧标签，请使用 runtime_type' }, { status: 400 })
   }
 
   // 验证 workspace 归属

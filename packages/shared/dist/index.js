@@ -82,6 +82,33 @@ var DEFAULT_POLICIES = [
   { action_type: "git_push", risk_level: "medium", requires_approval: true, description: "Git \u63A8\u9001" },
   { action_type: "deploy", risk_level: "high", requires_approval: true, description: "\u90E8\u7F72\u64CD\u4F5C" }
 ];
+
+// src/orchestrator/mailbox.ts
+var ACTIVE_MAILBOX_STATUSES = /* @__PURE__ */ new Set(["running", "waiting"]);
+function selectReadyMailboxItems(items) {
+  const ordered = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const activeRoles = new Set(
+    ordered.filter((item) => item.direction === "inbound" && ACTIVE_MAILBOX_STATUSES.has(item.status)).map((item) => item.to_role_agent_id)
+  );
+  const selectedRoles = /* @__PURE__ */ new Set();
+  return ordered.filter((item) => {
+    if (item.direction !== "inbound" || item.status !== "queued") return false;
+    if (activeRoles.has(item.to_role_agent_id)) return false;
+    if (selectedRoles.has(item.to_role_agent_id)) return false;
+    selectedRoles.add(item.to_role_agent_id);
+    return true;
+  });
+}
+function nextPlanNodeAttemptDraft(input) {
+  const previous = input.attempts.filter((attempt) => attempt.plan_node_id === input.planNodeId).sort((a, b) => b.attempt_number - a.attempt_number)[0];
+  return {
+    plan_node_id: input.planNodeId,
+    attempt_number: (previous?.attempt_number ?? 0) + 1,
+    control: input.control,
+    previous_attempt_id: previous?.id ?? null,
+    status: input.control === "cancel" ? "cancelled" : "queued"
+  };
+}
 export {
   DEFAULT_ORCHESTRATOR_CONFIG,
   DEFAULT_POLICIES,
@@ -89,6 +116,8 @@ export {
   RuntimeErrorCode,
   SeqGenerator,
   colors,
+  nextPlanNodeAttemptDraft,
   parseFrame,
+  selectReadyMailboxItems,
   serializeFrame
 };

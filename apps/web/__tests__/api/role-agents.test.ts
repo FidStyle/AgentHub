@@ -190,6 +190,16 @@ describe('POST /api/role-agents', () => {
     expect((result.data as { error: string }).error).toBe('runtime_type 必须是 claude_code 或 codex')
   })
 
+  it('AT-A009b: rejects legacy runtime capability tags on POST', async () => {
+    const { POST } = await import('@/app/api/role-agents/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(POST, 'POST', {
+      body: { workspace_id: 'ws-001', name: 'Analyzer Agent', capabilities: ['runtime:codex', 'api'] },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('capabilities 不能包含 runtime:* 旧标签，请使用 runtime_type')
+  })
+
   it('AT-A010: returns 403 when workspace not owned on insert', async () => {
     const { POST } = await import('@/app/api/role-agents/route')
     setupMockClient(createErrorChain())
@@ -283,6 +293,17 @@ describe('PATCH /api/role-agents/[id]', () => {
     })
     expect(result.status).toBe(400)
     expect((result.data as { error: string }).error).toBe('runtime_type 必须是 claude_code 或 codex')
+  })
+
+  it('AT-A015b: rejects legacy runtime capability tags on PATCH', async () => {
+    const { PATCH } = await import('@/app/api/role-agents/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(PATCH, 'PATCH', {
+      params: { id: 'agent-001' },
+      body: { capabilities: ['runtime:claude_code', 'review'] },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('capabilities 不能包含 runtime:* 旧标签，请使用 runtime_type')
   })
 
   it('AT-A016: returns 404 when agent not owned on update', async () => {
