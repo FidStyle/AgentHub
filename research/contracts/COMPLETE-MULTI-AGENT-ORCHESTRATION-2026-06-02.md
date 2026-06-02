@@ -177,7 +177,7 @@
 - [x] Web/Desktop/Mobile 主入口均有真实链路验证。
 - [x] 所有新增数据结构有迁移/seed/类型/测试。
 - [x] `pnpm type-check`、相关 unit/integration/E2E 通过。
-- [ ] 治理门禁 `bash scripts/verify-governance-gate.sh COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` exit 0。
+- [x] 治理门禁 `bash scripts/verify-governance-gate.sh COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` exit 0。
 
 ---
 
