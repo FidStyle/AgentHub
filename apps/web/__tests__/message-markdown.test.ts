@@ -90,6 +90,39 @@ describe('normalizeMessageMarkdown', () => {
     expect(html).toContain('<table')
     expect(html).toContain('<code')
   })
+
+  it('preserves fenced markdown examples and nested code fences', () => {
+    const input = [
+      '下面是 Markdown 的主要格式示例：',
+      '',
+      '## 标题',
+      '',
+      '```markdown',
+      '# 一级标题',
+      '## 二级标题',
+      '### 三级标题',
+      '```',
+      '',
+      '## 代码块',
+      '',
+      '````markdown',
+      '```python',
+      'def hello():',
+      '    print("Hello")',
+      '```',
+      '````',
+    ].join('\n')
+
+    const normalized = normalizeMessageMarkdown(input)
+    const html = renderToStaticMarkup(createElement(MessageMarkdown, { content: input }))
+
+    expect(normalized).toContain('````markdown\n```python')
+    expect(normalized).toContain('    print("Hello")')
+    expect(html).toContain('<h2')
+    expect(html).toContain('data-language="markdown"')
+    expect(html).toContain('```python')
+    expect(html).toContain('print(&quot;Hello&quot;)')
+  })
 })
 
 describe('appendRuntimeDelta', () => {
