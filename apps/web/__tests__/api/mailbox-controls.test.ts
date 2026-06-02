@@ -130,7 +130,8 @@ function mailboxControlChain(options: {
           }),
           insert: (values: Record<string, unknown>) => {
             writes.push({ table, values })
-            return { select: () => ({ single: () => ({ data: { id: 'mailbox-reply', ...values }, error: null }) }) }
+            const id = values.direction === 'reply' ? 'mailbox-reply' : `mailbox-${String(values.plan_node_id)}`
+            return { select: () => ({ single: () => ({ data: { id, ...values }, error: null }) }) }
           },
           update: (values: Record<string, unknown>) => ({
             eq: (_field: string, id: string) => {
@@ -163,6 +164,17 @@ function mailboxControlChain(options: {
       }
       if (table === 'plan_node_attempts') {
         return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({ data: [], error: null }),
+              }),
+            }),
+          }),
+          insert: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { select: () => ({ single: () => ({ data: { id: `attempt-${String(values.plan_node_id)}-auto`, ...values }, error: null }) }) }
+          },
           update: (values: Record<string, unknown>) => ({
             eq: (_field: string, id: string) => {
               writes.push({ table, values, id })
@@ -197,6 +209,11 @@ function mailboxControlChain(options: {
       }
       if (table === 'plans') {
         return {
+          select: () => ({
+            eq: () => ({
+              single: () => ({ data: { id: 'plan-001', session_id: 'session-001', owner_id: 'user-001' }, error: null }),
+            }),
+          }),
           update: (values: Record<string, unknown>) => ({
             eq: (_field: string, id: string) => {
               writes.push({ table, values, id })
@@ -266,6 +283,24 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
         table: 'plan_nodes',
         values: expect.objectContaining({ status: 'ready' }),
         id: 'node-arch',
+      }),
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        values: expect.objectContaining({ plan_node_id: 'node-arch', status: 'queued', control: 'initial' }),
+      }),
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        values: expect.objectContaining({
+          direction: 'inbound',
+          plan_node_id: 'node-arch',
+          to_role_agent_id: 'agent-arch',
+          status: 'queued',
+        }),
+      }),
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        values: expect.objectContaining({ mailbox_item_id: 'mailbox-node-arch' }),
+        id: 'attempt-node-arch-auto',
       }),
     ]))
   })
