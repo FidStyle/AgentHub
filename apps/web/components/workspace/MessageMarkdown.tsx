@@ -8,6 +8,7 @@ import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
 import 'highlight.js/styles/github.css'
 import { IconButton } from '@agenthub/ui'
+import { normalizeMessageMarkdown } from '@/lib/chat/markdown'
 
 function textFromChildren(children: unknown): string {
   if (typeof children === 'string') return children
@@ -54,6 +55,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
 }
 
 export function MessageMarkdown({ content, streaming = false }: { content: string; streaming?: boolean }) {
+  const normalizedContent = useMemo(() => normalizeMessageMarkdown(content), [content])
   const components = useMemo(() => ({
     a: ({ href, children }: { href?: string; children?: ReactNode }) => (
       <a href={href} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
@@ -75,7 +77,7 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
     ),
   }), [])
 
-  if (!content) return null
+  if (!normalizedContent) return null
 
   return (
     <div
@@ -87,7 +89,7 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
         rehypePlugins={[rehypeHighlight]}
         components={components}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
       {streaming && <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse rounded-full bg-muted-foreground" aria-hidden="true" />}
     </div>

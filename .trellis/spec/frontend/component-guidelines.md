@@ -27,6 +27,7 @@
 - 复用时必须改成 AgentHub 的领域类型和 props，不能把参考项目的数据模型、路由、全局 store 或运行时假设原样带入。
 - 复用 UI 时必须接入本项目的 Tailwind 变量、中文文案、`data-testid`、可访问名称和视觉测试要求。
 - Markdown 渲染类组件优先直接复用并改造 `refer_proj/AionUi/packages/desktop/src/renderer/components/Markdown/` 的组件拆分：`Markdown/index.tsx`、`CodeBlock.tsx`、`markdownUtils.ts`。必须保留换行、列表、代码块、表格、链接、代码复制和宽表格横向滚动等富文本语义；禁止把 agent 消息作为普通纯文本 `<div>` 渲染后声称支持 Markdown。
+- Agent/runtime 上游偶尔会把 Markdown 列表压成同一行；显示层可以对常见 `-` / `*` / `1.` 分点做保守换行恢复，但必须有纯函数单测并保护代码块内容。不要把普通 `+` 号当列表 marker，否则会误伤 `pg + drizzle`、`输入框 + 按钮` 等业务文本。
 - 流式 Agent 回复不能直接按上游 SSE/CLI chunk 粒度刷新可见文本。UI 层必须有平滑显示缓冲、空内容时的“思考中”状态和稳定的 streaming/completed 标记；否则 CLI 偶发大块输出会表现为一卡一卡地跳字。Markdown 自定义 components 必须 memoize，避免流式更新时反复卸载代码块、表格和复制按钮。
 - 可直接复用依赖组合、组件拆分、队列/lease 算法和边界处理；样式、类型、产品状态、权限语义和持久化模型必须按 AgentHub 当前 PRD/spec 调整。
 

@@ -2,8 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
-import { AtSign, Pin, PinOff, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
+import { Card, StateCard, IconButton, Badge, Button } from '@agenthub/ui'
+import { AlertTriangle, AtSign, Pin, PinOff, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 import { MessageMarkdown } from './MessageMarkdown'
@@ -205,6 +205,66 @@ function PartPreview({ value }: { value: unknown }) {
   return <pre className="mt-2 max-h-32 overflow-auto rounded-md bg-background/70 p-2 text-xs">{text}</pre>
 }
 
+function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type: 'permission' }> }) {
+  const [decision, setDecision] = useState<'idle' | 'approving' | 'rejecting' | 'approved' | 'rejected' | 'error'>('idle')
+  const canDecide = part.status === 'pending' && Boolean(part.actionId) && decision === 'idle'
+  const decide = async (approved: boolean) => {
+    if (!part.actionId) return
+    setDecision(approved ? 'approving' : 'rejecting')
+    try {
+      const res = await fetch(`/api/actions/${part.actionId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error || '授权请求处理失败')
+      }
+      setDecision(approved ? 'approved' : 'rejected')
+    } catch {
+      setDecision('error')
+    }
+  }
+  const statusText = {
+    idle: '待确认',
+    approving: '授权中',
+    rejecting: '拒绝中',
+    approved: '已允许本次执行',
+    rejected: '已拒绝',
+    error: '处理失败',
+  }[decision]
+
+  return (
+    <div data-testid="message-permission-card" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 font-medium">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {part.title ?? '需要授权'}
+        </span>
+        <Badge variant="warning">{part.riskLevel ?? '待确认'}</Badge>
+      </div>
+      <p className="mt-1 text-muted-foreground">{part.description}</p>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">{statusText}</span>
+        {part.actionId ? (
+          <div className="flex gap-2">
+            <Button size="sm" disabled={!canDecide} onClick={() => void decide(true)}>
+              允许单次执行
+            </Button>
+            <Button size="sm" variant="outline" disabled={!canDecide} onClick={() => void decide(false)}>
+              拒绝
+            </Button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground">缺少动作编号，无法在此处授权</span>
+        )}
+      </div>
+      {decision === 'error' && <p className="mt-2 text-destructive">授权请求处理失败，请刷新后重试。</p>}
+    </div>
+  )
+}
+
 function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
   if (part.type === 'tool') {
     return (
@@ -222,15 +282,7 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
     )
   }
   if (part.type === 'permission') {
-    return (
-      <div data-testid="message-permission-card" className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium">{part.title ?? '需要授权'}</span>
-          <Badge variant="warning">{part.riskLevel ?? '待确认'}</Badge>
-        </div>
-        <p className="mt-1 text-muted-foreground">{part.description}</p>
-      </div>
-    )
+    return <PermissionPartCard part={part} />
   }
   if (part.type === 'question') {
     return (

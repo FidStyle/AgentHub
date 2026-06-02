@@ -30,6 +30,22 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260603-001 — IM Markdown 分点文本被压平且消息内权限请求缺少确认按钮
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / user-acceptance-regression |
+| **优先级** | P0（影响 Orchestrator IM 可读性与权限确认主链路） |
+| **状态** | `closed`（2026-06-03，本轮回归修复并通过 opencli UAT） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-PERM-001, FR-ACTION-001, FR-UI-001 |
+| **关联任务/合同** | `ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03`；`research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md` |
+| **影响功能面** | Web 工作台消息流 Markdown、流式/历史 Agent 回复、结构化权限确认卡 |
+| **发现方式** | 用户复核已完成任务时发现 `-` 分点列表仍显示成普通连续文本，且权限确认仍以自然语言“请批准”出现，看不到“允许单次执行”等交互按钮。 |
+| **证据** | 原完成报告只证明 `message-markdown` 容器存在和 Git discard 右栏审批卡存在，没有覆盖被压平的列表文本，也没有覆盖消息流 `runtimeParts.permission` 的可点击审批按钮。 |
+| **关闭条件** | 前端对上游压平的常见 Markdown 分点/编号文本做保守恢复；不误伤 `pg + drizzle`、`输入框 + 按钮` 等普通加号文本；消息流 permission part 必须显示“允许单次执行 / 拒绝”并调用真实 `/api/actions/:id/approve`；补单测和 opencli 证据。 |
+| **关闭证据** | 新增 `apps/web/lib/chat/markdown.ts` 与 `apps/web/__tests__/message-markdown.test.ts`，覆盖被压平成一行的 `-` 列表、`1.` 编号列表、代码块不改写、普通 `+` 文本不误判；`MessageMarkdown` 接入 normalization；`ChatPanel` 的 `message-permission-card` 改为可交互授权卡，按钮调用真实 approve API。验证：`pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/session-store.test.ts` PASS（2 files / 7 tests）；`pnpm --filter @agenthub/web type-check` PASS；opencli 真实 Web：`ul=7`、`ol=1`、`li=21`、`permissionCards=1`、按钮 `允许单次执行 / 拒绝` 可见、`plusPhrasePreserved=true`、`overflow=false`。截图：`e2e/artifacts/opencli-uat/web-markdown-list-regression-2026-06-03.png`、`e2e/artifacts/opencli-uat/web-message-permission-card-live-2026-06-03.png`。 |
+| **下一步** | 已关闭。更完整的流式内容语义修复仍应优先从 runtime 输出源头保留换行，本轮只在显示层做保守兜底。 |
+
 ### REG-20260602-001 — 完整多 Agent 编排仍停留在基础 durable plan/handoff，未达到最终产品形态
 
 | 字段 | 内容 |

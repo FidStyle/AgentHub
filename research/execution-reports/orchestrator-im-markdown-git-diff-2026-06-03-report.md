@@ -33,6 +33,8 @@
 - `pnpm --filter @agenthub/shared test`：PASS，5 files / 32 tests。
 - 追加旧 action/plan 回归：`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plans-actions-owner.test.ts`：PASS，2 files / 17 tests。
 - opencli Web UAT：`opencli doctor` PASS；`opencli browser agenthub open http://localhost:3000/workspace/84a353ae-80c6-40c7-87ad-6114fe1592f6` 后工作区可渲染；`message-markdown` 7 个实例；页面无横向溢出；Changes 面板显示未暂存 `README.md`，`GET /git/status` 200；点击“查看 diff”后 `GET /git/diff?path=README.md&staged=false` 200，`git-diff-preview` 1 个实例；点击“丢弃”后出现“确认丢弃未暂存改动 / 允许单次执行 / 拒绝”，点击“拒绝”后显示“已拒绝丢弃改动”且文件仍在未暂存列表。
+- 2026-06-03 用户复核回归修复：`pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/session-store.test.ts` PASS（2 files / 7 tests）；`pnpm --filter @agenthub/web type-check` PASS。新增覆盖被压平的 `-` 列表、`1.` 编号列表、代码块不改写、普通 `+` 文本不误判。
+- 2026-06-03 opencli 回归 UAT：启动最新 Web dev server 后打开 `http://localhost:3000/workspace/84a353ae-80c6-40c7-87ad-6114fe1592f6?uat=markdown-permission-final-20260603`；页面断言 `ul=7`、`ol=1`、`li=21`、消息流 `permissionCards=1`、按钮文本为 `允许单次执行` / `拒绝`、`plusPhrasePreserved=true`、`overflow=false`。权限卡样本通过真实 `/api/actions` 创建 pending action，再通过真实 `/api/messages` 写入 `metadata.runtimeParts.permission` 后刷新验证。
 
 ## opencli 截图
 
@@ -42,6 +44,8 @@
 - `e2e/artifacts/opencli-uat/web-changes-panel-2026-06-03.png`
 - `e2e/artifacts/opencli-uat/web-changes-diff-2026-06-03.png`
 - `e2e/artifacts/opencli-uat/web-git-discard-approval-2026-06-03.png`
+- `e2e/artifacts/opencli-uat/web-markdown-list-regression-2026-06-03.png`
+- `e2e/artifacts/opencli-uat/web-message-permission-card-live-2026-06-03.png`
 
 ## 测试覆盖
 
@@ -51,8 +55,9 @@
 - Git discard approval API：覆盖未确认创建 pending action + notification、approve endpoint 授权、Git API 确认执行、action completed 回写。
 - Type-check：Web 类型通过。
 - opencli：真实已登录浏览器状态下覆盖 workspace 进入、Markdown 渲染、Changes 面板、diff preview、discard 审批卡和无横向溢出。
+- 回归补充：显示层对上游压平的常见 Markdown 列表/编号文本做保守恢复；消息流 `runtimeParts.permission` 不再只是说明文本，而是提供结构化确认按钮并调用真实 action approve API。
 
 ## 结论
 
-- 本合同 P0 范围已全量验收通过：IM Markdown、角色确认、同 session 串行调度、cloud Git Changes/Get Diff、stage/unstage/discard 和 discard 结构化审批闭环均已落地并验证。
+- 本合同 P0 范围经用户复核回归后重新收口：IM Markdown、角色确认、同 session 串行调度、cloud Git Changes/Get Diff、stage/unstage/discard、discard 结构化审批、消息流 permission approval 卡均已落地并验证。
 - local desktop Git bridge、latest commit revert、stash、复杂 conflict resolution、Mobile/PWA 专项审批视图属于后续增强范围，不作为本次 P0 完成阻塞。
