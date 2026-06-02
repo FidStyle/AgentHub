@@ -6,6 +6,27 @@ import {
   setupMockClient,
 } from '../utils'
 
+const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock } = vi.hoisted(() => ({
+  resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
+  createSessionMock: vi.fn(async (input: { roleAgentId?: string }) => ({
+    id: `runtime-${input.roleAgentId ?? 'none'}`,
+    nativeSessionId: `native-${input.roleAgentId ?? 'none'}`,
+    cwd: '/repo',
+  })),
+  isWorkerAliveMock: vi.fn(async () => true),
+  enqueueMock: vi.fn(async (_input: unknown) => undefined),
+}))
+
+vi.mock('@/lib/runtime/gateway', () => ({
+  resolveEndpoint: (input: unknown) => resolveEndpointMock(input),
+  createSession: (input: unknown) => createSessionMock(input as { roleAgentId?: string }),
+}))
+
+vi.mock('@/lib/runtime/redis-client', () => ({
+  isWorkerAlive: () => isWorkerAliveMock(),
+  enqueue: (input: unknown) => enqueueMock(input),
+}))
+
 type Write = { table: string; values: Record<string, unknown>; id?: string }
 
 async function postDynamic(
@@ -28,6 +49,15 @@ async function getReady(sessionId = 'session-001') {
   const url = new URL('http://localhost/api/mailbox/ready')
   if (sessionId) url.searchParams.set('session_id', sessionId)
   const response = await GET(new Request(url))
+  return { status: response.status, data: await response.json() }
+}
+
+async function postDispatchReady(sessionId = 'session-001') {
+  const { POST } = await import('@/app/api/mailbox/dispatch-ready/route')
+  const response = await POST(new Request('http://localhost/api/mailbox/dispatch-ready', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  }))
   return { status: response.status, data: await response.json() }
 }
 
@@ -71,16 +101,21 @@ function mailboxControlChain(options: {
   roles?: Record<string, unknown>[]
   sessionOwned?: boolean
   readyItems?: Record<string, unknown>[]
+  nodes?: Record<string, unknown>[]
 } = {}) {
   const writes: Write[] = []
   const item = options.item === undefined ? mailbox() : options.item
-  const workspace = options.workspaceOwned === false ? null : { id: 'ws-001', owner_id: 'user-001' }
+  const workspace = options.workspaceOwned === false ? null : { id: 'ws-001', owner_id: 'user-001', execution_domain: 'cloud' }
   const roles = options.roles ?? [
     { id: 'agent-arch', name: '架构师', runtime_type: 'claude_code', workspace_id: 'ws-001' },
     { id: 'agent-be', name: '后端工程师', runtime_type: 'codex', workspace_id: 'ws-001' },
   ]
   const session = options.sessionOwned === false ? null : { id: 'session-001', workspace_id: 'ws-001' }
   const readyItems = options.readyItems ?? []
+  const nodes = options.nodes ?? [
+    { id: 'node-001', plan_id: 'plan-001', label: '后端工程师执行', agent_id: 'agent-be', action_type: 'runtime_invoke', action_payload: { userMessage: '实现 API', phase: 'worker' } },
+    { id: 'node-arch', plan_id: 'plan-001', label: '架构师执行', agent_id: 'agent-arch', action_type: 'runtime_invoke', action_payload: { userMessage: '规划任务', phase: 'worker' } },
+  ]
 
   const chainFactory = vi.fn(() => ({
     from: vi.fn((table: string) => {
@@ -126,8 +161,24 @@ function mailboxControlChain(options: {
           }),
         }
       }
-      if (table === 'plan_node_attempts' || table === 'plan_nodes') {
+      if (table === 'plan_node_attempts') {
         return {
+          update: (values: Record<string, unknown>) => ({
+            eq: (_field: string, id: string) => {
+              writes.push({ table, values, id })
+              return { data: null, error: null }
+            },
+          }),
+        }
+      }
+      if (table === 'plan_nodes') {
+        return {
+          select: () => ({
+            eq: (_field: string, nodeId: string) => {
+              const node = nodes.find((candidate) => candidate.id === nodeId) ?? null
+              return { single: () => ({ data: node, error: node ? null : { message: 'Not found' } }) }
+            },
+          }),
           update: (values: Record<string, unknown>) => ({
             eq: (_field: string, id: string) => {
               writes.push({ table, values, id })
@@ -155,6 +206,11 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
     resetMockAuth()
     resetMockClient()
     setupMockAuth()
+    resolveEndpointMock.mockClear()
+    createSessionMock.mockClear()
+    isWorkerAliveMock.mockClear()
+    enqueueMock.mockClear()
+    process.env.REDIS_URL = 'redis://localhost:6379'
   })
 
   it('creates a durable reply item, preserves attempt lineage, and completes the inbound item', async () => {
@@ -270,5 +326,55 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
 
     expect(result.status).toBe(404)
     expect(result.data).toEqual({ error: '会话不存在或无权限' })
+  })
+
+  it('dispatches the ready wave from durable mailbox items without creating duplicate attempts', async () => {
+    const { chainFactory, writes } = mailboxControlChain({
+      readyItems: [
+        mailbox({ id: 'running-fe', to_role_agent_id: 'agent-fe', status: 'running', plan_node_id: 'node-fe-running', attempt_id: 'attempt-fe-running', created_at: '2026-06-02T00:00:01.000Z' }),
+        mailbox({ id: 'queued-fe', to_role_agent_id: 'agent-fe', status: 'queued', plan_node_id: 'node-fe', attempt_id: 'attempt-fe', created_at: '2026-06-02T00:00:02.000Z' }),
+        mailbox({ id: 'queued-be', to_role_agent_id: 'agent-be', status: 'queued', plan_node_id: 'node-001', attempt_id: 'attempt-be', created_at: '2026-06-02T00:00:03.000Z' }),
+        mailbox({ id: 'queued-arch', to_role_agent_id: 'agent-arch', status: 'queued', plan_node_id: 'node-arch', attempt_id: 'attempt-arch', created_at: '2026-06-02T00:00:04.000Z' }),
+      ],
+    })
+    setupMockClient(chainFactory)
+
+    const result = await postDispatchReady()
+
+    expect(result.status).toBe(200)
+    expect(result.data.dispatched).toEqual([
+      expect.objectContaining({ mailbox_item_id: 'queued-be', status: 'queued', runtime_session_id: 'runtime-agent-be' }),
+      expect.objectContaining({ mailbox_item_id: 'queued-arch', status: 'queued', runtime_session_id: 'runtime-agent-arch' }),
+    ])
+    expect(enqueueMock).toHaveBeenCalledTimes(2)
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeType: 'codex',
+      planNodeId: 'node-001',
+      runtimeSessionId: 'runtime-agent-be',
+    }))
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeType: 'claude_code',
+      planNodeId: 'node-arch',
+      runtimeSessionId: 'runtime-agent-arch',
+    }))
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        values: expect.objectContaining({ status: 'running' }),
+        id: 'queued-be',
+      }),
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        values: expect.objectContaining({ status: 'running', runtime_session_id: 'runtime-agent-be' }),
+        id: 'attempt-be',
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        values: expect.objectContaining({ status: 'running', result: expect.objectContaining({ mailboxItemId: 'queued-be' }) }),
+        id: 'node-001',
+      }),
+    ]))
+    expect(writes.some((write) => write.table === 'plan_node_attempts' && 'control' in write.values)).toBe(false)
+    expect(writes.some((write) => write.table === 'agent_mailbox_items' && write.values.direction === 'inbound')).toBe(false)
   })
 })

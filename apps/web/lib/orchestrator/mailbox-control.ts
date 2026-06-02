@@ -1,6 +1,7 @@
 import { selectReadyMailboxItems, type AgentMailboxItem } from '@agenthub/shared'
 import type { CliRuntimeType } from '@agenthub/shared'
 import type { AppDbClient } from '@/lib/postgres-query-client'
+import { dispatchMailboxRuntimeInvokeItem } from '@/lib/orchestrator/action-dispatcher'
 
 type MailboxRow = AgentMailboxItem & {
   created_at: string
@@ -20,6 +21,15 @@ type RoleRow = {
   id: string
   name: string
   runtime_type: CliRuntimeType
+}
+
+type PlanNodeRow = {
+  id: string
+  plan_id: string
+  label: string
+  agent_id?: string | null
+  action_type?: string | null
+  action_payload?: Record<string, unknown> | null
 }
 
 async function assertWorkspaceOwner(db: AppDbClient, workspaceId: string, userId: string) {
@@ -245,6 +255,72 @@ export async function getReadyMailboxItems(input: {
     data: {
       session_id: input.sessionId,
       ready_items: selectReadyMailboxItems(mailboxItems),
+    },
+  }
+}
+
+async function loadPlanNode(db: AppDbClient, nodeId: string) {
+  const { data: node, error } = await db
+    .from('plan_nodes')
+    .select('id, plan_id, label, agent_id, action_type, action_payload')
+    .eq('id', nodeId)
+    .single()
+
+  if (error || !node) return null
+  return node as unknown as PlanNodeRow
+}
+
+export async function dispatchReadyMailboxItems(input: {
+  db: AppDbClient
+  sessionId: string
+  userId: string
+}) {
+  const ready = await getReadyMailboxItems(input)
+  if (!ready.ok) return ready
+
+  const readyItems = ready.data.ready_items as AgentMailboxItem[]
+  const results = []
+  for (const item of readyItems) {
+    if (!item.plan_node_id) {
+      results.push({
+        mailbox_item_id: item.id,
+        status: 'unavailable',
+        error: 'Mailbox 缺少 plan_node_id，无法调度。',
+      })
+      continue
+    }
+
+    const node = await loadPlanNode(input.db, item.plan_node_id)
+    if (!node) {
+      results.push({
+        mailbox_item_id: item.id,
+        plan_node_id: item.plan_node_id,
+        status: 'unavailable',
+        error: 'Mailbox 对应计划节点不存在，无法调度。',
+      })
+      continue
+    }
+
+    const result = await dispatchMailboxRuntimeInvokeItem(input.db as never, {
+      userId: input.userId,
+      mailboxItem: item,
+      node,
+    })
+    results.push({
+      mailbox_item_id: item.id,
+      plan_node_id: item.plan_node_id,
+      status: result.status,
+      runtime_session_id: result.runtimeSessionId ?? null,
+      error: result.error ?? null,
+    })
+  }
+
+  return {
+    ok: true as const,
+    status: 200,
+    data: {
+      session_id: input.sessionId,
+      dispatched: results,
     },
   }
 }

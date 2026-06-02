@@ -1,5 +1,6 @@
 import type { ExecutionDomain } from '@agenthub/shared'
 import type { CliRuntimeType } from '@agenthub/shared'
+import type { AgentMailboxItem } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { createSession, resolveEndpoint } from '@/lib/runtime/gateway'
 import { enqueue, isWorkerAlive } from '@/lib/runtime/redis-client'
@@ -141,6 +142,7 @@ export interface RuntimeInvokeNodeForDispatch {
   plan_id: string
   label: string
   agent_id?: string | null
+  action_type?: string | null
   action_payload?: Record<string, unknown> | null
 }
 
@@ -204,6 +206,183 @@ function buildRuntimeInvokePrompt(input: {
   ].filter(Boolean).join('\n')
 }
 
+type SessionWorkspaceRow = {
+  workspace_id?: string
+}
+
+type WorkspaceDispatchRow = {
+  id?: string
+  owner_id?: string
+  execution_domain?: ExecutionDomain
+}
+
+type RoleDispatchRow = {
+  id: string
+  name: string
+  system_prompt?: string | null
+  runtime_type: CliRuntimeType
+}
+
+function payloadString(payload: Record<string, unknown>, key: string) {
+  const value = payload[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+async function dispatchPreparedRuntimeInvokeNode(
+  db: AppDb,
+  input: {
+    userId: string
+    sessionId: string
+    node: RuntimeInvokeNodeForDispatch
+    workspaceId: string
+    executionDomain: ExecutionDomain
+    role: RoleDispatchRow | null
+    runtimeType: CliRuntimeType
+    attemptId: string
+    mailboxItemId: string | null
+    mailboxContextPackage?: unknown
+  },
+): Promise<ActionDispatchResult> {
+  const payload = input.node.action_payload ?? {}
+  const endpoint = await resolveEndpoint({
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    executionDomain: input.executionDomain,
+  })
+  if (endpoint.status === 'unconfigured' || endpoint.id === null) {
+    await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'dead_letter', error: '公共云端 Runtime 尚未配置，节点未投递。' })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: '公共云端 Runtime 尚未配置，节点未投递。' } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: '公共云端 Runtime 尚未配置，节点未投递。' }
+  }
+  if (!process.env.REDIS_URL || !(await isWorkerAlive())) {
+    await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'dead_letter', error: 'Runtime 执行器未就绪，节点未投递。' })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: 'Runtime 执行器未就绪，节点未投递。' } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: 'Runtime 执行器未就绪，节点未投递。' }
+  }
+
+  const cwd = payloadString(payload, 'cwd') ?? process.env.RUNTIME_CWD ?? null
+  const runtimeSession = await createSession({
+    sessionId: input.sessionId,
+    endpoint,
+    roleAgentId: input.role?.id ?? undefined,
+    runtimeType: input.runtimeType,
+    cwd,
+  })
+  await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'running', runtimeSessionId: runtimeSession.id })
+  const now = new Date().toISOString()
+  await db.from('plan_nodes').update({
+    status: 'running',
+    started_at: now,
+    result: { dispatch: 'queued', runtimeSessionId: runtimeSession.id, runtimeType: input.runtimeType, attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, at: now },
+  }).eq('id', input.node.id)
+
+  await enqueue({
+    runtimeSessionId: runtimeSession.id,
+    endpointId: endpoint.id ?? undefined,
+    runtimeType: input.runtimeType,
+    nativeSessionId: runtimeSession.nativeSessionId ?? null,
+    cwd: runtimeSession.cwd ?? cwd,
+    prompt: buildRuntimeInvokePrompt({
+      label: input.node.label,
+      userMessage: payloadString(payload, 'userMessage') ?? '继续执行该编排节点。',
+      phase: payloadString(payload, 'phase'),
+      handoffs: payload.handoffs ?? input.mailboxContextPackage,
+    }),
+    systemPrompt: typeof input.role?.system_prompt === 'string' ? input.role.system_prompt : undefined,
+    planNodeId: input.node.id,
+  })
+  return { status: 'queued', runtimeSessionId: runtimeSession.id }
+}
+
+export async function dispatchMailboxRuntimeInvokeItem(
+  db: AppDb,
+  input: {
+    userId: string
+    mailboxItem: AgentMailboxItem
+    node: RuntimeInvokeNodeForDispatch
+  },
+): Promise<ActionDispatchResult> {
+  const attemptId = input.mailboxItem.attempt_id
+  if (!attemptId) {
+    await markAttemptAndMailbox(db, {
+      mailboxItemId: input.mailboxItem.id,
+      status: 'dead_letter',
+      error: 'Mailbox 缺少 attempt_id，无法调度。',
+    })
+    if (input.mailboxItem.plan_node_id) {
+      await db.from('plan_nodes').update({ status: 'failed', result: { error: 'Mailbox 缺少 attempt_id，无法调度。' } }).eq('id', input.mailboxItem.plan_node_id)
+    }
+    return { status: 'unavailable', error: 'Mailbox 缺少 attempt_id，无法调度。' }
+  }
+
+  if (input.node.action_type && input.node.action_type !== 'runtime_invoke') {
+    await markAttemptAndMailbox(db, {
+      attemptId,
+      mailboxItemId: input.mailboxItem.id,
+      status: 'dead_letter',
+      error: 'Mailbox 只支持 runtime_invoke 节点调度。',
+    })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: 'Mailbox 只支持 runtime_invoke 节点调度。' } }).eq('id', input.node.id)
+    return { status: 'unsupported', error: 'Mailbox 只支持 runtime_invoke 节点调度。' }
+  }
+
+  const { data: session } = await db
+    .from('sessions')
+    .select('workspace_id')
+    .eq('id', input.mailboxItem.session_id)
+    .single()
+  const workspaceId = (session as SessionWorkspaceRow | null)?.workspace_id
+  if (!workspaceId) {
+    await markAttemptAndMailbox(db, { attemptId, mailboxItemId: input.mailboxItem.id, status: 'dead_letter', error: 'Mailbox 所属会话不存在，无法调度。' })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: 'Mailbox 所属会话不存在，无法调度。' } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: 'Mailbox 所属会话不存在，无法调度。' }
+  }
+
+  const { data: workspace } = await db
+    .from('workspaces')
+    .select('id, owner_id, execution_domain')
+    .eq('id', workspaceId)
+    .eq('owner_id', input.userId)
+    .single()
+  const workspaceRow = workspace as WorkspaceDispatchRow | null
+  if (!workspaceRow?.id) {
+    await markAttemptAndMailbox(db, { attemptId, mailboxItemId: input.mailboxItem.id, status: 'dead_letter', error: 'Mailbox 所属工作区不存在或无权限，无法调度。' })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: 'Mailbox 所属工作区不存在或无权限，无法调度。' } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: 'Mailbox 所属工作区不存在或无权限，无法调度。' }
+  }
+  if (workspaceRow.execution_domain !== 'cloud') {
+    await markAttemptAndMailbox(db, { attemptId, mailboxItemId: input.mailboxItem.id, status: 'dead_letter', error: '当前完整线路只支持 cloud mailbox 调度。' })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: '当前完整线路只支持 cloud mailbox 调度。' } }).eq('id', input.node.id)
+    return { status: 'unsupported', error: '当前完整线路只支持 cloud mailbox 调度。' }
+  }
+
+  const { data: role } = await db
+    .from('role_agents')
+    .select('id, name, system_prompt, runtime_type')
+    .eq('id', input.mailboxItem.to_role_agent_id)
+    .eq('workspace_id', workspaceRow.id)
+    .single()
+  const roleRow = role as unknown as RoleDispatchRow | null
+  if (!roleRow?.id) {
+    await markAttemptAndMailbox(db, { attemptId, mailboxItemId: input.mailboxItem.id, status: 'dead_letter', error: 'Mailbox 目标角色不存在或无权限，无法调度。' })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: 'Mailbox 目标角色不存在或无权限，无法调度。' } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: 'Mailbox 目标角色不存在或无权限，无法调度。' }
+  }
+
+  return dispatchPreparedRuntimeInvokeNode(db, {
+    userId: input.userId,
+    sessionId: input.mailboxItem.session_id,
+    node: input.node,
+    workspaceId: workspaceRow.id,
+    executionDomain: workspaceRow.execution_domain,
+    role: roleRow,
+    runtimeType: roleRow.runtime_type,
+    attemptId,
+    mailboxItemId: input.mailboxItem.id,
+    mailboxContextPackage: input.mailboxItem.context_package,
+  })
+}
+
 export async function dispatchRuntimeInvokeNode(
   db: AppDb,
   input: {
@@ -212,13 +391,13 @@ export async function dispatchRuntimeInvokeNode(
     node: RuntimeInvokeNodeForDispatch
   },
 ): Promise<ActionDispatchResult> {
-  const payload = input.node.action_payload ?? {}
   const { data: session } = await db
     .from('sessions')
     .select('workspace_id')
     .eq('id', input.sessionId)
     .single()
-  if (!session?.workspace_id) {
+  const workspaceId = (session as SessionWorkspaceRow | null)?.workspace_id
+  if (!workspaceId) {
     await db.from('plan_nodes').update({ status: 'failed', result: { error: '节点所属会话不存在，无法投递 Runtime。' } }).eq('id', input.node.id)
     return { status: 'unavailable', error: '节点所属会话不存在，无法投递 Runtime。' }
   }
@@ -226,14 +405,15 @@ export async function dispatchRuntimeInvokeNode(
   const { data: workspace } = await db
     .from('workspaces')
     .select('id, owner_id, execution_domain')
-    .eq('id', session.workspace_id)
+    .eq('id', workspaceId)
     .eq('owner_id', input.userId)
     .single()
-  if (!workspace?.id) {
+  const workspaceRow = workspace as WorkspaceDispatchRow | null
+  if (!workspaceRow?.id) {
     await db.from('plan_nodes').update({ status: 'failed', result: { error: '节点所属工作区不存在或无权限，无法投递 Runtime。' } }).eq('id', input.node.id)
     return { status: 'unavailable', error: '节点所属工作区不存在或无权限，无法投递 Runtime。' }
   }
-  const executionDomain = workspace.execution_domain as ExecutionDomain
+  const executionDomain = workspaceRow.execution_domain
   if (executionDomain !== 'cloud') {
     await db.from('plan_nodes').update({ status: 'failed', result: { error: '当前完整线路只支持 cloud runtime_invoke。' } }).eq('id', input.node.id)
     return { status: 'unsupported', error: '当前完整线路只支持 cloud runtime_invoke。' }
@@ -244,10 +424,12 @@ export async function dispatchRuntimeInvokeNode(
       .from('role_agents')
       .select('id, name, system_prompt, runtime_type')
       .eq('id', input.node.agent_id)
-      .eq('workspace_id', workspace.id)
+      .eq('workspace_id', workspaceRow.id)
       .single()
     : { data: null }
-  const runtimeType = role?.runtime_type === 'codex' ? 'codex' : 'claude_code'
+  const roleRow = role as RoleDispatchRow | null
+  const runtimeType: CliRuntimeType = roleRow?.runtime_type === 'codex' ? 'codex' : 'claude_code'
+  const payload = input.node.action_payload ?? {}
   const previousAttempt = await latestPlanNodeAttempt(db, input.node.id)
   const { data: attempt, error: attemptError } = await db
     .from('plan_node_attempts')
@@ -269,17 +451,17 @@ export async function dispatchRuntimeInvokeNode(
   }
   const attemptId = (attempt as unknown as { id: string }).id
   let mailboxItemId: string | null = null
-  if (role?.id) {
+  if (roleRow?.id) {
     const { data: mailbox, error: mailboxError } = await db
       .from('agent_mailbox_items')
       .insert({
-        workspace_id: workspace.id,
+        workspace_id: workspaceRow.id,
         session_id: input.sessionId,
         plan_id: input.node.plan_id,
         plan_node_id: input.node.id,
         direction: 'inbound',
         from_role_agent_id: null,
-        to_role_agent_id: role.id,
+        to_role_agent_id: roleRow.id,
         attempt_id: attemptId,
         parent_attempt_id: previousAttempt?.id ?? null,
         lineage_root_id: previousAttempt?.id ?? attemptId,
@@ -288,8 +470,8 @@ export async function dispatchRuntimeInvokeNode(
         context_package: {
           fromRoleAgentId: null,
           fromRoleName: 'Orchestrator',
-          toRoleAgentId: role.id,
-          toRoleName: role.name,
+          toRoleAgentId: roleRow.id,
+          toRoleName: roleRow.name,
           sessionId: input.sessionId,
           summary: typeof payload.userMessage === 'string' ? payload.userMessage : `执行编排节点「${input.node.label}」。`,
           sourceMessageId: null,
@@ -312,51 +494,15 @@ export async function dispatchRuntimeInvokeNode(
     await db.from('plan_node_attempts').update({ mailbox_item_id: mailboxItemId }).eq('id', attemptId)
   }
 
-  const endpoint = await resolveEndpoint({
+  return dispatchPreparedRuntimeInvokeNode(db, {
     userId: input.userId,
-    workspaceId: workspace.id,
-    executionDomain,
-  })
-  if (endpoint.status === 'unconfigured' || endpoint.id === null) {
-    await markAttemptAndMailbox(db, { attemptId, mailboxItemId, status: 'dead_letter', error: '公共云端 Runtime 尚未配置，节点未投递。' })
-    await db.from('plan_nodes').update({ status: 'failed', result: { error: '公共云端 Runtime 尚未配置，节点未投递。' } }).eq('id', input.node.id)
-    return { status: 'unavailable', error: '公共云端 Runtime 尚未配置，节点未投递。' }
-  }
-  if (!process.env.REDIS_URL || !(await isWorkerAlive())) {
-    await markAttemptAndMailbox(db, { attemptId, mailboxItemId, status: 'dead_letter', error: 'Runtime 执行器未就绪，节点未投递。' })
-    await db.from('plan_nodes').update({ status: 'failed', result: { error: 'Runtime 执行器未就绪，节点未投递。' } }).eq('id', input.node.id)
-    return { status: 'unavailable', error: 'Runtime 执行器未就绪，节点未投递。' }
-  }
-
-  const cwd = typeof payload.cwd === 'string' ? payload.cwd : process.env.RUNTIME_CWD ?? null
-  const runtimeSession = await createSession({
     sessionId: input.sessionId,
-    endpoint,
-    roleAgentId: role?.id ?? undefined,
+    node: input.node,
+    workspaceId: workspaceRow.id,
+    executionDomain,
+    role: roleRow,
     runtimeType,
-    cwd,
+    attemptId,
+    mailboxItemId,
   })
-  await markAttemptAndMailbox(db, { attemptId, mailboxItemId, status: 'running', runtimeSessionId: runtimeSession.id })
-  const now = new Date().toISOString()
-  await db.from('plan_nodes').update({
-    status: 'running',
-    started_at: now,
-    result: { dispatch: 'queued', runtimeSessionId: runtimeSession.id, runtimeType, attemptId, mailboxItemId, at: now },
-  }).eq('id', input.node.id)
-  await enqueue({
-    runtimeSessionId: runtimeSession.id,
-    endpointId: endpoint.id ?? undefined,
-    runtimeType,
-    nativeSessionId: runtimeSession.nativeSessionId ?? null,
-    cwd: runtimeSession.cwd ?? cwd,
-    prompt: buildRuntimeInvokePrompt({
-      label: input.node.label,
-      userMessage: typeof payload.userMessage === 'string' ? payload.userMessage : '继续执行该编排节点。',
-      phase: typeof payload.phase === 'string' ? payload.phase : undefined,
-      handoffs: payload.handoffs,
-    }),
-    systemPrompt: typeof role?.system_prompt === 'string' ? role.system_prompt : undefined,
-    planNodeId: input.node.id,
-  })
-  return { status: 'queued', runtimeSessionId: runtimeSession.id }
 }
