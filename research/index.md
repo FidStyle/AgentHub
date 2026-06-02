@@ -45,6 +45,7 @@
 |------|------|
 | [reference-repos/](./reference-repos/) | 参考仓库对比分析 |
 | [reference-repos/three-surface-workbench-component-migration.md](./reference-repos/three-surface-workbench-component-migration.md) | 三端工作台权限、diff、artifact、移动监督和 Desktop 策略组件参考迁移清单 |
+| [reference-repos/agent-ui-component-evolution-roadmap.md](./reference-repos/agent-ui-component-evolution-roadmap.md) | AI Chat、权限、Artifact 与 Workbench 组件长期演进路线：assistant-ui、Vercel AI Elements、Vercel Chatbot、OpenHands、bolt.new |
 
 ## 项目跟进与执行
 

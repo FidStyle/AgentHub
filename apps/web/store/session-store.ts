@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { RuntimeMessagePart } from '@agenthub/shared'
+import { appendRuntimeDelta } from '@/lib/chat/markdown'
 
 export interface Session {
   id: string
@@ -430,7 +431,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             upsertReply()
           }
           if (evt.type === 'runtime_output' && evt.delta) {
-            reply += evt.delta
+            reply = appendRuntimeDelta(reply, evt.delta)
             upsertReply()
           } else if (evt.type && statusText[evt.type] && !replyCreated) {
             showSystemNotice(statusText[evt.type])

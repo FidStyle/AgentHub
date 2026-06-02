@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import type { RuntimeMessagePart } from '@agenthub/shared'
 import { appendRuntimeDelta, normalizeMessageMarkdown } from '@/lib/chat/markdown'
+import { MessageContent } from '@/components/workspace/MessageContent'
 import { MessageMarkdown } from '@/components/workspace/MessageMarkdown'
 
 describe('normalizeMessageMarkdown', () => {
@@ -121,5 +123,26 @@ describe('MessageMarkdown', () => {
     expect(html).toContain('<ul')
     expect(html).toContain('<li')
     expect(html).toContain('package.json')
+  })
+})
+
+describe('MessageContent', () => {
+  it('renders runtime tool and permission parts behind a stable message-content boundary', () => {
+    const parts: RuntimeMessagePart[] = [
+      { id: 'tool-1', type: 'tool', status: 'completed', toolName: 'git status', result: { changed: 2 } },
+      { id: 'permission-1', type: 'permission', status: 'pending', actionId: 'action-1', title: '需要执行命令', description: '该动作需要授权后继续。', riskLevel: 'medium' },
+    ]
+
+    const html = renderToStaticMarkup(createElement(MessageContent, {
+      content: '执行前检查：- 查看 Git 状态- 等待授权',
+      parts,
+      streaming: false,
+    }))
+
+    expect(html).toContain('data-testid="message-content"')
+    expect(html).toContain('data-testid="message-tool-card"')
+    expect(html).toContain('data-testid="message-permission-card"')
+    expect(html).toContain('工具：git status')
+    expect(html).toContain('需要执行命令')
   })
 })

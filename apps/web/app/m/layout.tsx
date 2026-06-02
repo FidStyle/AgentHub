@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/sw.js', { scope: '/m/' })
     }
   }, [])
 

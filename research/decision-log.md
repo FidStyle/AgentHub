@@ -182,3 +182,31 @@ AgentHub 采用统一三端会话工作台与权限模型：
 - `research/prd-amendments/2026-05-31-three-surface-workbench-permission-model.md` 记录 confirmed PRD 修订。
 - `research/product/product-design.md`, `research/product/ui-design-system.md`, `research/product/desktop-p0-ui-ux-contract.md` 已同步 Desktop Host、Mobile 远程监督和授权卡语义。
 - 后续实现必须先产出参考组件迁移清单，优先参考 codeg、AionUi、OpenAI Codex 和成熟 diff/artifact 组件，但以 AgentHub 数据模型和统一视觉系统重写落地。
+
+---
+
+## DEC-007: AI 工作台组件长期采用成熟参考实现演进
+
+| 字段 | 内容 |
+|------|------|
+| **日期** | 2026-06-03 |
+| **决策者** | joytion |
+| **状态** | ✅ 已确认 |
+| **FR-ID** | FR-WEB-001, FR-MOB-001, FR-CHAT-001, FR-ORCH-001, FR-PERM-001, FR-ACTION-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
+
+### 决策
+
+AgentHub 的 AI Chat、权限确认、Artifact 和 Workbench 不再继续按零散自研组件推进，而是采用“成熟参考实现 + AgentHub 数据合同适配”的长期路线：
+
+- Chat Thread、Composer、tool call、human approval 优先参考 `assistant-ui` 和 `vercel/ai-elements`。
+- Artifact 类型化、Streamdown 配置和完整 Next.js AI Chat 架构参考 `vercel/chatbot`。
+- 文件树、编辑器、预览、终端和 workbench 交互参考 `stackblitz/bolt.new`。
+- Agent 工作台状态、runtime、权限/RBAC 和恢复模型参考 `OpenHands`。
+
+第一波不直接引入大依赖，而是先把当前 `ChatPanel` 拆出消息内容、runtime part、权限卡和 Composer 边界，后续逐步替换内部实现。
+
+### 影响
+
+- `research/reference-repos/agent-ui-component-evolution-roadmap.md` 成为后续组件迁移路线入口。
+- 参考项目只能提供组件结构、交互和状态机经验，不能覆盖 AgentHub 的 Role Agent、Workspace 执行域、Approval、Runtime 凭证边界和三端职责。
+- 新增 UI 任务必须写明采用/不采用的参考来源，并保持中文文案、Tailwind 4 语义 token、lucide 图标和视觉 E2E 门禁。
