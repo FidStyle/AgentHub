@@ -150,6 +150,8 @@ async function dev() {
     RUNTIME_EXECUTOR: process.env.RUNTIME_EXECUTOR ?? 'real',
   }
 
+  await run('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'scripts/verify-acceptance-startup.ts'], { env })
+
   const worker = spawnLong('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'server/runtime-worker.ts'], env)
   const web = spawnLong('pnpm', ['dev:web'], env)
 

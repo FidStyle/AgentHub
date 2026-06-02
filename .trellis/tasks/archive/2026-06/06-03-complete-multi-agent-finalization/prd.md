@@ -47,7 +47,7 @@
 - [x] `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plan-node-controls-inventory.test.ts __tests__/runtime/executor.test.ts` 通过。
 - [x] `pnpm --filter @agenthub/shared test` 通过。
 - [x] `pnpm --filter @agenthub/web type-check` 通过。
-- [ ] 治理门禁 `bash scripts/verify-governance-gate.sh COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` 通过或明确只剩 commit-order 门禁。
+- [x] 治理门禁 `bash scripts/verify-governance-gate.sh COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` 已通过；公开状态以 `research/project-tracker.md` 和共享合同为准。
 
 ## Out of Scope
 

@@ -1,36 +1,7 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
-
-const DEFAULT_ROLE_AGENTS = [
-  {
-    name: '架构师',
-    role_type: 'orchestrator',
-    system_prompt:
-      '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
-    capabilities: ['规划', '路由', '协调'],
-    runtime_type: 'claude_code',
-    is_orchestrator: true,
-  },
-  {
-    name: '前端工程师',
-    role_type: 'engineer',
-    system_prompt:
-      '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
-    capabilities: ['前端', 'React', 'UI', 'E2E'],
-    runtime_type: 'claude_code',
-    is_orchestrator: false,
-  },
-  {
-    name: '后端工程师',
-    role_type: 'engineer',
-    system_prompt:
-      '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
-    capabilities: ['后端', '数据库', 'Runtime', 'API'],
-    runtime_type: 'codex',
-    is_orchestrator: false,
-  },
-] as const
+import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 
 function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
   return value === 'claude_code' || value === 'codex'
@@ -38,15 +9,6 @@ function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
 
 function hasLegacyRuntimeTag(value: unknown): boolean {
   return Array.isArray(value) && value.some((item) => typeof item === 'string' && item.startsWith('runtime:'))
-}
-
-async function ensureDefaultRoleAgents(db: Awaited<ReturnType<typeof createClient>>, workspaceId: string, existing: Array<{ name: string }>) {
-  const existingNames = new Set(existing.map((row) => row.name))
-  const missing = DEFAULT_ROLE_AGENTS
-    .filter((role) => !existingNames.has(role.name))
-    .map((role) => ({ workspace_id: workspaceId, ...role }))
-  if (missing.length === 0) return null
-  return db.from('role_agents').insert(missing).select()
 }
 
 // GET: list all role agents for a workspace

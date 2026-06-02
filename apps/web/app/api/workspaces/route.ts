@@ -2,6 +2,7 @@ import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { ensureCloudWorkspaceProject } from '@/lib/workspace/cloud-workspace-fs'
+import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 
 function hasDatabaseConfig() {
   return Boolean(process.env.DATABASE_URL)
@@ -121,6 +122,10 @@ export async function POST(request: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const seedResult = await ensureDefaultRoleAgents(db, (data as { id: string }).id)
+  if (seedResult.error) return NextResponse.json({ error: seedResult.error.message }, { status: 500 })
+
   if (execution_domain === 'cloud') {
     const { data: profile } = await db
       .from('profiles')

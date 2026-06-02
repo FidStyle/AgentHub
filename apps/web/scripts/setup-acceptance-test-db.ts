@@ -11,6 +11,36 @@ type GithubTestUser = {
   github_account_id: string
 }
 
+const defaultRoleAgents = [
+  {
+    name: '架构师',
+    roleType: 'orchestrator',
+    systemPrompt:
+      '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
+    capabilities: '["规划", "路由", "协调"]',
+    runtimeType: 'claude_code',
+    isOrchestrator: true,
+  },
+  {
+    name: '前端工程师',
+    roleType: 'engineer',
+    systemPrompt:
+      '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
+    capabilities: '["前端", "React", "UI", "E2E"]',
+    runtimeType: 'claude_code',
+    isOrchestrator: false,
+  },
+  {
+    name: '后端工程师',
+    roleType: 'engineer',
+    systemPrompt:
+      '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
+    capabilities: '["后端", "数据库", "Runtime", "API"]',
+    runtimeType: 'codex',
+    isOrchestrator: false,
+  },
+] as const
+
 const repoRoot = path.resolve(__dirname, '../../..')
 
 function loadLocalEnv() {
@@ -129,6 +159,36 @@ async function createFixtureGithubUser(pool: Pool): Promise<GithubTestUser> {
   }
 }
 
+async function ensureDefaultRoleAgents(pool: Pool) {
+  const { rows: workspaces } = await pool.query('SELECT id FROM public.workspaces')
+  for (const workspace of workspaces as Array<{ id: string }>) {
+    for (const role of defaultRoleAgents) {
+      await pool.query(
+        `INSERT INTO public.role_agents (
+           workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator
+         )
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+         ON CONFLICT (workspace_id, name) DO UPDATE SET
+           role_type = EXCLUDED.role_type,
+           system_prompt = EXCLUDED.system_prompt,
+           capabilities = EXCLUDED.capabilities,
+           runtime_type = EXCLUDED.runtime_type,
+           is_orchestrator = EXCLUDED.is_orchestrator,
+           updated_at = now()`,
+        [
+          workspace.id,
+          role.name,
+          role.roleType,
+          role.systemPrompt,
+          role.capabilities,
+          role.runtimeType,
+          role.isOrchestrator,
+        ],
+      )
+    }
+  }
+}
+
 async function main() {
   const pool = new Pool({ connectionString: databaseUrl })
   const schema = fs.readFileSync(schemaPath, 'utf8')
@@ -154,6 +214,7 @@ async function main() {
      ON CONFLICT ("sessionToken") DO UPDATE SET "userId" = EXCLUDED."userId", expires = EXCLUDED.expires`,
     [sessionToken, githubUser.user_id, expires],
   )
+  await ensureDefaultRoleAgents(pool)
 
   await pool.end()
 

@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS public.role_agents (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS role_agents_workspace_name_uidx
+  ON public.role_agents(workspace_id, name);
+
 ALTER TABLE public.role_agents
   ADD COLUMN IF NOT EXISTS runtime_type text NOT NULL DEFAULT 'claude_code';
 

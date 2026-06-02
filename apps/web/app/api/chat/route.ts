@@ -7,6 +7,7 @@ import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@
 import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
 import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
+import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import type { RuntimeGatewayEvent, RuntimeMessagePart } from '@agenthub/shared'
 import type { CliRuntimeType, RuntimeType } from '@agenthub/shared'
 import type { ContextPackage } from '@agenthub/shared'
@@ -252,6 +253,23 @@ export async function POST(req: NextRequest) {
     if (!operability.ok) return Response.json({ error: operability.error }, { status: 409 })
   }
 
+  const existingRolesForWorkspace = async () => {
+    const { data: roles, error: roleError } = await db
+      .from('role_agents')
+      .select('id, workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator')
+      .eq('workspace_id', ws.id)
+      .order('created_at', { ascending: true })
+    if (roleError) throw new Error(roleError.message)
+    return (roles ?? []) as unknown as SelectedRoleAgent[]
+  }
+
+  const rowsBeforeSeed = await existingRolesForWorkspace()
+  const seedResult = await ensureDefaultRoleAgents(db, ws.id, rowsBeforeSeed.map((role) => ({ name: role.name })))
+  if (seedResult.error) return Response.json({ error: seedResult.error.message }, { status: 500 })
+  const allWorkspaceRoles = seedResult.data && Array.isArray(seedResult.data) && seedResult.data.length > 0
+    ? await existingRolesForWorkspace()
+    : rowsBeforeSeed
+
   const requestedRoleIds = Array.isArray(roleAgentIds)
     ? roleAgentIds.map((id) => String(id)).filter(Boolean)
     : roleAgentId
@@ -260,26 +278,13 @@ export async function POST(req: NextRequest) {
 
   let selectedRoleAgents: SelectedRoleAgent[] = []
   if (requestedRoleIds.length > 0) {
-    const { data: roles, error: roleError } = await db
-      .from('role_agents')
-      .select('id, workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator')
-      .eq('workspace_id', ws.id)
-      .order('created_at', { ascending: true })
-    if (roleError) return Response.json({ error: roleError.message }, { status: 500 })
-    selectedRoleAgents = ((roles ?? []) as unknown as typeof selectedRoleAgents)
-      .filter((role) => requestedRoleIds.includes(role.id))
+    selectedRoleAgents = allWorkspaceRoles.filter((role) => requestedRoleIds.includes(role.id))
     if (selectedRoleAgents.length !== requestedRoleIds.length) {
       return Response.json({ error: '角色不存在或无权限' }, { status: 403 })
     }
     selectedRoleAgents.sort((a, b) => requestedRoleIds.indexOf(a.id) - requestedRoleIds.indexOf(b.id))
   } else {
-    const { data: roles, error: roleError } = await db
-      .from('role_agents')
-      .select('id, workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator')
-      .eq('workspace_id', ws.id)
-      .order('created_at', { ascending: true })
-    if (roleError) return Response.json({ error: roleError.message }, { status: 500 })
-    const rows = ((roles ?? []) as unknown as typeof selectedRoleAgents)
+    const rows = allWorkspaceRoles
     const orchestrator = rows.find((role) => role.name === '架构师' || role.name === 'Orchestrator' || role.is_orchestrator) ?? rows[0]
     if (orchestrator) selectedRoleAgents = [orchestrator]
   }
