@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import os from 'node:os'
 
 export type CloudWorkspaceOwner = {
   id: string
@@ -84,7 +85,7 @@ function slug(value: string, fallback: string) {
 }
 
 export function cloudWorkspaceRoot() {
-  return process.env.AGENTHUB_CLOUD_WORKSPACE_ROOT ?? path.join(process.cwd(), '.agenthub', 'cloud-workspaces')
+  return process.env.AGENTHUB_CLOUD_WORKSPACE_ROOT ?? path.join(os.homedir(), '.agenthub', 'cloud-workspaces')
 }
 
 export function cloudWorkspaceDir(owner: CloudWorkspaceOwner, workspace: CloudWorkspaceRow) {

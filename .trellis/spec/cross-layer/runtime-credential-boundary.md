@@ -52,6 +52,8 @@ interface RoleAgentRuntimeSelection {
 - Role Agent 的 Claude Code / Codex 选择保存为 `role_agents.runtime_type`。不得把 `runtime:codex` / `runtime:claude_code` 塞进 `capabilities` 来驱动执行。
 - Desktop Connector 可以继承当前进程环境执行用户本机 CLI，但不得把敏感环境变量回传到 Web 或后端。
 - 平台托管 Runtime 或模型 Provider 如需 API Key，必须走单独凭证/模型供应商能力，并且不能复用本地 CLI Runtime Binding 数据结构。
+- AgentHub 自己创建的运行目录、云端工作区、临时文件和日志默认必须放在用户级 `~/.agenthub/` 下；禁止默认落到当前产品仓库的 `process.cwd()/.agenthub`。测试、CI 或部署可以通过显式环境变量覆盖目录，例如 `AGENTHUB_CLOUD_WORKSPACE_ROOT`。
+- AgentHub Web/App 中的 IM 对话不应自动同步到 Claude Code/Codex 的本地 resume 会话。需要连续上下文时，只允许通过明确的 AgentHub session/runtime binding、native session id 或任务摘要注入完成，不能把整段 Web 消息流隐式写入本地 CLI 原生会话。
 
 ### 4. 校验与错误矩阵
 

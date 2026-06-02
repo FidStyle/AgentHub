@@ -5,6 +5,8 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createWorkspaceFolderZip,
+  cloudWorkspaceDir,
+  cloudWorkspaceRoot,
   deleteWorkspaceEntry,
   discardWorkspaceGitPath,
   readCloudWorkspacePreview,
@@ -18,6 +20,7 @@ import {
 } from '@/lib/workspace/cloud-workspace-fs'
 
 let tmpDirs: string[] = []
+const originalCloudWorkspaceRoot = process.env.AGENTHUB_CLOUD_WORKSPACE_ROOT
 
 async function makeWorkspace() {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'agenthub-workspace-'))
@@ -39,9 +42,25 @@ async function runGit(cwd: string, args: string[]) {
 afterEach(async () => {
   await Promise.all(tmpDirs.map((dir) => rm(dir, { recursive: true, force: true })))
   tmpDirs = []
+  if (originalCloudWorkspaceRoot === undefined) delete process.env.AGENTHUB_CLOUD_WORKSPACE_ROOT
+  else process.env.AGENTHUB_CLOUD_WORKSPACE_ROOT = originalCloudWorkspaceRoot
 })
 
 describe('workspace file preview and artifact bundle helpers', () => {
+  it('keeps default cloud workspaces outside the current project tree', () => {
+    delete process.env.AGENTHUB_CLOUD_WORKSPACE_ROOT
+    expect(cloudWorkspaceRoot()).toBe(path.join(os.homedir(), '.agenthub', 'cloud-workspaces'))
+    expect(cloudWorkspaceDir({ id: 'user-001', name: 'Test User' }, { id: 'workspace-001', name: 'Demo App' }))
+      .toBe(path.join(os.homedir(), '.agenthub', 'cloud-workspaces', 'test-user', 'demo-app-workspac'))
+  })
+
+  it('allows tests and deployments to override the cloud workspace root', () => {
+    process.env.AGENTHUB_CLOUD_WORKSPACE_ROOT = '/tmp/agenthub-cloud-root'
+    expect(cloudWorkspaceRoot()).toBe('/tmp/agenthub-cloud-root')
+    expect(cloudWorkspaceDir({ id: 'user-001' }, { id: 'workspace-001', name: 'Demo App' }))
+      .toBe('/tmp/agenthub-cloud-root/user-001/demo-app-workspac')
+  })
+
   it('reads html, markdown, code and folder previews from workspace-relative paths', async () => {
     const root = await makeWorkspace()
     await mkdir(path.join(root, 'site'), { recursive: true })
