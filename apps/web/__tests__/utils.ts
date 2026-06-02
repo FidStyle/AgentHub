@@ -132,6 +132,7 @@ type ChainBuilder = {
   limit: () => ChainBuilder
   insert: (vals: Record<string, unknown>) => ChainBuilder
   update: (vals: Record<string, unknown>) => ChainBuilder
+  delete: () => ChainBuilder
 }
 
 function chain(data: unknown, error: { message: string } | null = null): ChainBuilder {
@@ -146,6 +147,7 @@ function chain(data: unknown, error: { message: string } | null = null): ChainBu
     limit: () => chain(data, error),
     insert: () => chain(data, error),
     update: () => chain(data, error),
+    delete: () => chain(data, error),
   }
 }
 
@@ -161,6 +163,7 @@ function chainBuilder(data: unknown, error: { message: string } | null = null): 
     limit: () => chain(data, error),
     insert: () => chain(data, error),
     update: () => chain(data, error),
+    delete: () => chainBuilder(data, error),
   }
 }
 
@@ -225,6 +228,11 @@ export function createPostgresChain(
             }),
           }),
           update: makeUpdateChain(workspaces[0] ?? mockWorkspace),
+          delete: () => ({
+            eq: (_field: string, value: string) => ({
+              eq: () => chain((workspaces as Array<{ id?: string }>).some(w => w.id === value) ? null : null, null),
+            }),
+          }),
         }
       }
       if (table === 'sessions') {
@@ -392,6 +400,7 @@ export function createErrorChain(msg = 'Database error') {
       limit: () => ({ data: null, error: { message: msg } }),
       insert: () => errChain(),
       update: () => errChain(),
+      delete: () => errChain(),
     }
   }
   return vi.fn(() => ({

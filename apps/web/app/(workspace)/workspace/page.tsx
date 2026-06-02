@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { CreateWorkspaceDialog } from '@/components/workspace/CreateWorkspaceDialog'
 import { useWorkspaceRuntimeStatus } from '@/components/workspace/useWorkspaceRuntimeStatus'
+import { Trash2 } from 'lucide-react'
 
 interface WorkspaceRow {
   id: string
@@ -18,6 +19,7 @@ export default function WorkspacePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(null)
   const router = useRouter()
   const runtimeStatus = useWorkspaceRuntimeStatus()
 
@@ -34,6 +36,26 @@ export default function WorkspacePage() {
   }, [])
 
   useEffect(() => { fetchWorkspaces() }, [fetchWorkspaces])
+
+  const deleteWorkspace = async (workspace: WorkspaceRow) => {
+    if (!confirm(`确定删除工作区「${workspace.name}」吗？相关会话、消息和云端项目目录会一并删除。`)) return
+    setDeletingWorkspaceId(workspace.id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/workspaces/${workspace.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || '删除工作区失败')
+      }
+      setWorkspaces((items) => items.filter((item) => item.id !== workspace.id))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '删除工作区失败'
+      setError(message)
+      alert(message)
+    } finally {
+      setDeletingWorkspaceId(null)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -60,6 +82,7 @@ export default function WorkspacePage() {
               const local = ws.execution_domain === 'local_desktop'
               const operable = !local || runtimeStatus.status?.operable === true
               const reason = local ? runtimeStatus.status?.blockReasonText ?? runtimeStatus.error ?? '正在检查本地连接状态' : null
+              const deleting = deletingWorkspaceId === ws.id
               return (
                 <article
                   key={ws.id}
@@ -100,15 +123,39 @@ export default function WorkspacePage() {
                         >
                           连接并继续
                         </button>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={deleting}
+                          aria-label={`删除工作区 ${ws.name}`}
+                          data-testid={`workspace-card-delete-${ws.id}`}
+                          onClick={() => void deleteWorkspace(ws)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {deleting ? '删除中' : '删除'}
+                        </button>
                       </>
                     ) : (
-                      <button
-                        type="button"
-                        className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground"
-                        onClick={() => router.push(`/workspace/${ws.id}`)}
-                      >
-                        进入工作区
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground"
+                          onClick={() => router.push(`/workspace/${ws.id}`)}
+                        >
+                          进入工作区
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={deleting}
+                          aria-label={`删除工作区 ${ws.name}`}
+                          data-testid={`workspace-card-delete-${ws.id}`}
+                          onClick={() => void deleteWorkspace(ws)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {deleting ? '删除中' : '删除'}
+                        </button>
+                      </>
                     )}
                   </div>
                 </article>

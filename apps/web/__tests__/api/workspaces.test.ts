@@ -5,7 +5,7 @@
  * Tests auth checks, input validation, business logic, and response shapes.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   setupMockAuth,
   resetMockAuth,
@@ -14,7 +14,47 @@ import {
   createNoAuthChain,
   createErrorChain,
   resetMockClient,
+  mockWorkspace,
 } from '../utils'
+
+const { removeCloudWorkspaceProjectMock } = vi.hoisted(() => ({
+  removeCloudWorkspaceProjectMock: vi.fn(async (_owner: unknown, _workspace: unknown) => undefined),
+}))
+
+vi.mock('@/lib/workspace/cloud-workspace-fs', () => ({
+  ensureCloudWorkspaceProject: vi.fn(async () => '/tmp/agenthub/ws-new'),
+  removeCloudWorkspaceProject: (owner: unknown, workspace: unknown) => removeCloudWorkspaceProjectMock(owner, workspace),
+}))
+
+function createDeleteErrorChain() {
+  return vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'workspaces') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: () => ({ data: mockWorkspace, error: null }),
+              }),
+            }),
+          }),
+          delete: () => ({
+            eq: () => ({
+              eq: () => ({ data: null, error: { message: 'Database error' } }),
+            }),
+          }),
+        }
+      }
+      return {
+        select: () => ({
+          eq: () => ({
+            single: () => ({ data: null, error: null }),
+          }),
+        }),
+      }
+    }),
+  }))
+}
 
 // ---------------------------------------------------------------------------
 // Helper: call a route handler and extract status + body
@@ -24,7 +64,7 @@ import {
 async function callRoute<T>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: any,
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   options: {
     body?: unknown
     params?: { id: string }
@@ -46,12 +86,14 @@ async function callRoute<T>(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
     })
-  } else {
+  } else if (method === 'PATCH') {
     request = new Request(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
     })
+  } else {
+    request = new Request(url, { method: 'DELETE' })
   }
 
   const context = params ? { params: Promise.resolve(params) } : undefined
@@ -75,6 +117,7 @@ describe('GET /api/workspaces', () => {
     process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://unit-test'
     resetMockClient()
     resetMockAuth()
+    removeCloudWorkspaceProjectMock.mockClear()
     setupMockAuth()
   })
 
@@ -189,6 +232,7 @@ describe('GET /api/workspaces/[id]', () => {
   beforeEach(() => {
     resetMockClient()
     resetMockAuth()
+    removeCloudWorkspaceProjectMock.mockClear()
     setupMockAuth()
   })
 
@@ -227,6 +271,7 @@ describe('PATCH /api/workspaces/[id]', () => {
   beforeEach(() => {
     resetMockClient()
     resetMockAuth()
+    removeCloudWorkspaceProjectMock.mockClear()
     setupMockAuth()
   })
 
@@ -285,5 +330,54 @@ describe('PATCH /api/workspaces/[id]', () => {
     })
     expect(result.status).toBe(500)
     expect((result.data as { error: string }).error).toBe('Database error')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// DELETE /api/workspaces/[id]
+// ---------------------------------------------------------------------------
+
+describe('DELETE /api/workspaces/[id]', () => {
+  beforeEach(() => {
+    resetMockClient()
+    resetMockAuth()
+    removeCloudWorkspaceProjectMock.mockClear()
+    setupMockAuth()
+  })
+
+  it('AT-W018: returns 401 when not authenticated', async () => {
+    const { DELETE } = await import('@/app/api/workspaces/[id]/route')
+    setupMockAuth(null)
+    setupMockClient(createNoAuthChain())
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'ws-001' } })
+    expect(result.status).toBe(401)
+    expect(result.data).toEqual({ error: '未授权' })
+  })
+
+  it('AT-W019: deletes owned workspace and removes cloud project', async () => {
+    const { DELETE } = await import('@/app/api/workspaces/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'ws-001' } })
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual({ ok: true })
+    expect(removeCloudWorkspaceProjectMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('AT-W020: returns 404 when workspace is not found or not owned', async () => {
+    const { DELETE } = await import('@/app/api/workspaces/[id]/route')
+    setupMockClient(createPostgresChain(undefined, []))
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'missing-ws' } })
+    expect(result.status).toBe(404)
+    expect((result.data as { error: string }).error).toBe('工作区不存在')
+    expect(removeCloudWorkspaceProjectMock).not.toHaveBeenCalled()
+  })
+
+  it('AT-W021: returns 500 on database error during delete', async () => {
+    const { DELETE } = await import('@/app/api/workspaces/[id]/route')
+    setupMockClient(createDeleteErrorChain())
+    const result = await callRoute(DELETE, 'DELETE', { params: { id: 'ws-001' } })
+    expect(result.status).toBe(500)
+    expect((result.data as { error: string }).error).toBe('Database error')
+    expect(removeCloudWorkspaceProjectMock).not.toHaveBeenCalled()
   })
 })
