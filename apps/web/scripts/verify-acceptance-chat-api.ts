@@ -2,6 +2,9 @@
  * 验收 /api/chat 集成测试
  * 验证：未登录 401 + 未连接 Desktop 时禁止创建 local_desktop workspace + cloud runtime 路径 + 消息持久化
  */
+import { randomUUID } from 'crypto'
+import { Pool } from 'pg'
+
 export {}
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
@@ -12,8 +15,7 @@ function requireEnv(name: string): string {
   return val
 }
 
-async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const cookie = process.env.TEST_AUTH_COOKIE
+async function apiFetch(path: string, options: RequestInit = {}, cookie = process.env.TEST_AUTH_COOKIE): Promise<Response> {
   const authCookie = cookie?.includes('=') ? cookie : `authjs.session-token=${cookie}`
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -21,6 +23,38 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
     ...(options.headers as Record<string, string> || {}),
   }
   return fetch(`${BASE_URL}${path}`, { ...options, headers })
+}
+
+async function createNoDesktopAuthCookie(): Promise<string> {
+  const databaseUrl = requireEnv('DATABASE_URL')
+  const pool = new Pool({ connectionString: databaseUrl })
+  const userId = randomUUID()
+  const sessionToken = randomUUID()
+  const email = `acceptance-no-desktop-${Date.now()}@agenthub.local`
+  const expires = new Date(Date.now() + 60 * 60 * 1000)
+
+  try {
+    await pool.query(
+      `INSERT INTO public."user" (id, name, email, image)
+       VALUES ($1, $2, $3, NULL)`,
+      [userId, '验收无 Desktop 用户', email],
+    )
+    await pool.query(
+      `INSERT INTO public.profiles (id, display_name)
+       VALUES ($1, $2)
+       ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()`,
+      [userId, '验收无 Desktop 用户'],
+    )
+    await pool.query(
+      `INSERT INTO public.session ("sessionToken", "userId", expires)
+       VALUES ($1, $2, $3)`,
+      [sessionToken, userId, expires],
+    )
+  } finally {
+    await pool.end()
+  }
+
+  return `authjs.session-token=${sessionToken}`
 }
 
 async function readSSEEvents(res: Response): Promise<Array<{ type: string; [k: string]: unknown }>> {
@@ -56,10 +90,11 @@ async function main() {
 
   // 2. 未连接 Desktop 时，创建 local_desktop workspace 应在入口阶段被拒绝。
   console.log('[2/4] 未连接 Desktop → local_desktop workspace 创建 409')
+  const noDesktopCookie = await createNoDesktopAuthCookie()
   const wsRes = await apiFetch('/api/workspaces', {
     method: 'POST',
     body: JSON.stringify({ name: `chat-test-local-${Date.now()}`, execution_domain: 'local_desktop' }),
-  })
+  }, noDesktopCookie)
   assert(wsRes.status === 409, `local_desktop workspace 创建返回 409 (got ${wsRes.status})`)
   const localBody = await wsRes.json() as { error?: string }
   assert(

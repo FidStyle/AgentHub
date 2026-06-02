@@ -121,7 +121,7 @@ async function smoke() {
   const baseUrl = env.BASE_URL ?? 'http://localhost:3000'
   let web = null
   if (!(await waitForServer(baseUrl, 1000))) {
-    web = spawnQuiet('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'server.ts'], env)
+    web = spawnQuiet('pnpm', ['dev:web'], env)
     if (!(await waitForServer(baseUrl))) {
       web.kill('SIGTERM')
       throw new Error(`Web 服务未就绪：${baseUrl}`)
