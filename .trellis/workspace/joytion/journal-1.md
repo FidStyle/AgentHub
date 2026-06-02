@@ -19,7 +19,10 @@
 
 ### Main Changes
 
-(Add details)
+- 提交完整多 Agent DAG generator、plan node recovery、mailbox/attempt lineage、runtime job 终态回写和 Codex/Claude native session 复用内核。
+- 接入 Web timeline、Mobile/PWA 计划监督与 Desktop Runtime 监督控制面。
+- 补齐 Phase 5 真实 Claude+Codex 多角色 UAT、resume recovery UAT、三端截图证据、project tracker、regression ledger 和 execution report。
+- 归档 Trellis 任务 `06-02-complete-multi-agent-orchestration`。
 
 ### Git Commits
 
@@ -27,7 +30,13 @@
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `pnpm --filter @agenthub/shared test -- src/__tests__/mailbox.test.ts --run`
+- [OK] `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/runtime/executor.test.ts __tests__/runtime/subscribe-timeout.test.ts __tests__/runtime/liveness.test.ts --run`
+- [OK] `pnpm --filter @agenthub/web type-check`
+- [OK] `pnpm --filter @agenthub/shared type-check`
+- [OK] `pnpm --filter @agenthub/desktop build`
+- [OK] `pnpm type-check`
+- [OK] `bash scripts/verify-governance-gate.sh COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02`
 
 ### Status
 
@@ -161,6 +170,41 @@
 | Hash | Message |
 |------|---------|
 | `9ae63a0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 6: 完成完整多 Agent 编排收口
+
+**Date**: 2026-06-03
+**Task**: 完成完整多 Agent 编排收口
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+完成完整多 Agent 编排 Phase 5 收口：提交 DAG 与恢复执行内核、三端监督控制面、真实 Claude+Codex UAT 与治理证据；治理门禁通过并归档 Trellis 任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5ec2d68` | (see git log) |
+| `6268de7` | (see git log) |
+| `b371190` | (see git log) |
 
 ### Testing
 
