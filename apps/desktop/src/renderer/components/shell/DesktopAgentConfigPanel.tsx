@@ -2,6 +2,7 @@ import { Card, CardHeader, CardTitle, CardContent, Badge, Button, RuntimeIcon, t
 import { useConsoleStore } from '../../store/console-store'
 import { RuntimeDetection } from '../console/RuntimeDetection'
 import { useOpenWebWorkspace } from '../../hooks/useOpenWebWorkspace'
+import { DesktopRuntimeSupervision } from './DesktopRuntimeSupervision'
 
 function agentToRuntime(id: string): RuntimeKind {
   if (id === 'codex' || id === 'claude_code' || id === 'opencode' || id === 'github') return id
@@ -44,6 +45,7 @@ export function DesktopAgentConfigPanel() {
         ))}
 
         <RuntimeDetection />
+        <DesktopRuntimeSupervision />
 
         <div className="mt-2">
           <Button variant="outline" size="sm" className="w-full" onClick={openWebWorkspace}>

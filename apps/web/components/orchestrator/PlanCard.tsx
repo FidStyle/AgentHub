@@ -1,8 +1,9 @@
 'use client'
 
 import { Badge, Button } from '@agenthub/ui'
-import { CheckCircle2, Circle, GitBranch, PlayCircle, Route, XCircle } from 'lucide-react'
+import { CheckCircle2, Circle, GitBranch, PlayCircle, RefreshCcw, RotateCcw, Route, XCircle } from 'lucide-react'
 import type { Plan, PlanNode } from '@agenthub/shared'
+import type { PlanNodeControl } from '@agenthub/shared'
 
 const STATUS_LABELS: Record<string, string> = {
   pending: '等待中',
@@ -11,6 +12,9 @@ const STATUS_LABELS: Record<string, string> = {
   completed: '已完成',
   failed: '失败',
   skipped: '已跳过',
+  waiting: '等待中',
+  blocked: '已阻塞',
+  cancelled: '已取消',
 }
 
 const STATUS_VARIANT: Record<string, 'secondary' | 'default' | 'warning' | 'success' | 'destructive'> = {
@@ -20,6 +24,9 @@ const STATUS_VARIANT: Record<string, 'secondary' | 'default' | 'warning' | 'succ
   completed: 'success',
   failed: 'destructive',
   skipped: 'secondary',
+  waiting: 'secondary',
+  blocked: 'destructive',
+  cancelled: 'secondary',
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -29,14 +36,32 @@ const STATUS_DOT: Record<string, string> = {
   completed: 'bg-success',
   failed: 'bg-destructive',
   skipped: 'bg-muted-foreground',
+  waiting: 'bg-muted-foreground',
+  blocked: 'bg-destructive',
+  cancelled: 'bg-muted-foreground',
 }
 
 interface PlanCardProps {
   plan: Plan & { plan_nodes?: PlanNode[] }
   onConfirm?: (planId: string) => void
+  onNodeControl?: (nodeId: string, control: PlanNodeControl) => void
 }
 
-export function PlanCard({ plan, onConfirm }: PlanCardProps) {
+function nodeControls(node: PlanNode): Array<{ control: PlanNodeControl; label: string; icon: typeof RefreshCcw }> {
+  if (node.status === 'failed' || node.status === 'blocked') {
+    return [
+      { control: 'retry', label: '重试', icon: RefreshCcw },
+      { control: 'resume', label: '恢复', icon: PlayCircle },
+    ]
+  }
+  if (node.status === 'running') return [{ control: 'cancel', label: '取消', icon: XCircle }]
+  if (node.status === 'waiting' || node.status === 'ready' || node.status === 'cancelled') {
+    return [{ control: 'requeue', label: '重新入队', icon: RotateCcw }]
+  }
+  return []
+}
+
+export function PlanCard({ plan, onConfirm, onNodeControl }: PlanCardProps) {
   const nodes = plan.plan_nodes || []
   const completedCount = nodes.filter(n => n.status === 'completed').length
   const progress = nodes.length ? Math.round((completedCount / nodes.length) * 100) : 0
@@ -99,9 +124,27 @@ export function PlanCard({ plan, onConfirm }: PlanCardProps) {
                       </p>
                     )}
                   </div>
-                  <Badge variant={STATUS_VARIANT[node.status] ?? 'secondary'}>
-                    {STATUS_LABELS[node.status] ?? node.status}
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Badge variant={STATUS_VARIANT[node.status] ?? 'secondary'}>
+                      {STATUS_LABELS[node.status] ?? node.status}
+                    </Badge>
+                    {onNodeControl && nodeControls(node).map((item) => {
+                      const ControlIcon = item.icon
+                      return (
+                        <Button
+                          key={item.control}
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          title={`${item.label}节点`}
+                          onClick={() => onNodeControl(node.id, item.control)}
+                        >
+                          <ControlIcon className="mr-1 h-3.5 w-3.5" />
+                          {item.label}
+                        </Button>
+                      )
+                    })}
+                  </div>
                 </div>
               </li>
             )

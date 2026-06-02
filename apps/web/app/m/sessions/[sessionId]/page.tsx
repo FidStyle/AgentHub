@@ -3,14 +3,16 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Card, CardContent, StateCard, Badge } from '@agenthub/ui'
-import { Paperclip } from 'lucide-react'
-import type { Message, RuntimeMessagePart } from '@agenthub/shared'
+import { GitBranch, Paperclip, PlayCircle, RefreshCcw } from 'lucide-react'
+import type { Message, Plan, PlanNode, PlanNodeControl, RuntimeMessagePart } from '@agenthub/shared'
 
 interface RoleAgent {
   id: string
   name: string
   is_orchestrator: boolean
 }
+
+type PlanWithNodes = Plan & { plan_nodes?: PlanNode[] }
 
 // Runtime terminal events must surface a clear status, never silence or a fake success.
 // Shown as a system notice (no role_agent_id) so it is not mistaken for a real agent answer.
@@ -75,15 +77,57 @@ function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
   )
 }
 
+const nodeStatusLabel: Record<string, string> = {
+  pending: '等待',
+  ready: '就绪',
+  waiting: '等待',
+  running: '执行中',
+  completed: '完成',
+  failed: '失败',
+  blocked: '阻塞',
+  cancelled: '取消',
+  skipped: '跳过',
+}
+
+const nodeStatusVariant: Record<string, 'secondary' | 'default' | 'warning' | 'success' | 'destructive'> = {
+  pending: 'secondary',
+  ready: 'default',
+  waiting: 'secondary',
+  running: 'warning',
+  completed: 'success',
+  failed: 'destructive',
+  blocked: 'destructive',
+  cancelled: 'secondary',
+  skipped: 'secondary',
+}
+
+function nodeControls(node: PlanNode): Array<{ control: PlanNodeControl; label: string; icon: typeof RefreshCcw }> {
+  if (node.status === 'failed' || node.status === 'blocked') {
+    return [
+      { control: 'retry', label: '重试', icon: RefreshCcw },
+      { control: 'resume', label: '恢复', icon: PlayCircle },
+    ]
+  }
+  return []
+}
+
 export default function MobileSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const [messages, setMessages] = useState<Message[]>([])
   const [roleAgents, setRoleAgents] = useState<RoleAgent[]>([])
+  const [plans, setPlans] = useState<PlanWithNodes[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const loadPlans = async () => {
+    const res = await fetch(`/api/plans?session_id=${sessionId}`)
+    if (!res.ok) return
+    const body = await res.json()
+    if (Array.isArray(body)) setPlans(body)
+  }
 
   // Resolve the session's workspace, then its role agents. GET /api/role-agents auto-seeds the
   // default Orchestrator, guaranteeing at least one role context for the default strategy.
@@ -93,6 +137,7 @@ export default function MobileSessionPage() {
       .then(r => r.json())
       .then(d => { if (!cancelled && Array.isArray(d)) setMessages(d) })
       .finally(() => { if (!cancelled) setLoading(false) })
+    loadPlans().catch(() => undefined)
 
     fetch(`/api/sessions/${sessionId}`)
       .then(r => (r.ok ? r.json() : null))
@@ -111,6 +156,16 @@ export default function MobileSessionPage() {
 
   const defaultRole = roleAgents.find(r => r.is_orchestrator) ?? roleAgents[0] ?? null
   const roleName = (id: string | null) => roleAgents.find(r => r.id === id)?.name
+
+  const controlNode = async (nodeId: string, control: PlanNodeControl) => {
+    const res = await fetch(`/api/plan-nodes/${nodeId}/${control}`, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError((body as { error?: string }).error || '计划节点操作失败')
+      return
+    }
+    await loadPlans()
+  }
 
   // Mirrors the Web sendMessage runtime path: POST /api/chat, stream SSE, accumulate
   // runtime_output deltas into one agent reply, map terminal events to explicit notices.
@@ -211,6 +266,59 @@ export default function MobileSessionPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
+      {plans.length > 0 && (
+        <div data-testid="mobile-plan-supervision" className="mb-3 space-y-2 rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-medium">计划监督</h2>
+            <Badge variant="secondary">{plans.length}</Badge>
+          </div>
+          <div className="space-y-2">
+            {plans.slice(0, 2).map((plan) => {
+              const nodes = plan.plan_nodes ?? []
+              const completed = nodes.filter((node) => node.status === 'completed').length
+              return (
+                <div key={plan.id} className="rounded-md border border-border bg-background p-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{plan.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{completed}/{nodes.length} 个节点完成</p>
+                    </div>
+                    <Badge variant={plan.status === 'running' ? 'default' : plan.status === 'failed' ? 'destructive' : 'secondary'}>
+                      {plan.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    {nodes.slice(0, 4).map((node) => (
+                      <div key={node.id} className="flex items-center gap-1.5 rounded border border-border px-2 py-1">
+                        <span className="min-w-0 flex-1 truncate text-xs">{node.label}</span>
+                        <Badge variant={nodeStatusVariant[node.status] ?? 'secondary'}>
+                          {nodeStatusLabel[node.status] ?? node.status}
+                        </Badge>
+                        {nodeControls(node).map((item) => {
+                          const ControlIcon = item.icon
+                          return (
+                            <Button
+                              key={item.control}
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => controlNode(node.id, item.control)}
+                            >
+                              <ControlIcon className="mr-1 h-3 w-3" />
+                              {item.label}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <div className="flex-1 overflow-auto flex flex-col gap-2 pb-4">
         {messages.length === 0 && (
           <StateCard variant="empty" title="暂无消息" description="发送第一条消息开始对话" />

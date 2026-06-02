@@ -24,6 +24,7 @@ function resetStore() {
       diagnosticMessage: 'Codex 已安装并完成认证',
     }],
     workspaceDirs: [{ path: DEFAULT_WORKDIR, healthy: true }],
+    nativeSessions: {},
   })
 }
 
@@ -136,6 +137,7 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
 
     expect(execute).toHaveBeenNthCalledWith(1, { runtimeType: 'codex', prompt: 'first', nativeSessionId: null }, DEFAULT_WORKDIR)
     expect(execute).toHaveBeenNthCalledWith(2, { runtimeType: 'codex', prompt: 'second', nativeSessionId: 'native-codex-1' }, DEFAULT_WORKDIR)
+    expect(useConsoleStore.getState().nativeSessions[`codex:${DEFAULT_WORKDIR}`]?.nativeSessionId).toBe('native-codex-1')
   })
 
   it('本地会话内可以直接切换 Agent 类型', async () => {

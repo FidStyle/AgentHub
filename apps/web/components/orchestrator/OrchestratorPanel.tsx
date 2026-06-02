@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { Plan, PlanNode, OrchestratorAction } from '@agenthub/shared'
+import type { PlanNodeControl } from '@agenthub/shared'
 import { StateCard } from '@agenthub/ui'
 import { useSessionStore } from '@/store/session-store'
 import { PlanCard } from './PlanCard'
@@ -84,6 +85,22 @@ export function OrchestratorPanel() {
     [activeSessionId, load],
   )
 
+  const onNodeControl = useCallback(
+    async (nodeId: string, control: PlanNodeControl) => {
+      try {
+        const res = await fetch(`/api/plan-nodes/${nodeId}/${control}`, { method: 'POST' })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error((body as { error?: string }).error || '计划节点操作失败')
+        }
+        if (activeSessionId) await load(activeSessionId)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '计划节点操作失败')
+      }
+    },
+    [activeSessionId, load],
+  )
+
   if (!activeSessionId) {
     return <StateCard variant="empty" title="未选择会话" description="选择一个会话后，其计划与动作将在此展示" />
   }
@@ -104,7 +121,7 @@ export function OrchestratorPanel() {
       )}
 
       {plans.map((plan) => (
-        <PlanCard key={plan.id} plan={plan} onConfirm={onConfirm} />
+        <PlanCard key={plan.id} plan={plan} onConfirm={onConfirm} onNodeControl={onNodeControl} />
       ))}
 
       {actions.map((action) => (

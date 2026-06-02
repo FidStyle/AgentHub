@@ -49,6 +49,15 @@ export interface AuthUser {
   image: string | null
 }
 
+export interface NativeSessionRecord {
+  key: string
+  runtimeType: 'claude_code' | 'codex'
+  runtimeName: string
+  cwd: string
+  nativeSessionId: string
+  updatedAt: string
+}
+
 interface ConsoleState {
   connectionState: string
   deviceName: string
@@ -66,6 +75,7 @@ interface ConsoleState {
   currentPage: DesktopPage
   selectedAgent: AgentConfig | null
   user: AuthUser | null
+  nativeSessions: Record<string, NativeSessionRecord>
 
   setConnectionState: (state: string) => void
   setRuntimes: (runtimes: RuntimeInfo[]) => void
@@ -75,6 +85,7 @@ interface ConsoleState {
   setWebWorkspaceError: (error: string | null) => void
   setAuthError: (error: string | null) => void
   setUser: (user: AuthUser | null) => void
+  setNativeSession: (record: Omit<NativeSessionRecord, 'key' | 'updatedAt'>) => void
   navigateTo: (page: DesktopPage) => void
   enterSession: (agent: AgentConfig) => void
 }
@@ -110,6 +121,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   currentPage: 'workspace',
   selectedAgent: null,
   user: null,
+  nativeSessions: {},
 
   setConnectionState: (connectionState: string) => set({ connectionState }),
   setRuntimes: (runtimes: RuntimeInfo[]) => set((state) => ({
@@ -137,6 +149,19 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   setWebWorkspaceError: (webWorkspaceError: string | null) => set({ webWorkspaceError }),
   setAuthError: (authError: string | null) => set({ authError }),
   setUser: (user: AuthUser | null) => set({ user, userName: user?.name || user?.email || '未登录' }),
+  setNativeSession: (record) => set((state) => {
+    const key = `${record.runtimeType}:${record.cwd}`
+    return {
+      nativeSessions: {
+        ...state.nativeSessions,
+        [key]: {
+          ...record,
+          key,
+          updatedAt: new Date().toLocaleTimeString('zh-CN'),
+        },
+      },
+    }
+  }),
   navigateTo: (currentPage: DesktopPage) => set({ currentPage }),
   enterSession: (agent: AgentConfig) => set({ selectedAgent: agent, currentPage: 'workspace' }),
 }))
