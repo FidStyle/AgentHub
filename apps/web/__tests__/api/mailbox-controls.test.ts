@@ -113,8 +113,8 @@ function mailboxControlChain(options: {
   const session = options.sessionOwned === false ? null : { id: 'session-001', workspace_id: 'ws-001' }
   const readyItems = options.readyItems ?? []
   const nodes = options.nodes ?? [
-    { id: 'node-001', plan_id: 'plan-001', label: '后端工程师执行', agent_id: 'agent-be', action_type: 'runtime_invoke', action_payload: { userMessage: '实现 API', phase: 'worker' } },
-    { id: 'node-arch', plan_id: 'plan-001', label: '架构师执行', agent_id: 'agent-arch', action_type: 'runtime_invoke', action_payload: { userMessage: '规划任务', phase: 'worker' } },
+    { id: 'node-001', plan_id: 'plan-001', label: '后端工程师执行', agent_id: 'agent-be', status: 'completed', depends_on: [], action_type: 'runtime_invoke', action_payload: { userMessage: '实现 API', phase: 'worker' } },
+    { id: 'node-arch', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke', action_payload: { userMessage: '汇总任务', phase: 'summarizing' } },
   ]
 
   const chainFactory = vi.fn(() => ({
@@ -174,8 +174,9 @@ function mailboxControlChain(options: {
       if (table === 'plan_nodes') {
         return {
           select: () => ({
-            eq: (_field: string, nodeId: string) => {
-              const node = nodes.find((candidate) => candidate.id === nodeId) ?? null
+            eq: (field: string, value: string) => {
+              if (field === 'plan_id') return { data: nodes.filter((candidate) => candidate.plan_id === value), error: null }
+              const node = nodes.find((candidate) => candidate.id === value) ?? null
               return { single: () => ({ data: node, error: node ? null : { message: 'Not found' } }) }
             },
           }),
@@ -191,6 +192,16 @@ function mailboxControlChain(options: {
         return {
           select: () => ({
             eq: () => ({ single: () => ({ data: session, error: session ? null : { message: 'Not found' } }) }),
+          }),
+        }
+      }
+      if (table === 'plans') {
+        return {
+          update: (values: Record<string, unknown>) => ({
+            eq: (_field: string, id: string) => {
+              writes.push({ table, values, id })
+              return { data: null, error: null }
+            },
           }),
         }
       }
@@ -246,6 +257,16 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
         values: expect.objectContaining({ status: 'completed', error: null }),
         id: 'attempt-001',
       }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        values: expect.objectContaining({ status: 'completed', result: expect.objectContaining({ replyMailboxItemId: 'mailbox-reply' }) }),
+        id: 'node-001',
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        values: expect.objectContaining({ status: 'ready' }),
+        id: 'node-arch',
+      }),
     ]))
   })
 
@@ -274,7 +295,12 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
 
   it('dead-letters the mailbox item and linked attempt without deleting evidence', async () => {
     const { POST } = await import('@/app/api/mailbox-items/[id]/dead-letter/route')
-    const { chainFactory, writes } = mailboxControlChain()
+    const { chainFactory, writes } = mailboxControlChain({
+      nodes: [
+        { id: 'node-001', plan_id: 'plan-001', label: '后端工程师执行', agent_id: 'agent-be', status: 'failed', depends_on: [], action_type: 'runtime_invoke', action_payload: { userMessage: '实现 API', phase: 'worker' } },
+        { id: 'node-arch', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke', action_payload: { userMessage: '汇总任务', phase: 'summarizing' } },
+      ],
+    })
     setupMockClient(chainFactory)
 
     const result = await postDynamic(POST, '/api/mailbox-items/mailbox-001/dead-letter', { error: 'CLI 未登录' })
@@ -296,6 +322,16 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
         table: 'plan_nodes',
         values: expect.objectContaining({ status: 'failed' }),
         id: 'node-001',
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        values: expect.objectContaining({ status: 'blocked', result: expect.objectContaining({ reason: expect.stringContaining('node-001') }) }),
+        id: 'node-arch',
+      }),
+      expect.objectContaining({
+        table: 'plans',
+        values: expect.objectContaining({ status: 'failed' }),
+        id: 'plan-001',
       }),
     ]))
   })

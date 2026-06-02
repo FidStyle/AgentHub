@@ -558,6 +558,93 @@ await scheduleRoleInboundQueue({
 });
 ```
 
+## Scenario: Plan Progress After Terminal Runtime Or Mailbox Events
+
+### 1. Scope / Trigger
+
+- Trigger: Any code marks a `plan_nodes` row terminal or completes/fails a linked mailbox/attempt.
+- Applies to `runtime-worker`, mailbox `reply` / `dead-letter` APIs, future retry/resume handlers, plan-node control APIs, and any service that updates `plan_nodes.status`.
+- This contract prevents split-brain plan settlement where one path marks a node complete but downstream nodes, blocked reasons, or parent plan status are not advanced.
+
+### 2. Signatures
+
+```typescript
+type PlanNodeStatus =
+  | 'pending'
+  | 'ready'
+  | 'waiting'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled'
+  | 'blocked';
+
+interface AdvancePlanProgressInput {
+  planId?: string | null;
+  planNodeId?: string | null;
+}
+
+interface PlanNodeTransition {
+  nodeId: string;
+  from: PlanNodeStatus;
+  to: 'ready' | 'blocked';
+  reason?: string;
+}
+```
+
+### 3. Contracts
+
+- Terminal-event handlers must update the current node/attempt/mailbox evidence first, then call the shared plan progress service for the owning plan.
+- The shared service is responsible for loading all `plan_nodes` for the plan, validating the DAG, applying ready/blocked transitions, and settling the parent `plans.status`.
+- A downstream node becomes `ready` only when every dependency is `completed`.
+- A downstream node becomes `blocked` when any dependency is `failed`, `cancelled`, or `blocked`; the persisted `result.reason` must name the blocking dependency or invalid DAG reason.
+- Parent plan settlement must use the post-transition statuses. A plan must not be marked `completed` while any node is `pending`, `ready`, `waiting`, or `running`.
+- Reply and dead-letter mailbox APIs are terminal event sources. They must not only update mailbox/attempt rows; they must also advance the linked plan node and downstream DAG.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Runtime worker completes a node with all fan-in deps satisfied | Downstream waiting node becomes `ready`; parent plan remains active |
+| Mailbox reply completes a worker node | Original inbound mailbox + attempt + plan node become completed; downstream may become `ready` |
+| Mailbox item enters dead-letter | Linked attempt becomes `dead_letter`, node becomes `failed`, downstream nodes become `blocked` |
+| DAG has missing dependency, self dependency, duplicate node, or cycle | Runnable nodes become `blocked` with invalid DAG reason; no dispatch proof is accepted |
+| All nodes terminal and any is failed/cancelled/blocked | Parent plan becomes `failed` |
+| All nodes terminal and none is failed/cancelled/blocked | Parent plan becomes `completed` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Worker completion and mailbox reply both call the same plan progress service, so fan-in and parent plan settlement behave identically.
+- Base: A direct single-node plan completes; no downstream transition is created; parent plan becomes completed.
+- Bad: A mailbox reply marks only `agent_mailbox_items.status='completed'`, leaving the linked `plan_nodes.status='running'` and summarizer `waiting` forever.
+
+### 6. Tests Required
+
+- Unit tests for DAG validation: missing dependency, self dependency, duplicate id, cycle.
+- Unit tests for wait-all fan-in: partial dependencies do not unlock; all completed dependencies unlock.
+- API/worker tests proving runtime completion and mailbox reply both advance downstream `ready`.
+- API tests proving dead-letter propagates downstream `blocked` and settles parent plan failed when no active nodes remain.
+- Regression tests must assert parent plan is not completed when newly-ready downstream nodes exist.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await db.from('agent_mailbox_items').update({ status: 'completed' }).eq('id', item.id);
+await db.from('plan_node_attempts').update({ status: 'completed' }).eq('id', attemptId);
+```
+
+#### Correct
+
+```typescript
+await db.from('agent_mailbox_items').update({ status: 'completed' }).eq('id', item.id);
+await db.from('plan_node_attempts').update({ status: 'completed' }).eq('id', attemptId);
+await db.from('plan_nodes').update({ status: 'completed' }).eq('id', planNodeId);
+await advancePlanProgress(db, { planId, planNodeId });
+```
+
 ## Scenario: Workspace Local Desktop Creation Gate
 
 ### 1. Scope / Trigger

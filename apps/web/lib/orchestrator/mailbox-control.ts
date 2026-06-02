@@ -2,6 +2,7 @@ import { selectReadyMailboxItems, type AgentMailboxItem } from '@agenthub/shared
 import type { CliRuntimeType } from '@agenthub/shared'
 import type { AppDbClient } from '@/lib/postgres-query-client'
 import { dispatchMailboxRuntimeInvokeItem } from '@/lib/orchestrator/action-dispatcher'
+import { advancePlanProgress } from '@/lib/orchestrator/plan-progress'
 
 type MailboxRow = AgentMailboxItem & {
   created_at: string
@@ -168,6 +169,26 @@ export async function replyToMailboxItem(input: {
       .eq('id', original.attempt_id)
   }
 
+  if (original.plan_node_id) {
+    await input.db
+      .from('plan_nodes')
+      .update({
+        status: 'completed',
+        completed_at: createdAt,
+        result: {
+          terminal: 'completed',
+          mailboxItemId: original.id,
+          replyMailboxItemId: (reply as { id?: string }).id ?? null,
+          attemptId: original.attempt_id,
+          summary,
+          at: createdAt,
+        },
+      })
+      .eq('id', original.plan_node_id)
+
+    await advancePlanProgress(input.db, { planId: original.plan_id, planNodeId: original.plan_node_id })
+  }
+
   return {
     ok: true as const,
     status: 200,
@@ -217,6 +238,8 @@ export async function deadLetterMailboxItem(input: {
         },
       })
       .eq('id', item.plan_node_id)
+
+    await advancePlanProgress(input.db, { planId: item.plan_id, planNodeId: item.plan_node_id })
   }
 
   return {

@@ -2,12 +2,13 @@
 
 ## 结论
 
-2026-06-02，Phase 2 已完成两组可验证后端切片：
+2026-06-02，Phase 2 已完成三组可验证后端切片：
 
 1. `GET /api/mailbox/ready` 的 ready wave 不再只是只读边界，新增 `POST /api/mailbox/dispatch-ready` 可按 durable mailbox rows 实际调度 ready inbound item 到 Runtime Gateway/worker 队列。
 2. `plan_nodes` 终态回写后会重新评估同 plan 的 DAG，支持 validator、wait-all/fan-in 解锁和失败上游阻断下游节点。
+3. mailbox `reply` / `dead-letter` API 已接入同一 plan progress 服务，reply 完成节点后可解锁下游，dead-letter 失败节点后可传播 blocked。
 
-本报告不宣称完整 Phase 2 完成。当前证明 scheduler 已能消费现有 queued mailbox/attempt、复用 Phase 1 的 per-role serialization helper，并在 worker 终态路径推进 downstream ready/blocked。动态 DAG 生成、reply 驱动后续调度、retry 后 lineage 再调度和真实 Claude+Codex UAT 仍未完成。
+本报告不宣称完整 Phase 2 完成。当前证明 scheduler 已能消费现有 queued mailbox/attempt、复用 Phase 1 的 per-role serialization helper，并在 worker 终态与 mailbox reply/dead-letter 路径推进 downstream ready/blocked。动态 DAG 生成、newly-ready 节点自动创建下一轮 mailbox/attempt、retry 后 lineage 再调度和真实 Claude+Codex UAT 仍未完成。
 
 ## 完成范围
 
@@ -21,11 +22,14 @@
 | DAG validator | `validateDAG` 覆盖 duplicate node、missing dependency、self dependency 和 cycle；invalid DAG 不会继续 dispatch runnable work，而是把未运行节点推进为 `blocked` 并写原因。 |
 | Wait-all fan-in | `evaluatePlanProgress` 只在所有依赖均 `completed` 后把 `pending/waiting/blocked` 下游节点转为 `ready`；任一依赖 `failed/cancelled/blocked` 时下游转为 `blocked`。 |
 | Worker settlement | `runtime-worker` 在 `plan_nodes` 终态回写后加载同 plan 全量节点，应用 ready/blocked transitions，再基于更新后的状态结算 parent plan，避免刚解锁 downstream 时误把 plan 标记 completed。 |
+| Plan progress service | 新增 `advancePlanProgress`，统一 worker、mailbox reply、mailbox dead-letter 三条入口的 DAG 推进和 parent plan 结算语义。 |
+| Reply/dead-letter progression | `reply` 会完成原 inbound mailbox、attempt 和 plan node 后推进下游；`dead-letter` 会失败原 plan node 并传播 downstream blocked，不再只更新 mailbox/attempt 孤立证据。 |
 
 ## 验证命令
 
 - `pnpm --filter @agenthub/web test -- __tests__/api/mailbox-controls.test.ts __tests__/orchestrator/action-dispatcher.test.ts` PASS（2 files / 9 tests）。
 - `pnpm --filter @agenthub/web test -- __tests__/orchestrator.test.ts __tests__/runtime/executor.test.ts` PASS（2 files / 31 tests）。
+- `pnpm --filter @agenthub/web test -- __tests__/api/mailbox-controls.test.ts __tests__/runtime/executor.test.ts __tests__/orchestrator.test.ts` PASS（3 files / 38 tests）。
 - `pnpm --filter @agenthub/web test -- __tests__/api/mailbox-controls.test.ts __tests__/orchestrator/action-dispatcher.test.ts __tests__/api/plan-node-controls-inventory.test.ts __tests__/runtime/executor.test.ts __tests__/orchestrator.test.ts` PASS（5 files / 46 tests）。
 - `pnpm --filter @agenthub/web type-check` PASS。
 - `pnpm --filter @agenthub/shared type-check` PASS。
@@ -34,6 +38,6 @@
 ## 剩余风险
 
 - 仍未实现动态 DAG generator；当前只验证并推进已有 `plan_nodes.depends_on`。
-- reply event 尚未驱动 Orchestrator 或 summarizer 下一轮调度；目前 fan-in 解锁发生在 worker 终态结算路径。
+- newly-ready 节点尚未自动创建下一轮 mailbox/attempt 并进入 dispatch-ready；目前 reply/dead-letter 已能推进状态，但后续调度仍需要显式 ready mailbox。
 - retry/resume 后 lineage 与 DAG 再调度尚未做真实链路 UAT。
 - 仍未执行真实 Claude+Codex 双 CLI UAT；当前为 API/unit 级 scheduler kernel 验证。
