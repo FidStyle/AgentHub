@@ -31,6 +31,15 @@
 - `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/api/plans-actions-owner.test.ts`：PASS，3 files / 22 tests。
 - `pnpm --filter @agenthub/shared test`：PASS，5 files / 32 tests。
 - 追加旧 action/plan 回归：`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plans-actions-owner.test.ts`：PASS，2 files / 17 tests。
+- opencli Web UAT：`opencli doctor` PASS；`opencli browser agenthub open http://localhost:3000/workspace/84a353ae-80c6-40c7-87ad-6114fe1592f6` 后工作区可渲染；`message-markdown` 7 个实例；页面无横向溢出；Changes 面板显示未暂存 `README.md`，`GET /git/status` 200；点击“查看 diff”后 `GET /git/diff?path=README.md&staged=false` 200，`git-diff-preview` 1 个实例。
+
+## opencli 截图
+
+- `e2e/artifacts/opencli-uat/web-home-2026-06-03.png`
+- `e2e/artifacts/opencli-uat/web-workspace-error-2026-06-03.png`：修复前捕获到工作区 client-side exception。
+- `e2e/artifacts/opencli-uat/web-workspace-fixed-2026-06-03.png`：修复后工作区可渲染。
+- `e2e/artifacts/opencli-uat/web-changes-panel-2026-06-03.png`
+- `e2e/artifacts/opencli-uat/web-changes-diff-2026-06-03.png`
 
 ## 测试覆盖
 
@@ -38,10 +47,11 @@
 - Mailbox：同一 session 只选择最早一条 queued inbound；已有 running 时不选择新 work；不同 session 可各选择一条。
 - Git helper：真实临时 Git repo 中覆盖 modified -> stage -> staged diff -> unstage -> discard -> clean。
 - Type-check：Web 类型通过。
+- opencli：真实已登录浏览器状态下覆盖 workspace 进入、Markdown 渲染、Changes 面板、diff preview 和无横向溢出。
 
 ## 未完成与残留风险
 
-- 本轮未启动完整 Playwright acceptance，也未采集浏览器截图；视觉门禁仍需在后续 UAT 中覆盖 Markdown 表格/代码块/diff 的桌面和移动视口。
+- 本轮已用 opencli 采集 Web 桌面截图和 diff preview 证据；仍未覆盖 Mobile/PWA 视口和完整 Playwright acceptance。
 - `discard` 当前确认后写入 `actions` 审计记录，但尚未完整走 pending approval -> approve endpoint -> dispatch 的统一审批状态机。
 - 当前 Git 写操作只覆盖 cloud workspace；local desktop workspace 仍需按 Desktop Connector bridge 单独实现。
 - Git P0 未覆盖 latest commit revert、stash、复杂 conflict resolution；这些应按合同作为 P1 扩展。

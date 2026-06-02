@@ -18,10 +18,16 @@ function textFromChildren(children: unknown): string {
   return ''
 }
 
-function CodeBlock({ children, className }: { children: ReactNode; className?: string }) {
+function CodeBlock({ children }: { children: ReactNode }) {
   const [copied, setCopied] = useState(false)
+  const codeElement = Array.isArray(children) ? children[0] : children
+  const codeProps = codeElement && typeof codeElement === 'object' && 'props' in codeElement
+    ? (codeElement as { props?: { className?: string; children?: ReactNode } }).props
+    : undefined
+  const className = codeProps?.className
+  const codeChildren = codeProps?.children ?? children
   const language = /language-([\w-]+)/.exec(className ?? '')?.[1]
-  const text = textFromChildren(children)
+  const text = textFromChildren(codeChildren)
 
   return (
     <div className="my-2 overflow-hidden rounded-md border border-border bg-muted/80" data-testid="markdown-code-block">
@@ -41,7 +47,7 @@ function CodeBlock({ children, className }: { children: ReactNode; className?: s
         />
       </div>
       <pre className="max-w-full overflow-x-auto p-3 text-xs leading-relaxed">
-        <code className={className}>{children}</code>
+        <code className={className}>{codeChildren}</code>
       </pre>
     </div>
   )
@@ -71,12 +77,11 @@ export function MessageMarkdown({ content }: { content: string }) {
           ),
           th: ({ children }) => <th className="border-b border-border bg-muted px-2 py-1 text-left font-medium">{children}</th>,
           td: ({ children }) => <td className="border-t border-border px-2 py-1 align-top">{children}</td>,
-          code: ({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: ReactNode }) => (
-            inline ? (
-              <code className="rounded bg-muted px-1 py-0.5 text-[0.9em]" {...props}>{children}</code>
-            ) : (
-              <CodeBlock className={className}>{children}</CodeBlock>
-            )
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+          code: ({ className, children, ...props }: { className?: string; children?: ReactNode }) => (
+            <code className={className ? `${className} rounded bg-transparent` : 'rounded bg-muted px-1 py-0.5 text-[0.9em]'} {...props}>
+              {children}
+            </code>
           ),
         }}
       >
