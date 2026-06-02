@@ -1,1 +1,12 @@
 @import '@agenthub/ui/globals.css';
+@import 'streamdown/styles.css';
+@source "../node_modules/streamdown/dist/*.js";
+
+.message-markdown :not(pre) > code {
+  border: 1px solid color-mix(in oklab, var(--color-border) 72%, transparent);
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--color-muted) 78%, var(--color-background) 22%);
+  padding: 0.08rem 0.28rem;
+  color: var(--color-foreground);
+  font-size: 0.92em;
+}

@@ -1,10 +1,11 @@
 'use client'
 
+import React from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Card, StateCard, IconButton, Badge, Button } from '@agenthub/ui'
 import { AlertTriangle, AtSign, Pin, PinOff, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
-import { useSessionStore } from '@/store/session-store'
+import { useSessionStore, type Message } from '@/store/session-store'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 import { MessageMarkdown } from './MessageMarkdown'
 
@@ -82,31 +83,90 @@ function useRoleAgents(workspaceId: string | null) {
   return roleAgents
 }
 
+export function PinnedContextPanel({
+  pinnedMessages,
+  roleName,
+  onJumpToMessage,
+}: {
+  pinnedMessages: Message[]
+  roleName: (id: string | null) => string | undefined
+  onJumpToMessage: (messageId: string) => void
+}) {
+  if (pinnedMessages.length === 0) return null
+
+  return (
+    <section
+      data-testid="pinned-context-panel"
+      className="sticky top-0 z-10 rounded-md border border-border bg-background/95 p-3 shadow-sm backdrop-blur"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Pin className="h-4 w-4 text-muted-foreground" />
+          <span>固定上下文</span>
+          <Badge variant="secondary">{pinnedMessages.length}</Badge>
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          固定上下文会在后续回复中持续带给智能体，适合放关键需求、约束或结论。
+        </p>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {pinnedMessages.map((msg) => {
+          const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : '用户'
+          const preview = msg.content.replace(/\s+/g, ' ').trim() || '空消息'
+          return (
+            <button
+              key={msg.id}
+              type="button"
+              data-testid="pinned-context-jump"
+              className="max-w-full rounded-md border border-border bg-muted/50 px-2 py-1 text-left text-xs leading-5 hover:bg-accent"
+              onClick={() => onJumpToMessage(msg.id)}
+              title={`定位到 ${name ?? '消息'}：${preview}`}
+            >
+              <span className="font-medium">{name ?? '智能体'}：</span>
+              <span className="text-muted-foreground">{preview.slice(0, 72)}{preview.length > 72 ? '...' : ''}</span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
   const { activeSessionId, messages, loading, error, setMessagePinned } = useSessionStore()
   const [pinningId, setPinningId] = useState<string | null>(null)
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
 
   if (loading) return <StateCard variant="loading" />
   if (error) return <StateCard variant="error" />
   if (!activeSessionId) return <StateCard variant="empty" />
 
   const sessionMessages = messages.filter((m) => m.sessionId === activeSessionId)
+  const pinnedMessages = sessionMessages.filter((m) => m.isPinned)
 
   if (sessionMessages.length === 0) return <StateCard variant="empty" />
 
   const roleName = (id: string | null) => roleAgents.find((r) => r.id === id)?.name
+  const jumpToMessage = (messageId: string) => {
+    setFocusedMessageId(messageId)
+    document.getElementById(`message-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    window.setTimeout(() => setFocusedMessageId((current) => (current === messageId ? null : current)), 1400)
+  }
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+      <PinnedContextPanel pinnedMessages={pinnedMessages} roleName={roleName} onJumpToMessage={jumpToMessage} />
       {sessionMessages.map((msg) => {
         const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : undefined
         const canPin = !msg.id.startsWith('tmp-') && !msg.id.startsWith('reply-') && !msg.id.startsWith('sys-')
         return (
           <div
             key={msg.id}
+            id={`message-${msg.id}`}
+            data-message-id={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <Card className={`max-w-[75%] p-3 ${msg.role === 'user' ? 'bg-primary/10' : 'bg-muted'}`}>
+            <Card className={`max-w-[75%] p-3 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${msg.role === 'user' ? 'bg-primary/10' : 'bg-muted'}`}>
               <div className="mb-1 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {name && (

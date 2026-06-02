@@ -4,6 +4,7 @@ import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
+import { appendRuntimeDelta } from '@/lib/chat/markdown'
 import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
 import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
@@ -42,6 +43,45 @@ type RuntimeDispatchRole = {
   name: string
   system_prompt?: string | null
   runtime_type: CliRuntimeType
+}
+
+type PinnedContextMessage = {
+  id: string
+  sender_type: string | null
+  role_agent_id: string | null
+  content: string
+  created_at: string | null
+}
+
+async function loadPinnedContextMessages(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  sessionId: string
+}) {
+  const { data } = await input.db
+    .from('messages')
+    .select('id, sender_type, role_agent_id, content, created_at')
+    .eq('session_id', input.sessionId)
+    .eq('is_pinned', true)
+    .order('created_at', { ascending: true })
+  const rows = Array.isArray(data) ? data as unknown as PinnedContextMessage[] : []
+  return rows
+    .filter((message) => typeof message.content === 'string' && message.content.trim().length > 0)
+    .slice(-12)
+}
+
+function buildPinnedContextPrompt(messages: PinnedContextMessage[]) {
+  if (messages.length === 0) return ''
+  const clipped = messages.map((message, index) => {
+    const speaker = message.sender_type === 'user' ? '用户' : 'Agent'
+    const content = message.content.trim().slice(0, 1600)
+    return `${index + 1}. ${speaker}（message:${message.id}）\n${content}`
+  })
+  return [
+    '',
+    '已固定上下文（来自当前会话，用户明确要求后续回复持续参考）：',
+    ...clipped,
+    '请优先遵守以上固定上下文；如与用户本轮新指令冲突，请明确指出冲突并以本轮新指令为准。',
+  ].join('\n\n')
 }
 
 async function createRuntimeAttemptEvidence(input: {
@@ -345,7 +385,9 @@ export async function POST(req: NextRequest) {
   if (requestedAttachmentIds.length > 0 && attachments.length !== requestedAttachmentIds.length) {
     return Response.json({ error: '附件不存在或无权限' }, { status: 403 })
   }
-  const userMessage = `${content}${buildAttachmentPrompt(attachments)}`
+  const pinnedContextMessages = await loadPinnedContextMessages({ db, sessionId })
+  const pinnedContextPrompt = buildPinnedContextPrompt(pinnedContextMessages)
+  const userMessage = `${content}${buildAttachmentPrompt(attachments)}${pinnedContextPrompt}`
   const metadata: Record<string, unknown> = {}
   if (mentions || selectedRoleAgents.length > 0) metadata.mentions = mentions ?? selectedRoleAgents.map((role) => role.id)
   if (selectedRoleAgents.length > 0) {
@@ -358,6 +400,9 @@ export async function POST(req: NextRequest) {
     }))
   }
   if (permissionMode) metadata.permissionMode = permissionMode
+  if (pinnedContextMessages.length > 0) {
+    metadata.pinnedContextMessageIds = pinnedContextMessages.map((message) => message.id)
+  }
   if (attachments.length > 0) {
     metadata.attachments = attachments.map((attachment) => ({
       id: attachment.id,
@@ -617,7 +662,7 @@ export async function POST(req: NextRequest) {
           }
 
           for await (const evt of eventStream()) {
-            if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
+            if (evt.type === 'runtime_output' && evt.delta) reply = appendRuntimeDelta(reply, evt.delta)
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
             if (evt.type === 'runtime_completed') completed = true
             controller.enqueue(encode(evt))

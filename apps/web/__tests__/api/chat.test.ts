@@ -79,8 +79,8 @@ function chainCapturingInserts() {
   return chainCapturingInsertsWithRoles()
 }
 
-function chainCapturingInsertsWithRoles(roleAgents?: unknown[]) {
-  const base = createPostgresChain(undefined, undefined, undefined, undefined, roleAgents)
+function chainCapturingInsertsWithRoles(roleAgents?: unknown[], messages?: unknown[]) {
+  const base = createPostgresChain(undefined, undefined, undefined, messages, roleAgents)
   return vi.fn(() => {
     const client = base()
     const origFrom = client.from
@@ -155,6 +155,33 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(userMsg.metadata).toEqual({
       mentions: ['agent-001'],
       roleAgents: [{ id: 'agent-001', name: 'Analyzer Agent', roleType: 'analyzer', runtimeType: 'claude_code', isOrchestrator: false }],
+    })
+  })
+
+  it('includes pinned session messages in the runtime prompt and request metadata', async () => {
+    setupMockClient(chainCapturingInsertsWithRoles(undefined, [
+      {
+        id: 'msg-pinned-001',
+        session_id: 'session-001',
+        sender_type: 'user',
+        role_agent_id: null,
+        content: '这是必须持续参考的固定上下文',
+        is_pinned: true,
+        created_at: '2026-06-01T00:00:00.000Z',
+      },
+    ]))
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '继续处理',
+      roleAgentId: 'agent-001',
+    })
+
+    expect(status).toBe(200)
+    expect(String(invokeSpy.mock.calls[0][0].userMessage)).toContain('已固定上下文')
+    expect(String(invokeSpy.mock.calls[0][0].userMessage)).toContain('这是必须持续参考的固定上下文')
+    expect(insertedMessages[0].metadata).toMatchObject({
+      pinnedContextMessageIds: ['msg-pinned-001'],
     })
   })
 

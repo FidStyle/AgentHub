@@ -272,7 +272,14 @@ export function createPostgresChain(
               }
               if (field === 'session_id') {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return { order: () => chain(messages.filter(m => (m as any).session_id === value), null) }
+                const bySession = messages.filter(m => (m as any).session_id === value)
+                return {
+                  eq: (field2: string, value2: unknown) => ({
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    order: () => chain(bySession.filter(m => (m as any)[field2] === value2), null),
+                  }),
+                  order: () => chain(bySession, null),
+                }
               }
               return chain(messages, null)
             },
