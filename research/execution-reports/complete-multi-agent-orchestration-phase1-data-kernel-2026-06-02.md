@@ -21,7 +21,7 @@
 | Mailbox reply API | 新增 `POST /api/mailbox-items/:id/reply`，创建 durable `reply` mailbox item，保留 `attempt_id` / `parent_attempt_id` / `lineage_root_id`，并把原 inbound item 与关联 attempt 标记 completed；原始 orchestrator/null 来源时要求显式 `to_role_agent_id`，避免写入违反 NOT NULL 的伪目标。 |
 | Mailbox dead-letter API | 新增 `POST /api/mailbox-items/:id/dead-letter`，把 mailbox item、关联 attempt 标记 `dead_letter`，并把关联 plan node 标记 failed，同时保留原始 mailbox/attempt 证据。 |
 | Ready scheduler boundary API | 新增 `GET /api/mailbox/ready?session_id=`，按会话归属校验 owner，读取 durable mailbox rows 后使用 shared `selectReadyMailboxItems` 返回 ready wave，证明同角色串行、跨角色可并发的 API 边界。 |
-| No-compat guard | `/api/role-agents` POST/PATCH 拒绝 `capabilities` 中的 `runtime:*` 旧标签，要求使用 `runtime_type`。 |
+| No-compat guard | `/api/role-agents` POST/PATCH 拒绝 `capabilities` 中的 `runtime:*` 旧标签，要求使用 `runtime_type`；runtime dispatch 只读取 `role_agents.runtime_type` 并忽略旧 capability tag；`RUNTIME_EXECUTOR=fake/script` 在非测试授权环境下拒绝；旧 `/api/runtime/invoke` 返回 410，不再假装本地 runtime invoked。 |
 
 ## 验证命令
 
@@ -40,9 +40,11 @@
 - 追加验证：`pnpm --filter @agenthub/web test -- __tests__/api/mailbox-controls.test.ts __tests__/api/plan-node-controls-inventory.test.ts` PASS（2 files / 12 tests）。
 - 追加验证：`pnpm --filter @agenthub/web type-check` PASS。
 - 追加验证：`pnpm --filter @agenthub/shared type-check` PASS。
+- 追加验证：`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/orchestrator/action-dispatcher.test.ts` PASS（2 files / 16 tests）。
 
 ## 剩余风险
 
 - 当前 Phase 1 已覆盖 initial/control inbound item、reply item、dead-letter 更新和 ready scheduler API 边界；真实 worker 级 per-role consumer 仍待 Phase 2。
+- Phase 1 no-compat 已覆盖角色 runtime tag、fake/script executor、旧 runtime invoke 入口的负向测试；后续如新增旧 payload 入口，必须继续按当前规范拒绝而不是兼容。
 - Web/Desktop/Mobile 尚未消费 timeline/inventory API，三端 UI 仍是后续 Phase 4。
 - 真实 Claude+Codex 多角色 UAT 尚未执行，不能把本切片作为最终完成证据。

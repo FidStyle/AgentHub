@@ -17,11 +17,17 @@ vi.mock('@/lib/runtime/redis-client', () => ({
   enqueue: (input: unknown) => enqueueMock(input),
 }))
 
-function dispatchDb() {
+function dispatchDb(overrides: { role?: Record<string, unknown> } = {}) {
   const writes: Array<{ table: string; values: Record<string, unknown>; id?: string }> = []
   const session = { id: 'session-001', workspace_id: 'ws-001' }
   const workspace = { id: 'ws-001', owner_id: 'user-001', execution_domain: 'cloud' }
-  const role = { id: 'agent-be', name: '后端工程师', system_prompt: '你是后端工程师', runtime_type: 'codex' }
+  const role = {
+    id: 'agent-be',
+    name: '后端工程师',
+    system_prompt: '你是后端工程师',
+    runtime_type: 'codex',
+    ...overrides.role,
+  }
 
   return {
     writes,
@@ -136,6 +142,43 @@ describe('dispatchRuntimeInvokeNode', () => {
       runtimeType: 'codex',
       planNodeId: 'node-001',
       nativeSessionId: 'native-001',
+    }))
+  })
+
+  it('routes from role runtime_type and ignores legacy runtime capability tags', async () => {
+    const { dispatchRuntimeInvokeNode } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb({
+      role: {
+        runtime_type: 'claude_code',
+        capabilities: ['runtime:codex', 'api'],
+      },
+    })
+
+    const result = await dispatchRuntimeInvokeNode(db as never, {
+      userId: 'user-001',
+      sessionId: 'session-001',
+      node: {
+        id: 'node-legacy-tag',
+        plan_id: 'plan-001',
+        label: '旧标签不参与路由',
+        agent_id: 'agent-be',
+        action_payload: { phase: 'worker', userMessage: '实现 API' },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        values: expect.objectContaining({ runtime_type: 'claude_code' }),
+      }),
+    ]))
+    expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeType: 'claude_code',
+    }))
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeType: 'claude_code',
+      planNodeId: 'node-legacy-tag',
     }))
   })
 })

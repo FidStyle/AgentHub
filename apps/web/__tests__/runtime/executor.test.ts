@@ -44,6 +44,7 @@ beforeEach(() => {
   dbUpdates.length = 0
   delete process.env.RUNTIME_EXECUTOR
   delete process.env.RUNTIME_CLI
+  delete process.env.AGENTHUB_ALLOW_TEST_EXECUTOR
 })
 
 describe('CliRuntimeExecutor — executor_unavailable', () => {
@@ -212,6 +213,8 @@ describe('createExecutor factory', () => {
     try {
       vi.stubEnv('NODE_ENV', 'production')
       process.env.RUNTIME_EXECUTOR = 'fake'
+      expect(() => createExecutor()).toThrow(/only allowed for tests/)
+      process.env.RUNTIME_EXECUTOR = 'script'
       expect(() => createExecutor()).toThrow(/only allowed for tests/)
     } finally {
       vi.unstubAllEnvs()
