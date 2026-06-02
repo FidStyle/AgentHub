@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const published: Array<{ id: string; event: Record<string, unknown> }> = []
 const dbInserts: Array<Record<string, unknown>> = []
 const dbUpdates: Array<Record<string, unknown>> = []
+let planNodeRows: Array<Record<string, unknown>> = []
 
 vi.mock('../../lib/runtime/redis-client', () => ({
   publishEvent: async (id: string, event: Record<string, unknown>) => { published.push({ id, event }) },
@@ -18,14 +19,19 @@ vi.mock('../../lib/runtime/redis-client', () => ({
 
 vi.mock('../../lib/app-db-client', () => ({
   createClient: async () => ({
-    from: () => ({
+    from: (table: string) => ({
       update: (patch: Record<string, unknown>) => { dbUpdates.push(patch); return { eq: () => ({ eq: () => {} }) } },
       insert: (row: Record<string, unknown>) => { dbInserts.push(row); return {} },
       select: () => ({
         eq: (field: string) => (
           field === 'id'
             ? { single: () => ({ data: { plan_id: 'plan-001' }, error: null }) }
-            : { data: [{ status: 'completed' }], error: null }
+            : {
+                data: table === 'plan_nodes'
+                  ? planNodeRows
+                  : [{ id: 'node-default', plan_id: 'plan-001', label: 'default', status: 'completed', depends_on: [] }],
+                error: null,
+              }
         ),
       }),
     }),
@@ -42,6 +48,7 @@ beforeEach(() => {
   published.length = 0
   dbInserts.length = 0
   dbUpdates.length = 0
+  planNodeRows = [{ id: 'node-default', plan_id: 'plan-001', label: 'default', status: 'completed', depends_on: [] }]
   delete process.env.RUNTIME_EXECUTOR
   delete process.env.RUNTIME_CLI
   delete process.env.AGENTHUB_ALLOW_TEST_EXECUTOR
@@ -154,6 +161,29 @@ describe('processJob — FakeExecutor regression', () => {
           output: 'run node',
         }),
       }),
+      expect.objectContaining({ status: 'completed', updated_at: expect.any(String) }),
+    ]))
+  })
+
+  it('unlocks a downstream fan-in node after the last dependency completes', async () => {
+    planNodeRows = [
+      { id: 'node-a', plan_id: 'plan-001', label: 'A', status: 'completed', depends_on: [] },
+      { id: 'node-b', plan_id: 'plan-001', label: 'B', status: 'completed', depends_on: [] },
+      { id: 'node-c', plan_id: 'plan-001', label: 'C', status: 'waiting', depends_on: ['node-a', 'node-b'] },
+    ]
+    const job: RuntimeJob = {
+      runtimeSessionId: 's-fanin',
+      prompt: 'finish node b',
+      planNodeId: 'node-b',
+    }
+
+    const result = await processJob(job, new FakeExecutor())
+
+    expect(result).toBe('completed')
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'ready' }),
+    ]))
+    expect(dbUpdates).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ status: 'completed', updated_at: expect.any(String) }),
     ]))
   })

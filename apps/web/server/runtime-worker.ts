@@ -1,7 +1,9 @@
 import { createClient } from '../lib/app-db-client'
+import { evaluatePlanProgress } from '../lib/orchestrator/dag-scheduler'
 import { CliRuntimeExecutor, FakeExecutor, ScriptedRealExecutor, type CliRuntimeType, type RuntimeExecutor } from '../lib/runtime/executor'
 import { dequeue, publishEvent, isCancelled, setHeartbeat, isAlive, clearHeartbeat, setWorkerAlive, clearWorkerAlive, type RuntimeJob } from '../lib/runtime/redis-client'
 import { redact } from '../lib/runtime/redact'
+import type { PlanNode } from '@agenthub/shared'
 
 const HEARTBEAT_TTL_SEC = Number(process.env.RUNTIME_HEARTBEAT_TTL_SEC ?? 30)
 
@@ -73,15 +75,32 @@ async function settleParentPlan(db: Awaited<ReturnType<typeof createClient>>, pl
   const { data: node } = await db.from('plan_nodes').select('plan_id').eq('id', planNodeId).single()
   const planId = (node as { plan_id?: string } | null)?.plan_id
   if (!planId) return
-  const { data: nodes } = await db.from('plan_nodes').select('status').eq('plan_id', planId)
-  const statuses = ((nodes ?? []) as Array<{ status?: string }>).map((item) => item.status)
+  const { data: nodes } = await db.from('plan_nodes').select('*').eq('plan_id', planId)
+  const planNodes = (nodes ?? []) as unknown as PlanNode[]
+  if (planNodes.length === 0) return
+
+  const evaluation = evaluatePlanProgress(planNodes)
+  const now = new Date().toISOString()
+  const updatedStatuses = new Map(planNodes.map((item) => [item.id, item.status]))
+
+  for (const transition of evaluation.transitions) {
+    const patch: Record<string, unknown> = { status: transition.to }
+    if (transition.to === 'blocked') {
+      patch.completed_at = now
+      patch.result = { scheduler: 'blocked', reason: transition.reason ?? 'dependency blocked', at: now }
+    }
+    await db.from('plan_nodes').update(patch).eq('id', transition.nodeId)
+    updatedStatuses.set(transition.nodeId, transition.to)
+  }
+
+  const statuses = Array.from(updatedStatuses.values())
   if (statuses.length === 0) return
-  const hasActive = statuses.some((status) => status === 'pending' || status === 'ready' || status === 'running')
+  const hasActive = statuses.some((status) => status === 'pending' || status === 'ready' || status === 'waiting' || status === 'running')
   if (hasActive) return
-  const failed = statuses.some((status) => status === 'failed')
+  const failed = statuses.some((status) => status === 'failed' || status === 'cancelled' || status === 'blocked')
   await db.from('plans').update({
     status: failed ? 'failed' : 'completed',
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   }).eq('id', planId)
 }
 

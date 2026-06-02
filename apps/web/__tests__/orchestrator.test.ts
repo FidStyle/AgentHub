@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getReadyNodes, advanceDAG, isPlanComplete, hasPlanFailed } from '../lib/orchestrator/dag-scheduler'
+import { getReadyNodes, advanceDAG, isPlanComplete, hasPlanFailed, validateDAG, evaluatePlanProgress } from '../lib/orchestrator/dag-scheduler'
 import { classifyRisk, requiresApproval } from '../lib/orchestrator/permission-engine'
 import { DEFAULT_POLICIES } from '@agenthub/shared'
 import type { PlanNode } from '@agenthub/shared'
@@ -36,6 +36,64 @@ describe('DAG Scheduler', () => {
   it('hasPlanFailed detects failures', () => {
     expect(hasPlanFailed([makeNode('a', 'completed'), makeNode('b', 'failed')])).toBe(true)
     expect(hasPlanFailed([makeNode('a', 'completed')])).toBe(false)
+  })
+
+  it('validates missing, self, and cyclic dependencies', () => {
+    const issues = validateDAG([
+      makeNode('a', 'pending', ['missing']),
+      makeNode('b', 'pending', ['b']),
+      makeNode('c', 'pending', ['d']),
+      makeNode('d', 'pending', ['c']),
+    ])
+
+    expect(issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      'missing_dependency',
+      'self_dependency',
+      'cycle',
+    ]))
+  })
+
+  it('waits for all fan-in dependencies before marking a node ready', () => {
+    const waiting = evaluatePlanProgress([
+      makeNode('a', 'completed'),
+      makeNode('b', 'running'),
+      makeNode('c', 'pending', ['a', 'b']),
+    ])
+    expect(waiting.readyNodeIds).toEqual([])
+
+    const ready = evaluatePlanProgress([
+      makeNode('a', 'completed'),
+      makeNode('b', 'completed'),
+      makeNode('c', 'waiting', ['a', 'b']),
+    ])
+    expect(ready.readyNodeIds).toEqual(['c'])
+    expect(ready.transitions).toContainEqual(expect.objectContaining({ nodeId: 'c', from: 'waiting', to: 'ready' }))
+  })
+
+  it('blocks downstream nodes when an upstream dependency fails or is cancelled', () => {
+    const failed = evaluatePlanProgress([
+      makeNode('a', 'failed'),
+      makeNode('b', 'pending', ['a']),
+      makeNode('c', 'cancelled'),
+      makeNode('d', 'waiting', ['c']),
+    ])
+
+    expect(failed.blockedNodeIds).toEqual(['b', 'd'])
+    expect(failed.transitions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeId: 'b', to: 'blocked', reason: expect.stringContaining('a') }),
+      expect.objectContaining({ nodeId: 'd', to: 'blocked', reason: expect.stringContaining('c') }),
+    ]))
+  })
+
+  it('blocks runnable nodes when the DAG is invalid instead of dispatching malformed work', () => {
+    const result = evaluatePlanProgress([
+      makeNode('a', 'pending', ['missing']),
+      makeNode('b', 'ready'),
+    ])
+
+    expect(result.readyNodeIds).toEqual([])
+    expect(result.blockedNodeIds).toEqual(['a', 'b'])
+    expect(result.transitions[0].reason).toContain('invalid DAG')
   })
 })
 
