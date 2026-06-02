@@ -256,3 +256,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: 补齐会话归档与删除能力
+
+**Date**: 2026-06-03
+**Task**: 补齐会话归档与删除能力
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+为 Web 会话补齐活跃/归档筛选、归档恢复、硬删除 API 与侧栏操作；补充 API/store 回归测试和会话生命周期后端规范。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2306d0b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

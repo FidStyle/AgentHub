@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-06-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~252 | Active |
+| `journal-1.md` | ~291 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-06-03 | 补齐会话归档与删除能力 | `2306d0b` | `AgentHub_new_claude_test` |
 | 7 | 2026-06-03 | 完整多 Agent 编排最终补全 | `a5384fd` | `AgentHub_new_claude_test` |
 | 6 | 2026-06-03 | 完成完整多 Agent 编排收口 | `5ec2d68`, `6268de7`, `b371190` | `AgentHub_new_claude_test` |
 | 5 | 2026-06-02 | 清理验收收尾假入口 | `9ae63a0` | `AgentHub_new_claude_test` |
