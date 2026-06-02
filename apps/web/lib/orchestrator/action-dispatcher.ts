@@ -290,6 +290,8 @@ async function dispatchPreparedRuntimeInvokeNode(
     }),
     systemPrompt: typeof input.role?.system_prompt === 'string' ? input.role.system_prompt : undefined,
     planNodeId: input.node.id,
+    attemptId: input.attemptId,
+    mailboxItemId: input.mailboxItemId,
   })
   return { status: 'queued', runtimeSessionId: runtimeSession.id }
 }

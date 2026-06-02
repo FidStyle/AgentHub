@@ -137,6 +137,9 @@ for await (const event of runtimeGateway.invoke({ runtimeSession, userMessage })
 - Required worker env: same `REDIS_URL`, plus `RUNTIME_EXECUTOR=real` or unset. `RUNTIME_CLI` is only the default when a queued job has no `runtimeType`; a live worker must dispatch per-job `claude_code` and `codex`.
 - Test-only worker env: `RUNTIME_EXECUTOR=script|fake` is allowed only under `NODE_ENV=test` or `AGENTHUB_ALLOW_TEST_EXECUTOR=true`; it must not be used as product or acceptance proof.
 - Runtime events proving liveness: `public_runtime_available=true`, at least one `runtime_output`, then `runtime_completed`.
+- Runtime wait events: while a real CLI is running but has not produced text, worker must keep publishing `runtime_status status='running'` before the gateway subscription idle timeout.
+- Claude Code CLI shape: `claude --print --verbose --output-format stream-json --include-partial-messages <prompt>`; resume adds `--resume <nativeSessionId>`.
+- Codex CLI shape: `codex exec --json -s read-only --skip-git-repo-check --color never <prompt>`; resume uses `codex exec resume --json --skip-git-repo-check <nativeSessionId> <prompt>` because Codex CLI 0.135 `exec resume` does not accept sandbox or color flags.
 
 ### 3. Contracts
 
@@ -144,6 +147,9 @@ for await (const event of runtimeGateway.invoke({ runtimeSession, userMessage })
 - `/api/chat` must gate `public_cloud` on both a configured endpoint and `isWorkerAlive()` using the Web process `REDIS_URL`.
 - If Web lacks `REDIS_URL`, it must emit `endpoint_unavailable` instead of enqueueing a job or fabricating a reply.
 - Acceptance commands must start Web with `REDIS_URL=redis://localhost:6379` whenever the worker is started locally.
+- `subscribeEvents` uses idle and total timeouts. Long Claude Code/Codex calls can exceed the idle timeout before first text token, so worker heartbeat keys alone are not enough; the worker must also publish running status events on the runtime event channel.
+- Claude Code `stream-json` emits control events, hook output, nested `stream_event.event.delta.text`, and repeated `session_id` values. Runtime output parsing must ignore control-only JSON, extract nested text deltas, persist the native session id, and de-duplicate repeated native session events per job.
+- Codex may fail in sandboxed worktrees unless `--skip-git-repo-check` is passed. Product and acceptance Codex commands must include it.
 
 ### 4. Validation & Error Matrix
 
@@ -152,18 +158,28 @@ for await (const event of runtimeGateway.invoke({ runtimeSession, userMessage })
 | Worker running but Web process lacks `REDIS_URL` | `endpoint_unavailable`; no fake agent reply |
 | Web and worker use different Redis URLs | `endpoint_unavailable` or timeout; test must fail |
 | Web and worker share Redis and endpoint is available | SSE has `runtime_output` chunks and terminal `runtime_completed` |
+| Real CLI produces no text before subscription idle timeout | SSE still receives periodic `runtime_status running`; no `subscription timeout` unless total timeout is exceeded or worker dies |
+| Claude Code stream-json emits hook/control events | Control-only events are ignored; nested text deltas become `runtime_output`; repeated `session_id` does not spam `native_session` events |
+| Codex command runs in a sandboxed/non-git acceptance context | Command includes `--skip-git-repo-check`; native `thread_id` is captured as session evidence |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: `REDIS_URL=redis://localhost:6379 pnpm --filter @agenthub/web start` and `REDIS_URL=redis://localhost:6379 RUNTIME_EXECUTOR=real pnpm --filter @agenthub/web exec tsx server/runtime-worker.ts`; queued jobs select Claude Code or Codex from `role_agents.runtime_type`.
+- Good: A Claude Code planner node takes several minutes before final completion; worker emits periodic running status events, gateway SSE stays open, then persists runtime output and `runtime_completed`.
 - Base: Worker intentionally unavailable; UI shows a Chinese unavailable state and persists no fake assistant message.
 - Bad: Start only the worker with `REDIS_URL`, leave Web without it, then report cloud chat failure as a runtime bug.
+- Bad: Use Claude Code plain `-p` text mode and lose native session evidence, or treat every stream-json control event as user-visible output.
+- Bad: Let a long-running CLI stay silent on the Redis event channel and rely only on heartbeat keys; the gateway subscription may emit a false `subscription timeout`.
 
 ### 6. Tests Required
 
 - Unit/integration: endpoint unavailable path persists no agent message.
 - Browser UAT: stream body contains multiple `runtime_output` events and refresh shows the persisted agent message.
 - Evidence must record the Web and worker `REDIS_URL` values or startup commands.
+- Unit tests for CLI args: Claude Code uses `--print --verbose --output-format stream-json --include-partial-messages`; Codex uses `--skip-git-repo-check`.
+- Unit tests for parser output: Claude nested stream-json deltas become output, Codex `thread_id` becomes native session evidence, control-only events do not become user-visible text.
+- Worker test: slow executor with no first token before heartbeat interval publishes at least two `runtime_status running` events and then completes.
+- Worker test: repeated identical native session ids publish only once per job.
 
 ### 7. Wrong vs Correct
 
@@ -340,8 +356,8 @@ DB contract:
 - Gateway must persist `runtime_detection` capability snapshots for the endpoint and copy the selected snapshot into the runtime session before enqueueing.
 - If the selected runtime is unavailable, unauthenticated, or not launchable, Gateway emits `endpoint_unavailable` and marks the runtime session failed. It must not switch to another runtime.
 - CLI execution uses official native resume when `nativeSessionId` exists:
-  - Claude Code: `claude -p --resume <nativeSessionId> <prompt>`.
-  - Codex: `codex exec resume --json -s read-only --color never <nativeSessionId> <prompt>`.
+  - Claude Code: `claude --print --verbose --output-format stream-json --include-partial-messages --resume <nativeSessionId> <prompt>`.
+  - Codex: `codex exec resume --json --skip-git-repo-check <nativeSessionId> <prompt>`.
 - Executor parses native session ids from CLI JSON lines and worker writes them back to `runtime_sessions.native_session_id`.
 - Orchestrated chat with an orchestrator plus worker roles creates a durable `plans` row and `plan_nodes` rows, runs planner first, workers concurrently after planner success, then summarizer after all workers succeed.
 - Confirming a `pending_confirm` plan must dispatch `plan_nodes.action_type='runtime_invoke'` directly to the runtime worker. It must not require a shell `command` payload.

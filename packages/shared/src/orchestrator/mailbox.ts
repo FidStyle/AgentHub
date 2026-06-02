@@ -47,8 +47,13 @@ export interface PlanNodeAttemptDraft {
 
 const ACTIVE_MAILBOX_STATUSES = new Set<MailboxStatus>(['running', 'waiting'])
 
+function timestampMillis(value: string | Date): number {
+  if (value instanceof Date) return value.getTime()
+  return Date.parse(value)
+}
+
 export function selectReadyMailboxItems(items: AgentMailboxItem[]): AgentMailboxItem[] {
-  const ordered = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const ordered = [...items].sort((a, b) => timestampMillis(a.created_at) - timestampMillis(b.created_at))
   const activeRoles = new Set(
     ordered
       .filter((item) => item.direction === 'inbound' && ACTIVE_MAILBOX_STATUSES.has(item.status))

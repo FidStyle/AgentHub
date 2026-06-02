@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import { requireAuth } from '@/lib/auth-guard'
 import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
+import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
 import type { RuntimeGatewayEvent, RuntimeMessagePart } from '@agenthub/shared'
 import type { RuntimeType } from '@agenthub/shared'
 import type { ContextPackage } from '@agenthub/shared'
@@ -26,6 +26,123 @@ type ExecutionTarget = {
   nodeId: string | null
   role: SelectedRoleAgent | null
   phase: 'direct' | 'planning' | 'worker' | 'summarizing'
+  dependsOn: string[]
+}
+
+type RuntimeAttemptEvidence = {
+  attemptId: string
+  mailboxItemId: string | null
+}
+
+async function createRuntimeAttemptEvidence(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  workspaceId: string
+  sessionId: string
+  planId: string | null
+  target: ExecutionTarget
+}) {
+  if (!input.planId || !input.target.nodeId || !input.target.role) return null
+  const { data: attempt, error: attemptError } = await input.db
+    .from('plan_node_attempts')
+    .insert({
+      plan_node_id: input.target.nodeId,
+      attempt_number: 1,
+      control: 'initial',
+      previous_attempt_id: null,
+      runtime_session_id: null,
+      mailbox_item_id: null,
+      status: 'running',
+      error: null,
+    })
+    .select()
+    .single()
+  if (attemptError || !attempt?.id) return null
+
+  const contextPackage = {
+    fromRoleAgentId: null,
+    fromRoleName: 'Orchestrator',
+    toRoleAgentId: input.target.role.id,
+    toRoleName: input.target.role.name,
+    sessionId: input.sessionId,
+    summary: `执行编排节点「${input.target.role.name} / ${input.target.phase}」。`,
+    sourceMessageId: null,
+    target: 'initial',
+    phase: input.target.phase,
+    runtimeType: input.target.role.runtime_type,
+    metadata: {
+      planId: input.planId,
+      planNodeId: input.target.nodeId,
+      attemptId: attempt.id,
+      control: 'initial',
+    },
+    createdAt: new Date().toISOString(),
+  }
+  const { data: mailbox } = await input.db
+    .from('agent_mailbox_items')
+    .insert({
+      workspace_id: input.workspaceId,
+      session_id: input.sessionId,
+      plan_id: input.planId,
+      plan_node_id: input.target.nodeId,
+      direction: 'inbound',
+      from_role_agent_id: null,
+      to_role_agent_id: input.target.role.id,
+      attempt_id: attempt.id,
+      parent_attempt_id: null,
+      lineage_root_id: attempt.id,
+      runtime_type: input.target.role.runtime_type,
+      status: 'running',
+      context_package: contextPackage,
+      reply_to_mailbox_item_id: null,
+      error: null,
+    })
+    .select()
+    .single()
+  if (mailbox?.id) {
+    await input.db.from('plan_node_attempts').update({ mailbox_item_id: mailbox.id }).eq('id', attempt.id)
+  }
+  return { attemptId: attempt.id as string, mailboxItemId: (mailbox?.id as string | undefined) ?? null }
+}
+
+async function latestRuntimeSessionForTarget(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  sessionId: string
+  roleAgentId: string | null
+  runtimeType?: RuntimeType
+}) {
+  let query = input.db
+    .from('runtime_sessions')
+    .select('id, native_session_id')
+    .eq('session_id', input.sessionId)
+  query = input.roleAgentId ? query.eq('role_agent_id', input.roleAgentId) : query.is('role_agent_id', null)
+  if (input.runtimeType) query = query.eq('runtime_type', input.runtimeType)
+  const { data } = await query.order('created_at', { ascending: false }).limit(1)
+  const rows = Array.isArray(data) ? data as Array<{ id?: string; native_session_id?: string | null }> : []
+  return rows[0] ?? null
+}
+
+async function finishRuntimeAttemptEvidence(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  evidence: RuntimeAttemptEvidence | null
+  runtimeSessionId?: string | null
+  status: 'completed' | 'failed'
+  error?: string
+}) {
+  if (!input.evidence) return
+  const patch = {
+    status: input.status,
+    runtime_session_id: input.runtimeSessionId ?? null,
+    error: input.error ?? null,
+    updated_at: new Date().toISOString(),
+  }
+  await input.db.from('plan_node_attempts').update(patch).eq('id', input.evidence.attemptId)
+  if (input.evidence.mailboxItemId) {
+    await input.db.from('agent_mailbox_items').update({
+      status: input.status,
+      error: input.error ?? null,
+      updated_at: patch.updated_at,
+    }).eq('id', input.evidence.mailboxItemId)
+  }
 }
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
@@ -303,46 +420,16 @@ export async function POST(req: NextRequest) {
       }> = []
       const persistedHandoffs: RoleHandoffPackage[] = []
       try {
-        const orchestrator = selectedRoleAgents.find((role) => role.is_orchestrator)
-        const useOrchestratedRun = Boolean(orchestrator && selectedRoleAgents.length > 1)
-        const workerRoles = useOrchestratedRun
-          ? selectedRoleAgents.filter((role) => role.id !== orchestrator?.id)
-          : []
-        const executionTargets: ExecutionTarget[] = useOrchestratedRun && orchestrator
-          ? [
-              { nodeId: randomUUID(), role: orchestrator, phase: 'planning' },
-              ...workerRoles.map((role) => ({ nodeId: randomUUID(), role, phase: 'worker' as const })),
-              { nodeId: randomUUID(), role: orchestrator, phase: 'summarizing' },
-            ]
-          : (selectedRoleAgents.length > 0 ? selectedRoleAgents : [null]).map((role) => ({
-              nodeId: null,
-              role,
-              phase: 'direct' as const,
-            }))
+        const orchestration = generateOrchestration(selectedRoleAgents, content)
+        const useOrchestratedRun = orchestration.useOrchestratedRun
+        const executionTargets: ExecutionTarget[] = orchestration.targets
         let planId: string | null = null
         if (useOrchestratedRun) {
-          const planNodes = executionTargets.map((target) => ({
-            id: target.nodeId,
-            label: target.phase === 'planning'
-              ? '架构师规划'
-              : target.phase === 'summarizing'
-                ? '架构师汇总'
-                : `${target.role?.name ?? '角色'}执行`,
-            depends_on: target.phase === 'worker'
-              ? [executionTargets[0].nodeId].filter(Boolean)
-              : target.phase === 'summarizing'
-                ? executionTargets.filter((candidate) => candidate.phase === 'worker').map((candidate) => candidate.nodeId).filter(Boolean)
-                : [],
-          }))
-          const dag = {
-            nodes: planNodes.map((node) => ({ id: node.id, label: node.label, depends_on: node.depends_on })),
-            edges: planNodes.flatMap((node) => node.depends_on.map((dep) => ({ from: dep, to: node.id }))),
-          }
           const { data: plan } = await db.from('plans').insert({
             session_id: sessionId,
             owner_id: user.id,
             title: content.slice(0, 80) || '多角色编排',
-            dag,
+            dag: orchestration.dag,
             status: 'running',
           }).select('id').single()
           planId = plan?.id ?? null
@@ -362,14 +449,10 @@ export async function POST(req: NextRequest) {
                 runtimeType: target.role?.runtime_type ?? null,
                 userMessage,
               },
-              depends_on: `{${(target.phase === 'worker'
-                ? [executionTargets[0].nodeId]
-                : target.phase === 'summarizing'
-                  ? executionTargets.filter((candidate) => candidate.phase === 'worker').map((candidate) => candidate.nodeId)
-                  : []).filter(Boolean).map((id) => `"${id}"`).join(',')}}`,
-              status: target.phase === 'planning' ? 'ready' : 'pending',
+              depends_on: `{${target.dependsOn.map((id) => `"${id}"`).join(',')}}`,
+              status: target.dependsOn.length === 0 ? 'ready' : 'pending',
             })))
-            controller.enqueue(encode({ type: 'orchestrator_plan_started', planId, nodes: planNodes }))
+            controller.enqueue(encode({ type: 'orchestrator_plan_started', planId, nodes: orchestration.planNodes }))
           }
         }
         const handoffs: RoleHandoffPackage[] = []
@@ -398,6 +481,13 @@ export async function POST(req: NextRequest) {
           if (target.nodeId) {
             await db.from('plan_nodes').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', target.nodeId)
           }
+          const evidence = await createRuntimeAttemptEvidence({
+            db,
+            workspaceId: ws.id,
+            sessionId,
+            planId,
+            target,
+          })
           if (role && receivedHandoffs.length > 0) {
             controller.enqueue(encode({
               type: 'role_handoff',
@@ -420,7 +510,19 @@ export async function POST(req: NextRequest) {
             if (evt.type === 'runtime_completed') completed = true
             controller.enqueue(encode(evt))
           }
+          const latestRuntimeSession = await latestRuntimeSessionForTarget({
+            db,
+            sessionId,
+            roleAgentId: currentRoleAgentId,
+            runtimeType: runtimeTypeForRole(role),
+          })
           if (completed && (reply || runtimeParts.length > 0)) {
+            await finishRuntimeAttemptEvidence({
+              db,
+              evidence,
+              runtimeSessionId: latestRuntimeSession?.id,
+              status: 'completed',
+            })
             completedReplies.push({
               nodeId: target.nodeId,
               phase: target.phase,
@@ -463,26 +565,52 @@ export async function POST(req: NextRequest) {
               result: { error: 'Runtime 未完成或没有产出，节点未通过' },
             }).eq('id', target.nodeId)
           }
+          await finishRuntimeAttemptEvidence({
+            db,
+            evidence,
+            runtimeSessionId: latestRuntimeSession?.id,
+            status: 'failed',
+            error: 'Runtime 未完成或没有产出，节点未通过',
+          })
           return false
         }
 
         if (useOrchestratedRun) {
-          const planner = executionTargets.find((target) => target.phase === 'planning')
-          const workers = executionTargets.filter((target) => target.phase === 'worker')
-          const summarizer = executionTargets.find((target) => target.phase === 'summarizing')
-          const plannerOk = planner ? await runTarget(planner, [...workers, ...(summarizer ? [summarizer] : [])]) : true
-          const workerResults = plannerOk
-            ? await Promise.all(workers.map((target) => runTarget(target, summarizer ? [summarizer] : [])))
-            : workers.map(() => false)
-          if (!plannerOk) {
-            await failUnrunTargets([...workers, ...(summarizer ? [summarizer] : [])], '上游架构师规划失败，节点未运行')
+          const targetById = new Map(executionTargets.filter((target) => target.nodeId).map((target) => [target.nodeId as string, target]))
+          const completedNodeIds = new Set<string>()
+          const failedTargets: ExecutionTarget[] = []
+          const pending = new Map(targetById)
+
+          while (pending.size > 0 && failedTargets.length === 0) {
+            const readyWave = Array.from(pending.values()).filter((target) => target.dependsOn.every((id) => completedNodeIds.has(id)))
+            if (readyWave.length === 0) {
+              failedTargets.push(...Array.from(pending.values()))
+              await failUnrunTargets(Array.from(pending.values()), 'DAG 依赖无法继续推进，节点未运行')
+              break
+            }
+
+            const waveResults = await Promise.all(readyWave.map((target) => {
+              const downstreamTargets = executionTargets.filter((candidate) => (
+                candidate.nodeId && target.nodeId && candidate.dependsOn.includes(target.nodeId)
+              ))
+              return runTarget(target, downstreamTargets)
+            }))
+
+            readyWave.forEach((target, index) => {
+              if (waveResults[index]) {
+                completedNodeIds.add(target.nodeId as string)
+              } else {
+                failedTargets.push(target)
+              }
+              pending.delete(target.nodeId as string)
+            })
           }
-          const summarizerOk = plannerOk && workerResults.every(Boolean) && summarizer ? await runTarget(summarizer, []) : true
-          if (plannerOk && !workerResults.every(Boolean) && summarizer) {
-            await failUnrunTargets([summarizer], '上游角色执行失败，汇总节点未运行')
+
+          if (failedTargets.length > 0 && pending.size > 0) {
+            await failUnrunTargets(Array.from(pending.values()), '上游角色执行失败，节点未运行')
           }
           if (planId) {
-            const planCompleted = plannerOk && workerResults.every(Boolean) && summarizerOk
+            const planCompleted = failedTargets.length === 0 && pending.size === 0
             await db.from('plans').update({ status: planCompleted ? 'completed' : 'failed', updated_at: new Date().toISOString() }).eq('id', planId)
           }
         } else {

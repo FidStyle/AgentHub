@@ -74,7 +74,7 @@ function controlChain() {
   const plan = { id: 'plan-001', session_id: 'session-001', owner_id: 'user-001', title: '完整编排' }
   const session = { id: 'session-001', workspace_id: 'ws-001' }
   const role = { id: 'agent-be', name: '后端工程师', runtime_type: 'codex' }
-  const previousAttempt = { id: 'attempt-001', attempt_number: 1 }
+  const previousAttempt = { id: 'attempt-001', attempt_number: 1, runtime_session_id: 'runtime-prev-001' }
   const planNodesForProgress = [
     { ...node, status: 'cancelled', depends_on: [], action_type: 'runtime_invoke' },
     { id: 'node-downstream', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke' },
@@ -238,6 +238,35 @@ describe('plan node controls, timeline, and runtime inventory APIs', () => {
         table: 'plans',
         values: expect.objectContaining({ status: 'running' }),
         id: 'plan-001',
+      }),
+    ]))
+  })
+
+  it('resume records previous runtime session evidence in the mailbox context', async () => {
+    const { POST } = await import('@/app/api/plan-nodes/[id]/resume/route')
+    const { chainFactory, writes } = controlChain()
+    setupMockClient(chainFactory)
+
+    const result = await callDynamicPost(POST)
+
+    expect(result.status).toBe(200)
+    expect(result.data.control).toBe('resume')
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        values: expect.objectContaining({ control: 'resume', previous_attempt_id: 'attempt-001' }),
+      }),
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        values: expect.objectContaining({
+          context_package: expect.objectContaining({
+            metadata: expect.objectContaining({
+              control: 'resume',
+              previousAttemptId: 'attempt-001',
+              previousRuntimeSessionId: 'runtime-prev-001',
+            }),
+          }),
+        }),
       }),
     ]))
   })

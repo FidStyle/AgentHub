@@ -66,6 +66,16 @@ describe('mailbox scheduling helpers', () => {
     expect(ready.map((item) => item.id)).toEqual(['queued-be'])
   })
 
+  it('accepts Date timestamps from local Postgres rows when selecting ready work', () => {
+    const ready = selectReadyMailboxItems([
+      mailbox({ id: 'mail-2', to_role_agent_id: 'agent-fe', status: 'queued', created_at: new Date('2026-06-02T00:00:02.000Z') as unknown as string }),
+      mailbox({ id: 'mail-1', to_role_agent_id: 'agent-fe', status: 'queued', created_at: new Date('2026-06-02T00:00:01.000Z') as unknown as string }),
+      mailbox({ id: 'mail-3', to_role_agent_id: 'agent-be', status: 'queued', created_at: new Date('2026-06-02T00:00:03.000Z') as unknown as string }),
+    ])
+
+    expect(ready.map((item) => item.id)).toEqual(['mail-1', 'mail-3'])
+  })
+
   it('creates retry attempt drafts without overwriting previous attempt lineage', () => {
     const draft = nextPlanNodeAttemptDraft({
       planNodeId: 'node-001',

@@ -38,7 +38,7 @@ vi.mock('../../lib/app-db-client', () => ({
   }),
 }))
 
-import { CliRuntimeExecutor, ExecutorUnavailableError, FakeExecutor, ScriptedRealExecutor, type RuntimeExecutor } from '../../lib/runtime/executor'
+import { CliRuntimeExecutor, ExecutorUnavailableError, FakeExecutor, ScriptedRealExecutor, cliArgs, outputChunks, type RuntimeExecutor } from '../../lib/runtime/executor'
 import { processJob, createExecutor } from '../../server/runtime-worker'
 import type { RuntimeJob } from '../../lib/runtime/redis-client'
 
@@ -55,6 +55,71 @@ beforeEach(() => {
 })
 
 describe('CliRuntimeExecutor — executor_unavailable', () => {
+  it('builds Claude Code print commands with stream-json session evidence', () => {
+    expect(cliArgs('claude_code', 'hello')).toEqual([
+      '--print',
+      '--verbose',
+      '--output-format',
+      'stream-json',
+      '--include-partial-messages',
+      'hello',
+    ])
+    expect(cliArgs('claude_code', 'hello again', 'session-123')).toEqual([
+      '--print',
+      '--verbose',
+      '--output-format',
+      'stream-json',
+      '--include-partial-messages',
+      '--resume',
+      'session-123',
+      'hello again',
+    ])
+  })
+
+  it('builds Codex exec commands with skip-git-repo-check for sandbox-compatible UAT', () => {
+    expect(cliArgs('codex', 'hello')).toEqual([
+      'exec',
+      '--json',
+      '-s',
+      'read-only',
+      '--skip-git-repo-check',
+      '--color',
+      'never',
+      'hello',
+    ])
+    expect(cliArgs('codex', 'hello again', 'thread-123')).toEqual([
+      'exec',
+      'resume',
+      '--json',
+      '--skip-git-repo-check',
+      'thread-123',
+      'hello again',
+    ])
+  })
+
+  it('extracts Codex thread_id as native session evidence', () => {
+    const chunks = outputChunks('codex', JSON.stringify({ type: 'thread.started', thread_id: 'thread-native-001' }))
+    expect(chunks).toEqual([{ nativeSessionId: 'thread-native-001' }])
+  })
+
+  it('extracts Claude stream-json session and text delta evidence', () => {
+    expect(outputChunks('claude_code', JSON.stringify({ type: 'system', session_id: 'claude-native-001' })))
+      .toEqual([{ nativeSessionId: 'claude-native-001' }])
+    expect(outputChunks('claude_code', JSON.stringify({
+      type: 'content_block_delta',
+      delta: { type: 'text_delta', text: '你好' },
+    }))).toEqual([{ delta: '你好' }])
+    expect(outputChunks('claude_code', JSON.stringify({
+      type: 'stream_event',
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '真实流' } },
+    }))).toEqual([{ delta: '真实流' }])
+    expect(outputChunks('claude_code', JSON.stringify({
+      type: 'result',
+      session_id: 'claude-native-001',
+      result: '完成',
+    }))).toEqual([{ nativeSessionId: 'claude-native-001' }, { delta: '完成' }])
+  })
+
   it('throws ExecutorUnavailableError when the CLI binary is missing', async () => {
     // Force a guaranteed-missing binary by routing through an unknown runtime type cast.
     const exec = new CliRuntimeExecutor({ runtimeType: 'claude_code' })
@@ -85,6 +150,45 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
 })
 
 describe('processJob — FakeExecutor regression', () => {
+  it('publishes running heartbeat events while waiting for a slow CLI first token', async () => {
+    vi.useFakeTimers()
+    const slow: RuntimeExecutor = {
+      async *execute() {
+        await new Promise((resolve) => setTimeout(resolve, 16_000))
+        yield { delta: 'done' }
+      },
+    }
+    const job: RuntimeJob = { runtimeSessionId: 's-slow', prompt: 'slow work' }
+    const run = processJob(job, slow)
+
+    await vi.advanceTimersByTimeAsync(16_000)
+    const result = await run
+
+    expect(result).toBe('completed')
+    expect(published.filter((p) => p.event.type === 'runtime_status' && p.event.status === 'running').length)
+      .toBeGreaterThanOrEqual(2)
+    expect(published.some((p) => p.event.type === 'runtime_output' && p.event.delta === 'done')).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('publishes a native_session event only when the native session id changes', async () => {
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield { nativeSessionId: 'native-1' }
+        yield { nativeSessionId: 'native-1' }
+        yield { nativeSessionId: 'native-2' }
+        yield { delta: 'done' }
+      },
+    }
+    const job: RuntimeJob = { runtimeSessionId: 's-native-dedupe', prompt: 'track native session' }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('completed')
+    expect(published.filter((p) => p.event.type === 'native_session').map((p) => p.event.nativeSessionId))
+      .toEqual(['native-1', 'native-2'])
+  })
+
   it('streams prompt words and completes', async () => {
     const job: RuntimeJob = { runtimeSessionId: 's1', prompt: 'hello world foo' }
     const result = await processJob(job, new FakeExecutor())
@@ -145,13 +249,19 @@ describe('processJob — FakeExecutor regression', () => {
       runtimeSessionId: 's-node',
       prompt: 'run node',
       planNodeId: 'node-runtime-001',
+      attemptId: 'attempt-runtime-001',
+      mailboxItemId: 'mailbox-runtime-001',
     }
 
     const result = await processJob(job, new FakeExecutor())
 
     expect(result).toBe('completed')
     expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'running', runtime_session_id: 's-node', error: null }),
+      expect.objectContaining({ status: 'running', error: null }),
       expect.objectContaining({ status: 'running', started_at: expect.any(String) }),
+      expect.objectContaining({ status: 'completed', runtime_session_id: 's-node', error: null }),
+      expect.objectContaining({ status: 'completed', error: null }),
       expect.objectContaining({
         status: 'completed',
         completed_at: expect.any(String),
@@ -162,6 +272,37 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
       expect.objectContaining({ status: 'completed', updated_at: expect.any(String) }),
+    ]))
+  })
+
+  it('marks linked attempt and mailbox failed when runtime execution fails', async () => {
+    const unavailable: RuntimeExecutor = {
+      // eslint-disable-next-line require-yield
+      async *execute() { throw new Error('native resume failed') },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 's-failed-attempt',
+      prompt: 'resume node',
+      planNodeId: 'node-runtime-failed',
+      attemptId: 'attempt-runtime-failed',
+      mailboxItemId: 'mailbox-runtime-failed',
+    }
+
+    const result = await processJob(job, unavailable)
+
+    expect(result).toBe('failed')
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'failed', runtime_session_id: 's-failed-attempt', error: 'native resume failed' }),
+      expect.objectContaining({ status: 'failed', error: 'native resume failed' }),
+      expect.objectContaining({
+        status: 'failed',
+        completed_at: expect.any(String),
+        result: expect.objectContaining({
+          terminal: 'failed',
+          runtimeSessionId: 's-failed-attempt',
+          error: 'native resume failed',
+        }),
+      }),
     ]))
   })
 

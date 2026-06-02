@@ -19,6 +19,8 @@ const invokeSpy = vi.fn()
 const insertedMessages: Record<string, unknown>[] = []
 const insertedPlans: Record<string, unknown>[] = []
 const insertedPlanNodes: Record<string, unknown>[] = []
+const insertedAttempts: Record<string, unknown>[] = []
+const insertedMailboxItems: Record<string, unknown>[] = []
 
 // Events the mocked runtime adapter emits; per-test override via setAdapterEvents.
 let adapterEvents: Record<string, unknown>[] = [{ type: 'runtime_output', delta: 'ok' }]
@@ -81,6 +83,8 @@ describe('POST /api/chat — role-chat-core', () => {
     insertedMessages.length = 0
     insertedPlans.length = 0
     insertedPlanNodes.length = 0
+    insertedAttempts.length = 0
+    insertedMailboxItems.length = 0
     setAdapterEvents([{ type: 'runtime_output', delta: 'ok' }])
     setupMockAuth()
   })
@@ -245,6 +249,49 @@ describe('POST /api/chat — role-chat-core', () => {
             update: () => ({ eq: () => ({ data: null, error: null }) }),
           }
         }
+        if (table === 'plan_node_attempts') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `attempt-${insertedAttempts.length + 1}`, ...vals }
+              insertedAttempts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedAttempts.find((attempt) => attempt.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'agent_mailbox_items') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `mailbox-${insertedMailboxItems.length + 1}`, ...vals }
+              insertedMailboxItems.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedMailboxItems.find((mailbox) => mailbox.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'runtime_sessions') {
+          const runtimeRows = [{ id: 'runtime-latest', native_session_id: 'native-latest' }]
+          const runtimeChain = {
+            eq: () => runtimeChain,
+            is: () => runtimeChain,
+            order: () => ({ limit: () => ({ data: runtimeRows, error: null }) }),
+          }
+          return {
+            select: () => runtimeChain,
+          }
+        }
         const t = origFrom(table)
         if (table === 'messages') {
           const origInsert = t.insert
@@ -268,6 +315,15 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(insertedPlans[0]).toMatchObject({ session_id: 'session-001', owner_id: 'user-001', status: 'running' })
     expect(insertedPlanNodes).toHaveLength(4)
     expect(insertedPlanNodes.map((node) => node.action_type)).toEqual(['runtime_invoke', 'runtime_invoke', 'runtime_invoke', 'runtime_invoke'])
+    expect(insertedAttempts).toHaveLength(4)
+    expect(insertedAttempts.every((attempt) => attempt.status === 'completed')).toBe(true)
+    expect(insertedAttempts.every((attempt) => attempt.runtime_session_id === 'runtime-latest')).toBe(true)
+    expect(insertedMailboxItems).toHaveLength(4)
+    expect(insertedMailboxItems.every((mailbox) => mailbox.status === 'completed')).toBe(true)
+    expect(insertedMailboxItems.map((mailbox) => mailbox.runtime_type)).toEqual(['claude_code', 'claude_code', 'codex', 'claude_code'])
+    expect(insertedMailboxItems[0].context_package).toMatchObject({
+      metadata: { planId: 'plan-001', attemptId: 'attempt-1', control: 'initial' },
+    })
     expect(invokeSpy).toHaveBeenCalledTimes(4)
     expect(invokeSpy.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-fe', 'agent-be', 'agent-orch'])
     expect(invokeSpy.mock.calls.map((call) => call[0].runtimeType)).toEqual(['claude_code', 'claude_code', 'codex', 'claude_code'])

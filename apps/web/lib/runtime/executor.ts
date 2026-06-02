@@ -102,17 +102,17 @@ export function detectCliRuntimeCapabilities(): CliRuntimeCapability[] {
   ]
 }
 
-function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null) {
+export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null) {
   if (runtimeType === 'codex') {
     if (nativeSessionId) {
-      return ['exec', 'resume', '--json', '-s', 'read-only', '--color', 'never', nativeSessionId, prompt]
+      return ['exec', 'resume', '--json', '--skip-git-repo-check', nativeSessionId, prompt]
     }
-    return ['exec', '--json', '-s', 'read-only', '--color', 'never', prompt]
+    return ['exec', '--json', '-s', 'read-only', '--skip-git-repo-check', '--color', 'never', prompt]
   }
   if (nativeSessionId) {
-    return ['-p', '--resume', nativeSessionId, prompt]
+    return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', '--resume', nativeSessionId, prompt]
   }
-  return ['-p', prompt]
+  return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', prompt]
 }
 
 function splitOutput(text: string) {
@@ -120,19 +120,36 @@ function splitOutput(text: string) {
 }
 
 function nativeSessionIdFromRecord(record: Record<string, unknown>) {
-  const sessionId = record.session_id ?? record.sessionId ?? record.conversation_id ?? record.conversationId
+  const sessionId = record.session_id ?? record.sessionId ?? record.thread_id ?? record.threadId ?? record.conversation_id ?? record.conversationId
   return typeof sessionId === 'string' && sessionId ? sessionId : null
 }
 
-function outputChunks(runtimeType: CliRuntimeType, line: string): ExecutorChunk[] {
+export function outputChunks(runtimeType: CliRuntimeType, line: string): ExecutorChunk[] {
   if (runtimeType !== 'codex') {
     try {
       const record = JSON.parse(line) as Record<string, unknown>
       const nativeSessionId = nativeSessionIdFromRecord(record)
       const result = typeof record.result === 'string' ? record.result : null
+      const nestedEvent = record.event && typeof record.event === 'object'
+        ? record.event as Record<string, unknown>
+        : null
+      const nestedDelta = nestedEvent?.delta && typeof nestedEvent.delta === 'object'
+        ? nestedEvent.delta as Record<string, unknown>
+        : null
+      const delta = typeof record.delta === 'string'
+        ? record.delta
+        : typeof nestedDelta?.text === 'string'
+          ? nestedDelta.text
+        : record.type === 'content_block_delta' &&
+          record.delta &&
+          typeof record.delta === 'object' &&
+          'text' in record.delta &&
+          typeof (record.delta as { text?: unknown }).text === 'string'
+            ? (record.delta as { text: string }).text
+            : null
       return [
         ...(nativeSessionId ? [{ nativeSessionId }] : []),
-        ...(result ? splitOutput(result).map((delta) => ({ delta })) : [{ delta: line + '\n' }]),
+        ...(delta ? [{ delta }] : result ? splitOutput(result).map((part) => ({ delta: part })) : []),
       ]
     } catch {
       return [{ delta: line + '\n' }]

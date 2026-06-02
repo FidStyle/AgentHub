@@ -24,6 +24,8 @@ export interface RuntimeJob {
   fail?: boolean
   actionId?: string
   planNodeId?: string
+  attemptId?: string
+  mailboxItemId?: string | null
 }
 
 let client: RedisClientType | null = null

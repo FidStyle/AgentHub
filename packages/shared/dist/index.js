@@ -85,8 +85,12 @@ var DEFAULT_POLICIES = [
 
 // src/orchestrator/mailbox.ts
 var ACTIVE_MAILBOX_STATUSES = /* @__PURE__ */ new Set(["running", "waiting"]);
+function timestampMillis(value) {
+  if (value instanceof Date) return value.getTime();
+  return Date.parse(value);
+}
 function selectReadyMailboxItems(items) {
-  const ordered = [...items].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const ordered = [...items].sort((a, b) => timestampMillis(a.created_at) - timestampMillis(b.created_at));
   const activeRoles = new Set(
     ordered.filter((item) => item.direction === "inbound" && ACTIVE_MAILBOX_STATUSES.has(item.status)).map((item) => item.to_role_agent_id)
   );

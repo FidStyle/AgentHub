@@ -5,6 +5,7 @@ import { dequeue, publishEvent, isCancelled, setHeartbeat, isAlive, clearHeartbe
 import { redact } from '../lib/runtime/redact'
 
 const HEARTBEAT_TTL_SEC = Number(process.env.RUNTIME_HEARTBEAT_TTL_SEC ?? 30)
+const HEARTBEAT_EVENT_INTERVAL_MS = Number(process.env.RUNTIME_HEARTBEAT_EVENT_INTERVAL_MS ?? 15_000)
 
 function runtimeTypeForJob(job?: RuntimeJob): CliRuntimeType {
   if (job?.runtimeType === 'codex' || job?.runtimeType === 'claude_code') return job.runtimeType
@@ -53,6 +54,21 @@ async function log(runtimeSessionId: string, eventType: string, payload: Record<
 async function markActionRunning(job: RuntimeJob): Promise<void> {
   const db = await createClient()
   const now = new Date().toISOString()
+  if (job.attemptId) {
+    await db.from('plan_node_attempts').update({
+      status: 'running',
+      runtime_session_id: job.runtimeSessionId,
+      error: null,
+      updated_at: now,
+    }).eq('id', job.attemptId)
+  }
+  if (job.mailboxItemId) {
+    await db.from('agent_mailbox_items').update({
+      status: 'running',
+      error: null,
+      updated_at: now,
+    }).eq('id', job.mailboxItemId)
+  }
   if (job.actionId) {
     await db.from('actions').update({
       status: 'running',
@@ -74,6 +90,12 @@ async function settleParentPlan(db: Awaited<ReturnType<typeof createClient>>, pl
   await advancePlanProgress(db, { planNodeId })
 }
 
+function terminalToMailboxStatus(terminal: Terminal) {
+  if (terminal === 'completed') return 'completed'
+  if (terminal === 'cancelled') return 'cancelled'
+  return 'failed'
+}
+
 async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = '', error?: string): Promise<void> {
   const db = await createClient()
   const now = new Date().toISOString()
@@ -84,6 +106,22 @@ async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = 
     output: output.slice(-20_000),
     error,
     at: now,
+  }
+  const mailboxStatus = terminalToMailboxStatus(terminal)
+  if (job.attemptId) {
+    await db.from('plan_node_attempts').update({
+      status: mailboxStatus,
+      runtime_session_id: job.runtimeSessionId,
+      error: error ?? null,
+      updated_at: now,
+    }).eq('id', job.attemptId)
+  }
+  if (job.mailboxItemId) {
+    await db.from('agent_mailbox_items').update({
+      status: mailboxStatus,
+      error: error ?? null,
+      updated_at: now,
+    }).eq('id', job.mailboxItemId)
   }
   if (job.actionId) {
     await db.from('actions').update({ status, result }).eq('id', job.actionId)
@@ -108,11 +146,25 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     await log(id, String(event.type), event, seq++)
     await publishEvent(id, event)
   }
+  let lastHeartbeatEventAt = 0
+  let lastNativeSessionId = job.nativeSessionId ?? ''
+  const emitRunningHeartbeat = async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastHeartbeatEventAt < HEARTBEAT_EVENT_INTERVAL_MS) return
+    lastHeartbeatEventAt = now
+    await setHeartbeat(id, HEARTBEAT_TTL_SEC)
+    await emit({ type: 'runtime_status', status: 'running', endpointId: job.endpointId })
+  }
 
   await setStatus(id, 'running')
   await markActionRunning(job)
-  await setHeartbeat(id, HEARTBEAT_TTL_SEC)
-  await emit({ type: 'runtime_status', status: 'running', endpointId: job.endpointId })
+  await emitRunningHeartbeat(true)
+  const heartbeatInterval = setInterval(() => {
+    void emitRunningHeartbeat().catch((err) => {
+      console.error('[runtime-worker] heartbeat error', err)
+    })
+  }, HEARTBEAT_EVENT_INTERVAL_MS)
+  heartbeatInterval.unref?.()
 
   try {
     // Prepend the role's system prompt (when present) so the executor runs with the role persona.
@@ -120,13 +172,15 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     const prompt = job.systemPrompt ? `${job.systemPrompt}\n\n${job.prompt}` : job.prompt
     for await (const chunk of executor.execute({ prompt, fail: job.fail, nativeSessionId: job.nativeSessionId })) {
       if (await isCancelled(id)) {
+        clearInterval(heartbeatInterval)
         await setStatus(id, 'cancelled', true)
         await clearHeartbeat(id)
         await markActionTerminal(job, 'cancelled', output, 'cancelled by request')
         await emit({ type: 'runtime_cancelled', endpointId: job.endpointId, reason: 'cancelled by request' })
         return 'cancelled'
       }
-      if (chunk.nativeSessionId) {
+      if (chunk.nativeSessionId && chunk.nativeSessionId !== lastNativeSessionId) {
+        lastNativeSessionId = chunk.nativeSessionId
         await setNativeSessionId(id, chunk.nativeSessionId)
         await emit({ type: 'native_session', nativeSessionId: chunk.nativeSessionId, endpointId: job.endpointId })
       }
@@ -136,6 +190,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
       await emit({ type: 'runtime_output', delta: chunk.delta, endpointId: job.endpointId })
     }
   } catch (err) {
+    clearInterval(heartbeatInterval)
     const error = err instanceof Error ? err.message : String(err)
     await setStatus(id, 'failed', true)
     await clearHeartbeat(id)
@@ -144,6 +199,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     return 'failed'
   }
 
+  clearInterval(heartbeatInterval)
   await setStatus(id, 'completed', true)
   await clearHeartbeat(id)
   await markActionTerminal(job, 'completed', output)

@@ -35,6 +35,7 @@ type RoleRow = {
 type AttemptRow = {
   id: string
   attempt_number: number
+  runtime_session_id?: string | null
 }
 
 function controlToNodeStatus(control: Control) {
@@ -93,7 +94,7 @@ async function loadNodeContext(db: AppDbClient, nodeId: string, userId: string) 
 async function loadLatestAttempt(db: AppDbClient, nodeId: string) {
   const { data } = await db
     .from('plan_node_attempts')
-    .select('id, attempt_number')
+    .select('id, attempt_number, runtime_session_id')
     .eq('plan_node_id', nodeId)
     .order('attempt_number', { ascending: false })
     .limit(1)
@@ -160,6 +161,8 @@ export async function controlPlanNode(input: {
         planId: context.plan.id,
         planNodeId: context.node.id,
         attemptId: (attempt as { id: string }).id,
+        previousAttemptId: latestAttempt?.id ?? null,
+        previousRuntimeSessionId: latestAttempt?.runtime_session_id ?? null,
         control: input.control,
       },
       createdAt: new Date().toISOString(),

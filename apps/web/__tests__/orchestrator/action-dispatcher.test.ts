@@ -141,6 +141,8 @@ describe('dispatchRuntimeInvokeNode', () => {
       runtimeSessionId: 'runtime-001',
       runtimeType: 'codex',
       planNodeId: 'node-001',
+      attemptId: 'attempt-001',
+      mailboxItemId: 'mailbox-001',
       nativeSessionId: 'native-001',
     }))
   })

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getReadyNodes, advanceDAG, isPlanComplete, hasPlanFailed, validateDAG, evaluatePlanProgress } from '../lib/orchestrator/dag-scheduler'
+import { generateOrchestration, type OrchestratedRole } from '../lib/orchestrator/dag-generator'
 import { classifyRisk, requiresApproval } from '../lib/orchestrator/permission-engine'
 import { DEFAULT_POLICIES } from '@agenthub/shared'
 import type { PlanNode } from '@agenthub/shared'
@@ -94,6 +95,41 @@ describe('DAG Scheduler', () => {
     expect(result.readyNodeIds).toEqual([])
     expect(result.blockedNodeIds).toEqual(['a', 'b'])
     expect(result.transitions[0].reason).toContain('invalid DAG')
+  })
+})
+
+describe('DAG Generator', () => {
+  const roles: OrchestratedRole[] = [
+    { id: 'agent-arch', name: '架构师', role_type: 'orchestrator', capabilities: ['规划'], is_orchestrator: true },
+    { id: 'agent-fe', name: '前端工程师', role_type: 'frontend', capabilities: ['UI'], is_orchestrator: false },
+    { id: 'agent-be', name: '后端工程师', role_type: 'backend', capabilities: ['API'], is_orchestrator: false },
+  ]
+
+  it('generates planner, parallel workers, and summarizer fan-in for general collaboration tasks', () => {
+    const result = generateOrchestration(roles, '请前后端一起完成页面和服务')
+
+    expect(result.useOrchestratedRun).toBe(true)
+    expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '前端工程师执行', '后端工程师执行', '架构师汇总'])
+
+    const [planner, frontend, backend, summarizer] = result.planNodes
+    expect(frontend.depends_on).toEqual([planner.id])
+    expect(backend.depends_on).toEqual([planner.id])
+    expect(summarizer.depends_on).toEqual([frontend.id, backend.id])
+    expect(result.dag.edges).toEqual(expect.arrayContaining([
+      { from: planner.id, to: frontend.id },
+      { from: planner.id, to: backend.id },
+      { from: frontend.id, to: summarizer.id },
+      { from: backend.id, to: summarizer.id },
+    ]))
+  })
+
+  it('serializes frontend after backend when the task requires API or database contract first', () => {
+    const result = generateOrchestration(roles, '先定义后端接口和数据库 schema，再让前端调用后端 API')
+
+    const frontend = result.planNodes.find((node) => node.label === '前端工程师执行')
+    const backend = result.planNodes.find((node) => node.label === '后端工程师执行')
+
+    expect(frontend?.depends_on).toEqual(expect.arrayContaining([backend?.id]))
   })
 })
 
