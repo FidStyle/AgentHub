@@ -68,11 +68,12 @@ function commonNormalizedOverlapLength(left: string, right: string) {
 }
 
 function isLikelyReplay(current: string, delta: string) {
-  if (delta.length < 24) return false
   const normalizedCurrent = normalizeForOverlap(current)
   const normalizedDelta = normalizeForOverlap(delta)
   if (!normalizedCurrent || !normalizedDelta) return false
-  if (normalizedCurrent.includes(normalizedDelta)) return true
+  if (normalizedDelta.length < 3) return false
+  if (normalizedCurrent.length > normalizedDelta.length * 3 && normalizedCurrent.includes(normalizedDelta)) return true
+  if (delta.length < 24) return false
   const sharedPrefix = normalizedDelta.slice(0, Math.min(18, normalizedDelta.length))
   const sharedTail = normalizedDelta.slice(-Math.min(18, normalizedDelta.length))
   return normalizedCurrent.includes(sharedPrefix) && normalizedCurrent.includes(sharedTail)

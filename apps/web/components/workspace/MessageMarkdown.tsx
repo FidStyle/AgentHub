@@ -38,6 +38,16 @@ const STREAMDOWN_TRANSLATIONS: Partial<StreamdownTranslations> = {
 
 export function MessageMarkdown({ content, streaming = false }: { content: string; streaming?: boolean }) {
   const normalizedContent = useMemo(() => normalizeMessageMarkdown(content), [content])
+  const components = useMemo(() => ({
+    img: ({ alt, src, title }: React.ComponentProps<'img'>) => (
+      <img
+        alt={alt ?? ''}
+        src={src}
+        title={title}
+        className="my-2 max-h-80 max-w-full rounded-md border border-border object-contain"
+      />
+    ),
+  }), [])
 
   if (!normalizedContent) return null
 
@@ -52,6 +62,7 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
         dir="auto"
         parseIncompleteMarkdown
         normalizeHtmlIndentation
+        components={components}
         lineNumbers={false}
         translations={STREAMDOWN_TRANSLATIONS}
         className="max-w-none break-words text-[15px] leading-[22px] text-foreground [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:my-2 [&_blockquote]:border-l-[3px] [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_code]:break-words [&_li]:my-0.5 [&_li]:leading-[22px] [&_ol]:my-1.5 [&_p]:my-1 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:text-[13px] [&_table]:leading-5 [&_ul]:my-1.5"

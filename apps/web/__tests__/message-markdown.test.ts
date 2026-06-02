@@ -111,6 +111,27 @@ describe('appendRuntimeDelta', () => {
     expect(content.match(/你好！我是 AgentHub/g)).toHaveLength(1)
     expect(content.match(/public\/sw\.js/g)).toHaveLength(1)
   })
+
+  it('skips short replay chunks after a completed answer', () => {
+    let content = [
+      '作为 @架构师，我给你输出几种常见的 Markdown 主要格式示例：',
+      '',
+      '# 一级标题',
+      '',
+      '- 第一项',
+      '- 第二项',
+      '',
+      '需要我针对某种格式展开说明吗？',
+    ].join('\n')
+
+    for (const delta of ['作为 @架构', '师，我给', '你输出几种常见的 Markdown', '主要格式示例：', '# 一级标题', '- 第一项']) {
+      content = appendRuntimeDelta(content, delta)
+    }
+
+    expect(content.match(/作为 @架构师/g)).toHaveLength(1)
+    expect(content.match(/一级标题/g)).toHaveLength(1)
+    expect(content.match(/第一项/g)).toHaveLength(1)
+  })
 })
 
 describe('MessageMarkdown', () => {
@@ -123,6 +144,16 @@ describe('MessageMarkdown', () => {
     expect(html).toContain('<ul')
     expect(html).toContain('<li')
     expect(html).toContain('package.json')
+  })
+
+  it('renders markdown images without nesting Streamdown wrapper divs inside paragraphs', () => {
+    const html = renderToStaticMarkup(createElement(MessageMarkdown, {
+      content: '链接与图片：\n\n![图片描述](https://example.com/image.png)',
+    }))
+
+    expect(html).toContain('<img')
+    expect(html).not.toContain('<p><div')
+    expect(html).not.toContain('data-streamdown="image-wrapper"')
   })
 })
 
