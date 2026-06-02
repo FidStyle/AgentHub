@@ -35,6 +35,7 @@
 - opencli Web UAT：`opencli doctor` PASS；`opencli browser agenthub open http://localhost:3000/workspace/84a353ae-80c6-40c7-87ad-6114fe1592f6` 后工作区可渲染；`message-markdown` 7 个实例；页面无横向溢出；Changes 面板显示未暂存 `README.md`，`GET /git/status` 200；点击“查看 diff”后 `GET /git/diff?path=README.md&staged=false` 200，`git-diff-preview` 1 个实例；点击“丢弃”后出现“确认丢弃未暂存改动 / 允许单次执行 / 拒绝”，点击“拒绝”后显示“已拒绝丢弃改动”且文件仍在未暂存列表。
 - 2026-06-03 用户复核回归修复：`pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/session-store.test.ts` PASS（2 files / 7 tests）；`pnpm --filter @agenthub/web type-check` PASS。新增覆盖被压平的 `-` 列表、`1.` 编号列表、代码块不改写、普通 `+` 文本不误判。
 - 2026-06-03 opencli 回归 UAT：启动最新 Web dev server 后打开 `http://localhost:3000/workspace/84a353ae-80c6-40c7-87ad-6114fe1592f6?uat=markdown-permission-final-20260603`；页面断言 `ul=7`、`ol=1`、`li=21`、消息流 `permissionCards=1`、按钮文本为 `允许单次执行` / `拒绝`、`plusPhrasePreserved=true`、`overflow=false`。权限卡样本通过真实 `/api/actions` 创建 pending action，再通过真实 `/api/messages` 写入 `metadata.runtimeParts.permission` 后刷新验证。
+- 2026-06-03 治理复跑说明：用户复核回归修复提交后，工作区删除入口另有独立提交占用了 latest commit；本报告追加该说明后重新运行 `verify-governance-gate`，确保本合同的最新提交仍覆盖公开报告。
 
 ## opencli 截图
 
