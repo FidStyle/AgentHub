@@ -66,6 +66,8 @@ describe('gateway user_local relay', () => {
     const runtimeSession: RuntimeSessionRecord = {
       id: 'rs-local-1',
       endpoint: { id: 'ep-local-1', kind: 'user_local', status: 'available', deviceId: 'desktop-1' },
+      runtimeType: 'codex',
+      cwd: null,
     }
 
     const events = await drain(invoke({
@@ -85,5 +87,30 @@ describe('gateway user_local relay', () => {
     expect(events.some((event) => event.type === 'runtime_completed')).toBe(true)
     expect(statusUpdates).toContain('running')
     expect(statusUpdates).toContain('completed')
+  })
+
+  it('fails when the selected role runtime_type is not locally ready', async () => {
+    const runtimeSession: RuntimeSessionRecord = {
+      id: 'rs-local-2',
+      endpoint: { id: 'ep-local-1', kind: 'user_local', status: 'available', deviceId: 'desktop-1' },
+      runtimeType: 'claude_code',
+      cwd: null,
+    }
+
+    const events = await drain(invoke({
+      userId: 'u1',
+      runtimeSession,
+      userMessage: 'hello local',
+      runtimeType: 'claude_code',
+    }))
+
+    expect(sentPayloads).toEqual([])
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'runtime_failed',
+        error: '当前角色绑定的本地 Runtime 未登录或不可启动，无法执行本地任务。',
+      }),
+    ]))
+    expect(statusUpdates).toContain('failed')
   })
 })

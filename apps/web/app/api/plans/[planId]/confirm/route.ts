@@ -3,9 +3,10 @@ import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { getReadyNodes } from '@/lib/orchestrator/dag-scheduler'
 import type { PlanNode } from '@agenthub/shared'
+import type { CliRuntimeType } from '@agenthub/shared'
 import { DEFAULT_POLICIES } from '@agenthub/shared'
 import { classifyRisk, requiresApproval } from '@/lib/orchestrator/permission-engine'
-import { dispatchApprovedAction, type ActionDispatchResult } from '@/lib/orchestrator/action-dispatcher'
+import { dispatchApprovedAction, dispatchRuntimeInvokeNode, type ActionDispatchResult } from '@/lib/orchestrator/action-dispatcher'
 import type { ActionRecordForDispatch } from '@/lib/orchestrator/action-dispatcher'
 
 // POST /api/plans/[planId]/confirm — user confirms plan, start execution
@@ -36,7 +37,15 @@ export async function POST(
 
   // Get nodes and mark ready ones
   const { data: nodes } = await db.from('plan_nodes').select('*').eq('plan_id', planId)
-  const readyNodes = getReadyNodes(nodes as unknown as PlanNode[])
+  const normalizedNodes = ((nodes ?? []) as Array<Record<string, unknown>>).map((node) => ({
+    ...node,
+    depends_on: Array.isArray(node.depends_on)
+      ? node.depends_on
+      : typeof node.depends_on === 'string'
+        ? node.depends_on.replace(/[{}"]/g, '').split(',').map((value) => value.trim()).filter(Boolean)
+        : [],
+  })) as unknown as PlanNode[]
+  const readyNodes = getReadyNodes(normalizedNodes)
   let createdActions = 0
   const dispatches: ActionDispatchResult[] = []
 
@@ -44,6 +53,20 @@ export async function POST(
     await db.from('plan_nodes').update({ status: 'ready' }).eq('id', node.id)
     const actionType = (node as unknown as { action_type?: string | null }).action_type
     const payload = ((node as unknown as { action_payload?: Record<string, unknown> | null }).action_payload ?? {}) as Record<string, unknown>
+    if (actionType === 'runtime_invoke') {
+      dispatches.push(await dispatchRuntimeInvokeNode(db, {
+        userId: user.id,
+        sessionId: plan.session_id,
+        node: node as unknown as {
+          id: string
+          plan_id: string
+          label: string
+          agent_id?: string | null
+          action_payload?: Record<string, unknown> | null
+        },
+      }))
+      continue
+    }
     const command = typeof payload.command === 'string' ? payload.command : ''
     if (!actionType || !command) continue
     const riskLevel = classifyRisk(actionType, command)
@@ -65,6 +88,16 @@ export async function POST(
       .single()
     if (actionError) return NextResponse.json({ error: actionError.message }, { status: 500 })
     createdActions += 1
+    const runtimeTypeForAction: CliRuntimeType | null = payload.runtimeType === 'codex'
+      ? 'codex'
+      : payload.runtimeType === 'claude_code'
+        ? 'claude_code'
+        : null
+    const actionForDispatch = {
+      ...(action as unknown as ActionRecordForDispatch),
+      runtime_type: runtimeTypeForAction,
+      role_agent_id: typeof payload.roleAgentId === 'string' ? payload.roleAgentId : null,
+    }
     if (needsApproval) {
       await db.from('notifications').insert({
         user_id: user.id,
@@ -75,7 +108,7 @@ export async function POST(
         ref_id: action.id,
       })
     } else {
-      dispatches.push(await dispatchApprovedAction(db, action as unknown as ActionRecordForDispatch))
+      dispatches.push(await dispatchApprovedAction(db, actionForDispatch))
     }
   }
 

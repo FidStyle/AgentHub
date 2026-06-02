@@ -17,6 +17,8 @@ import {
 
 const invokeSpy = vi.fn()
 const insertedMessages: Record<string, unknown>[] = []
+const insertedPlans: Record<string, unknown>[] = []
+const insertedPlanNodes: Record<string, unknown>[] = []
 
 // Events the mocked runtime adapter emits; per-test override via setAdapterEvents.
 let adapterEvents: Record<string, unknown>[] = [{ type: 'runtime_output', delta: 'ok' }]
@@ -77,6 +79,8 @@ describe('POST /api/chat — role-chat-core', () => {
     resetMockClient()
     invokeSpy.mockClear()
     insertedMessages.length = 0
+    insertedPlans.length = 0
+    insertedPlanNodes.length = 0
     setAdapterEvents([{ type: 'runtime_output', delta: 'ok' }])
     setupMockAuth()
   })
@@ -115,11 +119,11 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(userMsg.role_agent_id).toBe('agent-001')
     expect(userMsg.metadata).toEqual({
       mentions: ['agent-001'],
-      roleAgents: [{ id: 'agent-001', name: 'Analyzer Agent', roleType: 'analyzer', isOrchestrator: false }],
+      roleAgents: [{ id: 'agent-001', name: 'Analyzer Agent', roleType: 'analyzer', runtimeType: 'claude_code', isOrchestrator: false }],
     })
   })
 
-  it('AT-002a [critical]: roleAgentIds dispatches each selected role instead of only the first role', async () => {
+  it('AT-002a [critical]: roleAgentIds dispatches each selected role and uses role runtime_type', async () => {
     setAdapterEvents([
       { type: 'runtime_output', delta: 'done' },
       { type: 'runtime_completed' },
@@ -131,7 +135,8 @@ describe('POST /api/chat — role-chat-core', () => {
         name: 'Frontend Engineer',
         role_type: 'frontend',
         system_prompt: 'Build UI',
-        capabilities: ['ui', 'runtime:claude_code'],
+        capabilities: ['ui'],
+        runtime_type: 'claude_code',
         is_orchestrator: false,
       },
       {
@@ -140,7 +145,8 @@ describe('POST /api/chat — role-chat-core', () => {
         name: 'Backend Engineer',
         role_type: 'backend',
         system_prompt: 'Build API',
-        capabilities: ['api', 'runtime:codex'],
+        capabilities: ['api'],
+        runtime_type: 'codex',
         is_orchestrator: false,
       },
     ]))
@@ -154,20 +160,121 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(invokeSpy.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-001', 'agent-002'])
     expect(invokeSpy.mock.calls.map((call) => call[0].runtimeType)).toEqual(['claude_code', 'codex'])
     expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('上游角色交接上下文')
-    expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('@Frontend Engineer 的产出')
+    expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('@Frontend Engineer 交接给 @Backend Engineer')
     expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('done')
     expect(text).toContain('"roleAgentId":"agent-001"')
     expect(text).toContain('"roleAgentId":"agent-002"')
     expect(text).toContain('"type":"role_handoff"')
+    expect(text).toContain('"handoffs"')
     const agentMessages = insertedMessages.filter((m) => m.sender_type === 'agent')
     expect(agentMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
+    expect((agentMessages[1].metadata as { handoffsReceived?: unknown[] }).handoffsReceived).toEqual([
+      expect.objectContaining({
+        fromRoleAgentId: 'agent-001',
+        fromRoleName: 'Frontend Engineer',
+        toRoleAgentId: 'agent-002',
+        toRoleName: 'Backend Engineer',
+        summary: 'done',
+      }),
+    ])
     expect(insertedMessages[0].metadata).toMatchObject({
       mentions: ['agent-001', 'agent-002'],
       roleAgents: [
-        { id: 'agent-001', name: 'Frontend Engineer', roleType: 'frontend', isOrchestrator: false },
-        { id: 'agent-002', name: 'Backend Engineer', roleType: 'backend', isOrchestrator: false },
+        { id: 'agent-001', name: 'Frontend Engineer', roleType: 'frontend', runtimeType: 'claude_code', isOrchestrator: false },
+        { id: 'agent-002', name: 'Backend Engineer', roleType: 'backend', runtimeType: 'codex', isOrchestrator: false },
       ],
     })
+  })
+
+  it('AT-002b [critical]: orchestrator plus workers creates a durable plan and runs planner/workers/summarizer', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    const base = createPostgresChain(undefined, undefined, undefined, undefined, [
+      {
+        id: 'agent-orch',
+        workspace_id: 'ws-001',
+        name: '架构师',
+        role_type: 'orchestrator',
+        system_prompt: '负责协调',
+        capabilities: ['规划'],
+        runtime_type: 'claude_code',
+        is_orchestrator: true,
+      },
+      {
+        id: 'agent-fe',
+        workspace_id: 'ws-001',
+        name: '前端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责前端',
+        capabilities: ['前端'],
+        runtime_type: 'claude_code',
+        is_orchestrator: false,
+      },
+      {
+        id: 'agent-be',
+        workspace_id: 'ws-001',
+        name: '后端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责后端',
+        capabilities: ['后端'],
+        runtime_type: 'codex',
+        is_orchestrator: false,
+      },
+    ])
+    setupMockClient(vi.fn(() => {
+      const client = base()
+      const origFrom = client.from
+      client.from = vi.fn((table: string) => {
+        if (table === 'plans') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              insertedPlans.push(vals)
+              return { select: () => ({ single: () => ({ data: { id: 'plan-001', ...vals }, error: null }) }) }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        if (table === 'plan_nodes') {
+          return {
+            insert: (vals: Record<string, unknown> | Record<string, unknown>[]) => {
+              insertedPlanNodes.push(...(Array.isArray(vals) ? vals : [vals]))
+              return { data: null, error: null }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        const t = origFrom(table)
+        if (table === 'messages') {
+          const origInsert = t.insert
+          t.insert = (vals: Record<string, unknown>) => {
+            insertedMessages.push(vals)
+            return origInsert(vals)
+          }
+        }
+        return t
+      })
+      return client
+    }))
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: '请前后端一起完成',
+      roleAgentIds: ['agent-orch', 'agent-fe', 'agent-be'],
+    })
+
+    expect(status).toBe(200)
+    expect(insertedPlans[0]).toMatchObject({ session_id: 'session-001', owner_id: 'user-001', status: 'running' })
+    expect(insertedPlanNodes).toHaveLength(4)
+    expect(insertedPlanNodes.map((node) => node.action_type)).toEqual(['runtime_invoke', 'runtime_invoke', 'runtime_invoke', 'runtime_invoke'])
+    expect(invokeSpy).toHaveBeenCalledTimes(4)
+    expect(invokeSpy.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-fe', 'agent-be', 'agent-orch'])
+    expect(invokeSpy.mock.calls.map((call) => call[0].runtimeType)).toEqual(['claude_code', 'claude_code', 'codex', 'claude_code'])
+    expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('上游角色交接上下文')
+    expect(String(invokeSpy.mock.calls[3][0].systemPrompt)).toContain('@前端工程师 交接给 @架构师')
+    expect(String(invokeSpy.mock.calls[3][0].systemPrompt)).toContain('@后端工程师 交接给 @架构师')
+    expect(text).toContain('orchestrator_plan_started')
   })
 
   it('AT-003 [high]: no roleAgentId uses the default orchestrator role instead of appending @ text', async () => {

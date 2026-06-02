@@ -12,6 +12,7 @@
 | [product-design.md](./product-design.md) | 产品设计：页面、用户流、组件状态 |
 | [prd-amendments/](./prd-amendments/) | PRD 增补修订（不直接改 prd.md） |
 | [prd-amendments/2026-05-31-three-surface-workbench-permission-model.md](./prd-amendments/2026-05-31-three-surface-workbench-permission-model.md) | 三端会话工作台、权限模式、Desktop Host、Mobile 远程监督和参考组件迁移修订 |
+| [prd-amendments/2026-06-02-complete-multi-agent-orchestration.md](./prd-amendments/2026-06-02-complete-multi-agent-orchestration.md) | 完整多 Agent 编排与交接修订：Orchestrator DAG、mailbox/handoff、角色 runtime 绑定和三端状态 |
 | [contracts/](./contracts/) | **共享任务合同** — Trellis 与 Maestro/Ralph 的唯一协作接口 |
 | [contracts/THREE-SURFACE-WORKBENCH-PERMISSION-001.md](./contracts/THREE-SURFACE-WORKBENCH-PERMISSION-001.md) | P0 三端会话工作台与权限模型统一合同：Web 工作台、Desktop Host、Mobile 远程监督、Run/Context/Changes/Artifacts |
 | [contracts/P0-END-TO-END-PRODUCT-FLOW.md](./contracts/P0-END-TO-END-PRODUCT-FLOW.md) | P0 MVP 端到端产品主链路合同与验真样本 |
@@ -19,6 +20,7 @@
 | [contracts/LOCAL-DESKTOP-OPERABILITY-001.md](./contracts/LOCAL-DESKTOP-OPERABILITY-001.md) | P0 本地 Desktop 工作区只读/可操作模式、Runtime doctor 和 Web/Desktop 连通性真实性合同 |
 | [contracts/ACCEPTANCE-HARDENING-2026-06-01.md](./contracts/ACCEPTANCE-HARDENING-2026-06-01.md) | P0 验收前全功能硬化合同：质量门禁、真实环境、Web/Desktop/Mobile 主链路和最终 UAT 治理 |
 | [contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md](./contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md) | P0 验收真实闭环合同：opencli 验真、真实 runtime worker、本地/远程核心 @ 流程、附件与 artifact 产出 |
+| [contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md](./contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md) | P1 完整多 Agent 编排与交接合同：中文角色 runtime 配置、Orchestrator DAG、mailbox/handoff、plan retry/resume、Claude+Codex 真实 UAT |
 
 ## 技术设计
 

@@ -7,5 +7,6 @@ export interface RoleAgent {
   roleType: RoleType
   systemPrompt: string
   capabilities: string[]
+  runtimeType: 'claude_code' | 'codex'
   allowOrchestration: boolean
 }

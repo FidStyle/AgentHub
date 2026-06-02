@@ -17,6 +17,7 @@ type RoleAgentRow = {
   role_type: string
   system_prompt: string
   capabilities: string[] | null
+  runtime_type: 'claude_code' | 'codex'
   is_orchestrator: boolean
 }
 type MessageRow = {
@@ -78,6 +79,10 @@ function artifactTypeForPreview(preview: FilePreview) {
   if (preview.previewKind === 'image') return 'image'
   if (preview.previewKind === 'folder') return 'folder'
   return 'generic_file'
+}
+
+function runtimeLabel(runtimeType: RoleAgentRow['runtime_type']) {
+  return runtimeType === 'codex' ? 'Codex' : 'Claude Code'
 }
 
 function PreviewBlock({
@@ -174,6 +179,7 @@ function AgentsTab() {
     role_type: 'engineer',
     system_prompt: '',
     capabilities: '',
+    runtime_type: 'claude_code' as RoleAgentRow['runtime_type'],
     is_orchestrator: false,
   })
   const [error, setError] = useState<string | null>(null)
@@ -216,6 +222,7 @@ function AgentsTab() {
       role_type: agent.role_type,
       system_prompt: agent.system_prompt ?? '',
       capabilities: (agent.capabilities ?? []).join(', '),
+      runtime_type: agent.runtime_type,
       is_orchestrator: agent.is_orchestrator,
     })
   }
@@ -228,6 +235,7 @@ function AgentsTab() {
       role_type: 'engineer',
       system_prompt: '',
       capabilities: '',
+      runtime_type: 'claude_code',
       is_orchestrator: false,
     })
   }
@@ -245,6 +253,7 @@ function AgentsTab() {
       role_type: form.role_type,
       system_prompt: form.system_prompt,
       capabilities: form.capabilities.split(',').map((item) => item.trim()).filter(Boolean),
+      runtime_type: form.runtime_type,
       is_orchestrator: form.is_orchestrator,
     }
     try {
@@ -311,6 +320,7 @@ function AgentsTab() {
           >
             <div className="font-medium">{a.name}</div>
             <div className="text-xs text-muted-foreground">{a.role_type}{a.is_orchestrator ? ' · 编排者' : ''}</div>
+            <div className="mt-1 text-xs text-muted-foreground">运行时: {runtimeLabel(a.runtime_type)}</div>
             {a.capabilities && a.capabilities.length > 0 && (
               <div className="mt-1 text-xs text-muted-foreground">能力: {a.capabilities.join('、')}</div>
             )}
@@ -358,6 +368,18 @@ function AgentsTab() {
             />
           </div>
           <div className="grid gap-2">
+            <label htmlFor="agent-runtime-type" className="text-xs font-medium">执行运行时</label>
+            <select
+              id="agent-runtime-type"
+              value={form.runtime_type}
+              onChange={(e) => setForm({ ...form, runtime_type: e.target.value as RoleAgentRow['runtime_type'] })}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="claude_code">Claude Code</option>
+              <option value="codex">Codex</option>
+            </select>
+          </div>
+          <div className="grid gap-2">
             <label htmlFor="agent-capabilities" className="text-xs font-medium">能力标签</label>
             <input
               id="agent-capabilities"
@@ -388,6 +410,7 @@ function AgentsTab() {
           <div>
             <div className="text-sm font-medium">{selected.name}</div>
             <div className="text-xs text-muted-foreground">{selected.role_type}{selected.is_orchestrator ? ' · 编排者' : ''}</div>
+            <div className="mt-1 text-xs text-muted-foreground">运行时: {runtimeLabel(selected.runtime_type)}</div>
           </div>
           <p className="whitespace-pre-wrap text-sm text-muted-foreground">
             {selected.system_prompt || '未设置系统提示词'}

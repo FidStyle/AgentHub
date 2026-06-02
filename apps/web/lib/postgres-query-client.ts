@@ -23,6 +23,8 @@ const tableNames = new Set([
   'device_login_intents',
   'plans',
   'plan_nodes',
+  'plan_node_attempts',
+  'agent_mailbox_items',
   'actions',
   'artifacts',
   'notifications',

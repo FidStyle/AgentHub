@@ -1,17 +1,31 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
 
 export interface ExecutorChunk {
-  delta: string
+  delta?: string
+  nativeSessionId?: string
 }
 
 export interface ExecutorJob {
   prompt: string
   fail?: boolean
+  nativeSessionId?: string | null
 }
 
 export interface RuntimeExecutor {
   execute(job: ExecutorJob): AsyncIterable<ExecutorChunk>
+}
+
+export interface CliRuntimeCapability {
+  type: CliRuntimeType
+  available: boolean
+  authenticated: boolean
+  launchable: boolean
+  supportsResume: boolean
+  supportsContinue: boolean
+  version?: string
+  cliPath?: string
+  diagnostic?: string
 }
 
 // Thrown when the real CLI binary is missing or cannot be spawned. The worker maps this to a
@@ -35,9 +49,68 @@ export interface CliExecutorOptions {
 
 const CLI_BINARY: Record<CliRuntimeType, string> = { claude_code: 'claude', codex: 'codex' }
 
-function cliArgs(runtimeType: CliRuntimeType, prompt: string) {
+function runProbe(command: string, args: string[], timeout = 5000) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    timeout,
+    env: process.env,
+  })
+  return {
+    ok: result.status === 0,
+    stdout: typeof result.stdout === 'string' ? result.stdout.trim() : '',
+    stderr: typeof result.stderr === 'string' ? result.stderr.trim() : '',
+    error: result.error?.message,
+  }
+}
+
+function resolveCommandPath(binary: string) {
+  const result = runProbe('sh', ['-lc', `command -v ${binary} || true`], 3000)
+  return result.stdout.split(/\r?\n/).find(Boolean) ?? null
+}
+
+export function detectCliRuntimeCapabilities(): CliRuntimeCapability[] {
+  const claudePath = resolveCommandPath('claude')
+  const codexPath = resolveCommandPath('codex')
+  const claudeVersion = claudePath ? runProbe(claudePath, ['--version']).stdout : ''
+  const codexVersion = codexPath ? runProbe(codexPath, ['--version']).stdout : ''
+  const claudeAuth = claudePath ? runProbe(claudePath, ['auth', 'status', '--json'], 8000) : null
+  const codexAuth = codexPath ? runProbe(codexPath, ['login', 'status'], 8000) : null
+
+  return [
+    {
+      type: 'claude_code',
+      available: Boolean(claudePath),
+      authenticated: Boolean(claudePath && claudeAuth?.ok),
+      launchable: Boolean(claudePath && claudeAuth?.ok),
+      supportsResume: true,
+      supportsContinue: true,
+      version: claudeVersion || undefined,
+      cliPath: claudePath ?? undefined,
+      diagnostic: claudePath ? (claudeAuth?.ok ? 'authenticated' : claudeAuth?.stderr || claudeAuth?.stdout || claudeAuth?.error || 'auth status failed') : 'claude CLI not found',
+    },
+    {
+      type: 'codex',
+      available: Boolean(codexPath),
+      authenticated: Boolean(codexPath && codexAuth?.ok),
+      launchable: Boolean(codexPath && codexAuth?.ok),
+      supportsResume: true,
+      supportsContinue: true,
+      version: codexVersion || undefined,
+      cliPath: codexPath ?? undefined,
+      diagnostic: codexPath ? (codexAuth?.ok ? 'authenticated' : codexAuth?.stderr || codexAuth?.stdout || codexAuth?.error || 'login status failed') : 'codex CLI not found',
+    },
+  ]
+}
+
+function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null) {
   if (runtimeType === 'codex') {
+    if (nativeSessionId) {
+      return ['exec', 'resume', '--json', '-s', 'read-only', '--color', 'never', nativeSessionId, prompt]
+    }
     return ['exec', '--json', '-s', 'read-only', '--color', 'never', prompt]
+  }
+  if (nativeSessionId) {
+    return ['-p', '--resume', nativeSessionId, prompt]
   }
   return ['-p', prompt]
 }
@@ -46,14 +119,36 @@ function splitOutput(text: string) {
   return text.match(/.{1,12}/gu) ?? [text]
 }
 
+function nativeSessionIdFromRecord(record: Record<string, unknown>) {
+  const sessionId = record.session_id ?? record.sessionId ?? record.conversation_id ?? record.conversationId
+  return typeof sessionId === 'string' && sessionId ? sessionId : null
+}
+
 function outputChunks(runtimeType: CliRuntimeType, line: string): ExecutorChunk[] {
-  if (runtimeType !== 'codex') return [{ delta: line + '\n' }]
-  try {
-    const evt = JSON.parse(line) as { type?: string; item?: { type?: string; text?: string } }
-    if (evt.type === 'item.completed' && evt.item?.type === 'agent_message' && evt.item.text) {
-      return splitOutput(evt.item.text).map((delta) => ({ delta }))
+  if (runtimeType !== 'codex') {
+    try {
+      const record = JSON.parse(line) as Record<string, unknown>
+      const nativeSessionId = nativeSessionIdFromRecord(record)
+      const result = typeof record.result === 'string' ? record.result : null
+      return [
+        ...(nativeSessionId ? [{ nativeSessionId }] : []),
+        ...(result ? splitOutput(result).map((delta) => ({ delta })) : [{ delta: line + '\n' }]),
+      ]
+    } catch {
+      return [{ delta: line + '\n' }]
     }
-    return []
+  }
+  try {
+    const evt = JSON.parse(line) as { type?: string; item?: { type?: string; text?: string; session_id?: string; sessionId?: string } } & Record<string, unknown>
+    const nativeSessionId = nativeSessionIdFromRecord(evt)
+      ?? (evt.item && typeof evt.item === 'object' ? nativeSessionIdFromRecord(evt.item as unknown as Record<string, unknown>) : null)
+    if (evt.type === 'item.completed' && evt.item?.type === 'agent_message' && evt.item.text) {
+      return [
+        ...(nativeSessionId ? [{ nativeSessionId }] : []),
+        ...splitOutput(evt.item.text).map((delta) => ({ delta })),
+      ]
+    }
+    return nativeSessionId ? [{ nativeSessionId }] : []
   } catch {
     return line.trim() ? [{ delta: `${line}\n` }] : []
   }
@@ -67,7 +162,7 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
 
   async *execute(job: ExecutorJob): AsyncIterable<ExecutorChunk> {
     const binary = CLI_BINARY[this.options.runtimeType]
-    const child = spawn(binary, cliArgs(this.options.runtimeType, job.prompt), {
+    const child = spawn(binary, cliArgs(this.options.runtimeType, job.prompt, job.nativeSessionId), {
       cwd: this.options.cwd,
       env: { ...process.env, ...this.options.env },
       stdio: ['ignore', 'pipe', 'pipe'],

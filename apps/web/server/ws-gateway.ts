@@ -24,7 +24,7 @@ async function ensureUserLocalEndpoint(userId: string, deviceId: string) {
 
   const { data } = await db
     .from('runtime_endpoints')
-    .insert({ user_id: userId, kind: 'user_local', runtime_type: 'desktop_cli', device_id: deviceId, status: 'available' })
+    .insert({ user_id: userId, kind: 'user_local', runtime_type: 'hosted', device_id: deviceId, status: 'available' })
     .select('id')
     .single()
   return data?.id as string | undefined

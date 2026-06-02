@@ -169,14 +169,25 @@ describe('POST /api/role-agents', () => {
     const { POST } = await import('@/app/api/role-agents/route')
     setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
-      body: { workspace_id: 'ws-001', name: 'Analyzer Agent', role_type: 'analyzer', system_prompt: 'You analyze things.' },
+      body: { workspace_id: 'ws-001', name: 'Analyzer Agent', role_type: 'analyzer', system_prompt: 'You analyze things.', runtime_type: 'codex' },
     })
     expect(result.status).toBe(201)
     const agent = result.data as Record<string, unknown>
     expect(agent.id).toBeTruthy()
     expect(agent.name).toBe('Analyzer Agent')
     expect(agent.role_type).toBe('analyzer')
+    expect(agent.runtime_type).toBe('codex')
     expect(agent.workspace_id).toBe('ws-001')
+  })
+
+  it('AT-A009a: rejects invalid runtime_type', async () => {
+    const { POST } = await import('@/app/api/role-agents/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(POST, 'POST', {
+      body: { workspace_id: 'ws-001', name: 'Analyzer Agent', runtime_type: 'runtime:codex' },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('runtime_type 必须是 claude_code 或 codex')
   })
 
   it('AT-A010: returns 403 when workspace not owned on insert', async () => {
@@ -254,12 +265,24 @@ describe('PATCH /api/role-agents/[id]', () => {
     setupMockClient(createPostgresChain())
     const result = await callRoute(PATCH, 'PATCH', {
       params: { id: 'agent-001' },
-      body: { name: 'Updated Agent Name', system_prompt: 'New prompt' },
+      body: { name: 'Updated Agent Name', system_prompt: 'New prompt', runtime_type: 'codex' },
     })
     expect(result.status).toBe(200)
     const agent = result.data as Record<string, unknown>
     expect(agent.name).toBe('Updated Agent Name')
     expect(agent.system_prompt).toBe('New prompt')
+    expect(agent.runtime_type).toBe('codex')
+  })
+
+  it('AT-A015a: rejects invalid runtime_type on PATCH', async () => {
+    const { PATCH } = await import('@/app/api/role-agents/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(PATCH, 'PATCH', {
+      params: { id: 'agent-001' },
+      body: { runtime_type: 'hosted' },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('runtime_type 必须是 claude_code 或 codex')
   })
 
   it('AT-A016: returns 404 when agent not owned on update', async () => {

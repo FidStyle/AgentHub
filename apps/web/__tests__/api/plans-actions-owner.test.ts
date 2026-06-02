@@ -7,12 +7,14 @@ import {
   mockSession,
 } from '../utils'
 
-const { dispatchApprovedActionMock } = vi.hoisted(() => ({
+const { dispatchApprovedActionMock, dispatchRuntimeInvokeNodeMock } = vi.hoisted(() => ({
   dispatchApprovedActionMock: vi.fn(async (..._args: unknown[]) => ({ status: 'queued', runtimeSessionId: 'runtime-001' })),
+  dispatchRuntimeInvokeNodeMock: vi.fn(async (..._args: unknown[]) => ({ status: 'queued', runtimeSessionId: 'runtime-node-001' })),
 }))
 
 vi.mock('@/lib/orchestrator/action-dispatcher', () => ({
   dispatchApprovedAction: (...args: unknown[]) => dispatchApprovedActionMock(...args),
+  dispatchRuntimeInvokeNode: (...args: unknown[]) => dispatchRuntimeInvokeNodeMock(...args),
 }))
 
 async function callRoute(
@@ -160,6 +162,57 @@ function confirmPlanCreatesActionsChain() {
   return { chainFactory, writes }
 }
 
+function confirmPlanRuntimeInvokeChain() {
+  const writes: Array<{ table: string; values: Record<string, unknown> }> = []
+  const plan = { id: 'plan-001', session_id: 'session-001', owner_id: 'user-001', title: '运行编排', status: 'pending_confirm' }
+  const nodes = [
+    {
+      id: '00000000-0000-4000-8000-000000000201',
+      plan_id: 'plan-001',
+      label: '前端工程师执行',
+      agent_id: 'agent-fe',
+      status: 'pending',
+      depends_on: [],
+      action_type: 'runtime_invoke',
+      action_payload: { phase: 'worker', runtimeType: 'claude_code', userMessage: '实现 UI' },
+    },
+  ]
+  const chainFactory = vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'plans') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({ single: () => ({ data: plan, error: null }) }),
+            }),
+          }),
+          update: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { eq: () => ({ data: null, error: null }) }
+          },
+        }
+      }
+      if (table === 'plan_nodes') {
+        return {
+          select: () => ({ eq: () => ({ data: nodes, error: null }) }),
+          update: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { eq: () => ({ data: null, error: null }) }
+          },
+        }
+      }
+      return {
+        select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
+        insert: (values: Record<string, unknown>) => {
+          writes.push({ table, values })
+          return { data: null, error: null }
+        },
+      }
+    }),
+  }))
+  return { chainFactory, writes, nodes }
+}
+
 function approveActionChain() {
   const writes: Array<{ table: string; values: Record<string, unknown>; id?: string }> = []
   const action = {
@@ -237,6 +290,7 @@ describe('plans/actions API session ownership', () => {
     resetMockClient()
     setupMockAuth()
     dispatchApprovedActionMock.mockClear()
+    dispatchRuntimeInvokeNodeMock.mockClear()
   })
 
   it('rejects GET /api/plans for a session outside the current user workspace', async () => {
@@ -311,6 +365,31 @@ describe('plans/actions API session ownership', () => {
       expect.objectContaining({ table: 'actions', values: expect.objectContaining({ command: 'rm -rf dist', risk_level: 'high', status: 'pending', requires_approval: true }) }),
       expect.objectContaining({ table: 'notifications', values: expect.objectContaining({ type: 'approval_required', ref_type: 'action', ref_id: 'action-001' }) }),
     ]))
+    expect(dispatchApprovedActionMock).not.toHaveBeenCalled()
+  })
+
+  it('confirming a plan dispatches runtime_invoke nodes directly', async () => {
+    const { chainFactory, writes, nodes } = confirmPlanRuntimeInvokeChain()
+    setupMockClient(chainFactory)
+
+    const result = await callConfirmPlan('plan-001')
+
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual({
+      status: 'running',
+      ready_nodes: 1,
+      created_actions: 0,
+      dispatches: [{ status: 'queued', runtimeSessionId: 'runtime-node-001' }],
+    })
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'plans', values: expect.objectContaining({ status: 'running' }) }),
+      expect.objectContaining({ table: 'plan_nodes', values: expect.objectContaining({ status: 'ready' }) }),
+    ]))
+    expect(dispatchRuntimeInvokeNodeMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      userId: 'user-001',
+      sessionId: 'session-001',
+      node: expect.objectContaining({ id: nodes[0].id, action_type: 'runtime_invoke' }),
+    }))
     expect(dispatchApprovedActionMock).not.toHaveBeenCalled()
   })
 

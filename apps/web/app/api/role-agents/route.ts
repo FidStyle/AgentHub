@@ -8,7 +8,8 @@ const DEFAULT_ROLE_AGENTS = [
     role_type: 'orchestrator',
     system_prompt:
       '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
-    capabilities: ['规划', '路由', '协调', 'runtime:claude_code'],
+    capabilities: ['规划', '路由', '协调'],
+    runtime_type: 'claude_code',
     is_orchestrator: true,
   },
   {
@@ -16,7 +17,8 @@ const DEFAULT_ROLE_AGENTS = [
     role_type: 'engineer',
     system_prompt:
       '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
-    capabilities: ['前端', 'React', 'UI', 'E2E', 'runtime:claude_code'],
+    capabilities: ['前端', 'React', 'UI', 'E2E'],
+    runtime_type: 'claude_code',
     is_orchestrator: false,
   },
   {
@@ -24,10 +26,15 @@ const DEFAULT_ROLE_AGENTS = [
     role_type: 'engineer',
     system_prompt:
       '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
-    capabilities: ['后端', '数据库', 'Runtime', 'API', 'runtime:codex'],
+    capabilities: ['后端', '数据库', 'Runtime', 'API'],
+    runtime_type: 'codex',
     is_orchestrator: false,
   },
-]
+] as const
+
+function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
+  return value === 'claude_code' || value === 'codex'
+}
 
 async function ensureDefaultRoleAgents(db: Awaited<ReturnType<typeof createClient>>, workspaceId: string, existing: Array<{ name: string }>) {
   const existingNames = new Set(existing.map((row) => row.name))
@@ -81,10 +88,13 @@ export async function POST(request: Request) {
   if (authError) return authError
 
   const body = await request.json()
-  const { workspace_id, name, role_type, system_prompt, capabilities, is_orchestrator } = body
+  const { workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator } = body
 
   if (!workspace_id) return NextResponse.json({ error: '缺少 workspace_id' }, { status: 400 })
   if (!name) return NextResponse.json({ error: '缺少 name' }, { status: 400 })
+  if (runtime_type !== undefined && !isRuntimeType(runtime_type)) {
+    return NextResponse.json({ error: 'runtime_type 必须是 claude_code 或 codex' }, { status: 400 })
+  }
 
   // 验证 workspace 归属
   const { data: ws } = await db
@@ -104,6 +114,7 @@ export async function POST(request: Request) {
       role_type: role_type || 'engineer',
       system_prompt: system_prompt || '',
       capabilities: capabilities || [],
+      runtime_type: runtime_type || 'claude_code',
       is_orchestrator: is_orchestrator || false,
     })
     .select()

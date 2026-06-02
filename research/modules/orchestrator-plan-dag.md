@@ -1,7 +1,7 @@
 # 模块调研：Orchestrator Plan DAG
 
 **日期：** 2026-05-22
-**状态：** Draft
+**状态：** Draft；2026-06-02 增补 final multi-agent v2 边界
 **覆盖 FR-ID：** `FR-ORCH-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001`, `FR-PERM-001`, `FR-RESULT-001`
 **相关产品设计：** `research/product/product-design.md` 第 7、8 章
 **上游依据：** `bytedance_init_prd.md`, `bytedance_init_video_txt.txt`, `research/modules/orchestrator.md`
@@ -205,3 +205,38 @@ AgentHub 应将 Orchestrator 设计升级为 **后端状态机 + Orchestrator Pl
 - P0 不做复杂 DAG 编辑器，但必须把 DAG 作为内部数据契约实现。
 
 这条路线最符合 bytedance 原始要求中的「复杂任务拆解、并行调度、失败降级、代码冲突处理」和 IM 产品形态，不会把 P0 过度扩展为工作流编排平台。
+
+---
+
+## 6. Final Multi-Agent v2 增补（2026-06-02）
+
+`COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` 不改变“状态机 + Plan DAG”的核心路线，但完整产品实现需要把 P0 基础 DAG 扩展成 durable recovery DAG。
+
+### 6.1 新增执行级对象
+
+| 对象 | 说明 | 完成口径 |
+| --- | --- | --- |
+| Plan Node Attempt | 某个 plan node 的一次执行尝试 | retry/resume/cancel/requeue 必须创建或更新 attempt，不覆盖旧证据 |
+| Mailbox Item | 角色间或 Orchestrator 间 durable 入站/出站/回复事件 | handoff 不再只存在于 message metadata |
+| Lineage Root | 一组 attempt/reply 的根 | UI/API 可追踪失败、重试、继续和最终成功 |
+| Dead Letter | 无法投递或超出重试限制的 inbound item | 不能静默丢弃或标 completed |
+| Runtime Inventory Snapshot | 调度前的 Claude Code/Codex 可用性、认证、launch、capability | routing 仍按 role runtime 硬约束，不 fallback |
+
+### 6.2 调度规则修订
+
+- ready wave 仍按依赖计算，但入站消费还必须满足 per-role serialization。
+- 同一 Role Agent 在同一 session 内一次只消费一个 inbound mailbox item；不同 Role Agent 可以并发。
+- node 的完成态以最新有效 attempt 为准，但旧 attempt/runtime logs 必须可读。
+- retry 只影响目标 node 和受其影响的下游 recompute，不允许把整 plan 直接标 completed。
+- resume 必须复用同 `(session_id, role_agent_id, runtime_type, cwd)` 的 native session；无法 resume 时返回明确状态或按 API 合同创建新 attempt。
+- cancel/interrupt 必须传播到 downstream waiting/blocked policy，并写 durable evidence。
+
+### 6.3 完整实现 Phase 对应
+
+1. Phase 1 建 schema/API：mailbox、attempt、reply、lineage、runtime inventory、plan-node controls。
+2. Phase 2 建 scheduler：动态 DAG、ready wave、wait-all fan-in、per-role inbound serialization。
+3. Phase 3 接 runtime/native session：Claude Code/Codex resume、cancel、failure evidence。
+4. Phase 4 做 UI：timeline、node detail、handoff viewer、attempt logs、retry/resume/cancel/requeue。
+5. Phase 5 做真实 UAT：Claude+Codex 双 CLI、多角色、失败注入和刷新持久化。
+
+P0 acceptance closure 只能证明基础 canonical 线路可跑；不能替代本 v2 完整完成证据。

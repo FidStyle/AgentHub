@@ -7,6 +7,7 @@ const enqueueMock = vi.fn(async (..._args: unknown[]) => {})
 let workerAlive = true
 let endpointRow: { id: string; kind: string; status: string; device_id: string | null } | null = null
 const dbUpdates: Array<Record<string, unknown>> = []
+let capabilityRows: Array<Record<string, unknown>> = []
 
 vi.mock('../../lib/runtime/redis-client', () => ({
   enqueue: (...args: unknown[]) => enqueueMock(...args),
@@ -32,8 +33,14 @@ vi.mock('../../lib/app-db-client', () => ({
         if (table === 'runtime_sessions') dbUpdates.push(patch)
         return { eq: () => {} }
       },
+      delete: () => ({ eq: () => ({ eq: () => {} }) }),
+      insert: () => ({}),
     }),
   }),
+}))
+
+vi.mock('../../lib/runtime/executor', () => ({
+  detectCliRuntimeCapabilities: () => capabilityRows,
 }))
 
 import { invoke, type RuntimeSessionRecord } from '../../lib/runtime/gateway'
@@ -48,6 +55,8 @@ async function drain(gen: AsyncGenerator<RuntimeGatewayEvent>): Promise<RuntimeG
 const cloudSession = (status: string, id: string | null): RuntimeSessionRecord => ({
   id: 'rs-1',
   endpoint: { id, kind: 'public_cloud', status: status as 'available' | 'offline' | 'unconfigured' },
+  runtimeType: 'claude_code',
+  cwd: null,
 })
 
 beforeEach(() => {
@@ -55,6 +64,24 @@ beforeEach(() => {
   dbUpdates.length = 0
   workerAlive = true
   endpointRow = null
+  capabilityRows = [
+    {
+      type: 'claude_code',
+      available: true,
+      authenticated: true,
+      launchable: true,
+      supportsResume: true,
+      supportsContinue: true,
+    },
+    {
+      type: 'codex',
+      available: true,
+      authenticated: true,
+      launchable: true,
+      supportsResume: true,
+      supportsContinue: true,
+    },
+  ]
   process.env.REDIS_URL = 'redis://localhost:6379'
 })
 

@@ -1,0 +1,9 @@
+{"file":"research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md","reason":"检查实现是否满足完整多 Agent 编排共享合同"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"检查 runtime、handoff、native session、plan node 行为"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"检查真实验收和禁止 fake/script 主链路"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"检查后端质量、测试和错误语义"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查前端真实交互、布局和 E2E 质量"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"检查端到端计划是否避免假绿和断层"}
+{"file": "research/architecture/technical-design.md", "reason": "检查最终多 Agent API、三端和测试策略是否满足技术设计"}
+{"file": "research/modules/orchestrator-plan-dag.md", "reason": "检查 Plan DAG、attempt lineage、retry/resume 和 recovery 规则"}
+{"file": "research/modules/orchestrator.md", "reason": "检查 Orchestrator 状态机、mailbox 调度和角色串行规则"}

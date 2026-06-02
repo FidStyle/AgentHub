@@ -1,7 +1,7 @@
 # 模块调研：Orchestrator、计划分派与上下文 Handoff
 
 **日期：** 2026-05-21  
-**状态：** Draft  
+**状态：** Draft；2026-06-02 增补 final multi-agent v2 边界
 **覆盖 FR-ID：** `FR-ORCH-001`, `FR-CHAT-001`, `FR-CTX-001`, `FR-AGENT-001`, `FR-PERM-001`, `FR-RESULT-001`  
 **相关产品设计：** `research/product/product-design.md` 第 7、8 章
 
@@ -136,6 +136,30 @@ AgentHub P0 采用后端状态机 + Plan DAG 托管的 Orchestrator 编排模型
 4. Direct Role Flow 保留，但当单角色判断任务需要多角色协作时，应请求升级到 Orchestrated Flow。
 
 该结论已进入 `research/architecture/technical-design.md` 第 11 章，作为 Phase 3 任务拆分的技术依据。
+
+---
+
+## 8. Final Multi-Agent v2 增补（2026-06-02）
+
+现有 Orchestrator 状态机仍然有效，但 `COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` 要求把基础 handoff 升级为 mailbox-driven orchestration。
+
+新增约束：
+
+- Orchestrator 不直接把所有上游输出拼进全局 prompt；它创建或消费 durable mailbox/reply event。
+- Role Agent 的入站 mailbox 串行消费；跨角色 fan-out 可以并发。
+- Handoff 的目标是 role，不是 provider；runtime 只由 `role_agents.runtime_type` 决定。
+- Retry/resume/cancel/requeue 是 plan node attempt 行为，不是简单重发 `/api/chat`。
+- Reply 回流后由 Orchestrator 重新计算 ready/waiting/blocked，而不是在内存 callback 中推进。
+- Failed/dead-letter item 必须成为 UI/API 可读状态，不能静默丢弃。
+
+最终完整实现阶段：
+
+1. 先补 mailbox/attempt/reply/lineage 和 plan-node control API。
+2. 再升级动态 DAG、ready wave、wait-all fan-in、同角色串行调度。
+3. 再接 native session continuity、cancel/interrupt 和 worker failure evidence。
+4. 最后做 Web/Desktop/Mobile 产品面和真实 Claude+Codex UAT。
+
+此增补与 `research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md`、`.trellis/spec/cross-layer/runtime-gateway-contract.md` 保持一致。
 
 ---
 

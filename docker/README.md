@@ -11,7 +11,7 @@ pnpm env:acceptance:up
 pnpm dev:acceptance
 ```
 
-`env:acceptance:up` 会启动 Postgres、Redis，并显式创建本地 fixture Auth session；`dev:acceptance` 会在同一套环境下启动 Web server 和本地 runtime worker，默认使用 `RUNTIME_EXECUTOR=script`。该 executor 是确定性的测试 executor，不等同于真实 Claude Code / Codex CLI。
+`env:acceptance:up` 会启动 Postgres、Redis，并显式创建本地 fixture Auth session；`dev:acceptance` 会在同一套环境下启动 Web server 和本地 runtime worker，默认使用 `RUNTIME_EXECUTOR=real`。机器上需要已安装并登录 Claude Code / Codex CLI；角色会按自己的 `runtime_type` 选择对应 CLI，不会在不可用时切换到另一个 CLI。
 
 Web 与 worker 运行后，另开终端执行 smoke：
 

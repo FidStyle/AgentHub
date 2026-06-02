@@ -102,11 +102,13 @@ interface RoleAgent {
     roleType: RoleType;
     systemPrompt: string;
     capabilities: string[];
+    runtimeType: 'claude_code' | 'codex';
     allowOrchestration: boolean;
 }
 
 type RuntimeType = 'hosted' | 'claude_code' | 'codex' | 'opencode';
-type RuntimeSessionStatus = 'idle' | 'running' | 'completed' | 'failed';
+type RuntimeSessionStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
+type CliRuntimeType = 'claude_code' | 'codex';
 type RuntimeEndpointKind = 'public_cloud' | 'user_local';
 type RuntimeEndpointStatus = 'available' | 'offline' | 'unconfigured';
 type RuntimeRunStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -129,11 +131,24 @@ interface RuntimeBinding {
 }
 interface RuntimeSession {
     id: string;
-    runtimeBindingId: string;
+    sessionId: string;
+    roleAgentId: string | null;
+    runtimeType: CliRuntimeType;
     nativeSessionId: string | null;
-    cwd: string;
+    cwd: string | null;
     status: RuntimeSessionStatus;
-    capabilities: string[];
+    capabilitySnapshot: RuntimeCapabilitiesSnapshot | null;
+}
+interface RuntimeCapabilitiesSnapshot {
+    runtimeType: CliRuntimeType;
+    available: boolean;
+    authenticated: boolean;
+    launchable: boolean;
+    supportsResume: boolean;
+    supportsContinue: boolean;
+    version?: string;
+    cliPath?: string;
+    diagnostic?: string;
 }
 
 type ActionType = 'preview' | 'test' | 'build' | 'shell';
@@ -456,7 +471,7 @@ interface PlanNode {
     plan_id: string;
     label: string;
     agent_id?: string;
-    status: 'pending' | 'ready' | 'running' | 'completed' | 'failed' | 'skipped';
+    status: 'pending' | 'ready' | 'waiting' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled' | 'blocked';
     action_type?: 'runtime_invoke' | 'action_exec' | 'human_confirm';
     action_payload?: Record<string, unknown>;
     result?: Record<string, unknown>;
@@ -487,6 +502,10 @@ interface Plan {
 }
 type PlanStatus = Plan['status'];
 type PlanNodeStatus = PlanNode['status'];
+type PlanNodeControl = 'retry' | 'resume' | 'cancel' | 'requeue';
+type PlanNodeAttemptControl = PlanNodeControl | 'initial';
+type MailboxDirection = 'outbound' | 'inbound' | 'reply';
+type MailboxStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'dead_letter';
 
 /** Action execution types for orchestrator (extends domain types) */
 
@@ -533,17 +552,57 @@ interface Notification {
 
 /** Context Handoff: passes context between role agents */
 interface ContextPackage {
-    from_agent_id: string;
-    to_agent_id: string;
-    session_id: string;
+    fromRoleAgentId: string | null;
+    fromRoleName: string;
+    toRoleAgentId: string | null;
+    toRoleName: string;
+    sessionId: string;
     summary: string;
-    pinned_message_ids: string[];
-    artifacts: {
+    sourceMessageId: string | null;
+    target?: string;
+    phase?: 'direct' | 'planning' | 'worker' | 'summarizing';
+    runtimeType?: 'claude_code' | 'codex' | null;
+    pinnedMessageIds?: string[];
+    artifacts?: {
         type: string;
         content: string;
     }[];
     metadata?: Record<string, unknown>;
-    created_at: string;
+    createdAt: string;
 }
 
-export { type ActionRequest, type ActionStatus, type ActionType, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeMessagePart, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, colors, parseFrame, serializeFrame };
+interface AgentMailboxItem {
+    id: string;
+    workspace_id: string;
+    session_id: string;
+    plan_id: string | null;
+    plan_node_id: string | null;
+    direction: MailboxDirection;
+    from_role_agent_id: string | null;
+    to_role_agent_id: string;
+    attempt_id: string | null;
+    parent_attempt_id: string | null;
+    lineage_root_id: string;
+    runtime_type: CliRuntimeType;
+    status: MailboxStatus;
+    context_package: ContextPackage;
+    reply_to_mailbox_item_id: string | null;
+    error: string | null;
+    created_at: string;
+    updated_at: string;
+}
+interface PlanNodeAttempt {
+    id: string;
+    plan_node_id: string;
+    attempt_number: number;
+    control: PlanNodeAttemptControl;
+    previous_attempt_id: string | null;
+    runtime_session_id: string | null;
+    mailbox_item_id: string | null;
+    status: MailboxStatus;
+    error: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export { type ActionRequest, type ActionStatus, type ActionType, type AgentMailboxItem, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type CliRuntimeType, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type MailboxDirection, type MailboxStatus, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeAttempt, type PlanNodeAttemptControl, type PlanNodeControl, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCapabilitiesSnapshot, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeMessagePart, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, colors, parseFrame, serializeFrame };

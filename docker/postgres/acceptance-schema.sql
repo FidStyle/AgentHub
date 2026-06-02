@@ -97,10 +97,65 @@ CREATE TABLE IF NOT EXISTS public.role_agents (
   role_type text NOT NULL DEFAULT 'engineer',
   system_prompt text DEFAULT '',
   capabilities jsonb DEFAULT '[]'::jsonb,
+  runtime_type text NOT NULL DEFAULT 'claude_code' CHECK (runtime_type IN ('claude_code','codex')),
   is_orchestrator boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.role_agents
+  ADD COLUMN IF NOT EXISTS runtime_type text NOT NULL DEFAULT 'claude_code';
+
+UPDATE public.role_agents
+SET runtime_type = 'codex'
+WHERE capabilities ? 'runtime:codex';
+
+UPDATE public.role_agents
+SET runtime_type = 'claude_code'
+WHERE capabilities ? 'runtime:claude_code';
+
+UPDATE public.role_agents
+SET capabilities = (capabilities - 'runtime:codex') - 'runtime:claude_code'
+WHERE capabilities ? 'runtime:codex' OR capabilities ? 'runtime:claude_code';
+
+UPDATE public.role_agents
+SET
+  name = '架构师',
+  role_type = 'orchestrator',
+  system_prompt = '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
+  capabilities = '["规划", "路由", "协调"]'::jsonb,
+  runtime_type = 'claude_code',
+  is_orchestrator = true
+WHERE name = 'Orchestrator'
+  AND capabilities @> '["planning", "routing", "coordination"]'::jsonb;
+
+UPDATE public.role_agents
+SET
+  name = '前端工程师',
+  role_type = 'engineer',
+  system_prompt = '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
+  capabilities = '["前端", "React", "UI", "E2E"]'::jsonb,
+  runtime_type = 'claude_code',
+  is_orchestrator = false
+WHERE name = 'Frontend Engineer'
+  AND capabilities @> '["frontend", "react", "ui", "e2e"]'::jsonb;
+
+UPDATE public.role_agents
+SET
+  name = '后端工程师',
+  role_type = 'engineer',
+  system_prompt = '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
+  capabilities = '["后端", "数据库", "Runtime", "API"]'::jsonb,
+  runtime_type = 'codex',
+  is_orchestrator = false
+WHERE name = 'Backend Engineer'
+  AND capabilities @> '["backend", "database", "runtime", "api"]'::jsonb;
+
+ALTER TABLE public.role_agents
+  DROP CONSTRAINT IF EXISTS role_agents_runtime_type_check;
+
+ALTER TABLE public.role_agents
+  ADD CONSTRAINT role_agents_runtime_type_check CHECK (runtime_type IN ('claude_code','codex'));
 
 CREATE TABLE IF NOT EXISTS public.messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -164,7 +219,7 @@ CREATE TABLE IF NOT EXISTS public.plan_nodes (
   plan_id uuid NOT NULL REFERENCES public.plans(id) ON DELETE CASCADE,
   label text NOT NULL,
   agent_id uuid REFERENCES public.role_agents(id),
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','ready','running','completed','failed','skipped')),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','ready','waiting','running','completed','failed','skipped','cancelled','blocked')),
   action_type text,
   action_payload jsonb DEFAULT '{}',
   result jsonb,
@@ -173,6 +228,60 @@ CREATE TABLE IF NOT EXISTS public.plan_nodes (
   completed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.plan_nodes
+  DROP CONSTRAINT IF EXISTS plan_nodes_status_check;
+
+ALTER TABLE public.plan_nodes
+  ADD CONSTRAINT plan_nodes_status_check CHECK (status IN ('pending','ready','waiting','running','completed','failed','skipped','cancelled','blocked'));
+
+CREATE TABLE IF NOT EXISTS public.plan_node_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_node_id uuid NOT NULL REFERENCES public.plan_nodes(id) ON DELETE CASCADE,
+  attempt_number integer NOT NULL,
+  control text NOT NULL DEFAULT 'initial' CHECK (control IN ('initial','retry','resume','cancel','requeue')),
+  previous_attempt_id uuid REFERENCES public.plan_node_attempts(id) ON DELETE SET NULL,
+  runtime_session_id uuid,
+  mailbox_item_id uuid,
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','waiting','completed','failed','cancelled','dead_letter')),
+  error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (plan_node_id, attempt_number)
+);
+
+CREATE TABLE IF NOT EXISTS public.agent_mailbox_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
+  plan_id uuid REFERENCES public.plans(id) ON DELETE CASCADE,
+  plan_node_id uuid REFERENCES public.plan_nodes(id) ON DELETE CASCADE,
+  direction text NOT NULL CHECK (direction IN ('outbound','inbound','reply')),
+  from_role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL,
+  to_role_agent_id uuid NOT NULL REFERENCES public.role_agents(id) ON DELETE CASCADE,
+  attempt_id uuid REFERENCES public.plan_node_attempts(id) ON DELETE SET NULL,
+  parent_attempt_id uuid REFERENCES public.plan_node_attempts(id) ON DELETE SET NULL,
+  lineage_root_id uuid NOT NULL,
+  runtime_type text NOT NULL CHECK (runtime_type IN ('claude_code','codex')),
+  status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','running','waiting','completed','failed','cancelled','dead_letter')),
+  context_package jsonb NOT NULL DEFAULT '{}'::jsonb,
+  reply_to_mailbox_item_id uuid REFERENCES public.agent_mailbox_items(id) ON DELETE SET NULL,
+  error text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.plan_node_attempts
+  DROP CONSTRAINT IF EXISTS plan_node_attempts_status_check;
+
+ALTER TABLE public.plan_node_attempts
+  ADD CONSTRAINT plan_node_attempts_status_check CHECK (status IN ('queued','running','waiting','completed','failed','cancelled','dead_letter'));
+
+ALTER TABLE public.agent_mailbox_items
+  DROP CONSTRAINT IF EXISTS agent_mailbox_items_status_check;
+
+ALTER TABLE public.agent_mailbox_items
+  ADD CONSTRAINT agent_mailbox_items_status_check CHECK (status IN ('queued','running','waiting','completed','failed','cancelled','dead_letter'));
 
 CREATE TABLE IF NOT EXISTS public.actions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -206,8 +315,10 @@ CREATE TABLE IF NOT EXISTS public.runtime_sessions (
   session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
   endpoint_id uuid REFERENCES public.runtime_endpoints(id) ON DELETE SET NULL,
   role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL,
+  runtime_type text NOT NULL DEFAULT 'claude_code' CHECK (runtime_type IN ('claude_code','codex')),
   native_session_id text,
   cwd text,
+  capability_snapshot jsonb DEFAULT '{}'::jsonb,
   status text NOT NULL DEFAULT 'idle' CHECK (status IN ('idle','running','completed','failed','cancelled')),
   started_at timestamptz,
   completed_at timestamptz,
@@ -216,6 +327,18 @@ CREATE TABLE IF NOT EXISTS public.runtime_sessions (
 
 ALTER TABLE public.runtime_sessions
   ADD COLUMN IF NOT EXISTS role_agent_id uuid REFERENCES public.role_agents(id) ON DELETE SET NULL;
+
+ALTER TABLE public.runtime_sessions
+  ADD COLUMN IF NOT EXISTS runtime_type text NOT NULL DEFAULT 'claude_code';
+
+ALTER TABLE public.runtime_sessions
+  ADD COLUMN IF NOT EXISTS capability_snapshot jsonb DEFAULT '{}'::jsonb;
+
+ALTER TABLE public.runtime_sessions
+  DROP CONSTRAINT IF EXISTS runtime_sessions_runtime_type_check;
+
+ALTER TABLE public.runtime_sessions
+  ADD CONSTRAINT runtime_sessions_runtime_type_check CHECK (runtime_type IN ('claude_code','codex'));
 
 CREATE TABLE IF NOT EXISTS public.artifacts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -278,11 +401,18 @@ CREATE INDEX IF NOT EXISTS idx_devices_user_id ON public.devices(user_id);
 CREATE INDEX IF NOT EXISTS idx_device_login_intents_code ON public.device_login_intents(code);
 CREATE INDEX IF NOT EXISTS idx_plans_session ON public.plans(session_id);
 CREATE INDEX IF NOT EXISTS idx_plan_nodes_plan ON public.plan_nodes(plan_id);
+CREATE INDEX IF NOT EXISTS idx_plan_node_attempts_node ON public.plan_node_attempts(plan_node_id, attempt_number DESC);
+CREATE INDEX IF NOT EXISTS idx_plan_node_attempts_runtime ON public.plan_node_attempts(runtime_session_id);
+CREATE INDEX IF NOT EXISTS idx_agent_mailbox_session ON public.agent_mailbox_items(session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_mailbox_plan ON public.agent_mailbox_items(plan_id, plan_node_id);
+CREATE INDEX IF NOT EXISTS idx_agent_mailbox_inbound ON public.agent_mailbox_items(to_role_agent_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_mailbox_lineage ON public.agent_mailbox_items(lineage_root_id);
 CREATE INDEX IF NOT EXISTS idx_actions_session ON public.actions(session_id);
 CREATE INDEX IF NOT EXISTS idx_artifacts_workspace ON public.artifacts(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON public.artifacts(session_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications(user_id) WHERE read = false;
 CREATE INDEX IF NOT EXISTS idx_runtime_sessions_session ON public.runtime_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_runtime_sessions_native_scope ON public.runtime_sessions(session_id, role_agent_id, runtime_type, cwd, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_runtime_logs_session ON public.runtime_logs(runtime_session_id, seq);
 CREATE INDEX IF NOT EXISTS idx_runtime_endpoints_user ON public.runtime_endpoints(user_id);
 CREATE INDEX IF NOT EXISTS idx_device_runtime_channels_device ON public.device_runtime_channels(device_id);

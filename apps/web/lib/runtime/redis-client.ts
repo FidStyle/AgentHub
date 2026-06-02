@@ -17,6 +17,8 @@ export interface RuntimeJob {
   runtimeSessionId: string
   endpointId?: string
   runtimeType?: 'claude_code' | 'codex'
+  nativeSessionId?: string | null
+  cwd?: string | null
   prompt: string
   systemPrompt?: string
   fail?: boolean

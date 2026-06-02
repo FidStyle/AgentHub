@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { requireAuth } from '@/lib/auth-guard'
 import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
@@ -6,6 +7,26 @@ import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
 import type { RuntimeGatewayEvent, RuntimeMessagePart } from '@agenthub/shared'
 import type { RuntimeType } from '@agenthub/shared'
+import type { ContextPackage } from '@agenthub/shared'
+
+type SelectedRoleAgent = {
+  id: string
+  workspace_id: string
+  name: string
+  role_type: string
+  system_prompt: string | null
+  capabilities: unknown
+  runtime_type: 'claude_code' | 'codex'
+  is_orchestrator: boolean
+}
+
+type RoleHandoffPackage = ContextPackage
+
+type ExecutionTarget = {
+  nodeId: string | null
+  role: SelectedRoleAgent | null
+  phase: 'direct' | 'planning' | 'worker' | 'summarizing'
+}
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const conn = getConnectionByUserId(userId)
@@ -109,11 +130,11 @@ export async function POST(req: NextRequest) {
       ? [String(roleAgentId)]
       : []
 
-  let selectedRoleAgents: Array<{ id: string; workspace_id: string; name: string; role_type: string; system_prompt: string | null; capabilities: unknown; is_orchestrator: boolean }> = []
+  let selectedRoleAgents: SelectedRoleAgent[] = []
   if (requestedRoleIds.length > 0) {
     const { data: roles, error: roleError } = await db
       .from('role_agents')
-      .select('id, workspace_id, name, role_type, system_prompt, capabilities, is_orchestrator')
+      .select('id, workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator')
       .eq('workspace_id', ws.id)
       .order('created_at', { ascending: true })
     if (roleError) return Response.json({ error: roleError.message }, { status: 500 })
@@ -126,7 +147,7 @@ export async function POST(req: NextRequest) {
   } else {
     const { data: roles, error: roleError } = await db
       .from('role_agents')
-      .select('id, workspace_id, name, role_type, system_prompt, capabilities, is_orchestrator')
+      .select('id, workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator')
       .eq('workspace_id', ws.id)
       .order('created_at', { ascending: true })
     if (roleError) return Response.json({ error: roleError.message }, { status: 500 })
@@ -138,13 +159,8 @@ export async function POST(req: NextRequest) {
     Array.isArray(role.capabilities) ? role.capabilities.map((item) => String(item)) : []
   const runtimeTypeForRole = (role: (typeof selectedRoleAgents)[number] | null): RuntimeType | undefined => {
     if (!role) return undefined
-    const tag = roleCapabilities(role).find((capability) => capability === 'runtime:codex' || capability === 'runtime:claude_code')
-    if (tag === 'runtime:codex') return 'codex'
-    if (tag === 'runtime:claude_code') return 'claude_code'
-    return undefined
+    return role.runtime_type
   }
-  const displayCapabilitiesForRole = (role: (typeof selectedRoleAgents)[number]) =>
-    roleCapabilities(role).filter((capability) => !capability.startsWith('runtime:'))
   const primaryRoleAgentId = selectedRoleAgents[0]?.id ?? null
   const roleContextPrompt = selectedRoleAgents.length > 0
     ? [
@@ -152,23 +168,23 @@ export async function POST(req: NextRequest) {
         ...selectedRoleAgents.map((role, index) => [
           `${index + 1}. @${role.name} (${role.role_type}${role.is_orchestrator ? ', orchestrator' : ''})`,
           role.system_prompt ? `角色指令：${role.system_prompt}` : null,
-          displayCapabilitiesForRole(role).length > 0 ? `能力标签：${displayCapabilitiesForRole(role).join('、')}` : null,
+          roleCapabilities(role).length > 0 ? `能力标签：${roleCapabilities(role).join('、')}` : null,
           runtimeTypeForRole(role) ? `执行 Runtime：${runtimeTypeForRole(role) === 'codex' ? 'Codex' : 'Claude Code'}` : null,
         ].filter(Boolean).join('\n')),
       ].join('\n\n')
     : undefined
-  const handoffContextPrompt = (handoffs: Array<{ roleName: string; output: string }>) => {
+  const handoffContextPrompt = (handoffs: RoleHandoffPackage[]) => {
     if (handoffs.length === 0) return null
     return [
       '上游角色交接上下文：',
       ...handoffs.map((handoff, index) => [
-        `${index + 1}. @${handoff.roleName} 的产出：`,
-        handoff.output,
+        `${index + 1}. @${handoff.fromRoleName} 交接给 @${handoff.toRoleName}：`,
+        handoff.summary,
       ].join('\n')),
       '请基于以上交接上下文继续推进，不要重复上游角色已经完成的工作；如有冲突，请明确指出并给出你的角色判断。',
     ].join('\n\n')
   }
-  const systemPromptForRole = (role: (typeof selectedRoleAgents)[number] | null, handoffs: Array<{ roleName: string; output: string }>) => {
+  const systemPromptForRole = (role: (typeof selectedRoleAgents)[number] | null, handoffs: RoleHandoffPackage[]) => {
     if (!roleContextPrompt) return undefined
     if (!role) return roleContextPrompt
     return [
@@ -190,7 +206,15 @@ export async function POST(req: NextRequest) {
   const userMessage = `${content}${buildAttachmentPrompt(attachments)}`
   const metadata: Record<string, unknown> = {}
   if (mentions || selectedRoleAgents.length > 0) metadata.mentions = mentions ?? selectedRoleAgents.map((role) => role.id)
-  if (selectedRoleAgents.length > 0) metadata.roleAgents = selectedRoleAgents.map((role) => ({ id: role.id, name: role.name, roleType: role.role_type, isOrchestrator: role.is_orchestrator }))
+  if (selectedRoleAgents.length > 0) {
+    metadata.roleAgents = selectedRoleAgents.map((role) => ({
+      id: role.id,
+      name: role.name,
+      roleType: role.role_type,
+      runtimeType: role.runtime_type,
+      isOrchestrator: role.is_orchestrator,
+    }))
+  }
   if (permissionMode) metadata.permissionMode = permissionMode
   if (attachments.length > 0) {
     metadata.attachments = attachments.map((attachment) => ({
@@ -203,13 +227,13 @@ export async function POST(req: NextRequest) {
     }))
   }
 
-  await db.from('messages').insert({
+  const { data: userMessageRow } = await db.from('messages').insert({
     session_id: sessionId,
     content,
     sender_type: 'user',
     role_agent_id: primaryRoleAgentId,
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
-  })
+  }).select('id').single()
 
   const encoder = new TextEncoder()
   const encode = (data: object) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
@@ -268,23 +292,117 @@ export async function POST(req: NextRequest) {
   const adapter = new HostedRuntimeAdapter()
   const stream = new ReadableStream({
     async start(controller) {
-      const completedReplies: Array<{ roleAgentId: string | null; reply: string; runtimeParts: RuntimeMessagePart[] }> = []
+      const completedReplies: Array<{
+        nodeId: string | null
+        phase: ExecutionTarget['phase']
+        roleAgentId: string | null
+        roleName: string
+        reply: string
+        runtimeParts: RuntimeMessagePart[]
+        receivedHandoffs: RoleHandoffPackage[]
+      }> = []
+      const persistedHandoffs: RoleHandoffPackage[] = []
       try {
-        const executionTargets = selectedRoleAgents.length > 0 ? selectedRoleAgents : [null]
-        const handoffs: Array<{ roleAgentId: string | null; roleName: string; output: string }> = []
-        for (const role of executionTargets) {
+        const orchestrator = selectedRoleAgents.find((role) => role.is_orchestrator)
+        const useOrchestratedRun = Boolean(orchestrator && selectedRoleAgents.length > 1)
+        const workerRoles = useOrchestratedRun
+          ? selectedRoleAgents.filter((role) => role.id !== orchestrator?.id)
+          : []
+        const executionTargets: ExecutionTarget[] = useOrchestratedRun && orchestrator
+          ? [
+              { nodeId: randomUUID(), role: orchestrator, phase: 'planning' },
+              ...workerRoles.map((role) => ({ nodeId: randomUUID(), role, phase: 'worker' as const })),
+              { nodeId: randomUUID(), role: orchestrator, phase: 'summarizing' },
+            ]
+          : (selectedRoleAgents.length > 0 ? selectedRoleAgents : [null]).map((role) => ({
+              nodeId: null,
+              role,
+              phase: 'direct' as const,
+            }))
+        let planId: string | null = null
+        if (useOrchestratedRun) {
+          const planNodes = executionTargets.map((target) => ({
+            id: target.nodeId,
+            label: target.phase === 'planning'
+              ? '架构师规划'
+              : target.phase === 'summarizing'
+                ? '架构师汇总'
+                : `${target.role?.name ?? '角色'}执行`,
+            depends_on: target.phase === 'worker'
+              ? [executionTargets[0].nodeId].filter(Boolean)
+              : target.phase === 'summarizing'
+                ? executionTargets.filter((candidate) => candidate.phase === 'worker').map((candidate) => candidate.nodeId).filter(Boolean)
+                : [],
+          }))
+          const dag = {
+            nodes: planNodes.map((node) => ({ id: node.id, label: node.label, depends_on: node.depends_on })),
+            edges: planNodes.flatMap((node) => node.depends_on.map((dep) => ({ from: dep, to: node.id }))),
+          }
+          const { data: plan } = await db.from('plans').insert({
+            session_id: sessionId,
+            owner_id: user.id,
+            title: content.slice(0, 80) || '多角色编排',
+            dag,
+            status: 'running',
+          }).select('id').single()
+          planId = plan?.id ?? null
+          if (planId) {
+            await db.from('plan_nodes').insert(executionTargets.map((target) => ({
+              id: target.nodeId,
+              plan_id: planId,
+              label: target.phase === 'planning'
+                ? '架构师规划'
+                : target.phase === 'summarizing'
+                  ? '架构师汇总'
+                  : `${target.role?.name ?? '角色'}执行`,
+              agent_id: target.role?.id ?? null,
+              action_type: 'runtime_invoke',
+              action_payload: {
+                phase: target.phase,
+                runtimeType: target.role?.runtime_type ?? null,
+                userMessage,
+              },
+              depends_on: `{${(target.phase === 'worker'
+                ? [executionTargets[0].nodeId]
+                : target.phase === 'summarizing'
+                  ? executionTargets.filter((candidate) => candidate.phase === 'worker').map((candidate) => candidate.nodeId)
+                  : []).filter(Boolean).map((id) => `"${id}"`).join(',')}}`,
+              status: target.phase === 'planning' ? 'ready' : 'pending',
+            })))
+            controller.enqueue(encode({ type: 'orchestrator_plan_started', planId, nodes: planNodes }))
+          }
+        }
+        const handoffs: RoleHandoffPackage[] = []
+        const failUnrunTargets = async (targets: ExecutionTarget[], reason: string) => {
+          await Promise.all(targets
+            .filter((target) => target.nodeId)
+            .map((target) => db.from('plan_nodes').update({
+              status: 'failed',
+              completed_at: new Date().toISOString(),
+              result: { error: reason },
+            }).eq('id', target.nodeId)))
+        }
+        const runTarget = async (target: ExecutionTarget, downstreamTargets: ExecutionTarget[]) => {
+          const role = target.role
           const currentRoleAgentId = role?.id ?? null
+          const currentRoleName = role?.name ?? '默认 Agent'
           let reply = ''
           let runtimeParts: RuntimeMessagePart[] = []
           let completed = false
+          const receivedHandoffs = handoffs
+            .filter((handoff) => handoff.toRoleAgentId === currentRoleAgentId)
+            .map((handoff) => ({ ...handoff }))
           if (currentRoleAgentId) {
             controller.enqueue(encode({ type: 'role_selected', roleAgentId: currentRoleAgentId }))
           }
-          if (role && handoffs.length > 0) {
+          if (target.nodeId) {
+            await db.from('plan_nodes').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', target.nodeId)
+          }
+          if (role && receivedHandoffs.length > 0) {
             controller.enqueue(encode({
               type: 'role_handoff',
               toRoleAgentId: currentRoleAgentId,
-              fromRoleAgentIds: handoffs.map((handoff) => handoff.roleAgentId).filter(Boolean),
+              handoffs: receivedHandoffs,
             }))
           }
           for await (const evt of adapter.invoke({
@@ -293,7 +411,7 @@ export async function POST(req: NextRequest) {
             executionDomain: ws.execution_domain,
             workspaceId: ws.id,
             userMessage,
-            systemPrompt: systemPromptForRole(role, handoffs),
+            systemPrompt: systemPromptForRole(role, receivedHandoffs),
             roleAgentId: currentRoleAgentId ?? undefined,
             runtimeType: runtimeTypeForRole(role),
           })) {
@@ -303,27 +421,99 @@ export async function POST(req: NextRequest) {
             controller.enqueue(encode(evt))
           }
           if (completed && (reply || runtimeParts.length > 0)) {
-            completedReplies.push({ roleAgentId: currentRoleAgentId, reply, runtimeParts })
-            if (role && reply.trim()) {
-              handoffs.push({
-                roleAgentId: currentRoleAgentId,
-                roleName: role.name,
-                output: reply.trim().slice(-4000),
-              })
+            completedReplies.push({
+              nodeId: target.nodeId,
+              phase: target.phase,
+              roleAgentId: currentRoleAgentId,
+              roleName: currentRoleName,
+              reply,
+              runtimeParts,
+              receivedHandoffs,
+            })
+            if (target.nodeId) {
+              await db.from('plan_nodes').update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                result: { summary: reply.trim().slice(-4000), runtimeParts },
+              }).eq('id', target.nodeId)
             }
+            if (role && reply.trim()) {
+              for (const downstream of downstreamTargets) {
+                if (!downstream.role || (downstream.role.id === currentRoleAgentId && downstream.phase !== 'summarizing')) continue
+                handoffs.push({
+                  fromRoleAgentId: currentRoleAgentId,
+                  fromRoleName: role.name,
+                  toRoleAgentId: downstream.role.id,
+                  toRoleName: downstream.role.name,
+                  sessionId,
+                  summary: reply.trim().slice(-4000),
+                  sourceMessageId: null,
+                  target: downstream.nodeId ?? undefined,
+                  phase: downstream.phase,
+                  runtimeType: downstream.role.runtime_type,
+                  createdAt: new Date().toISOString(),
+                })
+              }
+            }
+            return true
+          } else if (target.nodeId) {
+            await db.from('plan_nodes').update({
+              status: 'failed',
+              completed_at: new Date().toISOString(),
+              result: { error: 'Runtime 未完成或没有产出，节点未通过' },
+            }).eq('id', target.nodeId)
+          }
+          return false
+        }
+
+        if (useOrchestratedRun) {
+          const planner = executionTargets.find((target) => target.phase === 'planning')
+          const workers = executionTargets.filter((target) => target.phase === 'worker')
+          const summarizer = executionTargets.find((target) => target.phase === 'summarizing')
+          const plannerOk = planner ? await runTarget(planner, [...workers, ...(summarizer ? [summarizer] : [])]) : true
+          const workerResults = plannerOk
+            ? await Promise.all(workers.map((target) => runTarget(target, summarizer ? [summarizer] : [])))
+            : workers.map(() => false)
+          if (!plannerOk) {
+            await failUnrunTargets([...workers, ...(summarizer ? [summarizer] : [])], '上游架构师规划失败，节点未运行')
+          }
+          const summarizerOk = plannerOk && workerResults.every(Boolean) && summarizer ? await runTarget(summarizer, []) : true
+          if (plannerOk && !workerResults.every(Boolean) && summarizer) {
+            await failUnrunTargets([summarizer], '上游角色执行失败，汇总节点未运行')
+          }
+          if (planId) {
+            const planCompleted = plannerOk && workerResults.every(Boolean) && summarizerOk
+            await db.from('plans').update({ status: planCompleted ? 'completed' : 'failed', updated_at: new Date().toISOString() }).eq('id', planId)
+          }
+        } else {
+          for (let index = 0; index < executionTargets.length; index += 1) {
+            await runTarget(executionTargets[index], executionTargets.slice(index + 1))
           }
         }
       } finally {
         // Persist the agent reply/parts so reload restores streamed text and runtime cards.
         // Failed/unavailable terminals must not fabricate a success message.
+        const messageIdByRole = new Map<string, string>()
         for (const completedReply of completedReplies) {
+          const receivedHandoffs = completedReply.receivedHandoffs.map((handoff) => ({
+            ...handoff,
+            sourceMessageId: handoff.fromRoleAgentId ? messageIdByRole.get(handoff.fromRoleAgentId) ?? null : null,
+          }))
+          const messageMetadata: Record<string, unknown> = {}
+          if (completedReply.runtimeParts.length > 0) messageMetadata.runtimeParts = completedReply.runtimeParts
+          if (receivedHandoffs.length > 0) messageMetadata.handoffsReceived = receivedHandoffs
+
           const { data: agentMessage } = await db.from('messages').insert({
             session_id: sessionId,
             content: completedReply.reply,
             sender_type: 'agent',
             role_agent_id: completedReply.roleAgentId,
-            metadata: completedReply.runtimeParts.length > 0 ? { runtimeParts: completedReply.runtimeParts } : null,
+            metadata: Object.keys(messageMetadata).length > 0 ? messageMetadata : null,
           }).select('id').single()
+          if (completedReply.roleAgentId && agentMessage?.id) {
+            messageIdByRole.set(completedReply.roleAgentId, agentMessage.id)
+          }
+          persistedHandoffs.push(...receivedHandoffs)
 
           const artifacts = parseArtifacts(completedReply.reply)
           if (artifacts.length > 0) {
@@ -342,6 +532,14 @@ export async function POST(req: NextRequest) {
               is_pinned: true,
             })))
           }
+        }
+        if (userMessageRow?.id && persistedHandoffs.length > 0) {
+          await db.from('messages').update({
+            metadata: {
+              ...metadata,
+              roleHandoffs: persistedHandoffs,
+            },
+          }).eq('id', userMessageRow.id)
         }
         controller.enqueue(encode({ type: 'done' }))
         controller.close()

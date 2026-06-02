@@ -2,6 +2,10 @@ import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
+function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
+  return value === 'claude_code' || value === 'codex'
+}
+
 // Helper: auth + workspace ownership check
 async function authAndOwn(userId: string, agentId: string) {
   const db = await createClient()
@@ -60,13 +64,17 @@ export async function PATCH(
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
 
   const body = await request.json()
-  const { name, role_type, system_prompt, capabilities, is_orchestrator } = body
+  const { name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator } = body
+  if (runtime_type !== undefined && !isRuntimeType(runtime_type)) {
+    return NextResponse.json({ error: 'runtime_type 必须是 claude_code 或 codex' }, { status: 400 })
+  }
 
   const updates: Record<string, unknown> = {}
   if (name !== undefined) updates.name = name
   if (role_type !== undefined) updates.role_type = role_type
   if (system_prompt !== undefined) updates.system_prompt = system_prompt
   if (capabilities !== undefined) updates.capabilities = capabilities
+  if (runtime_type !== undefined) updates.runtime_type = runtime_type
   if (is_orchestrator !== undefined) updates.is_orchestrator = is_orchestrator
 
   const { data, error } = await ctx.db

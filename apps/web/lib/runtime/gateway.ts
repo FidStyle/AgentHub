@@ -8,6 +8,7 @@ import { sendRuntimeInvokeToDevice } from '@/server/device-connections'
 import { getChannelByDevice, markChannelConnected } from './device-channel-store'
 import { enqueue, subscribeEvents, setCancel, isWorkerAlive } from './redis-client'
 import { redact } from './redact'
+import { detectCliRuntimeCapabilities } from './executor'
 
 type EndpointKind = 'public_cloud' | 'user_local'
 type EndpointStatus = 'available' | 'offline' | 'unconfigured'
@@ -23,6 +24,8 @@ export interface RuntimeSessionRecord {
   id: string
   nativeSessionId?: string | null
   endpoint: ResolvedEndpoint
+  runtimeType: RuntimeType
+  cwd: string | null
 }
 
 const LOCAL_HOST_PATTERN =
@@ -146,14 +149,20 @@ export async function createSession(input: {
   sessionId: string
   endpoint: ResolvedEndpoint
   roleAgentId?: string
+  runtimeType: RuntimeType
+  cwd?: string | null
+  capabilitySnapshot?: Record<string, unknown> | null
 }): Promise<RuntimeSessionRecord> {
   const db = await createClient()
-  const { data: previousRows } = await db
+  const cwd = input.cwd ?? null
+  let previousQuery = db
     .from('runtime_sessions')
     .select('native_session_id')
     .eq('session_id', input.sessionId)
-    .order('created_at', { ascending: false })
-    .limit(5)
+    .eq('runtime_type', input.runtimeType)
+  previousQuery = input.roleAgentId ? previousQuery.eq('role_agent_id', input.roleAgentId) : previousQuery.is('role_agent_id', null)
+  previousQuery = cwd ? previousQuery.eq('cwd', cwd) : previousQuery.is('cwd', null)
+  const { data: previousRows } = await previousQuery.order('created_at', { ascending: false }).limit(5)
   const previous = Array.isArray(previousRows)
     ? (previousRows as Array<{ native_session_id?: string | null }>).find((row) => row.native_session_id)
     : undefined
@@ -163,7 +172,10 @@ export async function createSession(input: {
       session_id: input.sessionId,
       endpoint_id: input.endpoint.id,
       role_agent_id: input.roleAgentId ?? null,
+      runtime_type: input.runtimeType,
       native_session_id: previous?.native_session_id ?? null,
+      cwd,
+      capability_snapshot: input.capabilitySnapshot ?? {},
       status: 'idle',
     })
     .select('id')
@@ -171,7 +183,13 @@ export async function createSession(input: {
   if (error || !data?.id) {
     throw new Error(error?.message ?? '创建 Runtime Session 失败')
   }
-  return { id: data?.id ?? '', nativeSessionId: previous?.native_session_id ?? null, endpoint: input.endpoint }
+  return {
+    id: data?.id ?? '',
+    nativeSessionId: previous?.native_session_id ?? null,
+    endpoint: input.endpoint,
+    runtimeType: input.runtimeType,
+    cwd,
+  }
 }
 
 export async function persistRuntimeEvent(
@@ -202,6 +220,19 @@ async function setNativeSessionId(runtimeSessionId: string, nativeSessionId: str
   await db.from('runtime_sessions').update({ native_session_id: nativeSessionId }).eq('id', runtimeSessionId)
 }
 
+async function setCapabilitySnapshot(runtimeSessionId: string, snapshot: unknown): Promise<void> {
+  if (!runtimeSessionId) return
+  const db = await createClient()
+  await db.from('runtime_sessions').update({ capability_snapshot: snapshot }).eq('id', runtimeSessionId)
+}
+
+async function persistEndpointCapability(endpointId: string, capability: string, value: unknown): Promise<void> {
+  if (!endpointId) return
+  const db = await createClient()
+  await db.from('runtime_capabilities').delete().eq('endpoint_id', endpointId).eq('capability', capability)
+  await db.from('runtime_capabilities').insert({ endpoint_id: endpointId, capability, value })
+}
+
 type RuntimeDetection = {
   type?: string
   available?: boolean
@@ -221,7 +252,7 @@ function parseRuntimeDetection(value: unknown): RuntimeDetection[] {
   return Array.isArray(parsed) ? parsed as RuntimeDetection[] : []
 }
 
-async function resolveLocalRuntimeInvoke(endpointId: string | null, prompt: string) {
+async function resolveLocalRuntimeInvoke(endpointId: string | null, prompt: string, runtimeType?: RuntimeType) {
   if (!endpointId) return null
   const db = await createClient()
   const { data } = await db
@@ -232,8 +263,9 @@ async function resolveLocalRuntimeInvoke(endpointId: string | null, prompt: stri
     .limit(1)
   const row = Array.isArray(data) ? data[0] : data
   const runtimes = parseRuntimeDetection((row as { value?: unknown } | null)?.value)
+  const allowedType = runtimeType === 'codex' || runtimeType === 'claude_code' ? runtimeType : null
   const ready = runtimes.find((runtime) =>
-    (runtime.type === 'codex' || runtime.type === 'claude_code') &&
+    (allowedType ? runtime.type === allowedType : (runtime.type === 'codex' || runtime.type === 'claude_code')) &&
     runtime.available === true &&
     runtime.authenticated === true &&
     runtime.launchable !== false,
@@ -277,6 +309,20 @@ export async function* invoke(input: {
       yield* emitUnavailable('Runtime 执行器未就绪，请稍后再试或切换到本地 Desktop 运行时')
       return
     }
+    const machineRuntimes = detectCliRuntimeCapabilities()
+    await persistEndpointCapability(endpoint.id ?? '', 'runtime_detection', machineRuntimes)
+    await setCapabilitySnapshot(input.runtimeSession.id, machineRuntimes)
+    const requestedRuntime = input.runtimeType === 'codex' ? 'codex' : 'claude_code'
+    const readyRuntime = machineRuntimes.find((runtime) =>
+      runtime.type === requestedRuntime &&
+      runtime.available === true &&
+      runtime.authenticated === true &&
+      runtime.launchable !== false,
+    )
+    if (!readyRuntime) {
+      yield* emitUnavailable(`公共云端 ${requestedRuntime === 'codex' ? 'Codex' : 'Claude Code'} Runtime 未安装、未登录或不可启动`)
+      return
+    }
 
     yield { type: 'public_runtime_available', available: true, endpointId }
     let failed = false
@@ -284,6 +330,8 @@ export async function* invoke(input: {
       runtimeSessionId: input.runtimeSession.id,
       endpointId: endpoint.id ?? undefined,
       runtimeType: input.runtimeType === 'codex' ? 'codex' : input.runtimeType === 'claude_code' ? 'claude_code' : undefined,
+      nativeSessionId: input.runtimeSession.nativeSessionId ?? null,
+      cwd: input.runtimeSession.cwd ?? process.env.RUNTIME_CWD ?? null,
       prompt: input.userMessage ?? '',
       systemPrompt: input.systemPrompt,
     }))) {
@@ -318,9 +366,9 @@ export async function* invoke(input: {
   yield { type: 'tunnel_connected', endpointId: endpoint.id ?? '', deviceId: relayDeviceId }
   yield { type: 'runtime_status', status: 'tunnel_ready', endpointId }
   const prompt = input.systemPrompt ? `${input.systemPrompt}\n\n${input.userMessage ?? ''}` : input.userMessage ?? ''
-  const invokePayload = await resolveLocalRuntimeInvoke(endpoint.id, prompt)
+  const invokePayload = await resolveLocalRuntimeInvoke(endpoint.id, prompt, input.runtimeType)
   if (!invokePayload) {
-    yield { type: 'runtime_failed', endpointId, error: '本地 Claude Code / Codex 未登录或不可启动，无法执行本地任务。' }
+    yield { type: 'runtime_failed', endpointId, error: '当前角色绑定的本地 Runtime 未登录或不可启动，无法执行本地任务。' }
     await setSessionStatus(input.runtimeSession.id, 'failed')
     return
   }

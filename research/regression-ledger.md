@@ -30,6 +30,21 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260602-001 — 完整多 Agent 编排仍停留在基础 durable plan/handoff，未达到最终产品形态
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | unfinished / product-completion-gap |
+| **优先级** | P1（不阻塞已完成 P0 acceptance baseline，但阻塞“完整多 Agent 产品已完成”的结论） |
+| **状态** | `open` |
+| **关联 FR/PRD** | FR-AGENT-001, FR-ORCH-001, FR-RUNTIME-001, FR-CTX-001, FR-ACTION-001, FR-WEB-001, FR-DESK-001, FR-MOB-001 |
+| **关联任务/合同** | `COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02`；`.trellis/tasks/06-02-complete-multi-agent-orchestration`；`research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md` |
+| **影响功能面** | Web 多角色工作台、Orchestrator DAG、角色间上下文/session handoff、runtime worker、native session resume、计划恢复、Desktop runtime inventory、Mobile 监督 |
+| **发现方式** | 用户要求按最终完整实现目标复盘当前代码和 refer_proj（2026-06-02）。 |
+| **证据** | 当前代码已支持 role runtime binding、基础 `ContextPackage`、durable plan/nodes、planner -> worker -> summarizer 基础编排、native session resume 和 `runtime_invoke` 投递；2026-06-02 已统一合同/PRD/task/技术设计/spec/tracker 的最终完整计划口径。Phase 1 首切片已补 `plan_node_attempts` / `agent_mailbox_items` schema、shared/database types、plan node `retry/resume/cancel/requeue` API、plan timeline API、runtime inventory API，`runtime_invoke` 初始投递写 initial attempt 和 inbound mailbox。但实现仍缺 reply/dead-letter scheduler、动态 DAG、per-role inbound serialization、真实 Claude+Codex 多角色 UAT、三端完整 timeline/doctor/supervision。 |
+| **关闭条件** | 按合同完成 Phase 1-5：Phase 1 数据内核/API/no-compat schema；Phase 2 动态 DAG 与 mailbox 调度；Phase 3 runtime/native session/recovery；Phase 4 三端 UI；Phase 5 真实 Claude+Codex UAT；tracker/report/治理门禁齐全。 |
+| **下一步** | Phase 1 剩余：真实 Postgres acceptance drop/reseed/smoke；补 reply/dead-letter 数据写入与 scheduler 边界；补 per-role serialization / ready wave shared domain tests；补 no-compat 负向测试证明旧 runtime tag、fake/script product executor、old payload 不参与产品路由。 |
+
 ### REG-20260601-001 — 验收真实闭环缺口：默认 fake/script runtime、本地链路未执行、附件/artifact 不 durable
 
 | 字段 | 内容 |
@@ -59,7 +74,7 @@
 | **发现方式** | Codex 从 `research/prd.md` P0 FR 逐项反查实际代码入口/API/UI/测试（2026-06-01），本轮未改产品代码、未重新跑 UAT。 |
 | **证据** | 详见审计报告 PBA-001..PBA-012。关键 P0 证据：`apps/web/app/api/workspaces/route.ts` 未在 `desktop.ok === false` 时阻止 `local_desktop` 创建；`apps/web/app/api/plans/route.ts` 与 `apps/web/app/api/actions/route.ts` 缺 `session_id -> workspace.owner_id` 校验；`ChatPanel`/`session-store` 只支持单 role；`OrchestratorPanel` 只读已有 plan/action，confirm 不调度执行；Desktop `authorizationRecords` 是 zustand 静态 seed；Mobile preview 仍为占位。 |
 | **关闭条件** | 按审计报告优先级拆修并逐项关闭：P0 安全/执行域先修；主旅程补多角色与编排调度；删除或接真实数据的 stale/ghost 入口；富消息、pin/handoff、Action executor 补真实闭环；所有完成结论必须附真实入口、数据/API/runtime、刷新后和负向错误态证据。 |
-| **当前进展** | 2026-06-02：已补计划确认到 action/notification、审批到 runtime action dispatcher、`/api/actions/:id/run` 重试恢复、runtime worker 回写 `actions`/`plan_nodes` 终态；已补 Mobile/PWA `/m/preview` 读取 durable `/api/artifacts/:id`；已清理 Desktop 静态授权记录；已补 Web 主工作台消息 pin、通知铃和审批流；已删除 Desktop/Web 未挂载旧组件与旧 `/api/runtime/invoke` 假成功入口；Desktop native session resume/continue 已接官方 CLI：Claude Code 使用 `--resume/--continue`，Codex 使用 `codex exec resume`，Web gateway 持久化并复用 `runtime_sessions.native_session_id`。2026-06-02 收口复验：`pnpm env:acceptance:smoke` PASS（CRUD 5/5 + `/api/chat` 11/11）；`pnpm test:e2e:acceptance` 18 passed（真实 Auth.js DB session、真实 API、Web 主工作台、角色/文件/产物、附件、Agents CRUD、本地工作区门禁、布局）；`pnpm test:e2e:acceptance:runtime` 2 passed（Redis+worker 可见非 echo agent 回复与 reload）；`pnpm test:e2e:acceptance:no-worker` 1 passed（无 worker 快速中文错误态）；`pnpm --filter @agenthub/web type-check`、Web runtime/API 定向测试 35 passed、Desktop test 27 passed。 |
+| **当前进展** | 2026-06-02：已补计划确认到 action/notification、审批到 runtime action dispatcher、`/api/actions/:id/run` 重试恢复、runtime worker 回写 `actions`/`plan_nodes` 终态；已补 Mobile/PWA `/m/preview` 读取 durable `/api/artifacts/:id`；已清理 Desktop 静态授权记录；已补 Web 主工作台消息 pin、通知铃和审批流；已删除 Desktop/Web 未挂载旧组件与旧 `/api/runtime/invoke` 假成功入口；Desktop/native session resume/continue 已接官方 CLI：Claude Code 使用 `--resume/--continue`，Codex 使用 `codex exec resume`，Web gateway 持久化并按 `(session, role, runtime, cwd)` 复用 `runtime_sessions.native_session_id`。Cloud worker 统一为 machine-wide real CLI inventory，按 Role Agent `runtime_type` 调度 Claude Code/Codex，不再用 `script/fake` 作为产品可用证明；Orchestrator 多角色同 session 创建 durable plan/nodes，planner -> worker fan-out -> summarizer fan-in，ContextPackage handoff 按接收角色过滤并持久化；`pending_confirm` plan 的 `runtime_invoke` 节点确认后直接投递 runtime worker，worker 支持无 actionId 的纯 planNodeId job 回写节点终态并结算父 plan。2026-06-02 收口复验：`pnpm env:acceptance:smoke` PASS（CRUD 5/5 + `/api/chat` 11/11）；`pnpm test:e2e:acceptance` 18 passed（真实 Auth.js DB session、真实 API、Web 主工作台、角色/文件/产物、附件、Agents CRUD、本地工作区门禁、布局）；`pnpm test:e2e:acceptance:runtime` 2 passed（Redis+worker 可见非 echo agent 回复与 reload）；`pnpm test:e2e:acceptance:no-worker` 1 passed（无 worker 快速中文错误态）；`pnpm --filter @agenthub/web type-check`、Web runtime/API 定向测试 35 passed、Desktop test 27 passed。追加完整编排/worker 验证：`pnpm type-check` PASS；`pnpm --filter @agenthub/web build` PASS；Web 定向测试 47 passed；Shared 测试 27 passed；Shared build PASS；plan confirm/runtime_invoke 定向测试 22 passed。 |
 | **下一步** | 已关闭。原生 RN 设备 GUI 和外部 OAuth 人工点击仍按非 P0 自动化残留风险记录，不并入 P0 passed。 |
 
 ### REG-20260531-010 — 三端 Agent 闭环新缺口：原生 Mobile/Desktop 会话假交互 + Web 编排 UI 未上线（PRODUCT-REALITY-GAP-AUDIT-001 P0）

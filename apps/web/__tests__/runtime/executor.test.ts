@@ -21,6 +21,13 @@ vi.mock('../../lib/app-db-client', () => ({
     from: () => ({
       update: (patch: Record<string, unknown>) => { dbUpdates.push(patch); return { eq: () => ({ eq: () => {} }) } },
       insert: (row: Record<string, unknown>) => { dbInserts.push(row); return {} },
+      select: () => ({
+        eq: (field: string) => (
+          field === 'id'
+            ? { single: () => ({ data: { plan_id: 'plan-001' }, error: null }) }
+            : { data: [{ status: 'completed' }], error: null }
+        ),
+      }),
     }),
   }),
 }))
@@ -124,6 +131,31 @@ describe('processJob — FakeExecutor regression', () => {
       }),
     ]))
   })
+
+  it('updates a runtime_invoke plan node even when no action row exists', async () => {
+    const job: RuntimeJob = {
+      runtimeSessionId: 's-node',
+      prompt: 'run node',
+      planNodeId: 'node-runtime-001',
+    }
+
+    const result = await processJob(job, new FakeExecutor())
+
+    expect(result).toBe('completed')
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'running', started_at: expect.any(String) }),
+      expect.objectContaining({
+        status: 'completed',
+        completed_at: expect.any(String),
+        result: expect.objectContaining({
+          terminal: 'completed',
+          runtimeSessionId: 's-node',
+          output: 'run node',
+        }),
+      }),
+      expect.objectContaining({ status: 'completed', updated_at: expect.any(String) }),
+    ]))
+  })
 })
 
 describe('credential isolation', () => {
@@ -174,5 +206,15 @@ describe('createExecutor factory', () => {
   it('rejects unknown executor modes instead of silently falling back to fake', () => {
     process.env.RUNTIME_EXECUTOR = 'unknown'
     expect(() => createExecutor()).toThrow(/Unsupported RUNTIME_EXECUTOR=unknown/)
+  })
+
+  it('rejects fake/script executors outside test authorization', () => {
+    try {
+      vi.stubEnv('NODE_ENV', 'production')
+      process.env.RUNTIME_EXECUTOR = 'fake'
+      expect(() => createExecutor()).toThrow(/only allowed for tests/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

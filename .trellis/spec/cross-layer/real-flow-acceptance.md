@@ -25,7 +25,7 @@
   - 请求字段：文件内容、文件名、MIME、所属 `sessionId` 或上下文绑定信息。
   - 持久化字段：`messages.metadata.attachment.content` 或可重读的 `contentRef`；大文件升级对象存储时必须有等价引用。
 - 角色读取：`GET /api/role-agents`
-  - 返回字段：`id`, `name`, `role_type`, `capabilities`, `is_orchestrator`。
+  - 返回字段：`id`, `name`, `role_type`, `capabilities`, `runtime_type`, `is_orchestrator`。
 - 本地 runtime：Gateway `user_local` -> DeviceChannel -> Electron `runtime_invoke`
   - 请求字段：`runtimeType`, `prompt`, `workspacePath?`, `sessionId`, `roleAgentId?`, `attachmentRefs?`
   - 回流事件：stdout/stderr delta、exit code、duration、错误码。
@@ -61,6 +61,8 @@
 - 发送时请求体携带真实 `roleAgentId`，不是只把 `@角色名` 拼进文本。
 - `messages.role_agent_id` 或等价字段持久化；刷新后能恢复角色上下文或角色 badge。
 - runtime prompt 中包含角色能力/职责上下文；测试至少断言角色 ID 持久化和用户可见角色标识。
+- 角色运行时绑定必须来自 `role_agents.runtime_type`，不能来自 `capabilities` 中的 `runtime:*` 标签；多角色链路必须断言每个角色按自己的 Claude Code / Codex 配置调度。
+- 多角色顺序执行时，下游角色必须收到结构化 handoff context，且 `messages.metadata.handoffsReceived` 或等价字段刷新后可读回。
 
 ### 附件
 
@@ -132,3 +134,136 @@ Web cloud @角色通过：
 - 限制：未覆盖外部 GitHub 人工登录，登录状态使用 fixture，只能证明 auth 后主链路。
 ```
 
+## Scenario: Final Multi-Agent Orchestration Acceptance
+
+### 1. Scope / Trigger
+
+- Trigger: Any report, tracker entry, task status, or implementation claims `COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` is complete or a phase is accepted.
+- Applies to Web, Desktop, Mobile/PWA, `/api/chat`, `/api/plans`, `/api/plan-nodes`, runtime worker, mailbox/handoff rows, `runtime_sessions`, `runtime_logs`, artifacts, acceptance schema and UAT evidence.
+
+### 2. Contracts
+
+- P0 acceptance closure is only a baseline. It cannot be reused as proof that final multi-agent orchestration is complete.
+- Final acceptance must use the canonical runtime line: self-hosted Postgres/Redis/Auth.js session/Web Gateway/runtime worker/Claude Code/Codex CLI.
+- Acceptance data may be drop/reseeded. No test or UI may depend on old runtime tag routing, old fake/script product executor, old plan/action fallback, or stale message-metadata-only handoff.
+- At least one UAT must configure `前端工程师=Claude Code` and `后端工程师=Codex`, then run a single session task that requires both roles.
+- The UAT must prove durable DAG, mailbox/handoff attempt/reply/lineage, role runtime routing, native session reuse, node failure, retry/resume, artifact persistence and Web/Desktop/Mobile state consistency.
+
+### 3. Required Evidence
+
+Reports must include:
+
+- Startup commands for `pnpm env:acceptance:up` and `pnpm dev:acceptance`, including `DATABASE_URL` and `REDIS_URL` source.
+- Confirmation that Claude Code and Codex CLIs are installed and authenticated on the runtime machine, or a clear "not accepted" statement.
+- Real role configuration evidence: role ids, names, `runtime_type`, and refresh persistence.
+- Durable data ids: `planId`, `planNodeId`, mailbox/attempt ids, `runtimeSessionId`, at least one `messageId`, and artifact/contentRef when artifacts are claimed.
+- UI evidence from Web timeline, Desktop inventory/doctor, and Mobile/PWA supervision or approval surface.
+- Failure injection evidence: which node failed, what error was persisted, which retry/resume API/UI action was used, and which new attempt continued the parent plan.
+
+### 4. Not Accepted
+
+- `playwright --list`, grep-only checks, or screenshot-only proof.
+- Fake/script executor, hardcoded SSE, echo output, or mock `/api/chat` as product evidence.
+- Handoff only in `messages.metadata` without durable mailbox/attempt/reply/lineage rows.
+- Runtime fallback from Codex to Claude Code or Claude Code to Codex.
+- Plan marked completed while a required node, latest attempt, or summarizer is failed/blocked/unrun.
+- Desktop/Mobile status copied from local UI state instead of real API/runtime inventory rows.
+
+## Scenario: No Temporary Compatibility Or Fallback Implementations
+
+### 1. Scope / Trigger
+
+- Trigger: Any implementation or fix that changes API fields, DB schema, runtime routing, env commands, UI entry points, auth/session behavior, or acceptance evidence.
+- Applies to Web, Desktop, Mobile/PWA, shared packages, DB/bootstrap scripts, runtime worker/gateway, and all tests claiming product-flow coverage.
+- This rule is mandatory after the 2026-06-02 role runtime/handoff correction: future work must implement the canonical product contract directly, not preserve temporary compatibility branches.
+
+### 2. Signatures
+
+Canonical contract examples:
+
+```typescript
+type CanonicalRuntimeType = 'claude_code' | 'codex';
+
+interface RoleAgentRow {
+  runtime_type: CanonicalRuntimeType;
+  capabilities: string[]; // business capabilities only
+}
+
+interface AcceptanceStartupEnv {
+  DATABASE_URL: string;
+  AGENTHUB_DB_CLIENT: 'postgres';
+  REDIS_URL: string;
+  AUTH_SECRET: string;
+  BASE_URL: string;
+}
+```
+
+Allowed migration shape:
+
+```sql
+-- Allowed: convert old data once during schema/bootstrap.
+UPDATE public.role_agents
+SET runtime_type = 'codex',
+    capabilities = capabilities - 'runtime:codex'
+WHERE capabilities ? 'runtime:codex';
+```
+
+Forbidden runtime shape:
+
+```typescript
+// Forbidden: product code reads old field/tag as fallback.
+const runtimeType = role.runtime_type ?? runtimeFromCapabilities(role.capabilities);
+```
+
+### 3. Contracts
+
+- Runtime/product code must read only the canonical field, command, env key, API payload, or DB column defined in the current spec.
+- Backward compatibility branches are not allowed for MVP/P0 product flows unless the user explicitly asks for a versioned migration/deprecation window.
+- Existing invalid or old data may be normalized once in migration/bootstrap scripts. After normalization, runtime code must not keep old-field fallback logic.
+- Tests must assert the canonical contract directly. A test that passes because old and new paths both work is not sufficient.
+- UI must expose canonical product controls and Chinese copy. It must not hide incomplete implementation behind old labels, disabled-but-clickable controls, mock state, or vague fallback errors.
+- Env/startup flows must have one canonical path per mode. Old `.env`, command aliases, or special acceptance flags must either be removed or documented as explicit test-only setup, not production behavior.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| API receives old field name after canonical schema changed | 400 or ignored with documented error semantics | Silently map old field and claim full implementation |
+| DB contains old temporary tag/field | Migration/bootstrap converts it to canonical data | Runtime reads both old and new forever |
+| Runtime worker lacks required canonical env | Explicit unavailable/error event | Fall back to fake/script/minimal executor |
+| UI still depends on old entry point | Remove or replace with canonical control | Keep both paths and let either one pass acceptance |
+| Test uses old payload but passes | Test fails or is rewritten | Treat as compatibility coverage |
+| Implementation cannot complete canonical behavior yet | Mark as not implemented / not accepted | Add fallback branch to make the flow look successful |
+
+### 5. Good/Base/Bad Cases
+
+- Good: A schema change adds `role_agents.runtime_type`; bootstrap converts legacy runtime tags once; `/api/chat` only reads `runtime_type`; tests prove `capabilities=['runtime:codex']` is rejected or ignored as product data.
+- Base: A legacy user row cannot be safely normalized; the UI/API returns a Chinese configuration error and asks the user to reconfigure the canonical field.
+- Bad: Code uses `newField ?? oldField ?? defaultValue` in a P0 runtime path and reports the feature as complete.
+
+### 6. Tests Required
+
+- Unit/API: invalid old payloads fail or are ignored according to the canonical contract.
+- Integration: migration/bootstrap converts old data into canonical fields and removes temporary tags.
+- Runtime: unavailable canonical runtime/env returns explicit failure, never fake success.
+- E2E/UAT: start from the real canonical UI/API entry point; do not use old paths as proof of completion.
+- Regression scan: search for old field/tag/command names and verify remaining occurrences are limited to migrations, explicit negative tests, or spec examples.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+const runtimeType =
+  role.runtime_type ??
+  (role.capabilities.includes('runtime:codex') ? 'codex' : 'claude_code');
+```
+
+#### Correct
+
+```typescript
+const runtimeType = role.runtime_type;
+if (runtimeType !== 'codex' && runtimeType !== 'claude_code') {
+  throw new Error('角色运行时配置无效');
+}
+```

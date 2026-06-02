@@ -50,13 +50,24 @@ describe('Domain Cross-References', () => {
   it('RuntimeSession 状态流转', () => {
     const session: RuntimeSession = {
       id: 'rs-1',
-      runtimeBindingId: 'rb-1',
+      sessionId: 'sess-1',
+      roleAgentId: 'ra-1',
+      runtimeType: 'claude_code',
       nativeSessionId: null,
       cwd: '/workspace',
       status: 'running',
-      capabilities: ['shell', 'file_read'],
+      capabilitySnapshot: {
+        runtimeType: 'claude_code',
+        available: true,
+        authenticated: true,
+        launchable: true,
+        supportsResume: true,
+        supportsContinue: true,
+        version: '1.0.0',
+      },
     }
-    expect(session.capabilities).toContain('shell')
+    expect(session.runtimeType).toBe('claude_code')
+    expect(session.capabilitySnapshot?.supportsResume).toBe(true)
   })
 
   it('RoleAgent 角色类型', () => {
@@ -67,8 +78,10 @@ describe('Domain Cross-References', () => {
       roleType: 'reviewer',
       systemPrompt: 'Review code',
       capabilities: ['code_review'],
+      runtimeType: 'codex',
       allowOrchestration: false,
     }
+    expect(agent.runtimeType).toBe('codex')
     expect(agent.allowOrchestration).toBe(false)
   })
 

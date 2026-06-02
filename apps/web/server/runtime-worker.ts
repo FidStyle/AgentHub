@@ -15,7 +15,11 @@ function runtimeTypeForJob(job?: RuntimeJob): CliRuntimeType {
 // Real mode is selected per job so one worker can dispatch all available machine CLIs.
 export function createExecutor(job?: RuntimeJob): RuntimeExecutor {
   if (!process.env.RUNTIME_EXECUTOR || process.env.RUNTIME_EXECUTOR === 'real') {
-    return new CliRuntimeExecutor({ runtimeType: runtimeTypeForJob(job), cwd: process.env.RUNTIME_CWD })
+    return new CliRuntimeExecutor({ runtimeType: runtimeTypeForJob(job), cwd: job?.cwd ?? process.env.RUNTIME_CWD })
+  }
+  const testExecutorAllowed = process.env.NODE_ENV === 'test' || process.env.AGENTHUB_ALLOW_TEST_EXECUTOR === 'true'
+  if (!testExecutorAllowed) {
+    throw new Error(`RUNTIME_EXECUTOR=${process.env.RUNTIME_EXECUTOR} is only allowed for tests`)
   }
   if (process.env.RUNTIME_EXECUTOR === 'script') return new ScriptedRealExecutor()
   if (process.env.RUNTIME_EXECUTOR === 'fake') return new FakeExecutor()
@@ -33,6 +37,12 @@ async function setStatus(runtimeSessionId: string, status: string, terminal = fa
   await db.from('runtime_sessions').update(patch).eq('id', runtimeSessionId)
 }
 
+async function setNativeSessionId(runtimeSessionId: string, nativeSessionId: string): Promise<void> {
+  if (!runtimeSessionId || !nativeSessionId) return
+  const db = await createClient()
+  await db.from('runtime_sessions').update({ native_session_id: nativeSessionId }).eq('id', runtimeSessionId)
+}
+
 async function log(runtimeSessionId: string, eventType: string, payload: Record<string, unknown>, seq: number): Promise<void> {
   if (!runtimeSessionId) return
   const db = await createClient()
@@ -40,14 +50,15 @@ async function log(runtimeSessionId: string, eventType: string, payload: Record<
 }
 
 async function markActionRunning(job: RuntimeJob): Promise<void> {
-  if (!job.actionId) return
   const db = await createClient()
   const now = new Date().toISOString()
-  await db.from('actions').update({
-    status: 'running',
-    executed_at: now,
-    result: { dispatch: 'running', runtimeSessionId: job.runtimeSessionId, at: now },
-  }).eq('id', job.actionId)
+  if (job.actionId) {
+    await db.from('actions').update({
+      status: 'running',
+      executed_at: now,
+      result: { dispatch: 'running', runtimeSessionId: job.runtimeSessionId, at: now },
+    }).eq('id', job.actionId)
+  }
   if (job.planNodeId) {
     await db.from('plan_nodes').update({
       status: 'running',
@@ -57,8 +68,24 @@ async function markActionRunning(job: RuntimeJob): Promise<void> {
   }
 }
 
+async function settleParentPlan(db: Awaited<ReturnType<typeof createClient>>, planNodeId?: string): Promise<void> {
+  if (!planNodeId) return
+  const { data: node } = await db.from('plan_nodes').select('plan_id').eq('id', planNodeId).single()
+  const planId = (node as { plan_id?: string } | null)?.plan_id
+  if (!planId) return
+  const { data: nodes } = await db.from('plan_nodes').select('status').eq('plan_id', planId)
+  const statuses = ((nodes ?? []) as Array<{ status?: string }>).map((item) => item.status)
+  if (statuses.length === 0) return
+  const hasActive = statuses.some((status) => status === 'pending' || status === 'ready' || status === 'running')
+  if (hasActive) return
+  const failed = statuses.some((status) => status === 'failed')
+  await db.from('plans').update({
+    status: failed ? 'failed' : 'completed',
+    updated_at: new Date().toISOString(),
+  }).eq('id', planId)
+}
+
 async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = '', error?: string): Promise<void> {
-  if (!job.actionId) return
   const db = await createClient()
   const now = new Date().toISOString()
   const status = terminal === 'completed' ? 'completed' : 'failed'
@@ -69,7 +96,9 @@ async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = 
     error,
     at: now,
   }
-  await db.from('actions').update({ status, result }).eq('id', job.actionId)
+  if (job.actionId) {
+    await db.from('actions').update({ status, result }).eq('id', job.actionId)
+  }
   if (job.planNodeId) {
     await db.from('plan_nodes').update({
       status: status === 'completed' ? 'completed' : 'failed',
@@ -77,6 +106,7 @@ async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = 
       result,
     }).eq('id', job.planNodeId)
   }
+  await settleParentPlan(db, job.planNodeId)
 }
 
 // Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.
@@ -99,7 +129,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     // Prepend the role's system prompt (when present) so the executor runs with the role persona.
     // Absent systemPrompt keeps the prompt unchanged — no behaviour change for existing jobs.
     const prompt = job.systemPrompt ? `${job.systemPrompt}\n\n${job.prompt}` : job.prompt
-    for await (const chunk of executor.execute({ prompt, fail: job.fail })) {
+    for await (const chunk of executor.execute({ prompt, fail: job.fail, nativeSessionId: job.nativeSessionId })) {
       if (await isCancelled(id)) {
         await setStatus(id, 'cancelled', true)
         await clearHeartbeat(id)
@@ -107,6 +137,11 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         await emit({ type: 'runtime_cancelled', endpointId: job.endpointId, reason: 'cancelled by request' })
         return 'cancelled'
       }
+      if (chunk.nativeSessionId) {
+        await setNativeSessionId(id, chunk.nativeSessionId)
+        await emit({ type: 'native_session', nativeSessionId: chunk.nativeSessionId, endpointId: job.endpointId })
+      }
+      if (!chunk.delta) continue
       await setHeartbeat(id, HEARTBEAT_TTL_SEC)
       output += chunk.delta
       await emit({ type: 'runtime_output', delta: chunk.delta, endpointId: job.endpointId })

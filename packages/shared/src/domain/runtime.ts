@@ -1,7 +1,8 @@
 import type { ExecutionDomain } from './workspace'
 
 export type RuntimeType = 'hosted' | 'claude_code' | 'codex' | 'opencode'
-export type RuntimeSessionStatus = 'idle' | 'running' | 'completed' | 'failed'
+export type RuntimeSessionStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type CliRuntimeType = 'claude_code' | 'codex'
 
 export type RuntimeEndpointKind = 'public_cloud' | 'user_local'
 export type RuntimeEndpointStatus = 'available' | 'offline' | 'unconfigured'
@@ -28,9 +29,23 @@ export interface RuntimeBinding {
 
 export interface RuntimeSession {
   id: string
-  runtimeBindingId: string
+  sessionId: string
+  roleAgentId: string | null
+  runtimeType: CliRuntimeType
   nativeSessionId: string | null
-  cwd: string
+  cwd: string | null
   status: RuntimeSessionStatus
-  capabilities: string[]
+  capabilitySnapshot: RuntimeCapabilitiesSnapshot | null
+}
+
+export interface RuntimeCapabilitiesSnapshot {
+  runtimeType: CliRuntimeType
+  available: boolean
+  authenticated: boolean
+  launchable: boolean
+  supportsResume: boolean
+  supportsContinue: boolean
+  version?: string
+  cliPath?: string
+  diagnostic?: string
 }

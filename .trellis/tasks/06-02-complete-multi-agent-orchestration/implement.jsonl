@@ -1,0 +1,11 @@
+{"file":"research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md","reason":"完整多 Agent 编排与交接的共享合同和验收口径"}
+{"file":".trellis/tasks/06-02-complete-multi-agent-orchestration/research/reference-multi-agent-patterns.md","reason":"refer_proj 中角色路由、task board、mailbox kernel 的提炼规则"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"runtime gateway、role runtime、native session、orchestrated plan 的现有可执行合同"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"真实主链路验收规则，禁止 fake/script 证明产品成功"}
+{"file":".trellis/spec/cross-layer/runtime-credential-boundary.md","reason":"runtime credential 和本地/云端边界要求"}
+{"file":".trellis/spec/backend/index.md","reason":"后端 API、DB、权限和错误语义规范入口"}
+{"file":".trellis/spec/frontend/index.md","reason":"Web UI 工作台和三端组件规范入口"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"端到端合同规划反模式检查"}
+{"file": "research/architecture/technical-design.md", "reason": "最终多 Agent 编排技术设计、API、三端和测试策略"}
+{"file": "research/modules/orchestrator.md", "reason": "Orchestrator 状态机与 mailbox-driven final v2 边界"}
+{"file": "research/modules/orchestrator-plan-dag.md", "reason": "Plan DAG、attempt、mailbox lineage 和 recovery DAG 规则"}

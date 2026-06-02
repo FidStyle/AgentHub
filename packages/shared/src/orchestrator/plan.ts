@@ -5,7 +5,7 @@ export interface PlanNode {
   plan_id: string
   label: string
   agent_id?: string
-  status: 'pending' | 'ready' | 'running' | 'completed' | 'failed' | 'skipped'
+  status: 'pending' | 'ready' | 'waiting' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled' | 'blocked'
   action_type?: 'runtime_invoke' | 'action_exec' | 'human_confirm'
   action_payload?: Record<string, unknown>
   result?: Record<string, unknown>
@@ -32,3 +32,7 @@ export interface Plan {
 
 export type PlanStatus = Plan['status']
 export type PlanNodeStatus = PlanNode['status']
+export type PlanNodeControl = 'retry' | 'resume' | 'cancel' | 'requeue'
+export type PlanNodeAttemptControl = PlanNodeControl | 'initial'
+export type MailboxDirection = 'outbound' | 'inbound' | 'reply'
+export type MailboxStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'dead_letter'

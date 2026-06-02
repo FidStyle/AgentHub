@@ -26,10 +26,10 @@
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-WEB-001, FR-CHAT-001, FR-RUNTIME-001, FR-DESK-001, FR-ARTIFACT-001, FR-NOTIFY-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-02-p0-acceptance-env-uat-closure` |
-| **当前状态** | ✅ 完成（2026-06-02，用户复核后追加统一）：验收环境入口统一为 `docker/.acceptance.env`、`docker/docker-compose.acceptance.yml`、`docker/postgres/acceptance-schema.sql` 和 `env:acceptance:*`；历史 env fallback 与旧别名已删除。Playwright acceptance profile 固定串行 worker，解决共享 Auth.js 测试用户下 DB 变更型 E2E 多 worker 污染；普通开发 CLI/非共享状态测试仍可并行。旧 E2E 口径同步到当前 UI：默认角色为 `Orchestrator`，右栏为「角色/文件/变更/产物」，durable artifact 不再从 message metadata 假装产物。Desktop native session resume/continue 已接官方 CLI 能力：Claude Code 使用 `--resume/--continue`，Codex 使用 `codex exec resume`，AgentHub 持久化并复用 native session id。 |
+| **当前状态** | ✅ 完成（2026-06-02，用户复核后追加统一）：验收环境入口统一为 `docker/.acceptance.env`、`docker/docker-compose.acceptance.yml`、`docker/postgres/acceptance-schema.sql` 和 `env:acceptance:*`；历史 env fallback 与旧别名已删除。Playwright acceptance profile 固定串行 worker，解决共享 Auth.js 测试用户下 DB 变更型 E2E 多 worker 污染；普通开发 CLI/非共享状态测试仍可并行。旧 E2E 口径同步到当前 UI：默认角色为 `Orchestrator`，右栏为「角色/文件/变更/产物」，durable artifact 不再从 message metadata 假装产物。Desktop/native session resume/continue 已接官方 CLI 能力：Claude Code 使用 `--resume/--continue`，Codex 使用 `codex exec resume`，AgentHub 持久化并按 `(session, role, runtime, cwd)` 复用 native session id。Cloud worker 统一为 machine-wide real CLI inventory，按每个 Role Agent 的 `runtime_type` 调度 Claude Code/Codex；同 session多角色由 Orchestrator 创建 durable plan/nodes，planner -> worker fan-out -> summarizer fan-in，并持久化 ContextPackage handoff。`pending_confirm` plan 中的 `runtime_invoke` 节点确认后可直接投递 runtime worker，不再要求 command/action row；worker 支持无 actionId 的纯 planNodeId job 回写节点终态并结算父 plan。 |
 | **目标** | 关闭 P0 报告中剩余的环境入口、旧 E2E 假绿、多角色/通知/pin/附件/artifact/文件预览主入口复验和报告漂移问题。 |
 | **验收方式** | 使用 `pnpm env:acceptance:up` / `pnpm dev:acceptance` / `pnpm env:acceptance:smoke` 准备真实 Postgres/Redis/Auth.js session；Web acceptance E2E 使用 `pnpm test:e2e:acceptance`、`pnpm test:e2e:acceptance:runtime`、`pnpm test:e2e:acceptance:no-worker`，全部真实 API/DB/session，无主链路 mock。 |
-| **测试证据** | `pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 11/11，smoke 可自动临时启动 Web）；`pnpm test:e2e:acceptance` PASS（18 passed）；`pnpm test:e2e:acceptance:runtime` PASS（2 passed，串行复跑）；`pnpm test:e2e:acceptance:no-worker` PASS（1 passed，先关闭 orphan worker 后串行复跑）；`pnpm --filter @agenthub/shared build` PASS；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/runtime-status.test.ts __tests__/api/chat.test.ts __tests__/runtime` PASS（8 files / 35 tests）；`pnpm --filter @agenthub/desktop test` PASS（5 files / 27 tests）。 |
+| **测试证据** | `pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 11/11，smoke 可自动临时启动 Web）；`pnpm test:e2e:acceptance` PASS（18 passed）；`pnpm test:e2e:acceptance:runtime` PASS（2 passed，串行复跑）；`pnpm test:e2e:acceptance:no-worker` PASS（1 passed，先关闭 orphan worker 后串行复跑）；`pnpm --filter @agenthub/shared build` PASS；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/desktop type-check` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/runtime-status.test.ts __tests__/api/chat.test.ts __tests__/runtime` PASS（8 files / 35 tests）；`pnpm --filter @agenthub/desktop test` PASS（5 files / 27 tests）。2026-06-02 追加完整编排/worker 证据：`pnpm type-check` PASS；`pnpm --filter @agenthub/web build` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/role-agents.test.ts __tests__/runtime/gateway-gating.test.ts __tests__/runtime/local-device-relay.test.ts __tests__/runtime/executor.test.ts` PASS（5 files / 47 tests）；`pnpm --filter @agenthub/shared test` PASS（4 files / 27 tests）；`pnpm --filter @agenthub/shared build` PASS。追加 plan confirm/runtime_invoke 闭环：`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/api/plans-actions-owner.test.ts` PASS（2 files / 22 tests）；`pnpm --filter @agenthub/web type-check` PASS。 |
 | **阻塞问题** | P0 blocker 已关闭。仍未自动化的范围：外部 OAuth/登录绑定人工点击、原生 RN 设备/模拟器 GUI。 |
 | **下一步动作** | P0 验收收口完成；后续人工演示只使用 acceptance 命令和 `docker/.acceptance.env`。 |
 
@@ -347,6 +347,21 @@
 ---
 
 ## P1 任务
+
+### COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02: 完整多 Agent 编排与交接
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1 product-completion（基于已完成 P0 acceptance baseline 的最终产品能力计划） |
+| **绑定 FR-ID** | FR-AGENT-001, FR-ORCH-001, FR-RUNTIME-001, FR-CTX-001, FR-ACTION-001, FR-WEB-001, FR-DESK-001, FR-MOB-001 |
+| **对应计划** | `.trellis/tasks/06-02-complete-multi-agent-orchestration` |
+| **合同路径** | `research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md` |
+| **当前状态** | 🟡 in progress（2026-06-02）：Phase 1 数据内核首切片已完成。已新增 durable `plan_node_attempts` / `agent_mailbox_items` schema、shared/database types、plan node `retry/resume/cancel/requeue` API、plan timeline API、runtime inventory API；`runtime_invoke` 初始投递会写 initial attempt 和 inbound mailbox。P0 acceptance closure 仍只作为 canonical baseline；完整完成仍需 Phase 2-5 的动态 DAG、per-role inbound serialization、reply/dead-letter scheduler、runtime recovery、三端 UI 和真实 Claude+Codex UAT。 |
+| **目标** | 在同一 AgentHub session 中完成多角色分工、上下文/session handoff、按角色 runtime 调度、等待/fan-out/fan-in、失败恢复、三端监督和刷新持久化。 |
+| **验收方式** | 使用 `pnpm env:acceptance:up` / `pnpm dev:acceptance` 启动 canonical 环境；机器安装并登录 Claude Code 与 Codex；真实浏览器 UAT 覆盖 `前端工程师=Claude Code`、`后端工程师=Codex`、Orchestrator DAG、handoff、native session 复用、节点失败后 retry/resume、刷新持久化。 |
+| **测试证据** | Phase 1 首切片：`pnpm --filter @agenthub/web test -- __tests__/api/plan-node-controls-inventory.test.ts __tests__/api/plans-actions-owner.test.ts __tests__/orchestrator/action-dispatcher.test.ts` PASS（3 files / 15 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/role-agents.test.ts __tests__/runtime/gateway-gating.test.ts __tests__/runtime/local-device-relay.test.ts __tests__/runtime/executor.test.ts __tests__/api/plans-actions-owner.test.ts __tests__/api/plan-node-controls-inventory.test.ts __tests__/orchestrator/action-dispatcher.test.ts` PASS（8 files / 64 tests）；`pnpm --filter @agenthub/shared test` PASS（4 files / 27 tests）；`pnpm --filter @agenthub/shared build` PASS。报告：`research/execution-reports/complete-multi-agent-orchestration-phase1-data-kernel-2026-06-02.md`。 |
+| **阻塞问题** | 无方案 blocker。refer_proj 已覆盖可提炼抽象：Maestro 角色路由/异步 delegate、Iris 多 Agent/task board、CCB mailbox kernel、ccm-orchestra persistent sessions。缺口是 AgentHub 自身 durable Web/DB/runtime 产品实现深度。 |
+| **下一步动作** | Phase 1 剩余：运行真实 Postgres acceptance drop/reseed/smoke；补 reply/dead-letter 数据写入 API 或 scheduler 边界；补 mailbox ready wave/per-role serialization shared domain tests；补 no-compat 负向测试覆盖旧 runtime tag、fake/script product executor、old payload fallback。 |
 
 ### P1-RT: Agent Runtime 完整部署
 
