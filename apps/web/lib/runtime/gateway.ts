@@ -283,6 +283,9 @@ export async function* invoke(input: {
   userMessage?: string
   systemPrompt?: string
   runtimeType?: RuntimeType
+  planNodeId?: string
+  attemptId?: string
+  mailboxItemId?: string | null
 }): AsyncGenerator<RuntimeGatewayEvent> {
   const { endpoint } = input.runtimeSession
   const endpointId = endpoint.id ?? undefined
@@ -334,6 +337,9 @@ export async function* invoke(input: {
       cwd: input.runtimeSession.cwd ?? process.env.RUNTIME_CWD ?? null,
       prompt: input.userMessage ?? '',
       systemPrompt: input.systemPrompt,
+      planNodeId: input.planNodeId,
+      attemptId: input.attemptId,
+      mailboxItemId: input.mailboxItemId ?? null,
     }))) {
       const evt = raw as RuntimeGatewayEvent
       if (evt.type === 'runtime_failed') failed = true

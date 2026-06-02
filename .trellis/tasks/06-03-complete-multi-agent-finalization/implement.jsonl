@@ -1,0 +1,7 @@
+{"file":"research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md","reason":"最终完整多 Agent 编排共享合同和 Phase 1-5 验收口径"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"真实主链路与最终多 Agent 验收禁止假完成规则"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Cloud Runtime Gateway、Claude/Codex CLI、role runtime binding 与 handoff 合同"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"防止以局部 mock、截图或列表测试冒充完整产品闭环"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"本任务跨 DB/API/runtime worker/Web/Mobile/Desktop，需要跟踪数据边界"}
+{"file":"research/modules/orchestrator.md","reason":"Orchestrator 状态机、mailbox-driven orchestration 和最终实现方向"}
+{"file":"research/modules/orchestrator-plan-dag.md","reason":"DAG validator、ready wave、failure propagation、attempt lineage 和 recovery 规则"}

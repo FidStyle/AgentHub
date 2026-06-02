@@ -5,6 +5,17 @@ import { CheckCircle2, Circle, GitBranch, PlayCircle, RefreshCcw, RotateCcw, Rou
 import type { Plan, PlanNode } from '@agenthub/shared'
 import type { PlanNodeControl } from '@agenthub/shared'
 
+export interface PlanNodeEvidence {
+  roleName?: string
+  runtimeType?: string
+  attemptCount: number
+  latestAttemptStatus?: string
+  mailboxStatus?: string
+  runtimeSessionStatus?: string
+  nativeSessionId?: string | null
+  runtimeLogCount: number
+}
+
 const STATUS_LABELS: Record<string, string> = {
   pending: '等待中',
   ready: '就绪',
@@ -43,6 +54,7 @@ const STATUS_DOT: Record<string, string> = {
 
 interface PlanCardProps {
   plan: Plan & { plan_nodes?: PlanNode[] }
+  evidenceByNodeId?: Record<string, PlanNodeEvidence>
   onConfirm?: (planId: string) => void
   onNodeControl?: (nodeId: string, control: PlanNodeControl) => void
 }
@@ -61,7 +73,7 @@ function nodeControls(node: PlanNode): Array<{ control: PlanNodeControl; label: 
   return []
 }
 
-export function PlanCard({ plan, onConfirm, onNodeControl }: PlanCardProps) {
+export function PlanCard({ plan, evidenceByNodeId = {}, onConfirm, onNodeControl }: PlanCardProps) {
   const nodes = plan.plan_nodes || []
   const completedCount = nodes.filter(n => n.status === 'completed').length
   const progress = nodes.length ? Math.round((completedCount / nodes.length) * 100) : 0
@@ -109,6 +121,7 @@ export function PlanCard({ plan, onConfirm, onNodeControl }: PlanCardProps) {
           )}
           {nodes.map((node, index) => {
             const NodeIcon = node.status === 'completed' ? CheckCircle2 : node.status === 'failed' ? XCircle : node.status === 'running' ? PlayCircle : Circle
+            const evidence = evidenceByNodeId[node.id]
             return (
               <li key={node.id} className="rounded-md border border-border bg-background px-2.5 py-2">
                 <div className="flex items-start gap-2">
@@ -118,10 +131,27 @@ export function PlanCard({ plan, onConfirm, onNodeControl }: PlanCardProps) {
                       <NodeIcon className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="truncate text-sm">{index + 1}. {node.label}</span>
                     </div>
-                    {node.agent_id && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        分派角色：{node.agent_id}
-                      </p>
+                    {(node.agent_id || evidence) && (
+                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        <p>
+                          分派角色：{evidence?.roleName ?? node.agent_id}
+                          {evidence?.runtimeType ? ` · Runtime：${evidence.runtimeType === 'codex' ? 'Codex' : 'Claude Code'}` : ''}
+                        </p>
+                        {evidence && (
+                          <p>
+                            尝试 {evidence.attemptCount}
+                            {evidence.latestAttemptStatus ? ` · attempt ${evidence.latestAttemptStatus}` : ''}
+                            {evidence.mailboxStatus ? ` · mailbox ${evidence.mailboxStatus}` : ''}
+                            {evidence.runtimeSessionStatus ? ` · runtime ${evidence.runtimeSessionStatus}` : ''}
+                            {evidence.runtimeLogCount > 0 ? ` · logs ${evidence.runtimeLogCount}` : ''}
+                          </p>
+                        )}
+                        {evidence?.nativeSessionId && (
+                          <p className="truncate font-mono text-[10px]" title={evidence.nativeSessionId}>
+                            native {evidence.nativeSessionId}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">

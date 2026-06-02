@@ -1,0 +1,6 @@
+{"file":"research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md","reason":"检查实现是否满足最终合同和完成门禁"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"检查真实主链路、fake/script 禁止项和最终多 Agent UAT 证据"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"检查 runtime gateway、worker、native session 和 role runtime binding 合规"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"检查测试和报告是否避免假绿"}
+{"file":"research/project-tracker.md","reason":"检查公开 tracker 是否同步最终状态和测试证据"}
+{"file":"research/regression-ledger.md","reason":"检查未完成项台账是否反映本轮关闭条件"}

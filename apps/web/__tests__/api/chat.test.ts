@@ -16,6 +16,16 @@ import {
 } from '../utils'
 
 const invokeSpy = vi.fn()
+const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock } = vi.hoisted(() => ({
+  resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
+  createSessionMock: vi.fn(async (input: { roleAgentId?: string | null; runtimeType?: string }) => ({
+    id: `runtime-${input.roleAgentId ?? input.runtimeType ?? 'none'}`,
+    nativeSessionId: `native-${input.roleAgentId ?? input.runtimeType ?? 'none'}`,
+    cwd: '/repo',
+  })),
+  isWorkerAliveMock: vi.fn(async () => true),
+  enqueueMock: vi.fn(async (_input: unknown) => undefined),
+}))
 const insertedMessages: Record<string, unknown>[] = []
 const insertedPlans: Record<string, unknown>[] = []
 const insertedPlanNodes: Record<string, unknown>[] = []
@@ -28,12 +38,28 @@ const setAdapterEvents = (events: Record<string, unknown>[]) => {
   adapterEvents = events
 }
 
+const firstMockArg = (call: unknown[]): Record<string, unknown> => call[0] as Record<string, unknown>
+
 vi.mock('@/lib/runtime/hosted-adapter', () => ({
   HostedRuntimeAdapter: class {
     async *invoke(input: Record<string, unknown>) {
       invokeSpy(input)
       for (const evt of adapterEvents) yield evt
     }
+  },
+}))
+
+vi.mock('@/lib/runtime/gateway', () => ({
+  resolveEndpoint: (input: unknown) => resolveEndpointMock(input),
+  createSession: (input: unknown) => createSessionMock(input as { roleAgentId?: string | null; runtimeType?: string }),
+}))
+
+vi.mock('@/lib/runtime/redis-client', () => ({
+  isWorkerAlive: () => isWorkerAliveMock(),
+  enqueue: (input: unknown) => enqueueMock(input),
+  subscribeEvents: async function* (_runtimeSessionId: string, onSubscribed?: () => Promise<void>) {
+    await onSubscribed?.()
+    for (const evt of adapterEvents) yield evt
   },
 }))
 
@@ -85,6 +111,11 @@ describe('POST /api/chat — role-chat-core', () => {
     insertedPlanNodes.length = 0
     insertedAttempts.length = 0
     insertedMailboxItems.length = 0
+    resolveEndpointMock.mockClear()
+    createSessionMock.mockClear()
+    isWorkerAliveMock.mockClear()
+    enqueueMock.mockClear()
+    process.env.REDIS_URL = 'redis://test'
     setAdapterEvents([{ type: 'runtime_output', delta: 'ok' }])
     setupMockAuth()
   })
@@ -324,12 +355,32 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(insertedMailboxItems[0].context_package).toMatchObject({
       metadata: { planId: 'plan-001', attemptId: 'attempt-1', control: 'initial' },
     })
-    expect(invokeSpy).toHaveBeenCalledTimes(4)
-    expect(invokeSpy.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-fe', 'agent-be', 'agent-orch'])
-    expect(invokeSpy.mock.calls.map((call) => call[0].runtimeType)).toEqual(['claude_code', 'claude_code', 'codex', 'claude_code'])
-    expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('上游角色交接上下文')
-    expect(String(invokeSpy.mock.calls[3][0].systemPrompt)).toContain('@前端工程师 交接给 @架构师')
-    expect(String(invokeSpy.mock.calls[3][0].systemPrompt)).toContain('@后端工程师 交接给 @架构师')
+    expect(invokeSpy).not.toHaveBeenCalled()
+    expect(createSessionMock).toHaveBeenCalledTimes(4)
+    expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-fe', 'agent-be', 'agent-orch'])
+    expect(createSessionMock.mock.calls.map((call) => call[0].runtimeType)).toEqual(['claude_code', 'claude_code', 'codex', 'claude_code'])
+    expect(enqueueMock).toHaveBeenCalledTimes(4)
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).planNodeId)).toEqual(insertedPlanNodes.map((node) => node.id))
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3', 'attempt-4'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3', 'mailbox-4'])
+    expect(String(firstMockArg(enqueueMock.mock.calls[1]).prompt)).toContain('Context handoffs')
+    expect(String(firstMockArg(enqueueMock.mock.calls[3]).prompt)).toContain('前端工程师')
+    expect(String(firstMockArg(enqueueMock.mock.calls[3]).prompt)).toContain('后端工程师')
+    expect(insertedMailboxItems[1].context_package).toMatchObject({
+      metadata: {
+        receivedHandoffs: [
+          expect.objectContaining({ fromRoleAgentId: 'agent-orch', toRoleAgentId: 'agent-fe' }),
+        ],
+      },
+    })
+    expect(insertedMailboxItems[3].context_package).toMatchObject({
+      metadata: {
+        receivedHandoffs: [
+          expect.objectContaining({ fromRoleAgentId: 'agent-fe', toRoleAgentId: 'agent-orch' }),
+          expect.objectContaining({ fromRoleAgentId: 'agent-be', toRoleAgentId: 'agent-orch' }),
+        ],
+      },
+    })
     expect(text).toContain('orchestrator_plan_started')
   })
 

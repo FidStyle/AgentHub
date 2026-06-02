@@ -5,8 +5,10 @@ import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
 import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
+import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
+import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import type { RuntimeGatewayEvent, RuntimeMessagePart } from '@agenthub/shared'
-import type { RuntimeType } from '@agenthub/shared'
+import type { CliRuntimeType, RuntimeType } from '@agenthub/shared'
 import type { ContextPackage } from '@agenthub/shared'
 
 type SelectedRoleAgent = {
@@ -34,12 +36,20 @@ type RuntimeAttemptEvidence = {
   mailboxItemId: string | null
 }
 
+type RuntimeDispatchRole = {
+  id: string
+  name: string
+  system_prompt?: string | null
+  runtime_type: CliRuntimeType
+}
+
 async function createRuntimeAttemptEvidence(input: {
   db: Awaited<ReturnType<typeof createClient>>
   workspaceId: string
   sessionId: string
   planId: string | null
   target: ExecutionTarget
+  receivedHandoffs?: RoleHandoffPackage[]
 }) {
   if (!input.planId || !input.target.nodeId || !input.target.role) return null
   const { data: attempt, error: attemptError } = await input.db
@@ -51,7 +61,7 @@ async function createRuntimeAttemptEvidence(input: {
       previous_attempt_id: null,
       runtime_session_id: null,
       mailbox_item_id: null,
-      status: 'running',
+      status: 'queued',
       error: null,
     })
     .select()
@@ -74,6 +84,7 @@ async function createRuntimeAttemptEvidence(input: {
       planNodeId: input.target.nodeId,
       attemptId: attempt.id,
       control: 'initial',
+      receivedHandoffs: input.receivedHandoffs ?? [],
     },
     createdAt: new Date().toISOString(),
   }
@@ -91,7 +102,7 @@ async function createRuntimeAttemptEvidence(input: {
       parent_attempt_id: null,
       lineage_root_id: attempt.id,
       runtime_type: input.target.role.runtime_type,
-      status: 'running',
+      status: 'queued',
       context_package: contextPackage,
       reply_to_mailbox_item_id: null,
       error: null,
@@ -278,6 +289,15 @@ export async function POST(req: NextRequest) {
     if (!role) return undefined
     return role.runtime_type
   }
+  const runtimeDispatchRole = (role: (typeof selectedRoleAgents)[number] | null): RuntimeDispatchRole | null => {
+    if (!role) return null
+    return {
+      id: role.id,
+      name: role.name,
+      system_prompt: role.system_prompt,
+      runtime_type: role.runtime_type,
+    }
+  }
   const primaryRoleAgentId = selectedRoleAgents[0]?.id ?? null
   const roleContextPrompt = selectedRoleAgents.length > 0
     ? [
@@ -402,10 +422,9 @@ export async function POST(req: NextRequest) {
     return parts
   }
 
-  // Both cloud and local_desktop route through the Cloud Runtime Gateway via the adapter.
-  // runtime_sessions / runtime_logs persistence happens inside the gateway. For an offline
-  // local_desktop endpoint the gateway emits local_runtime_offline plus a DEVICE_OFFLINE
-  // runtime_status event so existing P0 client expectations stay compatible.
+  // Direct and local_desktop chats route through the Cloud Runtime Gateway via the adapter.
+  // Orchestrated cloud nodes use the durable mailbox dispatcher so the first run, retry,
+  // resume, and dispatch-ready path share the same runtime job/evidence contract.
   const adapter = new HostedRuntimeAdapter()
   const stream = new ReadableStream({
     async start(controller) {
@@ -487,6 +506,7 @@ export async function POST(req: NextRequest) {
             sessionId,
             planId,
             target,
+            receivedHandoffs,
           })
           if (role && receivedHandoffs.length > 0) {
             controller.enqueue(encode({
@@ -495,16 +515,68 @@ export async function POST(req: NextRequest) {
               handoffs: receivedHandoffs,
             }))
           }
-          for await (const evt of adapter.invoke({
-            userId: user.id,
-            sessionId,
-            executionDomain: ws.execution_domain,
-            workspaceId: ws.id,
-            userMessage,
-            systemPrompt: systemPromptForRole(role, receivedHandoffs),
-            roleAgentId: currentRoleAgentId ?? undefined,
-            runtimeType: runtimeTypeForRole(role),
-          })) {
+          const eventStream = async function* (): AsyncGenerator<RuntimeGatewayEvent> {
+            if (useOrchestratedRun && planId && target.nodeId && evidence?.attemptId && role && ws.execution_domain === 'cloud') {
+              const runtimeEvents: { current?: AsyncGenerator<unknown> } = {}
+              const dispatch = await dispatchPreparedRuntimeInvokeNode(db, {
+                userId: user.id,
+                sessionId,
+                node: {
+                  id: target.nodeId,
+                  plan_id: planId,
+                  label: currentRoleName,
+                  agent_id: currentRoleAgentId,
+                  action_type: 'runtime_invoke',
+                  action_payload: {
+                    phase: target.phase,
+                    userMessage,
+                    handoffs: receivedHandoffs,
+                  },
+                },
+                workspaceId: ws.id,
+                executionDomain: 'cloud',
+                role: runtimeDispatchRole(role),
+                runtimeType: role.runtime_type,
+                attemptId: evidence.attemptId,
+                mailboxItemId: evidence.mailboxItemId,
+                mailboxContextPackage: receivedHandoffs,
+                dispatchRuntimeJob: async (job: RuntimeJob, runtimeSessionId: string) => {
+                  runtimeEvents.current = subscribeEvents(runtimeSessionId, async () => {
+                    const { enqueue } = await import('@/lib/runtime/redis-client')
+                    await enqueue(job)
+                  })
+                },
+              })
+              const subscribedEvents = runtimeEvents.current
+              if (dispatch.status !== 'queued' || !subscribedEvents) {
+                yield { type: 'endpoint_unavailable', reason: dispatch.error ?? 'Runtime 节点未投递。' }
+                yield { type: 'runtime_failed', error: dispatch.error ?? 'Runtime 节点未投递。' }
+                return
+              }
+              yield { type: 'gateway_connected', endpointId: '' }
+              yield { type: 'public_runtime_available', available: true }
+              for await (const raw of subscribedEvents) {
+                yield raw as RuntimeGatewayEvent
+              }
+              return
+            }
+
+            yield* adapter.invoke({
+              userId: user.id,
+              sessionId,
+              executionDomain: ws.execution_domain,
+              workspaceId: ws.id,
+              userMessage,
+              systemPrompt: systemPromptForRole(role, receivedHandoffs),
+              roleAgentId: currentRoleAgentId ?? undefined,
+              runtimeType: runtimeTypeForRole(role),
+              planNodeId: target.nodeId ?? undefined,
+              attemptId: evidence?.attemptId,
+              mailboxItemId: evidence?.mailboxItemId ?? null,
+            })
+          }
+
+          for await (const evt of eventStream()) {
             if (evt.type === 'runtime_output' && evt.delta) reply += evt.delta
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
             if (evt.type === 'runtime_completed') completed = true
@@ -589,12 +661,13 @@ export async function POST(req: NextRequest) {
               break
             }
 
-            const waveResults = await Promise.all(readyWave.map((target) => {
+            const waveResults: boolean[] = []
+            for (const target of readyWave) {
               const downstreamTargets = executionTargets.filter((candidate) => (
                 candidate.nodeId && target.nodeId && candidate.dependsOn.includes(target.nodeId)
               ))
-              return runTarget(target, downstreamTargets)
-            }))
+              waveResults.push(await runTarget(target, downstreamTargets))
+            }
 
             readyWave.forEach((target, index) => {
               if (waveResults[index]) {

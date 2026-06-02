@@ -17,6 +17,9 @@ export class HostedRuntimeAdapter {
     roleAgentId?: string
     runtimeType?: RuntimeType
     cwd?: string | null
+    planNodeId?: string | null
+    attemptId?: string | null
+    mailboxItemId?: string | null
   }): AsyncGenerator<RuntimeGatewayEvent> {
     const runtimeType = input.runtimeType === 'codex' ? 'codex' : 'claude_code'
     const endpoint = await resolveEndpoint({
@@ -48,6 +51,9 @@ export class HostedRuntimeAdapter {
       userMessage: input.userMessage,
       systemPrompt: input.systemPrompt,
       runtimeType,
+      planNodeId: input.planNodeId ?? undefined,
+      attemptId: input.attemptId ?? undefined,
+      mailboxItemId: input.mailboxItemId ?? undefined,
     })) {
       if (shouldPersistGatewayEvent(event)) {
         await persistRuntimeEvent(runtimeSession.id, event, seq++)

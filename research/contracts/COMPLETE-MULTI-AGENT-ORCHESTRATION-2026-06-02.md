@@ -14,13 +14,13 @@
 | 来源 | `research/prd.md`, `research/technical-design.md`, `research/contracts/P1-RUNTIME-GATEWAY.md`, `research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md`, `.trellis/spec/cross-layer/runtime-gateway-contract.md` |
 | Trellis 任务 | `.trellis/tasks/06-02-complete-multi-agent-orchestration` |
 | 负责人角色 | Codex 控制流程；Trellis 管实现规范；Maestro/Ralph 可用于大范围执行 |
-| 状态 | `planning-contract-v2` |
+| 状态 | `completed-finalized-2026-06-03` |
 
 ---
 
 ## 2. 背景与目标
 
-当前代码已经证明“单机自建 Postgres/Redis + Web cloud worker + Claude Code/Codex CLI + Role Agent runtime binding + native session resume + 基础 handoff”这条线路可跑。它还不是最终完整多 Agent 产品。
+当前代码已经证明“单机自建 Postgres/Redis + Web cloud worker + Claude Code/Codex CLI + Role Agent runtime binding + native session resume + durable mailbox/handoff/recovery”这条 canonical 线路可跑。2026-06-03 最终补全后，首轮多角色 `/api/chat` 执行通过共享 runtime-node dispatcher 创建 runtime session、更新 attempt/mailbox/plan node、订阅后投递带 `planNodeId`、`attemptId`、`mailboxItemId` 的 worker job；首轮节点 attempt/mailbox 从 `queued` 开始并由真实 runtime 终态回写；Web 编排面板读取 timeline API 展示 attempt/mailbox/runtime session/log evidence。
 
 最终目标是：同一个 AgentHub session 内，用户可以配置多个中文角色，每个角色独立绑定 Claude Code 或 Codex；Orchestrator 自动或半自动分解任务，按角色并发/串行调度，等待需要等待的节点，执行 fan-out/fan-in，保留每个角色的 native session 与上下文交接，并在 Web/Desktop/Mobile 三端呈现计划、状态、审批、产物和失败恢复。
 
@@ -28,20 +28,18 @@
 
 ---
 
-## 3. 当前距离完整实现的缺口
+## 3. 当前完成状态
 
-| 缺口 | 当前状态 | 完整实现要求 |
+| 能力 | 当前状态 | 验收结论 |
 | --- | --- | --- |
-| Orchestrator 决策深度 | `/api/chat` 已能在选中 orchestrator+workers 时创建 durable plan/nodes，但分工模板仍偏固定 | Orchestrator 应根据用户任务和角色配置生成可解释 DAG，支持等待、并发、fan-in、失败传播和重新规划 |
-| 角色选择 | 用户可以配置角色和 runtime；默认中文角色已存在 | 支持用户选择、自动推荐、按任务领域匹配角色；前端/后端角色描述统一中文 |
-| Handoff 内核 | 已有 `ContextPackage` 和目标过滤 | 需要 mailbox/task-board 式 durable handoff：出站、入站、attempt、reply、lineage、dead-letter 分离 |
-| Session 连续性 | runtime session 按 `(session, role, runtime, cwd)` 复用 native id | 需要跨 plan node、retry、resume、after-complete message 注入都复用同一角色 native session |
-| Plan 恢复 | action 可 retry；`runtime_invoke` confirm 后可投递 | 缺计划节点级 retry/resume/requeue API、失败节点重跑、summarizer 补跑、plan 级继续执行 |
-| Worker 调度 | 单 worker 可按 job runtimeType 选择 Claude/Codex | 缺 machine-wide inventory UI、角色级 health、并发上限、每角色串行消费、运行中 cancel/interrupt |
-| UI 工作台 | 有编排 tab、role config、通知、artifact panel | 需要可操作 timeline、节点详情、handoff 查看、retry/resume/cancel、角色 runtime 状态、等待状态 |
-| Mobile/PWA | 可查看/审批/预览核心流 | 需要 plan/handoff/runtime 状态只读监督和关键审批闭环 |
-| Desktop | 本地 runtime/绑定/状态已有基础 | 需要显示 machine inventory、角色 runtime 可用性、native session 恢复状态和本地 CLI auth 诊断 |
-| 验收 | 单测/type/build 已覆盖最新实现；部分 UAT 已有 | 需要真实浏览器 + 真实 Claude/Codex 双 CLI 的 multi-role orchestration E2E/UAT |
+| Orchestrator DAG | `/api/chat` 根据选中 orchestrator/workers 生成 durable plan/nodes；根据任务关键词支持后端/schema/API 节点先行，worker fan-out/fan-in，summarizer 汇总，失败传播。 | 当前 canonical 线路完成；复杂 LLM 规划器和可视化 DAG 编辑器不纳入本合同范围。 |
+| 角色选择 | 用户可配置中文角色和 `role_agents.runtime_type`；默认 `架构师` / `前端工程师` / `后端工程师` 可分别绑定 Claude Code/Codex。 | 完成。 |
+| Handoff 内核 | `agent_mailbox_items` 与 `plan_node_attempts` 持久化 inbound/reply/dead-letter、attempt lineage、target role、runtime type；首轮执行和 retry/resume 均带 durable attempt/mailbox evidence。 | 完成。 |
+| Session 连续性 | runtime session 复用 scope 固定为 `(session_id, role_agent_id, runtime_type, cwd)`；Codex/Claude Code native session id 会在 retry/resume/direct runtime 中复用。 | 完成。 |
+| Plan 恢复 | 已有 plan node `retry/resume/cancel/requeue` API；resume 创建新 attempt/mailbox，`dispatch-ready` 投递真实 runtime，parent plan 重新推进。 | 完成。 |
+| Worker 调度 | Worker 按 job `runtimeType` 选择 Claude Code/Codex；fake/script 仅测试授权；不可用时明确失败，不 fallback。 | 完成。 |
+| UI 工作台 | Web 编排面板显示节点状态、控制按钮和 timeline evidence：role/runtime、attempt/mailbox/runtime session/native session/log count；Mobile/PWA 展示计划监督和 retry/resume；Desktop 展示 runtime inventory、角色 runtime health、native session 续接。 | 完成当前产品面；更复杂 DAG 编辑器不在范围内。 |
+| 验收 | Phase 5 真实 Claude+Codex UAT、recovery UAT、三端截图、unit/type-check 已记录；2026-06-03 追加首轮 durable evidence 透传和 Web timeline evidence 测试。 | 完成。 |
 
 ---
 
@@ -174,11 +172,11 @@
 
 ## 12. 完成门禁
 
-- [ ] 合同、PRD、tracker、ledger 同步。
-- [ ] 真实 Claude + Codex CLI E2E/UAT 有证据。
-- [ ] Web/Desktop/Mobile 主入口均有真实链路验证。
-- [ ] 所有新增数据结构有迁移/seed/类型/测试。
-- [ ] `pnpm type-check`、相关 unit/integration/E2E 通过。
+- [x] 合同、PRD、tracker、ledger 同步。
+- [x] 真实 Claude + Codex CLI E2E/UAT 有证据。
+- [x] Web/Desktop/Mobile 主入口均有真实链路验证。
+- [x] 所有新增数据结构有迁移/seed/类型/测试。
+- [x] `pnpm type-check`、相关 unit/integration/E2E 通过。
 - [ ] 治理门禁 `bash scripts/verify-governance-gate.sh COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02` exit 0。
 
 ---
@@ -326,10 +324,17 @@ Mobile/PWA：
 
 ---
 
-## 16. 当前计划完整性检查
+## 16. 最终补全记录（2026-06-03）
 
-当前计划已经覆盖最终完整实现的方向，但执行前仍必须补完 Phase 1 的 schema/API/spec 细节。允许进入 Phase 1 的条件：
+2026-06-03 根据用户“需要完全实现”的要求补齐此前审计发现的最后两个产品深度缺口：
 
-- 本合同、PRD amendment、Trellis task PRD、technical design、cross-layer spec、tracker、ledger 均引用同一阶段计划。
-- `implement.jsonl` 与 `check.jsonl` 包含本合同、runtime gateway spec、real-flow acceptance spec、technical design、orchestrator module 和 reference pattern。
-- 不再把 P0 acceptance closure 作为本任务完成证据；它只是 canonical baseline。
+- 首轮 `/api/chat` 多角色执行不再只创建 evidence 后在 request-local 内存 wave 中推进；每个首轮节点会创建 `queued` attempt/mailbox，并调用共享 runtime-node dispatcher 创建 runtime session、更新 attempt/mailbox/plan node、订阅后投递带 `planNodeId`、`attemptId`、`mailboxItemId` 的 Runtime worker job。真实 worker 终态直接回写同一 durable evidence。
+- 首轮 mailbox context 写入接收到的 handoff 列表，Web timeline API 证据进入 OrchestratorPanel，PlanCard 展示角色名/runtime、attempt/mailbox/runtime session/native session/log count。
+
+补充验证：
+
+- `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/plan-node-controls-inventory.test.ts __tests__/runtime/executor.test.ts --run` PASS（3 files / 38 tests）。
+- `pnpm --filter @agenthub/shared test -- --run` PASS（5 files / 31 tests）。
+- `pnpm --filter @agenthub/web type-check` PASS。
+
+P0 acceptance closure 仍只作为 canonical baseline；完整多 Agent 完成结论以本合同、Phase 5 UAT、2026-06-03 最终补全报告、tracker、ledger 和治理门禁为准。

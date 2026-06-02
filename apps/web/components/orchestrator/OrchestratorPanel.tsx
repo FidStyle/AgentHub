@@ -5,10 +5,26 @@ import type { Plan, PlanNode, OrchestratorAction } from '@agenthub/shared'
 import type { PlanNodeControl } from '@agenthub/shared'
 import { StateCard } from '@agenthub/ui'
 import { useSessionStore } from '@/store/session-store'
-import { PlanCard } from './PlanCard'
+import { PlanCard, type PlanNodeEvidence } from './PlanCard'
 import { ActionCard } from './ActionCard'
 
 type PlanWithNodes = Plan & { plan_nodes?: PlanNode[] }
+type TimelineAttempt = { id: string; plan_node_id: string; status?: string; runtime_session_id?: string | null }
+type TimelineMailbox = {
+  id: string
+  plan_node_id: string | null
+  status?: string
+  runtime_type?: string
+  context_package?: { toRoleName?: string; runtimeType?: string } | null
+}
+type TimelineRuntimeSession = { id: string; status?: string; native_session_id?: string | null }
+type TimelineRuntimeLog = { id?: string; runtime_session_id: string }
+type TimelineResponse = {
+  attempts?: TimelineAttempt[]
+  mailbox_items?: TimelineMailbox[]
+  runtime_sessions?: TimelineRuntimeSession[]
+  runtime_logs?: TimelineRuntimeLog[]
+}
 
 async function responseError(label: string, res: Response) {
   const body = await res.json().catch(() => ({}))
@@ -16,10 +32,46 @@ async function responseError(label: string, res: Response) {
   return `${label} 加载失败（${res.status}）：${message}`
 }
 
+function buildEvidence(timeline: TimelineResponse): Record<string, PlanNodeEvidence> {
+  const attempts = timeline.attempts ?? []
+  const mailboxItems = timeline.mailbox_items ?? []
+  const runtimeSessions = timeline.runtime_sessions ?? []
+  const runtimeLogs = timeline.runtime_logs ?? []
+  const runtimeById = new Map(runtimeSessions.map((session) => [session.id, session]))
+  const logsByRuntimeId = new Map<string, number>()
+  for (const log of runtimeLogs) {
+    logsByRuntimeId.set(log.runtime_session_id, (logsByRuntimeId.get(log.runtime_session_id) ?? 0) + 1)
+  }
+  const nodeIds = new Set<string>([
+    ...attempts.map((attempt) => attempt.plan_node_id),
+    ...mailboxItems.map((item) => item.plan_node_id).filter((id): id is string => Boolean(id)),
+  ])
+
+  const result: Record<string, PlanNodeEvidence> = {}
+  for (const nodeId of nodeIds) {
+    const nodeAttempts = attempts.filter((attempt) => attempt.plan_node_id === nodeId)
+    const latestAttempt = nodeAttempts.at(-1)
+    const mailbox = mailboxItems.filter((item) => item.plan_node_id === nodeId).at(-1)
+    const runtimeSession = latestAttempt?.runtime_session_id ? runtimeById.get(latestAttempt.runtime_session_id) : undefined
+    result[nodeId] = {
+      roleName: mailbox?.context_package?.toRoleName,
+      runtimeType: mailbox?.runtime_type ?? mailbox?.context_package?.runtimeType,
+      attemptCount: nodeAttempts.length,
+      latestAttemptStatus: latestAttempt?.status,
+      mailboxStatus: mailbox?.status,
+      runtimeSessionStatus: runtimeSession?.status,
+      nativeSessionId: runtimeSession?.native_session_id,
+      runtimeLogCount: runtimeSession?.id ? logsByRuntimeId.get(runtimeSession.id) ?? 0 : 0,
+    }
+  }
+  return result
+}
+
 export function OrchestratorPanel() {
   const { activeSessionId } = useSessionStore()
   const [plans, setPlans] = useState<PlanWithNodes[]>([])
   const [actions, setActions] = useState<OrchestratorAction[]>([])
+  const [evidenceByPlanId, setEvidenceByPlanId] = useState<Record<string, Record<string, PlanNodeEvidence>>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,8 +85,15 @@ export function OrchestratorPanel() {
       ])
       if (!pRes.ok) throw new Error(await responseError('/api/plans', pRes))
       if (!aRes.ok) throw new Error(await responseError('/api/actions', aRes))
-      setPlans(await pRes.json())
+      const loadedPlans = await pRes.json() as PlanWithNodes[]
+      setPlans(loadedPlans)
       setActions(await aRes.json())
+      const timelineEntries = await Promise.all(loadedPlans.map(async (plan) => {
+        const res = await fetch(`/api/plans/${plan.id}/timeline`)
+        if (!res.ok) return [plan.id, {}] as const
+        return [plan.id, buildEvidence(await res.json() as TimelineResponse)] as const
+      }))
+      setEvidenceByPlanId(Object.fromEntries(timelineEntries))
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载编排数据失败')
     } finally {
@@ -51,6 +110,7 @@ export function OrchestratorPanel() {
     } else {
       setPlans([])
       setActions([])
+      setEvidenceByPlanId({})
       setError(null)
     }
   }, [activeSessionId, load])
@@ -121,7 +181,13 @@ export function OrchestratorPanel() {
       )}
 
       {plans.map((plan) => (
-        <PlanCard key={plan.id} plan={plan} onConfirm={onConfirm} onNodeControl={onNodeControl} />
+        <PlanCard
+          key={plan.id}
+          plan={plan}
+          evidenceByNodeId={evidenceByPlanId[plan.id]}
+          onConfirm={onConfirm}
+          onNodeControl={onNodeControl}
+        />
       ))}
 
       {actions.map((action) => (

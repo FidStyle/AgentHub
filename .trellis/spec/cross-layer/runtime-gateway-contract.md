@@ -754,3 +754,95 @@ if (!status.desktop.connected) {
 // Backend repeats the same gate and returns 409 if the Desktop is not connected.
 await createWorkspace({ name, execution_domain: 'local_desktop' });
 ```
+
+## Scenario: Durable First-Run Multi-Agent Dispatch
+
+### 1. Scope / Trigger
+
+- Trigger: `/api/chat`, `/api/mailbox/dispatch-ready`, retry/resume controls, or runtime worker changes claim to run complete multi-agent orchestration.
+- Applies to first-run planner/worker/summarizer nodes, `plan_nodes`, `plan_node_attempts`, `agent_mailbox_items`, `runtime_sessions`, Redis runtime jobs, and SSE event streaming.
+- This is part of `COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02`; first-run execution must not use a request-local direct runtime path as the product truth.
+
+### 2. Signatures
+
+Runtime jobs for plan-node execution must carry durable evidence ids:
+
+```typescript
+interface RuntimeJob {
+  runtimeSessionId: string;
+  runtimeType?: 'claude_code' | 'codex';
+  prompt: string;
+  systemPrompt?: string;
+  planNodeId?: string;
+  attemptId?: string;
+  mailboxItemId?: string | null;
+}
+```
+
+Before enqueue:
+
+- `plan_node_attempts.status = 'queued'`
+- `agent_mailbox_items.status = 'queued'`
+- `agent_mailbox_items.context_package.metadata.receivedHandoffs` contains the durable inbound handoff package for downstream nodes.
+
+After shared dispatch accepts the job:
+
+- `plan_node_attempts.status = 'running'`
+- `agent_mailbox_items.status = 'running'`
+- `plan_nodes.status = 'running'`
+- `plan_nodes.result.dispatch = 'queued'`
+- `plan_nodes.result.runtimeSessionId` points to the created `runtime_sessions.id`.
+
+### 3. Contracts
+
+- `/api/chat` first-run orchestrated cloud nodes must call the same runtime-node dispatch function used by mailbox ready dispatch. It may subscribe to runtime events for the current SSE response, but endpoint gating, `runtime_sessions` creation, attempt/mailbox status updates, and Redis enqueue must live behind the shared dispatcher.
+- `/api/chat` must create queued attempt/mailbox evidence before dispatching a first-run node. It must pass `planNodeId`, `attemptId`, and `mailboxItemId` into the runtime job.
+- `dispatch-ready`, retry, resume, and first-run dispatch must share the same job/evidence semantics. A test that only proves `HostedRuntimeAdapter.invoke()` was called is not sufficient for multi-agent completion.
+- First-run ready waves may run sequentially. Do not use request-local `Promise.all` as the durable scheduling truth; durable mailbox state and worker terminal updates are the truth.
+- Runtime worker owns terminal evidence updates when it consumes a queued job. The request path may mirror terminal state for current SSE persistence, but it must not be the only place where the attempt/mailbox/job ids exist.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Public cloud endpoint missing | Shared dispatcher marks attempt/mailbox `dead_letter`; node becomes failed; no fake agent message |
+| Worker not alive or `REDIS_URL` missing | Shared dispatcher marks attempt/mailbox `dead_letter`; no enqueue |
+| First-run node lacks attempt/mailbox id | Treat as implementation bug; do not claim complete multi-agent acceptance |
+| Downstream node has handoffs | Handoffs are present in mailbox context and runtime prompt input |
+| Worker emits terminal event | Worker settles linked attempt/mailbox/node via `planNodeId`/`attemptId`/`mailboxItemId` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `/api/chat` creates a plan, queued attempt, queued mailbox item, calls the shared dispatcher, creates a runtime session, enqueues a job with all durable ids, streams subscribed worker events, and the worker terminal update can settle the same rows.
+- Base: Worker unavailable; the dispatcher dead-letters the queued evidence and the UI shows an unavailable runtime state.
+- Bad: `/api/chat` creates mailbox rows for timeline display but still calls `HostedRuntimeAdapter.invoke()` as the only runtime execution path for planner/worker/summarizer nodes.
+
+### 6. Tests Required
+
+- API test: first-run multi-role `/api/chat` inserts queued attempt/mailbox rows and enqueues one runtime job per planner/worker/summarizer node with `planNodeId`, `attemptId`, and `mailboxItemId`.
+- API test: first-run multi-role `/api/chat` does not call the direct hosted adapter for orchestrated cloud nodes.
+- Mailbox test: `/api/mailbox/dispatch-ready` dispatches existing queued mailbox rows without creating duplicate attempts.
+- Worker test: terminal success/failure updates linked attempt/mailbox/node rows and advances the parent plan.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+const evidence = await createRuntimeAttemptEvidence(...);
+for await (const event of adapter.invoke({ planNodeId, attemptId: evidence.attemptId })) {
+  yield event;
+}
+```
+
+#### Correct
+
+```typescript
+const evidence = await createRuntimeAttemptEvidence(...);
+const result = await dispatchPreparedRuntimeInvokeNode(db, {
+  node,
+  attemptId: evidence.attemptId,
+  mailboxItemId: evidence.mailboxItemId,
+  dispatchRuntimeJob: subscribeThenEnqueue,
+});
+```

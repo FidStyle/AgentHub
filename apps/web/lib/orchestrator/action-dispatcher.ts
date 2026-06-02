@@ -3,7 +3,7 @@ import type { CliRuntimeType } from '@agenthub/shared'
 import type { AgentMailboxItem } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { createSession, resolveEndpoint } from '@/lib/runtime/gateway'
-import { enqueue, isWorkerAlive } from '@/lib/runtime/redis-client'
+import { enqueue, isWorkerAlive, type RuntimeJob } from '@/lib/runtime/redis-client'
 
 type AppDb = Awaited<ReturnType<typeof createClient>>
 
@@ -228,7 +228,7 @@ function payloadString(payload: Record<string, unknown>, key: string) {
   return typeof value === 'string' ? value : undefined
 }
 
-async function dispatchPreparedRuntimeInvokeNode(
+export async function dispatchPreparedRuntimeInvokeNode(
   db: AppDb,
   input: {
     userId: string
@@ -241,6 +241,7 @@ async function dispatchPreparedRuntimeInvokeNode(
     attemptId: string
     mailboxItemId: string | null
     mailboxContextPackage?: unknown
+    dispatchRuntimeJob?: (job: RuntimeJob, runtimeSessionId: string) => Promise<void>
   },
 ): Promise<ActionDispatchResult> {
   const payload = input.node.action_payload ?? {}
@@ -276,7 +277,7 @@ async function dispatchPreparedRuntimeInvokeNode(
     result: { dispatch: 'queued', runtimeSessionId: runtimeSession.id, runtimeType: input.runtimeType, attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, at: now },
   }).eq('id', input.node.id)
 
-  await enqueue({
+  const job: RuntimeJob = {
     runtimeSessionId: runtimeSession.id,
     endpointId: endpoint.id ?? undefined,
     runtimeType: input.runtimeType,
@@ -292,7 +293,12 @@ async function dispatchPreparedRuntimeInvokeNode(
     planNodeId: input.node.id,
     attemptId: input.attemptId,
     mailboxItemId: input.mailboxItemId,
-  })
+  }
+  if (input.dispatchRuntimeJob) {
+    await input.dispatchRuntimeJob(job, runtimeSession.id)
+  } else {
+    await enqueue(job)
+  }
   return { status: 'queued', runtimeSessionId: runtimeSession.id }
 }
 
