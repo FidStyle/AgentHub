@@ -22,6 +22,7 @@ These guides help you **ask the right questions before coding**.
 | Guide | Purpose | When to Use |
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
+| [Codex Session Transcript Tracking Guide](./codex-session-transcript-tracking.md) | Export Codex session transcripts with context for audit, recovery, and handoff | When a session id is available or long-running context needs recovery |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
 | [End-to-End Contract Planning Guide](./end-to-end-contract-planning.md) | Prevent fake product closure in plans and acceptance criteria | Before planning/reviewing auth, workspace, DB, runtime, E2E, or three-surface flows |
 | [Maestro Command Routing Guide](./maestro-command-routing.md) | Route between `/maestro-ralph`, pipeline commands, and generated command reference | When guiding Maestro/Ralph or choosing a Maestro command |
@@ -76,6 +77,15 @@ These guides help you **ask the right questions before coding**.
 - [ ] You're unsure whether to use `/maestro-ralph`, `/maestro-ralph-execute`, `/maestro-execute`, or `/maestro-verify`
 
 → Read [Maestro Command Routing Guide](./maestro-command-routing.md)
+
+### When to Track a Codex Session
+
+- [ ] 用户提供了 Codex session id
+- [ ] 长会话压缩后需要恢复决策和约束
+- [ ] 总控需要把对话上下文交给其他 lane 或写入报告
+- [ ] 需要审计某轮 prompt、权限、验收或分工结论
+
+→ Read [Codex Session Transcript Tracking Guide](./codex-session-transcript-tracking.md)
 
 ---
 
