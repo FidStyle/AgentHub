@@ -37,7 +37,13 @@ export function createRuntimeOutputAccumulator(initialContent = '') {
         return content
       }
 
-      content = appendRuntimeDelta(content, event.delta ?? '')
+      const delta = event.delta ?? ''
+      if (event.mode === 'append' || typeof event.seq === 'number') {
+        content += delta
+        return content
+      }
+
+      content = appendRuntimeDelta(content, delta)
       return content
     },
     value() {

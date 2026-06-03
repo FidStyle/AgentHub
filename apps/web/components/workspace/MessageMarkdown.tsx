@@ -2,41 +2,10 @@
 
 import React, { useMemo } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { Streamdown, type StreamdownTranslations } from 'streamdown'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { IconButton } from '@agenthub/ui'
 import { normalizeMessageMarkdown } from '@/lib/chat/markdown'
-
-const STREAMDOWN_TRANSLATIONS: Partial<StreamdownTranslations> = {
-  close: '关闭',
-  copied: '已复制',
-  copyCode: '复制代码',
-  copyLink: '复制链接',
-  copyTable: '复制表格',
-  copyTableAsCsv: '复制为 CSV',
-  copyTableAsMarkdown: '复制为 Markdown',
-  copyTableAsTsv: '复制为 TSV',
-  downloadDiagram: '下载图表',
-  downloadDiagramAsMmd: '下载为 Mermaid',
-  downloadDiagramAsPng: '下载为 PNG',
-  downloadDiagramAsSvg: '下载为 SVG',
-  downloadFile: '下载文件',
-  downloadImage: '下载图片',
-  downloadTable: '下载表格',
-  downloadTableAsCsv: '下载为 CSV',
-  downloadTableAsMarkdown: '下载为 Markdown',
-  exitFullscreen: '退出全屏',
-  externalLinkWarning: '即将打开外部链接',
-  imageNotAvailable: '图片不可用',
-  mermaidFormatMmd: 'Mermaid',
-  mermaidFormatPng: 'PNG',
-  mermaidFormatSvg: 'SVG',
-  openExternalLink: '打开外部链接',
-  openLink: '打开链接',
-  tableFormatCsv: 'CSV',
-  tableFormatMarkdown: 'Markdown',
-  tableFormatTsv: 'TSV',
-  viewFullscreen: '查看全屏',
-}
 
 function CopyButton({ text, label, className }: { text: string; label: string; className?: string }) {
   const [copied, setCopied] = React.useState(false)
@@ -75,9 +44,76 @@ function CopyButton({ text, label, className }: { text: string; label: string; c
   )
 }
 
+function textFromChildren(children: React.ReactNode): string {
+  let text = ''
+  React.Children.forEach(children, (child) => {
+    if (typeof child === 'string' || typeof child === 'number') {
+      text += child
+      return
+    }
+    if (React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      text += textFromChildren(child.props.children)
+    }
+  })
+  return text
+}
+
+function MarkdownCode({
+  children,
+  className,
+  ...rest
+}: React.ComponentProps<'code'> & { node?: unknown }) {
+  const { node: _node, ...codeProps } = rest
+
+  return (
+    <code {...codeProps} className={className}>
+      {children}
+    </code>
+  )
+}
+
+function MarkdownPre({
+  children,
+  ...rest
+}: React.ComponentProps<'pre'> & { node?: unknown }) {
+  const { node: _node, ...preProps } = rest
+  const child = React.Children.toArray(children).find(React.isValidElement)
+
+  if (!React.isValidElement<{ children?: React.ReactNode; className?: string }>(child)) {
+    return <pre {...preProps}>{children}</pre>
+  }
+
+  const className = child.props.className
+  const code = textFromChildren(child.props.children).replace(/\n$/, '')
+  const language = /language-([\w-]+)/.exec(className ?? '')?.[1] ?? ''
+
+  return (
+    <div data-streamdown="code-block" className="group/code-block">
+      <div data-streamdown="code-block-header">
+        <span data-language={language || 'text'}>{language || 'text'}</span>
+        <CopyButton
+          text={code}
+          label="复制代码"
+          className="opacity-100 shadow-none md:opacity-0 md:group-hover/code-block:opacity-100"
+        />
+      </div>
+      <pre {...preProps} data-streamdown="code-block-body">
+        <code className={className}>{code}</code>
+      </pre>
+    </div>
+  )
+}
+
 export function MessageMarkdown({ content, streaming = false }: { content: string; streaming?: boolean }) {
   const normalizedContent = useMemo(() => normalizeMessageMarkdown(content), [content])
   const components = useMemo(() => ({
+    code: MarkdownCode,
+    pre: MarkdownPre,
+    a: ({ children, href, node: _node, ...rest }: React.ComponentProps<'a'> & { node?: unknown }) => (
+      <a href={href} target={href?.startsWith('#') ? undefined : '_blank'} rel={href?.startsWith('#') ? undefined : 'noreferrer'} {...rest}>
+        {children}
+      </a>
+    ),
     img: ({ alt, src, title }: React.ComponentProps<'img'>) => (
       <img
         alt={alt ?? ''}
@@ -85,6 +121,11 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
         title={title}
         className="my-2 max-h-80 max-w-full rounded-md border border-border object-contain"
       />
+    ),
+    table: ({ children, node: _node, ...rest }: React.ComponentProps<'table'> & { node?: unknown }) => (
+      <div data-streamdown="table-wrapper">
+        <table {...rest}>{children}</table>
+      </div>
     ),
   }), [])
 
@@ -97,22 +138,13 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
         label="复制整条消息"
         className="absolute right-0 top-0 z-10 opacity-0 shadow-sm transition-opacity group-hover/message-markdown:opacity-100 focus:opacity-100"
       />
-      <Streamdown
-        mode={streaming ? 'streaming' : 'static'}
-        isAnimating={streaming}
-        animated={streaming ? { animation: 'fadeIn', duration: 120, sep: 'word', stagger: 8 } : false}
-        caret={streaming ? 'block' : undefined}
-        controls={{ code: { copy: true, download: false }, table: { copy: true, download: true, fullscreen: false }, mermaid: false }}
-        dir="auto"
-        parseIncompleteMarkdown
-        normalizeHtmlIndentation
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={components}
-        lineNumbers={false}
-        translations={STREAMDOWN_TRANSLATIONS}
-        className="agenthub-markdown max-w-none break-words text-[15px] leading-[23px] text-foreground"
+        className={`agenthub-markdown max-w-none break-words text-[15px] leading-[23px] text-foreground ${streaming ? 'after:ml-1 after:inline-block after:h-4 after:w-2 after:animate-pulse after:bg-current after:align-text-bottom after:content-[""]' : ''}`}
       >
         {normalizedContent}
-      </Streamdown>
+      </ReactMarkdown>
     </div>
   )
 }

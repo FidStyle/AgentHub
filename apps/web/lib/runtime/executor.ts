@@ -115,60 +115,140 @@ export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessi
   return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', prompt]
 }
 
-function splitOutput(text: string) {
-  return text.match(/.{1,12}/gu) ?? [text]
-}
-
 function nativeSessionIdFromRecord(record: Record<string, unknown>) {
   const sessionId = record.session_id ?? record.sessionId ?? record.thread_id ?? record.threadId ?? record.conversation_id ?? record.conversationId
   return typeof sessionId === 'string' && sessionId ? sessionId : null
 }
 
-export function outputChunks(runtimeType: CliRuntimeType, line: string): ExecutorChunk[] {
-  if (runtimeType !== 'codex') {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : null
+}
+
+function textFromClaudeDelta(record: Record<string, unknown>) {
+  const nestedEvent = asRecord(record.event)
+  const nestedDelta = asRecord(nestedEvent?.delta)
+  const directDelta = asRecord(record.delta)
+  if (typeof record.delta === 'string') return record.delta
+  if (nestedEvent?.type === 'content_block_delta' && typeof nestedDelta?.text === 'string') return nestedDelta.text
+  if (record.type === 'content_block_delta' && typeof directDelta?.text === 'string') return directDelta.text
+  return null
+}
+
+function textFromClaudeFinal(record: Record<string, unknown>) {
+  return typeof record.result === 'string' ? record.result : null
+}
+
+function textFromCodexDelta(record: Record<string, unknown>) {
+  const params = asRecord(record.params)
+  const item = asRecord(record.item) ?? asRecord(params?.item)
+  if (
+    (record.type === 'item.delta' || record.type === 'item.agent_message.delta' || record.method === 'item/agentMessage/delta') &&
+    typeof (params?.delta ?? record.delta) === 'string'
+  ) {
+    return String(params?.delta ?? record.delta)
+  }
+  if (
+    record.type === 'event_msg' &&
+    asRecord(record.payload)?.type === 'agent_message_delta' &&
+    typeof asRecord(record.payload)?.delta === 'string'
+  ) {
+    return String(asRecord(record.payload)?.delta)
+  }
+  if (item?.type === 'agent_message' && typeof record.delta === 'string') return record.delta
+  return null
+}
+
+function textFromCodexFinal(record: Record<string, unknown>) {
+  const payload = asRecord(record.payload)
+  if (record.type === 'event_msg' && payload?.type === 'agent_message') {
+    return payload.phase === 'final_answer' && typeof payload.message === 'string' ? payload.message : null
+  }
+  if (record.type === 'event_msg' && payload?.type === 'task_complete') {
+    return typeof payload.last_agent_message === 'string' ? payload.last_agent_message : null
+  }
+
+  const params = asRecord(record.params)
+  const item = asRecord(record.item) ?? asRecord(params?.item)
+  if (record.type !== 'item.completed' && record.method !== 'item/completed') return null
+  if (item?.type !== 'agent_message') return null
+  const phase = item.phase ?? item.role ?? item.channel
+  if (phase && phase !== 'final_answer' && phase !== 'assistant') return null
+  return typeof item.text === 'string' ? item.text : typeof item.message === 'string' ? item.message : null
+}
+
+export class CliOutputParser {
+  private sawDelta = false
+
+  constructor(private readonly runtimeType: CliRuntimeType) {}
+
+  parseLine(line: string): ExecutorChunk[] {
+    if (this.runtimeType !== 'codex') {
+      return this.parseClaudeLine(line)
+    }
+    return this.parseCodexLine(line)
+  }
+
+  private parseClaudeLine(line: string): ExecutorChunk[] {
     try {
       const record = JSON.parse(line) as Record<string, unknown>
       const nativeSessionId = nativeSessionIdFromRecord(record)
-      const result = typeof record.result === 'string' ? record.result : null
-      const nestedEvent = record.event && typeof record.event === 'object'
-        ? record.event as Record<string, unknown>
-        : null
-      const nestedDelta = nestedEvent?.delta && typeof nestedEvent.delta === 'object'
-        ? nestedEvent.delta as Record<string, unknown>
-        : null
-      const delta = typeof record.delta === 'string'
-        ? record.delta
-        : typeof nestedDelta?.text === 'string'
-          ? nestedDelta.text
-        : record.type === 'content_block_delta' &&
-          record.delta &&
-          typeof record.delta === 'object' &&
-          'text' in record.delta &&
-          typeof (record.delta as { text?: unknown }).text === 'string'
-            ? (record.delta as { text: string }).text
-            : null
+      const delta = textFromClaudeDelta(record)
+      if (delta) {
+        this.sawDelta = true
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          { delta },
+        ]
+      }
+      const finalText = textFromClaudeFinal(record)
+      if (finalText && !this.sawDelta) {
+        this.sawDelta = true
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          { delta: finalText },
+        ]
+      }
       return [
         ...(nativeSessionId ? [{ nativeSessionId }] : []),
-        ...(delta ? [{ delta }] : result ? splitOutput(result).map((part) => ({ delta: part })) : []),
       ]
     } catch {
       return [{ delta: line + '\n' }]
     }
   }
-  try {
-    const evt = JSON.parse(line) as { type?: string; item?: { type?: string; text?: string; session_id?: string; sessionId?: string } } & Record<string, unknown>
-    const nativeSessionId = nativeSessionIdFromRecord(evt)
-      ?? (evt.item && typeof evt.item === 'object' ? nativeSessionIdFromRecord(evt.item as unknown as Record<string, unknown>) : null)
-    if (evt.type === 'item.completed' && evt.item?.type === 'agent_message' && evt.item.text) {
+
+  private parseCodexLine(line: string): ExecutorChunk[] {
+    try {
+      const record = JSON.parse(line) as Record<string, unknown>
+      const item = asRecord(record.item) ?? asRecord(asRecord(record.params)?.item)
+      const nativeSessionId = nativeSessionIdFromRecord(record)
+        ?? (item ? nativeSessionIdFromRecord(item) : null)
+      const delta = textFromCodexDelta(record)
+      if (delta) {
+        this.sawDelta = true
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          { delta },
+        ]
+      }
+      const finalText = textFromCodexFinal(record)
+      if (finalText && !this.sawDelta) {
+        this.sawDelta = true
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          { delta: finalText },
+        ]
+      }
       return [
         ...(nativeSessionId ? [{ nativeSessionId }] : []),
-        ...splitOutput(evt.item.text).map((delta) => ({ delta })),
       ]
+    } catch {
+      return line.trim() ? [{ delta: `${line}\n` }] : []
     }
-    return nativeSessionId ? [{ nativeSessionId }] : []
-  } catch {
-    return line.trim() ? [{ delta: `${line}\n` }] : []
   }
+}
+
+export function outputChunks(runtimeType: CliRuntimeType, line: string): ExecutorChunk[] {
+  return new CliOutputParser(runtimeType).parseLine(line)
 }
 
 // CliRuntimeExecutor: spawns the real claude/codex CLI and streams stdout lines as chunks.
@@ -200,9 +280,10 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
       wake()
     })
 
+    const outputParser = new CliOutputParser(this.options.runtimeType)
     const rl = createInterface({ input: child.stdout })
     rl.on('line', (line) => {
-      queue.push(...outputChunks(this.options.runtimeType, line))
+      queue.push(...outputParser.parseLine(line))
       wake()
     })
 

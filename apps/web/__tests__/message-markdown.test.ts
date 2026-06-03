@@ -7,88 +7,16 @@ import { MessageContent } from '@/components/workspace/MessageContent'
 import { MessageMarkdown } from '@/components/workspace/MessageMarkdown'
 
 describe('normalizeMessageMarkdown', () => {
-  it('restores block breaks before unordered list markers when model text is flattened', () => {
-    const input = '三个文件内容已经准备好： - counter-app/package.json — 仅 express - counter-app/server.js — SQLite 持久化 - counter-app/public/index.html — 前端页面'
+  it('only normalizes CRLF line endings and does not repair Markdown structure', () => {
+    const input = '标题\r\n\r\n```markdown\r\n# 一级标题\r\n```\r\n'
 
-    expect(normalizeMessageMarkdown(input)).toBe([
-      '三个文件内容已经准备好：',
-      '- counter-app/package.json — 仅 express',
-      '- counter-app/server.js — SQLite 持久化',
-      '- counter-app/public/index.html — 前端页面',
-    ].join('\n'))
+    expect(normalizeMessageMarkdown(input)).toBe('标题\n\n```markdown\n# 一级标题\n```\n')
   })
 
-  it('restores block breaks before ordered list markers', () => {
-    const input = '等你授权的三个动作： 1. pnpm add better-sqlite3 2. pnpm add -D @types/better-sqlite3 3. 写 API 路由'
-
-    expect(normalizeMessageMarkdown(input)).toBe([
-      '等你授权的三个动作：',
-      '1. pnpm add better-sqlite3',
-      '2. pnpm add -D @types/better-sqlite3',
-      '3. 写 API 路由',
-    ].join('\n'))
-  })
-
-  it('does not treat plus signs in prose as list markers', () => {
-    const input = '本项目用的是 PostgreSQL(pg + drizzle-orm)，前端页面是两个输入框 + 加减按钮。'
+  it('does not rewrite flattened or malformed Markdown text heuristically', () => {
+    const input = '说明：- 列表项```typescriptconst value = 1```| A | B || --- | --- |'
 
     expect(normalizeMessageMarkdown(input)).toBe(input)
-  })
-
-  it('does not rewrite fenced code blocks', () => {
-    const input = ['说明： - 应渲染为列表', '```', 'const text = "说明： - 不改代码块"', '```'].join('\n')
-
-    expect(normalizeMessageMarkdown(input)).toBe(['说明：', '- 应渲染为列表', '```', 'const text = "说明： - 不改代码块"', '```'].join('\n'))
-  })
-
-  it('restores adjacent list markers when streaming removed the spaces before markers', () => {
-    const input = '有什么我可以帮你的？比如：- 继续推进某个功能开发或修复- 排查问题、做代码审查- 梳理某块逻辑或架构'
-
-    expect(normalizeMessageMarkdown(input)).toBe([
-      '有什么我可以帮你的？',
-      '',
-      '比如：',
-      '- 继续推进某个功能开发或修复',
-      '- 排查问题、做代码审查',
-      '- 梳理某块逻辑或架构',
-    ].join('\n'))
-  })
-
-  it('restores tables, task lists, math fences, and compact code fence language lines', () => {
-    const input = [
-      '代码块：```typescriptfunction greet(name: string): string { return `Hello, ${name}`}```',
-      '[这是链接](https://example.com)| 表头 1 | 表头 2 || ------ | ------ || 单元格 | 单元格 |- [x] 已完成任务- [ ] 未完成任务---行内公式 $E = mc^2$，块级公式：$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$',
-    ].join('')
-
-    const normalized = normalizeMessageMarkdown(input)
-
-    expect(normalized).toContain('```typescript\nfunction greet')
-    expect(normalized).toContain('\n| 表头 1 | 表头 2 |')
-    expect(normalized).toContain('\n| ------ | ------ |')
-    expect(normalized).toContain('\n| 单元格 | 单元格 |')
-    expect(normalized).toContain('\n- [x] 已完成任务')
-    expect(normalized).toContain('\n- [ ] 未完成任务')
-    expect(normalized).toContain('$$\n\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}\n$$')
-  })
-
-  it('restores a flattened markdown demo into block-level markdown before rendering', () => {
-    const input = '下面是常见的 Markdown 主要格式示例：# 一级标题## 二级标题### 三级标题**粗体文本** 和 *斜体文本* 以及 ~~删除线~~> 这是引用块> 可以多行- 无序列表项 1- 无序列表项 2  - 嵌套子项1. 有序列表项 12. 有序列表项 2行内代码：`const x = 1`代码块：```typescriptfunction greet(name: string): string { return `Hello, ${name}`}```[这是链接](https://example.com)| 表头 1 | 表头 2 || ------ | ------ || 单元格 | 单元格 |- [x] 已完成任务- [ ] 未完成任务---行内公式 $E = mc^2$，块级公式：$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$'
-
-    const normalized = normalizeMessageMarkdown(input)
-    const html = renderToStaticMarkup(createElement(MessageMarkdown, { content: input }))
-
-    expect(normalized).toContain('\n# 一级标题')
-    expect(normalized).toContain('\n## 二级标题')
-    expect(normalized).toContain('\n### 三级标题')
-    expect(normalized).toContain('\n> 这是引用块')
-    expect(normalized).toContain('\n> 可以多行')
-    expect(normalized).toContain('\n- 无序列表项 1')
-    expect(normalized).toContain('\n1. 有序列表项 1')
-    expect(normalized).toContain('```typescript\nfunction greet')
-    expect(html).toContain('<h1')
-    expect(html).toContain('<blockquote')
-    expect(html).toContain('<table')
-    expect(html).toContain('<code')
   })
 
   it('preserves fenced markdown examples and nested code fences', () => {
@@ -123,12 +51,69 @@ describe('normalizeMessageMarkdown', () => {
     expect(html).toContain('```python')
     expect(html).toContain('print(&quot;Hello&quot;)')
   })
+
+  it('keeps line breaks inside fenced markdown example code blocks', () => {
+    const input = [
+      '下面是 Markdown 的几种主要格式示例：',
+      '## 标题',
+      '',
+      '```markdown',
+      '# 一级标题',
+      '## 二级标题',
+      '### 三级标题',
+      '```',
+      '',
+      '## 表格',
+      '',
+      '```markdown',
+      '| 列1 | 列2 |',
+      '|------|---|',
+      '| 单元格 | 单元格 |',
+      '```',
+    ].join('\n')
+
+    const html = renderToStaticMarkup(createElement(MessageMarkdown, { content: input }))
+
+    expect(html).toContain('data-streamdown="code-block"')
+    expect(html).toContain('data-language="markdown"')
+    expect(html).toContain('# 一级标题\n## 二级标题\n### 三级标题')
+    expect(html).toContain('| 列1 | 列2 |\n|------|---|\n| 单元格 | 单元格 |')
+    expect(html).not.toContain('# 一级标题## 二级标题')
+    expect(html).not.toContain('| 列1 | 列2 ||------|---|')
+    expect(html).not.toContain('<pre><div')
+    expect(html).not.toContain('<pre data-streamdown="code-block-body"><div')
+  })
+
+  it('renders fenced code blocks without nesting block wrappers inside react-markdown pre nodes', () => {
+    const input = ['```markdown', '# 一级标题', '## 二级标题', '```'].join('\n')
+    const html = renderToStaticMarkup(createElement(MessageMarkdown, { content: input }))
+
+    expect(html).toContain('<div data-streamdown="code-block"')
+    expect(html).toContain('<pre data-streamdown="code-block-body"><code class="language-markdown"># 一级标题\n## 二级标题</code></pre>')
+    expect(html).not.toContain('<pre><div')
+    expect(html).not.toContain('markdown# 一级标题')
+  })
+
+  it('does not leak react-markdown node props into DOM elements', () => {
+    const input = [
+      '[链接](https://example.com)',
+      '',
+      '| 列1 | 列2 |',
+      '| --- | --- |',
+      '| A | B |',
+    ].join('\n')
+    const html = renderToStaticMarkup(createElement(MessageMarkdown, { content: input }))
+
+    expect(html).toContain('<a href="https://example.com"')
+    expect(html).toContain('<table>')
+    expect(html).not.toContain('node="[object Object]"')
+  })
 })
 
 describe('MessageMarkdown', () => {
-  it('renders normalized flattened lists through Streamdown', () => {
+  it('renders valid Markdown lists through ReactMarkdown', () => {
     const html = renderToStaticMarkup(createElement(MessageMarkdown, {
-      content: '三个文件内容已经准备好：- `package.json`- `server.js`- `public/index.html`',
+      content: ['三个文件内容已经准备好：', '', '- `package.json`', '- `server.js`', '- `public/index.html`'].join('\n'),
     }))
 
     expect(html).toContain('data-testid="message-markdown"')

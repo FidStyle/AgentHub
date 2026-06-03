@@ -38,7 +38,7 @@ vi.mock('../../lib/app-db-client', () => ({
   }),
 }))
 
-import { CliRuntimeExecutor, ExecutorUnavailableError, FakeExecutor, ScriptedRealExecutor, cliArgs, outputChunks, type RuntimeExecutor } from '../../lib/runtime/executor'
+import { CliOutputParser, CliRuntimeExecutor, ExecutorUnavailableError, FakeExecutor, ScriptedRealExecutor, cliArgs, outputChunks, type RuntimeExecutor } from '../../lib/runtime/executor'
 import { processJob, createExecutor } from '../../server/runtime-worker'
 import type { RuntimeJob } from '../../lib/runtime/redis-client'
 
@@ -118,6 +118,105 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       session_id: 'claude-native-001',
       result: '完成',
     }))).toEqual([{ nativeSessionId: 'claude-native-001' }, { delta: '完成' }])
+  })
+
+  it('does not append Claude final result after streamed text deltas', () => {
+    const parser = new CliOutputParser('claude_code')
+    const lines = [
+      { type: 'system', session_id: 'claude-native-001' },
+      { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '下面是 Markdown ' } } },
+      { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '的主要格式示例：\n\n' } } },
+      { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '## 标题\n' } } },
+      { type: 'result', session_id: 'claude-native-001', result: '下面是 Markdown 的主要格式示例：\n\n## 标题\n' },
+    ]
+
+    const chunks = lines.flatMap((line) => parser.parseLine(JSON.stringify(line)))
+    const text = chunks.map((chunk) => chunk.delta ?? '').join('')
+
+    expect(chunks).toEqual([
+      { nativeSessionId: 'claude-native-001' },
+      { delta: '下面是 Markdown ' },
+      { delta: '的主要格式示例：\n\n' },
+      { delta: '## 标题\n' },
+      { nativeSessionId: 'claude-native-001' },
+    ])
+    expect(text).toBe('下面是 Markdown 的主要格式示例：\n\n## 标题\n')
+    expect(text.match(/下面是 Markdown/g)).toHaveLength(1)
+  })
+
+  it('uses Claude final result as fallback only when no delta was streamed', () => {
+    const parser = new CliOutputParser('claude_code')
+
+    const chunks = parser.parseLine(JSON.stringify({
+      type: 'result',
+      session_id: 'claude-native-001',
+      result: '最终回答',
+    }))
+
+    expect(chunks).toEqual([{ nativeSessionId: 'claude-native-001' }, { delta: '最终回答' }])
+  })
+
+  it('does not append Codex completed agent message after streamed deltas', () => {
+    const parser = new CliOutputParser('codex')
+    const lines = [
+      { type: 'thread.started', thread_id: 'codex-native-001' },
+      { method: 'item/agentMessage/delta', params: { itemId: 'msg-001', delta: '下面是 Markdown ' } },
+      { method: 'item/agentMessage/delta', params: { itemId: 'msg-001', delta: '的主要格式示例：\n\n' } },
+      { method: 'item/agentMessage/delta', params: { itemId: 'msg-001', delta: '## 标题\n' } },
+      {
+        method: 'item/completed',
+        params: {
+          item: {
+            id: 'msg-001',
+            type: 'agent_message',
+            phase: 'final_answer',
+            text: '下面是 Markdown 的主要格式示例：\n\n## 标题\n',
+          },
+        },
+      },
+    ]
+
+    const chunks = lines.flatMap((line) => parser.parseLine(JSON.stringify(line)))
+    const text = chunks.map((chunk) => chunk.delta ?? '').join('')
+
+    expect(chunks).toEqual([
+      { nativeSessionId: 'codex-native-001' },
+      { delta: '下面是 Markdown ' },
+      { delta: '的主要格式示例：\n\n' },
+      { delta: '## 标题\n' },
+    ])
+    expect(text).toBe('下面是 Markdown 的主要格式示例：\n\n## 标题\n')
+    expect(text.match(/下面是 Markdown/g)).toHaveLength(1)
+  })
+
+  it('uses Codex final answer as fallback only when no delta was streamed', () => {
+    const parser = new CliOutputParser('codex')
+
+    const chunks = parser.parseLine(JSON.stringify({
+      type: 'event_msg',
+      payload: {
+        type: 'agent_message',
+        phase: 'final_answer',
+        message: '最终回答',
+      },
+    }))
+
+    expect(chunks).toEqual([{ delta: '最终回答' }])
+  })
+
+  it('ignores Codex commentary agent messages as visible final output', () => {
+    const parser = new CliOutputParser('codex')
+
+    const chunks = parser.parseLine(JSON.stringify({
+      type: 'event_msg',
+      payload: {
+        type: 'agent_message',
+        phase: 'commentary',
+        message: '我先检查仓库。',
+      },
+    }))
+
+    expect(chunks).toEqual([])
   })
 
   it('throws ExecutorUnavailableError when the CLI binary is missing', async () => {

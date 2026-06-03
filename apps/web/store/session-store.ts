@@ -316,17 +316,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return
       }
       const data = await res.json()
-      const messages: Message[] = data.map((m: Record<string, unknown>) => ({
-        id: m.id,
-        sessionId: m.session_id,
-        role: m.sender_type === 'user' ? 'user' : 'agent',
-        content: m.content,
-        createdAt: m.created_at || '',
-        roleAgentId: (m.role_agent_id as string | null) ?? null,
-        isPinned: Boolean(m.is_pinned),
-        messageType: String(m.message_type ?? 'text'),
-        parts: partsFromMetadata(m.metadata),
-      }))
+      const messages: Message[] = data
+        .filter((m: Record<string, unknown>) => m.message_type !== 'role_acknowledgement')
+        .map((m: Record<string, unknown>) => ({
+          id: m.id,
+          sessionId: m.session_id,
+          role: m.sender_type === 'user' ? 'user' : 'agent',
+          content: m.content,
+          createdAt: m.created_at || '',
+          roleAgentId: (m.role_agent_id as string | null) ?? null,
+          isPinned: Boolean(m.is_pinned),
+          messageType: String(m.message_type ?? 'text'),
+          parts: partsFromMetadata(m.metadata),
+        }))
       set({ messages, loading: false })
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
@@ -514,23 +516,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if (evt.type === 'runtime_status' && !replyCreated) {
             upsertReply()
           }
-          if (evt.type === 'role_acknowledgement' && evt.roleAgentId && evt.content) {
-            set((state) => ({
-              messages: [
-                ...state.messages,
-                {
-                  id: evt.messageId ?? `ack-${Date.now()}`,
-                  sessionId: activeSessionId,
-                  role: 'agent',
-                  content: evt.content ?? '',
-                  createdAt: evt.createdAt ?? new Date().toISOString(),
-                  roleAgentId: evt.roleAgentId ?? null,
-                  isPinned: false,
-                  messageType: 'role_acknowledgement',
-                } as Message,
-              ],
-            }))
-          }
+          if (evt.type === 'role_acknowledgement') continue
           const nextParts = reduceRuntimeParts(runtimeParts, evt)
           if (nextParts !== runtimeParts) {
             runtimeParts = nextParts

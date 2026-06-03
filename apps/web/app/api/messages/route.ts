@@ -27,7 +27,10 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const visibleMessages = Array.isArray(data)
+    ? data.filter((message) => (message as Record<string, unknown>).message_type !== 'role_acknowledgement')
+    : data
+  return NextResponse.json(visibleMessages)
 }
 
 export async function POST(request: Request) {

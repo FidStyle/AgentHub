@@ -58,6 +58,37 @@ describe('session store message pinning', () => {
     ])
   })
 
+  it('filters historical role acknowledgement rows out of the chat message list', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([
+      {
+        id: 'ack-001',
+        session_id: 'session-001',
+        sender_type: 'system',
+        content: '收到，我是 @架构师。',
+        created_at: '2026-06-01T00:00:00.000Z',
+        role_agent_id: 'agent-001',
+        message_type: 'role_acknowledgement',
+        metadata: null,
+        is_pinned: false,
+      },
+      {
+        id: 'msg-001',
+        session_id: 'session-001',
+        sender_type: 'agent',
+        content: '真正回复',
+        created_at: '2026-06-01T00:00:01.000Z',
+        role_agent_id: 'agent-001',
+        message_type: 'text',
+        metadata: null,
+        is_pinned: false,
+      },
+    ]))
+
+    await useSessionStore.getState().fetchMessages('session-001')
+
+    expect(useSessionStore.getState().messages.map((message) => message.id)).toEqual(['msg-001'])
+  })
+
   it('PATCHes message pin state and rolls back on failure', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
     useSessionStore.setState({
@@ -112,6 +143,23 @@ describe('session store streaming replies', () => {
       content: '第一段第二段',
       streaming: false,
     })
+  })
+
+  it('ignores streamed role acknowledgement events as control events, not chat messages', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
+      { type: 'role_acknowledgement', roleAgentId: 'agent-001', content: '收到，我是 @架构师。' },
+      { type: 'runtime_output', delta: '真正回复' },
+      { type: 'runtime_completed' },
+    ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+    })
+
+    await useSessionStore.getState().sendMessage({ content: '开始', roleAgentIds: ['agent-001'] })
+
+    expect(useSessionStore.getState().messages.map((message) => message.content)).toEqual(['开始', '真正回复'])
+    expect(useSessionStore.getState().messages.some((message) => message.messageType === 'role_acknowledgement')).toBe(false)
   })
 })
 

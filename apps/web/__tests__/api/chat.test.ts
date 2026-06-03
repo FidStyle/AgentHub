@@ -226,16 +226,11 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(String(invokeSpy.mock.calls[1][0].systemPrompt)).toContain('done')
     expect(text).toContain('"roleAgentId":"agent-001"')
     expect(text).toContain('"roleAgentId":"agent-002"')
-    expect(text).toContain('"type":"role_acknowledgement"')
+    expect(text).not.toContain('"type":"role_acknowledgement"')
     expect(text).toContain('"type":"role_handoff"')
     expect(text).toContain('"handoffs"')
     const acknowledgementMessages = insertedMessages.filter((m) => m.message_type === 'role_acknowledgement')
-    expect(acknowledgementMessages).toHaveLength(2)
-    expect(acknowledgementMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
-    expect(acknowledgementMessages.map((m) => String(m.content))).toEqual([
-      expect.stringContaining('收到，我是 @Frontend Engineer'),
-      expect.stringContaining('收到，我是 @Backend Engineer'),
-    ])
+    expect(acknowledgementMessages).toHaveLength(0)
     const agentMessages = insertedMessages.filter((m) => m.sender_type === 'agent')
     expect(agentMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
     expect((agentMessages[1].metadata as { handoffsReceived?: unknown[] }).handoffsReceived).toEqual([
@@ -455,6 +450,44 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(agentMsg).toBeDefined()
     expect(agentMsg!.content).toBe('hello world')
     expect(agentMsg!.role_agent_id).toBe('agent-001')
+  })
+
+  it('preserves Markdown newlines, code fences, and table rows through SSE and persistence', async () => {
+    const markdown = [
+      '# 一级标题',
+      '',
+      '## 二级标题',
+      '',
+      '- 第一项',
+      '- 第二项',
+      '',
+      '```javascript',
+      'function hello() {',
+      '  console.log("Hello")',
+      '}',
+      '```',
+      '',
+      '| 列1 | 列2 |',
+      '|------|------|',
+      '| 单元格 | 单元格 |',
+    ].join('\n')
+
+    setAdapterEvents([
+      { type: 'runtime_output', delta: markdown, mode: 'append', seq: 1 },
+      { type: 'runtime_completed' },
+    ])
+    setupMockClient(chainCapturingInserts())
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: 'hi',
+      roleAgentId: 'agent-001',
+    })
+
+    expect(status).toBe(200)
+    expect(text).toContain(JSON.stringify(markdown).slice(1, -1))
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    expect(agentMsg?.content).toBe(markdown)
   })
 
   it('AT-006 [critical]: no runtime_completed → agent reply is NOT persisted (no fake success)', async () => {

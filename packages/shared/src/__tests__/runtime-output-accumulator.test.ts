@@ -20,6 +20,17 @@ describe('createRuntimeOutputAccumulator', () => {
     expect(accumulator.append({ type: 'runtime_output', delta: ' + 追加', mode: 'append', seq: 2 })).toBe('完整新内容 + 追加')
   })
 
+  it('does not collapse repeated markdown fence characters across sequenced chunks', () => {
+    const accumulator = createRuntimeOutputAccumulator()
+
+    accumulator.append({ type: 'runtime_output', delta: '## 列表\n\n`', mode: 'append', seq: 1 })
+    accumulator.append({ type: 'runtime_output', delta: '``markdown\n- 无序列表项\n', mode: 'append', seq: 2 })
+    accumulator.append({ type: 'runtime_output', delta: '```\n', mode: 'append', seq: 3 })
+
+    expect(accumulator.value()).toBe('## 列表\n\n```markdown\n- 无序列表项\n```\n')
+    expect(accumulator.value()).not.toMatch(/(^|\n)``markdown/)
+  })
+
   it('keeps backward-compatible append semantics for legacy events without seq', () => {
     const accumulator = createRuntimeOutputAccumulator()
 
