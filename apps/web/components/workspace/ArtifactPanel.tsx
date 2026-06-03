@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, PackagePlus, Pencil, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
+import { Bot, Boxes, CheckCircle2, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, RotateCcw, ShieldCheck, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 
@@ -84,6 +84,22 @@ type GitChangeRow = {
   indexStatus?: string
   workingTreeStatus?: string
 }
+type PatchDraft = {
+  path: string
+  selectionStart: number
+  selectionEnd: number
+  selectedText: string
+  replacement: string
+  content: string
+  diff: string
+}
+type GitCommitRow = {
+  hash: string
+  shortHash: string
+  author: string
+  date: string
+  message: string
+}
 
 function truncate(text: string, max = 160) {
   return text.length > max ? `${text.slice(0, max)}...` : text
@@ -126,6 +142,10 @@ function artifactTypeForPreview(preview: FilePreview) {
   if (preview.previewKind === 'image') return 'image'
   if (preview.previewKind === 'folder') return 'folder'
   return 'generic_file'
+}
+
+function isEditablePreview(preview: FilePreview | null) {
+  return Boolean(preview && preview.content !== null && ['markdown', 'code', 'text'].includes(preview.previewKind))
 }
 
 function runtimeLabel(runtimeType: RoleAgentRow['runtime_type']) {
@@ -598,6 +618,7 @@ function FileTreeNodeView({
 function FileTreeTab() {
   const { activeWorkspaceId, activeSessionId } = useSessionStore()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const editorRef = useRef<HTMLTextAreaElement | null>(null)
   const [tree, setTree] = useState<FileTreeNode[]>([])
   const [root, setRoot] = useState('')
   const [loaded, setLoaded] = useState(false)
@@ -606,6 +627,11 @@ function FileTreeTab() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [artifactStatus, setArtifactStatus] = useState<string | null>(null)
   const [operationStatus, setOperationStatus] = useState<string | null>(null)
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number; text: string } | null>(null)
+  const [editInstruction, setEditInstruction] = useState('')
+  const [replacementText, setReplacementText] = useState('')
+  const [patchDraft, setPatchDraft] = useState<PatchDraft | null>(null)
+  const [patchStatus, setPatchStatus] = useState<string | null>(null)
 
   const loadTree = async () => {
     if (!activeWorkspaceId) return
@@ -642,11 +668,86 @@ function FileTreeTab() {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((body as { error?: string }).error || `读取文件失败（${res.status}）`)
       setPreview(body as FilePreview)
+      setSelectionRange(null)
+      setReplacementText('')
+      setPatchDraft(null)
+      setPatchStatus(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : '读取文件失败')
     } finally {
       setPreviewLoading(false)
     }
+  }
+
+  function captureEditorSelection() {
+    const editor = editorRef.current
+    if (!editor || !preview?.content) return
+    const start = editor.selectionStart
+    const end = editor.selectionEnd
+    const text = preview.content.slice(start, end)
+    setSelectionRange({ start, end, text })
+    setReplacementText(text)
+    setPatchDraft(null)
+    setPatchStatus(text ? `已选择 ${text.length} 个字符` : '当前选区为空，将作为插入点')
+  }
+
+  async function generatePatchDraft() {
+    if (!activeWorkspaceId || !preview || !selectionRange) return
+    setPatchStatus('正在生成编辑草案...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/patch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: preview.path,
+          selectionStart: selectionRange.start,
+          selectionEnd: selectionRange.end,
+          replacement: replacementText,
+          instruction: editInstruction,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `生成草案失败（${res.status}）`)
+      setPatchDraft((body as { draft: PatchDraft }).draft)
+      setPatchStatus('草案已生成，应用前不会写入文件')
+    } catch (e) {
+      setPatchStatus(e instanceof Error ? e.message : '生成草案失败')
+    }
+  }
+
+  async function applyPatchDraft() {
+    if (!activeWorkspaceId || !preview || !patchDraft) return
+    setPatchStatus('正在应用修改...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/patch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: preview.path,
+          selectionStart: patchDraft.selectionStart,
+          selectionEnd: patchDraft.selectionEnd,
+          expectedText: patchDraft.selectedText,
+          replacement: patchDraft.replacement,
+          apply: true,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `应用修改失败（${res.status}）`)
+      setPreview((body as { preview: FilePreview }).preview)
+      setPatchDraft(null)
+      setSelectionRange(null)
+      setReplacementText('')
+      setPatchStatus('修改已应用，Git 变更已刷新')
+      await loadTree()
+      emitFilesChanged()
+    } catch (e) {
+      setPatchStatus(e instanceof Error ? e.message : '应用修改失败')
+    }
+  }
+
+  function rejectPatchDraft() {
+    setPatchDraft(null)
+    setPatchStatus('已拒绝草案，文件未修改')
   }
 
   async function markFileAsArtifact(filePreview: FilePreview) {
@@ -837,6 +938,81 @@ function FileTreeTab() {
         {artifactStatus && <p className="text-xs text-muted-foreground">{artifactStatus}</p>}
         {previewLoading && <StateCard variant="loading" title="正在读取文件" />}
         {preview && !previewLoading && <PreviewBlock preview={preview} downloadUrl={preview.downloadUrl} />}
+        {isEditablePreview(preview) && preview?.content !== null && !previewLoading && (
+          <div data-testid="mini-ide-editor" className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <WandSparkles className="h-4 w-4 text-muted-foreground" />
+                  选区编辑草案
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  在下方内容中选择片段，填写替换内容后先生成 diff，确认后再应用到真实文件。
+                </p>
+              </div>
+              <Badge variant={selectionRange?.text ? 'secondary' : 'default'}>
+                {selectionRange ? `${selectionRange.end - selectionRange.start} 字符` : '未选择'}
+              </Badge>
+            </div>
+            <textarea
+              ref={editorRef}
+              readOnly
+              value={preview?.content ?? ''}
+              onSelect={captureEditorSelection}
+              data-testid="mini-ide-source-editor"
+              aria-label="文件内容选区"
+              className="h-40 w-full resize-y rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed outline-none focus:border-primary"
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1 text-xs">
+                <span className="font-medium text-foreground">编辑指令</span>
+                <input
+                  value={editInstruction}
+                  onChange={(event) => setEditInstruction(event.target.value)}
+                  placeholder="例如：改成更清晰的变量名"
+                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <label className="space-y-1 text-xs">
+                <span className="font-medium text-foreground">替换后的选区内容</span>
+                <textarea
+                  value={replacementText}
+                  onChange={(event) => {
+                    setReplacementText(event.target.value)
+                    setPatchDraft(null)
+                  }}
+                  data-testid="mini-ide-replacement"
+                  className="h-24 w-full resize-y rounded-md border border-border bg-background p-2 font-mono text-xs leading-relaxed outline-none focus:border-primary"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => void generatePatchDraft()} disabled={!selectionRange}>
+                <WandSparkles className="mr-1 h-3.5 w-3.5" />
+                生成 diff
+              </Button>
+              {patchDraft && (
+                <>
+                  <Button size="sm" onClick={() => void applyPatchDraft()}>
+                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                    应用修改
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={rejectPatchDraft}>
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                    拒绝
+                  </Button>
+                </>
+              )}
+              {patchStatus && <span className="text-xs text-muted-foreground">{patchStatus}</span>}
+            </div>
+            {patchDraft && (
+              <div data-testid="mini-ide-patch-diff" className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">待应用 patch</div>
+                <DiffPreview value={patchDraft.diff || '无内容变化'} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -935,8 +1111,11 @@ function ChangesTab() {
   const { activeWorkspaceId, activeSessionId } = useSessionStore()
   const { messages, error, loaded } = useSessionMessages()
   const [gitChanges, setGitChanges] = useState<GitChangeRow[]>([])
+  const [gitCommits, setGitCommits] = useState<GitCommitRow[]>([])
   const [gitLoaded, setGitLoaded] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const [gitError, setGitError] = useState<string | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
   const [selectedDiffPath, setSelectedDiffPath] = useState<string | null>(null)
   const [selectedDiffStaged, setSelectedDiffStaged] = useState(false)
   const [selectedDiff, setSelectedDiff] = useState('')
@@ -964,8 +1143,25 @@ function ChangesTab() {
     }
   }
 
+  const loadGitHistory = async () => {
+    if (!activeWorkspaceId) return
+    setHistoryLoaded(false)
+    setHistoryError(null)
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/history?limit=8`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `读取提交历史失败（${res.status}）`)
+      setGitCommits(Array.isArray((body as { commits?: unknown }).commits) ? (body as { commits: GitCommitRow[] }).commits : [])
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : '读取提交历史失败')
+    } finally {
+      setHistoryLoaded(true)
+    }
+  }
+
   useEffect(() => {
     void loadGitChanges()
+    void loadGitHistory()
     const onChanged = (event: Event) => {
       const detail = (event as CustomEvent<{ workspaceId?: string }>).detail
       if (!detail?.workspaceId || detail.workspaceId === activeWorkspaceId) void loadGitChanges()
@@ -1189,6 +1385,35 @@ function ChangesTab() {
             </div>
             {diffStatus && <p className="text-xs text-muted-foreground">{diffStatus}</p>}
             {selectedDiff ? <DiffPreview value={selectedDiff} /> : !diffStatus ? <StateCard variant="empty" title="无 diff 内容" description="该文件当前没有可展示的 diff" /> : null}
+          </div>
+        )}
+      </PanelSection>
+      <PanelSection
+        icon={History}
+        title="提交历史"
+        description="读取当前云端项目目录的真实 Git log"
+        action={<Badge variant="secondary">{gitCommits.length} 条</Badge>}
+      >
+        {historyError && <p className="text-sm text-destructive">{historyError}</p>}
+        {!historyLoaded ? (
+          <StateCard variant="loading" title="读取提交历史" />
+        ) : gitCommits.length === 0 ? (
+          <StateCard variant="empty" title="暂无提交历史" description="当前仓库还没有可展示的 Git commit" />
+        ) : (
+          <div data-testid="git-commit-history" className="space-y-2">
+            {gitCommits.map((commit) => (
+              <div key={commit.hash} className="rounded-md border border-border bg-background p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{commit.message}</div>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {commit.author} · {commit.date ? new Date(commit.date).toLocaleString('zh-CN') : '未知时间'}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{commit.shortHash}</Badge>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </PanelSection>

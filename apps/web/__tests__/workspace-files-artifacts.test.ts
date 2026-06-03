@@ -5,12 +5,15 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createWorkspaceFolderZip,
+  applyWorkspaceSelectionPatch,
   cloudWorkspaceDir,
   cloudWorkspaceRoot,
+  createWorkspaceSelectionPatchDraft,
   deleteWorkspaceEntry,
   discardWorkspaceGitPath,
   readCloudWorkspacePreview,
   readWorkspaceGitDiff,
+  readWorkspaceGitHistory,
   readWorkspaceGitStatus,
   renameWorkspaceEntry,
   resolveWorkspacePath,
@@ -151,5 +154,53 @@ describe('workspace file preview and artifact bundle helpers', () => {
     const preview = await readCloudWorkspacePreview(root, 'tracked.txt')
     expect(preview.content).toBe('before\n')
     expect(await readWorkspaceGitStatus(root)).toEqual([])
+  })
+
+  it('creates and applies selection patch drafts without writing before approval', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await writeWorkspaceFile(root, 'src/app.ts', 'const name = "AgentHub"\nconsole.log(name)\n')
+
+    const original = await readCloudWorkspacePreview(root, 'src/app.ts')
+    const content = original.content ?? ''
+    const selectionStart = content.indexOf('AgentHub')
+    const selectionEnd = selectionStart + 'AgentHub'.length
+    const draft = await createWorkspaceSelectionPatchDraft(root, 'src/app.ts', selectionStart, selectionEnd, 'Mini IDE')
+
+    expect(draft.selectedText).toBe('AgentHub')
+    expect(draft.diff).toContain('-const name = "AgentHub"')
+    expect(draft.diff).toContain('+const name = "Mini IDE"')
+    expect((await readCloudWorkspacePreview(root, 'src/app.ts')).content).toBe(content)
+
+    await applyWorkspaceSelectionPatch(root, 'src/app.ts', selectionStart, selectionEnd, 'AgentHub', 'Mini IDE')
+    expect((await readCloudWorkspacePreview(root, 'src/app.ts')).content).toContain('Mini IDE')
+    expect(await readWorkspaceGitStatus(root)).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'src/app.ts' })]))
+  })
+
+  it('rejects stale selection patches when the file changed after draft', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await writeWorkspaceFile(root, 'notes.md', 'before\n')
+    await writeWorkspaceFile(root, 'notes.md', 'changed\n')
+
+    await expect(applyWorkspaceSelectionPatch(root, 'notes.md', 0, 'before'.length, 'before', 'after'))
+      .rejects.toThrow('文件内容已变化')
+  })
+
+  it('reads recent git commit history from the real repository', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await runGit(root, ['config', 'user.email', 'agenthub@example.com'])
+    await runGit(root, ['config', 'user.name', 'AgentHub Test'])
+    await writeWorkspaceFile(root, 'README.md', '# History\n')
+    await runGit(root, ['add', 'README.md'])
+    await runGit(root, ['commit', '-m', 'initial history'])
+
+    const commits = await readWorkspaceGitHistory(root)
+    expect(commits[0]).toEqual(expect.objectContaining({
+      author: 'AgentHub Test',
+      message: 'initial history',
+    }))
+    expect(commits[0]?.shortHash).toHaveLength(7)
   })
 })

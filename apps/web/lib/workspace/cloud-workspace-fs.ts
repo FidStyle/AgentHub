@@ -25,6 +25,7 @@ export type FileTreeNode = {
 
 const IGNORED = new Set(['.git', 'node_modules', '.next', 'dist', 'build'])
 const MAX_PREVIEW_BYTES = 256 * 1024
+const MAX_EDIT_BYTES = 256 * 1024
 
 const MIME_BY_EXT: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -73,6 +74,24 @@ export type WorkspaceGitChange = {
   indexStatus: string
   workingTreeStatus: string
   unstaged: boolean
+}
+
+export type WorkspacePatchDraft = {
+  path: string
+  selectionStart: number
+  selectionEnd: number
+  selectedText: string
+  replacement: string
+  content: string
+  diff: string
+}
+
+export type WorkspaceGitCommit = {
+  hash: string
+  shortHash: string
+  author: string
+  date: string
+  message: string
 }
 
 function slug(value: string, fallback: string) {
@@ -369,6 +388,29 @@ export async function readWorkspaceGitDiff(rootDir: string, relativePath?: strin
   ].join('\n')
 }
 
+export async function readWorkspaceGitHistory(rootDir: string, limit = 12): Promise<WorkspaceGitCommit[]> {
+  const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 50)
+  const result = await runGit(rootDir, ['log', `-${safeLimit}`, '--date=iso-strict', '--pretty=format:%H%x1f%h%x1f%an%x1f%ad%x1f%s'])
+  if (result.code !== 0) {
+    if (/does not have any commits yet|your current branch .* does not have any commits/i.test(result.stderr)) return []
+    throw new Error(result.stderr || '读取 Git 提交历史失败')
+  }
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, shortHash, author, date, ...messageParts] = line.split('\x1f')
+      return {
+        hash: hash ?? '',
+        shortHash: shortHash ?? '',
+        author: author ?? '',
+        date: date ?? '',
+        message: messageParts.join('\x1f') || '无提交说明',
+      }
+    })
+}
+
 export async function stageWorkspaceGitPath(rootDir: string, relativePath: string) {
   const { relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
   const result = await runGit(rootDir, ['add', '--', rel])
@@ -399,6 +441,77 @@ export async function writeWorkspaceFile(rootDir: string, relativePath: string, 
   await mkdir(path.dirname(fullPath), { recursive: true })
   await writeFile(fullPath, content)
   return rel
+}
+
+async function readEditableWorkspaceFile(rootDir: string, relativePath: string) {
+  const { fullPath, relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
+  const info = await stat(fullPath).catch(() => null)
+  if (!info) throw new Error('文件不存在')
+  if (!info.isFile()) throw new Error('仅支持编辑普通文件')
+  if (info.size > MAX_EDIT_BYTES) throw new Error('文件超过 256KB，暂不支持在线编辑')
+  if (previewKindForPath(rel) === 'binary' || previewKindForPath(rel) === 'image') throw new Error('该文件类型暂不支持在线编辑')
+  return { relativePath: rel, content: await readFile(fullPath, 'utf8') }
+}
+
+function assertSelection(content: string, selectionStart: number, selectionEnd: number) {
+  if (!Number.isInteger(selectionStart) || !Number.isInteger(selectionEnd)) {
+    throw new Error('选区范围无效')
+  }
+  if (selectionStart < 0 || selectionEnd < selectionStart || selectionEnd > content.length) {
+    throw new Error('选区范围超出文件内容')
+  }
+}
+
+function simpleUnifiedDiff(filePath: string, original: string, next: string) {
+  if (original === next) return ''
+  const oldLines = original.split('\n')
+  const newLines = next.split('\n')
+  return [
+    `diff --git a/${filePath} b/${filePath}`,
+    `--- a/${filePath}`,
+    `+++ b/${filePath}`,
+    `@@ -1,${oldLines.length} +1,${newLines.length} @@`,
+    ...oldLines.map((line) => `-${line}`),
+    ...newLines.map((line) => `+${line}`),
+  ].join('\n')
+}
+
+export async function createWorkspaceSelectionPatchDraft(
+  rootDir: string,
+  relativePath: string,
+  selectionStart: number,
+  selectionEnd: number,
+  replacement: string,
+): Promise<WorkspacePatchDraft> {
+  const { relativePath: rel, content } = await readEditableWorkspaceFile(rootDir, relativePath)
+  assertSelection(content, selectionStart, selectionEnd)
+  if (Buffer.byteLength(replacement, 'utf8') > MAX_EDIT_BYTES) throw new Error('替换内容超过 256KB')
+  const selectedText = content.slice(selectionStart, selectionEnd)
+  const next = `${content.slice(0, selectionStart)}${replacement}${content.slice(selectionEnd)}`
+  if (Buffer.byteLength(next, 'utf8') > MAX_EDIT_BYTES) throw new Error('修改后文件超过 256KB')
+  return {
+    path: rel,
+    selectionStart,
+    selectionEnd,
+    selectedText,
+    replacement,
+    content: next,
+    diff: simpleUnifiedDiff(rel, content, next),
+  }
+}
+
+export async function applyWorkspaceSelectionPatch(
+  rootDir: string,
+  relativePath: string,
+  selectionStart: number,
+  selectionEnd: number,
+  expectedText: string,
+  replacement: string,
+) {
+  const draft = await createWorkspaceSelectionPatchDraft(rootDir, relativePath, selectionStart, selectionEnd, replacement)
+  if (draft.selectedText !== expectedText) throw new Error('文件内容已变化，请重新选择后再应用')
+  await writeWorkspaceFile(rootDir, draft.path, draft.content)
+  return draft
 }
 
 export async function renameWorkspaceEntry(rootDir: string, fromPath: string, toPath: string) {
