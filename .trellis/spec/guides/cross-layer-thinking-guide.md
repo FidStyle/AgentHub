@@ -52,8 +52,14 @@ Before adding a local workaround, ask:
 - Which layer owns the missing fact or invariant?
 - Is the current fix reconstructing that fact from symptoms?
 - Would a reference project solve this in a reducer/protocol/store instead of the visible component?
+- Is there already an ideal path in `refer_proj/*` or AgentHub shared code that
+  preserves the data without heuristic repair?
 
 If the UI has to guess whether data is duplicated, stale, replayed, partial, authorized, or terminal, the contract is probably missing a field. Add the field and tests at the producer/consumer boundary first.
+
+If the UI has to guess Markdown structure, terminal state, stream ordering,
+message role semantics, or copy semantics from already-corrupted text, the ideal
+path has already been bypassed. Restore the path before adding display logic.
 
 ---
 
@@ -89,6 +95,24 @@ If the UI has to guess whether data is duplicated, stale, replayed, partial, aut
 
 **Good**: Study how the reference project assigns responsibility: where IDs are stable, where append vs replace is decided, how duplicate events are ignored, and which layer owns copy controls. Then migrate the same responsibility boundary into AgentHub with AgentHub types and tests.
 
+### Mistake 6: Bending The Ideal Path With Symptom Repair
+
+**Bad**: A valid reusable path exists, but the fix starts by adding regex
+normalizers, partial DOM cleanup, or UI masking. These patches may make the
+current screenshot look better while changing the meaning of future valid input.
+
+**Good**: Preserve the source contract first. For streaming messages, the ideal
+path is:
+
+```text
+runtime event producer -> shared accumulator/reducer -> persistence -> API -> UI renderer
+```
+
+Each layer should pass through valid Markdown/content without reconstructing it
+from symptoms. Renderers may normalize safe transport details such as CRLF line
+endings, but must not infer Markdown block structure, replay boundaries, or
+message role policy.
+
 ---
 
 ## Checklist for Cross-Layer Features
@@ -102,6 +126,8 @@ Before implementation:
 - [ ] 如果修复依赖“看起来像”“正则猜测”“归一化后比较”“UI 兜底”，先反查哪个协议/API/DB 字段缺失，并优先补契约。
 - [ ] 参考项目调研必须记录责任边界，不只记录组件外观；例如 codeg/AionUi 的消息 append/replace、stable id、copy 控制分别在哪一层实现。
 - [ ] 对 streaming/runtime/message 问题，先检查事件语义（append/replace/seq/id/terminal）再改 Markdown 或样式组件。
+- [ ] 当已有参考实现或共享工具能走通理想路径时，禁止先提交 symptom repair；必须在代码或 PR 说明中写明采用/未采用参考路径的原因。
+- [ ] Renderer 层只能做渲染和安全的传输归一化，不能负责恢复上游丢失的换行、围栏、消息角色或事件顺序。
 
 After implementation:
 - [ ] Tested with edge cases (null, empty, invalid)

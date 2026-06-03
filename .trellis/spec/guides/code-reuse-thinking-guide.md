@@ -36,6 +36,28 @@ grep -r "keyword" .
 | Could this be a shared utility? | Create it in the right place |
 | Am I copying code from another file? | **STOP** - extract to shared |
 
+### Step 3: Prefer the Reusable Ideal Path Over Symptom Repair
+
+When an issue appears in a feature area with known reference implementations
+(`refer_proj/*`) or an existing AgentHub utility/contract, the first deliverable
+is the responsibility-boundary comparison, not a local patch.
+
+Ask:
+
+| Question | Required Action |
+|----------|-----------------|
+| Does a reference project already solve this class of problem? | Identify the layer that owns the invariant there before editing |
+| Does AgentHub already have a shared reducer/parser/accumulator/component for it? | Reuse or extend that shared path |
+| Am I writing regexes, normalizers, DOM masks, or UI-only fallbacks to repair symptoms? | Stop and trace the producer/consumer contract first |
+| Would this patch make valid inputs pass by coincidence while invalid data still enters the system? | Fix the upstream contract or shared boundary instead |
+
+**Bad**: A renderer inserts guessed Markdown line breaks because streamed output
+sometimes arrives flattened.
+
+**Good**: Runtime producers emit explicit append/replace/sequence events, all
+consumers use the shared accumulator, and the renderer only renders the content
+it receives.
+
 ---
 
 ## Common Duplication Patterns
