@@ -289,3 +289,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Self-hosted hash-path deploy v1
+
+**Date**: 2026-06-03
+**Task**: Self-hosted hash-path deploy v1
+**Branch**: `feature/deploy-v1`
+
+### Summary
+
+Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, fixed container build blockers, and verified deploy-v1 on fixed port 3101.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6dba01d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
