@@ -3,7 +3,9 @@
 import React, { useMemo } from 'react'
 import { Check, Copy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import { IconButton } from '@agenthub/ui'
 import { normalizeMessageMarkdown } from '@/lib/chat/markdown'
 
@@ -132,14 +134,17 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
   if (!normalizedContent) return null
 
   return (
-    <div data-testid="message-markdown" className="message-markdown group/message-markdown relative">
-      <CopyButton
-        text={normalizedContent}
-        label="复制整条消息"
-        className="absolute right-0 top-0 z-10 opacity-0 shadow-sm transition-opacity group-hover/message-markdown:opacity-100 focus:opacity-100"
-      />
+    <div data-testid="message-markdown" className="message-markdown group/message-markdown">
+      <div className="message-markdown-actions">
+        <CopyButton
+          text={normalizedContent}
+          label="复制整条消息"
+          className="opacity-100 shadow-sm transition-opacity md:opacity-0 md:group-hover/message-markdown:opacity-100 md:group-focus-within/message-markdown:opacity-100"
+        />
+      </div>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
+        rehypePlugins={[rehypeKatex]}
         components={components}
         className={`agenthub-markdown max-w-none break-words text-[15px] leading-[23px] text-foreground ${streaming ? 'after:ml-1 after:inline-block after:h-4 after:w-2 after:animate-pulse after:bg-current after:align-text-bottom after:content-[""]' : ''}`}
       >

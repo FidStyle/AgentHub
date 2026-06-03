@@ -2,6 +2,28 @@ import { describe, expect, it } from 'vitest'
 import { appendRuntimeDelta, createRuntimeOutputAccumulator } from '../runtime/output-accumulator'
 
 describe('createRuntimeOutputAccumulator', () => {
+  it('preserves a full markdown document exactly across sequenced append fragments', () => {
+    const accumulator = createRuntimeOutputAccumulator()
+    const chunks = [
+      '# 标题\n\n> 引用段落\n\n',
+      '- 第一项\n- [x] 已完成\n- [ ] 未完成\n\n',
+      '```ts\nconst value = "$5 is text";\nconsole.log(value)\n```\n\n',
+      '| 列 A | 列 B |\n| --- | --- |\n| 1 | 2 |\n\n',
+      '---\n\n行内公式 $E = mc^2$\n\n$$\n\\int_0^1 x^2 dx\n$$',
+    ]
+    const expected = chunks.join('')
+
+    chunks.forEach((delta, index) => {
+      accumulator.append({ type: 'runtime_output', delta, mode: 'append', seq: index + 1 })
+    })
+
+    expect(accumulator.value()).toBe(expected)
+    expect(accumulator.value().match(/# 标题/g)).toHaveLength(1)
+    expect(accumulator.value().match(/```ts/g)).toHaveLength(1)
+    expect(accumulator.value()).toContain('$E = mc^2$')
+    expect(accumulator.value()).toContain('$$\n\\int_0^1 x^2 dx\n$$')
+  })
+
   it('appends protocol runtime output in seq order and ignores replayed chunks', () => {
     const accumulator = createRuntimeOutputAccumulator()
 

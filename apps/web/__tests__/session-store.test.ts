@@ -123,6 +123,37 @@ describe('session store message pinning', () => {
 })
 
 describe('session store streaming replies', () => {
+  it('accumulates sequenced markdown runtime_output fragments without rewriting markdown bytes', async () => {
+    const chunks = [
+      '# 标题\n\n> 引用\n\n',
+      '- 第一项\n- [x] 已完成\n- [ ] 未完成\n\n',
+      '```ts\nconst price = "$5";\nconsole.log(price)\n```\n\n',
+      '| A | B |\n| --- | --- |\n| 1 | 2 |\n\n---\n\n',
+      '行内公式 $E = mc^2$\n\n$$\n\\int_0^1 x^2 dx\n$$',
+    ]
+    const expected = chunks.join('')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
+      { type: 'runtime_status', status: 'running' },
+      ...chunks.map((delta, index) => ({ type: 'runtime_output', delta, mode: 'append', seq: index + 1 })),
+      { type: 'runtime_output', delta: chunks[0], mode: 'append', seq: 1 },
+      { type: 'runtime_completed' },
+    ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+    })
+
+    await useSessionStore.getState().sendMessage({ content: '开始' })
+
+    const reply = useSessionStore.getState().messages.find((message) => message.id.startsWith('reply-'))
+    expect(reply?.content).toBe(expected)
+    expect(reply?.content.match(/# 标题/g)).toHaveLength(1)
+    expect(reply?.content).toContain('- [ ] 未完成')
+    expect(reply?.content).toContain('```ts\nconst price = "$5";')
+    expect(reply?.content).toContain('| A | B |\n| --- | --- |\n| 1 | 2 |')
+    expect(reply?.content).toContain('$$\n\\int_0^1 x^2 dx\n$$')
+  })
+
   it('marks temporary runtime replies as non-streaming after the SSE stream ends', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
       { type: 'runtime_status', status: 'running' },

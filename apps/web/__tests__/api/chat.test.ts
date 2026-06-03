@@ -453,6 +453,71 @@ describe('POST /api/chat — role-chat-core', () => {
   })
 
   it('preserves Markdown newlines, code fences, and table rows through SSE and persistence', async () => {
+    const markdownChunks = [
+      [
+        '# 一级标题',
+        '',
+        '> 引用段落',
+        '',
+        '- 第一项',
+        '- [x] 已完成',
+        '- [ ] 未完成',
+        '',
+        '',
+      ].join('\n'),
+      [
+        '```javascript',
+        'function hello() {',
+        '  console.log("Hello")',
+        '}',
+        '```',
+        '',
+        '',
+      ].join('\n'),
+      [
+        '| 列1 | 列2 |',
+        '|------|------|',
+        '| 单元格 | 单元格 |',
+        '',
+        '---',
+        '',
+        '行内公式 $E = mc^2$',
+        '',
+        '$$',
+        '\\int_0^1 x^2 dx',
+        '$$',
+      ].join('\n'),
+    ]
+    const markdown = markdownChunks.join('')
+
+    setAdapterEvents([
+      ...markdownChunks.map((delta, index) => ({ type: 'runtime_output', delta, mode: 'append', seq: index + 1 })),
+      { type: 'runtime_output', delta: markdownChunks[0], mode: 'append', seq: 1 },
+      { type: 'runtime_completed' },
+    ])
+    setupMockClient(chainCapturingInserts())
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: 'hi',
+      roleAgentId: 'agent-001',
+    })
+
+    expect(status).toBe(200)
+    for (const chunk of markdownChunks) {
+      expect(text).toContain(JSON.stringify(chunk).slice(1, -1))
+    }
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    expect(agentMsg?.content).toBe(markdown)
+    expect(String(agentMsg?.content).match(/# 一级标题/g)).toHaveLength(1)
+    expect(String(agentMsg?.content)).toContain('- [x] 已完成')
+    expect(String(agentMsg?.content)).toContain('```javascript\nfunction hello()')
+    expect(String(agentMsg?.content)).toContain('| 单元格 | 单元格 |')
+    expect(String(agentMsg?.content)).toContain('行内公式 $E = mc^2$')
+    expect(String(agentMsg?.content)).toContain('$$\n\\int_0^1 x^2 dx\n$$')
+  })
+
+  it('keeps a single runtime_output markdown snapshot byte-for-byte', async () => {
     const markdown = [
       '# 一级标题',
       '',

@@ -1,5 +1,6 @@
 @import '@agenthub/ui/globals.css';
 @import 'streamdown/styles.css';
+@import 'katex/dist/katex.min.css';
 @source "../node_modules/streamdown/dist/*.js";
 
 .message-markdown :not(pre) > code {
@@ -21,14 +22,25 @@
 
 .message-markdown .agenthub-markdown {
   color: var(--color-foreground);
+  padding-right: 0;
 }
 
-.message-markdown > button:hover {
+.message-markdown-actions {
+  display: flex;
+  min-height: 1.9rem;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-bottom: 0.125rem;
+}
+
+.message-markdown-actions > button:hover,
+.message-markdown-actions > button:focus-visible {
   background: var(--markdown-soft);
   color: var(--color-foreground);
 }
 
-.message-markdown > button {
+.message-markdown-actions > button {
+  flex: 0 0 auto;
   height: 1.75rem;
   width: 1.75rem;
   border: 1px solid var(--markdown-faint-border);
@@ -69,7 +81,31 @@
 .message-markdown ul,
 .message-markdown ol {
   margin: 0.375rem 0 0.625rem;
-  padding-left: 1.15rem;
+  padding-left: 1.35rem;
+}
+
+.message-markdown ul {
+  list-style-type: disc;
+}
+
+.message-markdown ul ul {
+  list-style-type: circle;
+}
+
+.message-markdown ul ul ul {
+  list-style-type: square;
+}
+
+.message-markdown ol {
+  list-style-type: decimal;
+}
+
+.message-markdown ol ol {
+  list-style-type: lower-alpha;
+}
+
+.message-markdown ol ol ol {
+  list-style-type: lower-roman;
 }
 
 .message-markdown li {
@@ -77,7 +113,41 @@
   padding-left: 0.15rem;
 }
 
+.message-markdown li > ul,
+.message-markdown li > ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.message-markdown .contains-task-list {
+  padding-left: 1.35rem;
+}
+
+.message-markdown .task-list-item {
+  display: block;
+  list-style: none;
+  margin-left: -1.35rem;
+  padding-left: 0;
+}
+
+.message-markdown input[type="checkbox"] {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-right: 0.4rem;
+  accent-color: var(--color-primary);
+  vertical-align: -0.1rem;
+}
+
 .message-markdown li > p {
+  margin: 0.125rem 0;
+}
+
+.message-markdown li:not(.task-list-item) > p:first-child {
+  display: inline;
+  margin: 0;
+}
+
+.message-markdown .task-list-item > p {
   display: inline;
   margin: 0;
 }
@@ -104,14 +174,46 @@
 }
 
 .message-markdown [data-streamdown="code-block-header"] {
-  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.25rem;
   border-bottom: 1px solid var(--markdown-faint-border);
+  padding: 0.4rem 0.75rem;
   color: var(--markdown-muted);
 }
 
+.message-markdown [data-streamdown="code-block-header"] > span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-left: 0.125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-markdown [data-streamdown="code-block-header"] > button {
+  flex: 0 0 auto;
+}
+
 .message-markdown [data-streamdown="code-block-body"] {
+  overflow-x: auto;
+  margin: 0;
   border: 0;
   background: color-mix(in oklab, var(--color-background) 88%, var(--color-muted) 12%);
+  padding: 0.75rem;
+  white-space: pre;
+}
+
+.message-markdown .katex {
+  color: var(--color-foreground);
+}
+
+.message-markdown .katex-display {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .message-markdown [data-streamdown="table-wrapper"] {

@@ -190,6 +190,40 @@ describe('POST /api/messages', () => {
     expect(msg.is_pinned).toBe(false)
   })
 
+  it('preserves authored Markdown content byte-for-byte when creating a message', async () => {
+    const markdown = [
+      '# 标题',
+      '',
+      '- [x] 已完成',
+      '- [ ] 未完成',
+      '',
+      '```ts',
+      'const text = "$5 remains text"',
+      '```',
+      '',
+      '| A | B |',
+      '| --- | --- |',
+      '| 1 | 2 |',
+      '',
+      '---',
+      '',
+      '行内公式 $E = mc^2$',
+      '',
+      '$$',
+      '\\int_0^1 x^2 dx',
+      '$$',
+    ].join('\n')
+    const { POST } = await import('@/app/api/messages/route')
+    setupMockClient(createPostgresChain())
+
+    const result = await callRoute(POST, 'POST', {
+      body: { session_id: 'session-001', content: markdown },
+    })
+
+    expect(result.status).toBe(201)
+    expect((result.data as Record<string, unknown>).content).toBe(markdown)
+  })
+
   it('AT-M011: returns 404 when session not found on insert', async () => {
     const { POST } = await import('@/app/api/messages/route')
     setupMockClient(createErrorChain())
