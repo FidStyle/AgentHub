@@ -47,7 +47,18 @@ type RuntimeGatewayEvent =
   | { type: 'endpoint_unavailable'; endpointId?: string; reason: string }
   | { type: 'local_runtime_offline'; endpointId?: string; deviceId?: string }
   | { type: 'tunnel_connected'; endpointId: string; deviceId: string }
-  | { type: 'tunnel_disconnected'; endpointId: string; deviceId: string };
+  | { type: 'tunnel_disconnected'; endpointId: string; deviceId: string }
+  | RuntimeOutputEvent;
+
+type RuntimeOutputMode = 'append' | 'replace';
+
+interface RuntimeOutputEvent {
+  type: 'runtime_output';
+  delta: string;
+  endpointId?: string;
+  mode?: RuntimeOutputMode;
+  seq?: number;
+}
 ```
 
 DB tables for P1 foundation:
@@ -68,6 +79,9 @@ DB tables for P1 foundation:
 - HostedRuntimeAdapter must be implemented as Gateway client/contract boundary. It must not bypass Gateway by hardcoding a provider-specific service.
 - Self-hosted public runtime deployment can be unconfigured while Gateway contracts, DB records, and error events still work.
 - Public cloud worker dispatch must establish the runtime event subscription before enqueueing the job. Enqueue-before-subscribe can miss fast worker `runtime_output` pub/sub messages and falsely produce `runtime_completed` without an agent reply persisted.
+- `runtime_output` is a protocol event, not a Markdown rendering detail. Producers that own a runtime invocation must emit `mode: 'append'` and a monotonic output `seq` for every text delta; if a producer sends a full snapshot instead of a delta, it must emit `mode: 'replace'`.
+- Consumers must accumulate runtime text through the shared runtime output accumulator: ignore `runtime_output.seq <= lastSeq`, replace content on `mode: 'replace'`, append on `mode: 'append'` or legacy missing mode. Markdown renderers must only render the accumulated text; they must not infer replay, duplicate delivery, or output replacement from Markdown syntax.
+- Missing `seq` / `mode` is legacy-compatible append, not permission to add renderer heuristics. If duplicate delivery is observed on a path that lacks `seq`, fix the producer or relay contract first.
 
 ### 4. Validation & Error Matrix
 
@@ -78,13 +92,20 @@ DB tables for P1 foundation:
 | Web/Mobile attempts to store or use local IP/port for runtime | Reject or ignore; runtime route must use `endpointId` |
 | Self-hosted public runtime worker is not deployed yet | Store endpoint as `unconfigured`; do not block Gateway schema/routing work |
 | Runtime event contains credentials or local env secrets | Redact before persistence |
+| `runtime_output` with `seq <= lastSeq` is received by Web/Mobile/API accumulator | Ignore it; do not append replayed text |
+| `runtime_output` with `mode='replace'` is received | Replace accumulated reply with `delta` |
+| `runtime_output` lacks `seq` or `mode` from an old producer | Append for backward compatibility, then schedule producer contract fix if replay appears |
+| Markdown appears duplicated or flattened because the same runtime answer was replayed | Treat as event protocol failure first; do not add Markdown regex to guess replay |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: Web sends `/api/chat`; backend creates a `runtime_sessions` row, routes to Gateway, emits `gateway_connected`, then routes to `public_cloud` or `user_local`.
+- Good: Worker emits `{ type: 'runtime_output', delta: 'Hello ', mode: 'append', seq: 1 }`, then `{ type: 'runtime_output', delta: 'World', mode: 'append', seq: 2 }`; Web/Mobile/API accumulators show `Hello World` and ignore a later replay of seq 1.
+- Good: A relay sends a full corrected answer as `{ type: 'runtime_output', delta: fullText, mode: 'replace', seq: 3 }`; consumers replace the bubble content exactly once.
 - Base: self-hosted public runtime worker is not deployed; request persists a runtime session/log and emits `endpoint_unavailable` with a Chinese user-facing next step.
 - Bad: `HostedRuntimeAdapter` returns a hardcoded assistant message or `minimal_adapter` text and claims runtime execution succeeded.
 - Bad: Mobile connects directly to a Desktop localhost URL or stores a user's private IP/port as the runtime target.
+- Bad: MessageMarkdown detects that a later chunk "looks like" earlier text after whitespace removal and silently drops it. That is a renderer-side guess and will corrupt legitimate Markdown/code output.
 
 ### 6. Tests Required
 
@@ -94,6 +115,9 @@ DB tables for P1 foundation:
 - `public_cloud` live worker test: fast deterministic executor streams `runtime_output`, emits `runtime_completed`, and `/api/chat` persists both user and agent messages.
 - `user_local` offline test: no fake success; returns `local_runtime_offline` and backwards-compatible `DEVICE_OFFLINE`.
 - Security test: runtime endpoint creation rejects local IP/port as a Web/Mobile-controlled target.
+- Shared unit test: output accumulator appends increasing `seq`, ignores duplicate or older `seq`, replaces on `mode='replace'`, and still appends legacy events with missing `seq/mode`.
+- Web store/API/Mobile tests: streamed replies use the shared accumulator and do not duplicate replayed `runtime_output` events.
+- Runtime producer tests: public worker and local relay add monotonic output `seq` and `mode: 'append'` to text deltas.
 
 ### 7. Wrong vs Correct
 
@@ -121,6 +145,27 @@ const runtimeSession = await runtimeGateway.createSession({
 for await (const event of runtimeGateway.invoke({ runtimeSession, userMessage })) {
   await persistRuntimeEvent(runtimeSession.id, event);
   yield toSse(event);
+}
+```
+
+#### Wrong
+
+```typescript
+// Renderer-side replay guessing: this treats a transport/protocol problem as Markdown cleanup.
+if (normalizeWhitespace(existing).startsWith(normalizeWhitespace(delta))) {
+  return existing;
+}
+```
+
+#### Correct
+
+```typescript
+const accumulator = createRuntimeOutputAccumulator();
+
+for await (const event of runtimeGateway.invoke(input)) {
+  if (event.type === 'runtime_output') {
+    reply = accumulator.append(event);
+  }
 }
 ```
 

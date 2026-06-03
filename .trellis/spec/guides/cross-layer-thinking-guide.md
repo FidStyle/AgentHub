@@ -46,6 +46,15 @@ For each boundary:
 - What is the exact output format?
 - What errors can occur?
 
+### Step 4: Fix Root Cause At The Owning Boundary
+
+Before adding a local workaround, ask:
+- Which layer owns the missing fact or invariant?
+- Is the current fix reconstructing that fact from symptoms?
+- Would a reference project solve this in a reducer/protocol/store instead of the visible component?
+
+If the UI has to guess whether data is duplicated, stale, replayed, partial, authorized, or terminal, the contract is probably missing a field. Add the field and tests at the producer/consumer boundary first.
+
 ---
 
 ## Common Cross-Layer Mistakes
@@ -68,6 +77,18 @@ For each boundary:
 
 **Good**: Each layer only knows its neighbors
 
+### Mistake 4: Symptom Heuristics In The Wrong Layer
+
+**Bad**: Markdown renderer drops chunks because normalized text "looks replayed".
+
+**Good**: Runtime producers emit explicit `mode` and monotonic `seq`; consumers use a shared accumulator and renderers only render final content.
+
+### Mistake 5: Shallow Reference-Project Copying
+
+**Bad**: Copy only a reference project's colors, spacing, or component shape while missing the state/reducer/protocol rule that makes the component reliable.
+
+**Good**: Study how the reference project assigns responsibility: where IDs are stable, where append vs replace is decided, how duplicate events are ignored, and which layer owns copy controls. Then migrate the same responsibility boundary into AgentHub with AgentHub types and tests.
+
 ---
 
 ## Checklist for Cross-Layer Features
@@ -78,11 +99,15 @@ Before implementation:
 - [ ] Defined format at each boundary
 - [ ] Decided where validation happens
 - [ ] 如果功能涉及本地 Claude Code / Codex Runtime，先检查 `.trellis/spec/cross-layer/runtime-credential-boundary.md`，确认没有把本地 CLI API Key 混入 Role Agent、Workspace、Session 或 Runtime Binding。
+- [ ] 如果修复依赖“看起来像”“正则猜测”“归一化后比较”“UI 兜底”，先反查哪个协议/API/DB 字段缺失，并优先补契约。
+- [ ] 参考项目调研必须记录责任边界，不只记录组件外观；例如 codeg/AionUi 的消息 append/replace、stable id、copy 控制分别在哪一层实现。
+- [ ] 对 streaming/runtime/message 问题，先检查事件语义（append/replace/seq/id/terminal）再改 Markdown 或样式组件。
 
 After implementation:
 - [ ] Tested with edge cases (null, empty, invalid)
 - [ ] Verified error handling at each boundary
 - [ ] Checked data survives round-trip
+- [ ] 增加了能证明“治本”的测试：生产端字段、共享 reducer/accumulator、所有消费端行为，而不是只测某个 UI 症状消失。
 
 ---
 
