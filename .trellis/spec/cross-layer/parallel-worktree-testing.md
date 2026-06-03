@@ -42,9 +42,11 @@ webServer: {
 | rich-artifacts | `feature/rich-doc-ppt-artifacts` | 3103 | 预览/导出服务如另起端口需单独记录 |
 | chat-polish | `feature/chat-im-polish` | 3104 | IM 表面回归必须断言当前端口页面 |
 | orchestrator-spike | `spike/orchestrator-execution-model` | 3105 | 调研/spike 不应占用其他 lane 端口 |
+| role-runtime-workspace-permissions | `feature/role-runtime-workspace-permissions` | 3106 | 角色 runtime、cloud workspace、permission broker 回归 lane |
 
 ### 3. Contracts
 
+- 总控创建或建议新增 worktree/lane 时，必须同时分配显式端口并写入派发 prompt、合同或验收要求；禁止先开 lane 后让执行窗口自行选择端口。
 - 启动命令、E2E 命令、验收报告必须写出实际端口和 base URL。
 - 禁止直接运行依赖默认端口的命令后宣称通过，例如裸 `pnpm dev`、裸 `next dev`、裸 `playwright test` 且未声明 base URL。
 - 禁止使用框架自动递增端口作为通过证据。若 `3000` 被占用后服务自动跑到 `3001`，测试报告必须标记为配置错误并重跑。
@@ -61,16 +63,19 @@ webServer: {
 | dev server 命令未声明 `PORT` | 不接受为并行验收证据 | 报告“本地跑通” |
 | `BASE_URL` 与 `PORT` 不一致 | 测试失败 | 静默使用默认 URL |
 | Docker/Caddy 端口与 Web 端口冲突 | 调整显式端口并记录 | 复用默认端口导致其中一个服务不可达 |
+| 新增 lane 未分配端口 | 总控补端口后再派发执行 | 执行窗口自行使用默认端口开跑 |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: `mini-ide` 使用 `PORT=3102 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3102 pnpm test:e2e`，报告记录 URL、exit code、截图路径和当前 worktree branch。
+- Good: 总控新建 `feature/role-runtime-workspace-permissions` 时，同步声明 `PORT=3106`，派发 prompt 要求所有 dev/E2E/OpenCLI 命令使用 `http://127.0.0.1:3106`。
 - Base: `orchestrator-spike` 只做代码阅读和调研，不启动服务；报告写明未占用端口。
 - Bad: `chat-polish` 直接运行 `pnpm dev`，Next 自动从 `3000` 跳到 `3001`，随后 Playwright 仍访问 `http://localhost:3000` 并截图。
 
 ### 6. Tests Required
 
 - 启动前断言：报告中列出 lane、worktree path、branch、`PORT`、`BASE_URL`。
+- 派发断言：新增 lane 的任务合同或 prompt 必须包含端口分配；没有端口分配不得进入实现。
 - 服务断言：测试访问的 URL 必须包含该 lane 显式端口。
 - 视觉/E2E 断言：截图、trace 或 OpenCLI 证据必须能对应到同一 `BASE_URL`。
 - 并行验收断言：总控合并前检查所有 lane 的端口表，不允许两个活跃 lane 共用同一本地端口。
