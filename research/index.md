@@ -54,6 +54,7 @@
 | 文档 | 说明 |
 |------|------|
 | [ai-workflow-control.md](./ai-workflow-control.md) | **AI 工作流控制协议** — Codex/Trellis/Maestro 分工、共享合同和验收口径 |
+| [workflow/codex-trellis-worktree-workflow.md](./workflow/codex-trellis-worktree-workflow.md) | **Codex + Trellis + Git Worktree 操作流** — 多功能线并行开发、锁、Trellis 阶段、合并和 clean 检查 |
 | [project-tracker.md](./project-tracker.md) | **P0/P1/P2 项目跟进表** — 所有功能状态必须在此同步 |
 | [regression-ledger.md](./regression-ledger.md) | **回归、缺陷与未完成项台账** — 已完成功能暴露的问题、质量债和关闭条件 |
 | [decision-log.md](./decision-log.md) | 关键产品与技术决策日志 |
