@@ -4,14 +4,22 @@ import React from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
-import { AtSign, Pin, PinOff, Plus, Send, PanelRight, ShieldCheck, Square, WandSparkles } from 'lucide-react'
+import { AtSign, Copy, Pin, PinOff, Plus, Quote, Send, PanelRight, ShieldCheck, Square, WandSparkles, X } from 'lucide-react'
 import { useSessionStore, type Message } from '@/store/session-store'
 import { MessageContent } from './MessageContent'
 
 interface RoleAgent {
   id: string
   name: string
+  role_type?: string
+  capabilities?: string[] | null
   is_orchestrator: boolean
+}
+
+type QuotedMessage = {
+  id: string
+  author: string
+  preview: string
 }
 
 interface UploadedAttachment {
@@ -37,6 +45,33 @@ const SLASH_COMMANDS = [
   { command: '/review', label: '审查当前结果', template: '请审查当前实现，优先指出阻塞验收的问题、风险和缺失测试。' },
   { command: '/fix', label: '修复问题', template: '请定位并修复当前问题，完成后说明验证结果。' },
 ] as const
+
+const ROLE_TYPE_LABELS: Record<string, string> = {
+  orchestrator: '编排者',
+  engineer: '工程师',
+  reviewer: '审查者',
+  tester: '测试者',
+  custom: '自定义',
+  general: '通用',
+}
+
+export function roleTypeLabel(role: RoleAgent) {
+  if (role.is_orchestrator) return '编排者'
+  if (!role.role_type) return '角色智能体'
+  return ROLE_TYPE_LABELS[role.role_type] ?? role.role_type
+}
+
+export function messagePreview(content: string, max = 96) {
+  const normalized = content.replace(/\s+/g, ' ').trim()
+  if (!normalized) return '空消息'
+  return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized
+}
+
+export function quotedContent(input: string, quoted: QuotedMessage | null) {
+  const body = input.trim()
+  if (!quoted) return body
+  return `> 引用 ${quoted.author}：${quoted.preview}\n\n${body}`
+}
 
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
 // 语义默认向上展开（对齐裸 absolute 的 bottom-full）；上方空间不足时翻下方；宽度对齐 trigger 与上限取大并 clamp；
@@ -128,9 +163,16 @@ export function PinnedContextPanel({
   )
 }
 
-function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
+function MessageList({
+  roleAgents,
+  onQuote,
+}: {
+  roleAgents: RoleAgent[]
+  onQuote: (message: QuotedMessage) => void
+}) {
   const { activeSessionId, messages, loading, error, setMessagePinned } = useSessionStore()
   const [pinningId, setPinningId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
 
   if (loading) return <StateCard variant="loading" />
@@ -143,10 +185,19 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
   if (sessionMessages.length === 0) return <StateCard variant="empty" />
 
   const roleName = (id: string | null) => roleAgents.find((r) => r.id === id)?.name
+  const messageAuthor = (msg: Message) => {
+    if (msg.role === 'user') return '用户'
+    return roleName(msg.roleAgentId) ?? '智能体'
+  }
   const jumpToMessage = (messageId: string) => {
     setFocusedMessageId(messageId)
     document.getElementById(`message-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     window.setTimeout(() => setFocusedMessageId((current) => (current === messageId ? null : current)), 1400)
+  }
+  const copyMessage = async (msg: Message) => {
+    await navigator.clipboard.writeText(msg.content)
+    setCopiedId(msg.id)
+    window.setTimeout(() => setCopiedId((current) => (current === msg.id ? null : current)), 1200)
   }
 
   return (
@@ -176,24 +227,44 @@ function MessageList({ roleAgents }: { roleAgents: RoleAgent[] }) {
                     </Badge>
                   )}
                 </div>
-                {canPin && (
+                <div className="flex shrink-0 items-center gap-1">
                   <IconButton
-                    icon={msg.isPinned ? PinOff : Pin}
-                    label={msg.isPinned ? '取消固定上下文' : '固定到上下文'}
+                    icon={Copy}
+                    label={copiedId === msg.id ? '已复制' : '复制消息'}
                     variant="ghost"
                     size="sm"
-                    data-testid={msg.isPinned ? 'message-unpin-btn' : 'message-pin-btn'}
-                    disabled={pinningId === msg.id}
-                    onClick={async () => {
-                      setPinningId(msg.id)
-                      try {
-                        await setMessagePinned(msg.id, !msg.isPinned)
-                      } finally {
-                        setPinningId(null)
-                      }
-                    }}
+                    data-testid="message-copy-btn"
+                    disabled={!msg.content.trim()}
+                    onClick={() => void copyMessage(msg)}
                   />
-                )}
+                  <IconButton
+                    icon={Quote}
+                    label="引用回复"
+                    variant="ghost"
+                    size="sm"
+                    data-testid="message-quote-btn"
+                    disabled={!msg.content.trim()}
+                    onClick={() => onQuote({ id: msg.id, author: messageAuthor(msg), preview: messagePreview(msg.content) })}
+                  />
+                  {canPin && (
+                    <IconButton
+                      icon={msg.isPinned ? PinOff : Pin}
+                      label={msg.isPinned ? '取消固定上下文' : '固定到上下文'}
+                      variant="ghost"
+                      size="sm"
+                      data-testid={msg.isPinned ? 'message-unpin-btn' : 'message-pin-btn'}
+                      disabled={pinningId === msg.id}
+                      onClick={async () => {
+                        setPinningId(msg.id)
+                        try {
+                          await setMessagePinned(msg.id, !msg.isPinned)
+                        } finally {
+                          setPinningId(null)
+                        }
+                      }}
+                    />
+                  )}
+                </div>
               </div>
               <MessageContent content={msg.content} parts={msg.parts} streaming={msg.streaming === true} />
             </Card>
@@ -209,11 +280,15 @@ function MessageComposer({
   readOnly,
   readOnlyReason,
   onRefreshRuntimeStatus,
+  quotedMessage,
+  onClearQuote,
 }: {
   roleAgents: RoleAgent[]
   readOnly: boolean
   readOnlyReason: string | null
   onRefreshRuntimeStatus: () => void
+  quotedMessage: QuotedMessage | null
+  onClearQuote: () => void
 }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -266,7 +341,7 @@ function MessageComposer({
     abortRef.current = controller
     try {
       await sendMessage({
-        content: input.trim(),
+        content: quotedContent(input, quotedMessage),
         roleAgentIds: effectiveRoles.map((role) => role.id),
         attachmentIds: attachments.map((attachment) => attachment.id),
         permissionMode,
@@ -275,6 +350,7 @@ function MessageComposer({
       if (!controller.signal.aborted) {
         setInput('')
         setAttachments([])
+        onClearQuote()
         setSlashOpen(false)
       }
     } finally {
@@ -426,6 +502,22 @@ function MessageComposer({
             ))}
           </div>
         )}
+        {quotedMessage && (
+          <div data-testid="composer-quote-preview" className="mb-2 flex items-start justify-between gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs">
+            <div className="min-w-0">
+              <div className="font-medium text-foreground">引用 {quotedMessage.author}</div>
+              <p className="mt-1 line-clamp-2 text-muted-foreground">{quotedMessage.preview}</p>
+            </div>
+            <IconButton
+              icon={X}
+              label="取消引用"
+              variant="ghost"
+              size="sm"
+              data-testid="composer-clear-quote"
+              onClick={onClearQuote}
+            />
+          </div>
+        )}
         {slashOpen && input.trim().startsWith('/') && (
           <div data-testid="slash-command-menu" className="mb-2 rounded-md border border-border bg-popover p-1 shadow-sm">
             {SLASH_COMMANDS
@@ -512,10 +604,28 @@ function RolePicker({
             key={r.id}
             type="button"
             data-testid={`role-option-${r.id}`}
-            className="flex w-full items-start rounded-sm px-2 py-1.5 text-left text-sm break-words hover:bg-accent"
+            className="flex w-full items-start gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
             onClick={() => onSelect(r)}
           >
-            @{r.name}
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-xs font-medium">
+              {r.name.slice(0, 1)}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-medium">@{r.name}</span>
+                {r.is_orchestrator && <Badge variant="warning">编排</Badge>}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{roleTypeLabel(r)}</span>
+              {r.capabilities && r.capabilities.length > 0 && (
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {r.capabilities.slice(0, 3).map((capability) => (
+                    <Badge key={capability} variant="secondary" className="max-w-full truncate">
+                      {capability}
+                    </Badge>
+                  ))}
+                </span>
+              )}
+            </span>
           </button>
         ))
       )}
@@ -536,6 +646,7 @@ export function ChatPanel({
   onRefreshRuntimeStatus?: () => void
 }) {
   const { activeSessionId, activeWorkspaceId, sessions } = useSessionStore()
+  const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null)
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const roleAgents = useRoleAgents(activeWorkspaceId)
 
@@ -547,12 +658,14 @@ export function ChatPanel({
         </h2>
         <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
       </div>
-      <MessageList roleAgents={roleAgents} />
+      <MessageList roleAgents={roleAgents} onQuote={setQuotedMessage} />
       <MessageComposer
         roleAgents={roleAgents}
         readOnly={readOnly}
         readOnlyReason={readOnlyReason}
         onRefreshRuntimeStatus={onRefreshRuntimeStatus}
+        quotedMessage={quotedMessage}
+        onClearQuote={() => setQuotedMessage(null)}
       />
     </div>
   )

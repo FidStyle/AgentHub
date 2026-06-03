@@ -2,8 +2,20 @@
 
 import { useMemo, useState } from 'react'
 import { Badge, StateCard } from '@agenthub/ui'
-import { Archive, MessageSquareText, RotateCcw, Search, Trash2 } from 'lucide-react'
+import { Archive, Clock, MessageSquareText, RotateCcw, Search, Trash2 } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
+
+function formatSessionTime(value: string) {
+  if (!value) return '暂无时间'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '暂无时间'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
 
 export function SessionList() {
   const {
@@ -89,7 +101,10 @@ export function SessionList() {
                 onClick={() => setActiveSession(session.id)}
                 className="min-w-0 flex-1 text-left"
               >
-                <p className="truncate text-sm font-medium">{session.title}</p>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-medium">{session.title}</span>
+                  {session.status === 'archived' && <Badge variant="secondary">已归档</Badge>}
+                </span>
               </button>
               <div className="flex shrink-0 items-center gap-1">
                 {activeSessionId === session.id && <Badge variant="default">当前</Badge>}
@@ -131,6 +146,10 @@ export function SessionList() {
               className="mt-1 block w-full text-left"
             >
               <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{session.lastMessage || '暂无最新消息'}</p>
+              <span className="mt-2 flex items-center gap-1 text-[11px] leading-4 text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                最近活跃：{formatSessionTime(session.updatedAt)}
+              </span>
             </button>
           </div>
         ))}

@@ -5,11 +5,30 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, Download, FileCode2, FileText, FolderTree, GitBranch, PackagePlus, Pencil, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
+import { Bot, Boxes, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, PackagePlus, Pencil, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 
 const TABS = ['角色', '文件', '变更', '产物'] as const
+
+const ROLE_TYPE_LABELS: Record<string, string> = {
+  orchestrator: '编排者',
+  engineer: '工程师',
+  reviewer: '审查者',
+  tester: '测试者',
+  custom: '自定义',
+  general: '通用',
+}
+
+const ARTIFACT_TYPE_LABELS: Record<ArtifactRow['artifact_type'], string> = {
+  html: '网页预览',
+  markdown: 'Markdown',
+  code: '代码',
+  image: '图片',
+  diff: 'Diff',
+  folder: '目录',
+  generic_file: '文件',
+}
 
 type RoleAgentRow = {
   id: string
@@ -68,6 +87,31 @@ type GitChangeRow = {
 
 function truncate(text: string, max = 160) {
   return text.length > max ? `${text.slice(0, max)}...` : text
+}
+
+export function formatPanelTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '暂无时间'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+export function artifactTypeLabel(artifactType: ArtifactRow['artifact_type']) {
+  return ARTIFACT_TYPE_LABELS[artifactType] ?? artifactType
+}
+
+export function artifactPreviewLabel(artifact: Pick<ArtifactRow, 'artifact_type' | 'content'>) {
+  const hasInlinePreview = artifact.content !== null || artifact.artifact_type === 'folder' || artifact.artifact_type === 'image'
+  return hasInlinePreview ? '可预览' : '需下载'
+}
+
+function roleTypeLabel(agent: Pick<RoleAgentRow, 'role_type' | 'is_orchestrator'>) {
+  if (agent.is_orchestrator) return '编排者'
+  return ROLE_TYPE_LABELS[agent.role_type] ?? agent.role_type
 }
 
 function toPreview(value: unknown) {
@@ -303,8 +347,8 @@ function AgentsTab() {
     <div data-testid="artifact-agents" className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-medium">Role Agents</h3>
-          <p className="text-xs text-muted-foreground">管理当前工作区可 @ 的角色</p>
+          <h3 className="text-sm font-medium">角色智能体联系人</h3>
+          <p className="text-xs text-muted-foreground">管理当前工作区可 @ 的协作角色</p>
         </div>
         <Button size="sm" onClick={startCreate} data-testid="agent-create-btn">新建</Button>
       </div>
@@ -319,14 +363,27 @@ function AgentsTab() {
             key={a.id}
             type="button"
             onClick={() => { setSelectedId(a.id); setEditing(false) }}
-            className={`w-full rounded-lg border border-border p-3 text-left hover:bg-muted ${selected?.id === a.id && !editing ? 'bg-muted' : ''}`}
+            className={`flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-muted ${selected?.id === a.id && !editing ? 'bg-muted' : ''}`}
           >
-            <div className="font-medium">{a.name}</div>
-            <div className="text-xs text-muted-foreground">{a.role_type}{a.is_orchestrator ? ' · 编排者' : ''}</div>
-            <div className="mt-1 text-xs text-muted-foreground">运行时: {runtimeLabel(a.runtime_type)}</div>
-            {a.capabilities && a.capabilities.length > 0 && (
-              <div className="mt-1 text-xs text-muted-foreground">能力: {a.capabilities.join('、')}</div>
-            )}
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-sm font-medium">
+              {a.name.slice(0, 1)}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-medium">{a.name}</span>
+                {a.is_orchestrator && <Badge variant="warning">编排者</Badge>}
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">{roleTypeLabel(a)} · 配置摘要：{runtimeLabel(a.runtime_type)}</span>
+              {a.capabilities && a.capabilities.length > 0 && (
+                <span className="mt-2 flex flex-wrap gap-1">
+                  {a.capabilities.slice(0, 4).map((capability) => (
+                    <Badge key={capability} variant="secondary" className="max-w-full truncate">
+                      {capability}
+                    </Badge>
+                  ))}
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </div>
@@ -412,9 +469,16 @@ function AgentsTab() {
         <div data-testid="agent-detail" className="space-y-3 rounded-lg border border-border bg-background p-3">
           <div>
             <div className="text-sm font-medium">{selected.name}</div>
-            <div className="text-xs text-muted-foreground">{selected.role_type}{selected.is_orchestrator ? ' · 编排者' : ''}</div>
-            <div className="mt-1 text-xs text-muted-foreground">运行时: {runtimeLabel(selected.runtime_type)}</div>
+            <div className="text-xs text-muted-foreground">{roleTypeLabel(selected)}{selected.is_orchestrator ? ' · 可协调分工' : ''}</div>
+            <div className="mt-1 text-xs text-muted-foreground">运行时配置摘要：{runtimeLabel(selected.runtime_type)}</div>
           </div>
+          {selected.capabilities && selected.capabilities.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {selected.capabilities.map((capability) => (
+                <Badge key={capability} variant="secondary">{capability}</Badge>
+              ))}
+            </div>
+          )}
           <p className="whitespace-pre-wrap text-sm text-muted-foreground">
             {selected.system_prompt || '未设置系统提示词'}
           </p>
@@ -1148,6 +1212,8 @@ function ChangesTab() {
 
 function ArtifactCard({ artifact }: { artifact: ArtifactRow }) {
   const downloadUrl = `/api/artifacts/${artifact.id}/download`
+  const typeLabel = artifactTypeLabel(artifact.artifact_type)
+  const previewLabel = artifactPreviewLabel(artifact)
   const preview = {
     previewKind: artifact.artifact_type === 'generic_file' ? 'binary' : artifact.artifact_type,
     content: artifact.content ?? (artifact.artifact_type === 'folder' ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2) : null),
@@ -1158,18 +1224,27 @@ function ArtifactCard({ artifact }: { artifact: ArtifactRow }) {
   } as Pick<FilePreview, 'previewKind' | 'content' | 'mime' | 'path' | 'name' | 'truncated'>
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-background p-3">
+    <div data-testid="artifact-card" className="space-y-3 rounded-lg border border-border bg-background p-3">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <span className="truncate text-sm font-medium">{artifact.title}</span>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            {artifact.source_path ? `来源文件：${artifact.source_path}` : `产物 ID：${artifact.id}`}
-          </p>
+          <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+            <p className="truncate">{artifact.source_path ? `来源文件：${artifact.source_path}` : `产物 ID：${artifact.id}`}</p>
+            <p className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              创建时间：{formatPanelTime(artifact.created_at)}
+            </p>
+          </div>
         </div>
-        <Badge variant="secondary">{artifact.artifact_type}</Badge>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Badge variant="secondary">{typeLabel}</Badge>
+          <Badge variant={previewLabel === '可预览' ? 'success' : 'warning'}>
+            {previewLabel}
+          </Badge>
+        </div>
       </div>
       <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
       <a
