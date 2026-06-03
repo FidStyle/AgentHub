@@ -39,6 +39,44 @@ var DEFAULT_ORCHESTRATOR_CONFIG = {
   approvalRequired: (risk) => risk === "critical" || risk === "high"
 };
 
+// src/runtime/output-accumulator.ts
+function commonRawOverlapLength(left, right) {
+  const max = Math.min(left.length, right.length);
+  for (let length = max; length > 0; length--) {
+    if (left.slice(-length) === right.slice(0, length)) return length;
+  }
+  return 0;
+}
+function appendRuntimeDelta(current, delta) {
+  if (!delta) return current;
+  if (!current) return delta;
+  if (current.endsWith(delta)) return current;
+  const overlap = commonRawOverlapLength(current, delta);
+  return overlap > 0 ? current + delta.slice(overlap) : current + delta;
+}
+function createRuntimeOutputAccumulator(initialContent = "") {
+  let content = initialContent;
+  let lastSeq = 0;
+  return {
+    append(eventOrDelta) {
+      const event = typeof eventOrDelta === "string" ? { type: "runtime_output", delta: eventOrDelta } : eventOrDelta;
+      if (typeof event.seq === "number") {
+        if (event.seq <= lastSeq) return content;
+        lastSeq = event.seq;
+      }
+      if (event.mode === "replace") {
+        content = event.delta ?? "";
+        return content;
+      }
+      content = appendRuntimeDelta(content, event.delta ?? "");
+      return content;
+    },
+    value() {
+      return content;
+    }
+  };
+}
+
 // src/runtime/error-codes.ts
 var RuntimeErrorCode = {
   DEVICE_OFFLINE: "DEVICE_OFFLINE",
@@ -79,6 +117,9 @@ var DEFAULT_POLICIES = [
   { action_type: "shell", risk_level: "high", requires_approval: true, description: "\u9AD8\u98CE\u9669 shell \u547D\u4EE4" },
   { action_type: "file_write", risk_level: "low", requires_approval: false, description: "\u6587\u4EF6\u5199\u5165" },
   { action_type: "file_write", risk_level: "high", requires_approval: true, description: "\u9AD8\u98CE\u9669\u6587\u4EF6\u5199\u5165" },
+  { action_type: "git_stage", risk_level: "low", requires_approval: false, description: "Git \u6682\u5B58" },
+  { action_type: "git_unstage", risk_level: "low", requires_approval: false, description: "Git \u53D6\u6D88\u6682\u5B58" },
+  { action_type: "git_discard", risk_level: "high", requires_approval: true, description: "\u4E22\u5F03 Git \u5DE5\u4F5C\u533A\u6539\u52A8" },
   { action_type: "git_push", risk_level: "medium", requires_approval: true, description: "Git \u63A8\u9001" },
   { action_type: "deploy", risk_level: "high", requires_approval: true, description: "\u90E8\u7F72\u64CD\u4F5C" }
 ];
@@ -91,15 +132,15 @@ function timestampMillis(value) {
 }
 function selectReadyMailboxItems(items) {
   const ordered = [...items].sort((a, b) => timestampMillis(a.created_at) - timestampMillis(b.created_at));
-  const activeRoles = new Set(
-    ordered.filter((item) => item.direction === "inbound" && ACTIVE_MAILBOX_STATUSES.has(item.status)).map((item) => item.to_role_agent_id)
+  const activeSessions = new Set(
+    ordered.filter((item) => item.direction === "inbound" && ACTIVE_MAILBOX_STATUSES.has(item.status)).map((item) => item.session_id)
   );
-  const selectedRoles = /* @__PURE__ */ new Set();
+  const selectedSessions = /* @__PURE__ */ new Set();
   return ordered.filter((item) => {
     if (item.direction !== "inbound" || item.status !== "queued") return false;
-    if (activeRoles.has(item.to_role_agent_id)) return false;
-    if (selectedRoles.has(item.to_role_agent_id)) return false;
-    selectedRoles.add(item.to_role_agent_id);
+    if (activeSessions.has(item.session_id)) return false;
+    if (selectedSessions.has(item.session_id)) return false;
+    selectedSessions.add(item.session_id);
     return true;
   });
 }
@@ -119,7 +160,9 @@ export {
   FR_IDS,
   RuntimeErrorCode,
   SeqGenerator,
+  appendRuntimeDelta,
   colors,
+  createRuntimeOutputAccumulator,
   nextPlanNodeAttemptDraft,
   parseFrame,
   selectReadyMailboxItems,

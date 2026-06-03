@@ -380,6 +380,7 @@ export async function* invoke(input: {
   }
 
   await setSessionStatus(input.runtimeSession.id, 'running')
+  let outputSeq = 0
   for await (const event of sendRuntimeInvokeToDevice(relayDeviceId, {
     sessionId: input.runtimeSession.id,
     runtimeType: invokePayload.runtimeType,
@@ -400,7 +401,8 @@ export async function* invoke(input: {
       await setNativeSessionId(input.runtimeSession.id, event.nativeSessionId)
       yield { type: 'native_session', nativeSessionId: event.nativeSessionId, endpointId }
     } else if (event.type === 'text_delta') {
-      yield { type: 'runtime_output', delta: event.delta, endpointId }
+      outputSeq += 1
+      yield { type: 'runtime_output', delta: event.delta, endpointId, mode: 'append', seq: outputSeq }
     } else if (event.type === 'completed') {
       yield { type: 'runtime_completed', endpointId, summary: event.summary ?? 'done' }
       await setSessionStatus(input.runtimeSession.id, 'completed')

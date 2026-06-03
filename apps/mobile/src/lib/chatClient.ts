@@ -1,4 +1,4 @@
-import type { RuntimeGatewayEvent } from '@agenthub/shared'
+import { createRuntimeOutputAccumulator, type RuntimeGatewayEvent } from '@agenthub/shared'
 
 // Terminal runtime states must surface a clear Chinese notice, never silence or a fake success.
 // Mirrors the Web/PWA statusText mapping so all surfaces behave consistently.
@@ -54,13 +54,14 @@ export function sendChat(params: SendChatParams): Promise<{ reply: string }> {
     xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
     let reply = ''
+    const replyAccumulator = createRuntimeOutputAccumulator()
     let consumed = 0
     let buffer = ''
     let noticed = false
 
     const handleEvent = (evt: RuntimeGatewayEvent) => {
       if (evt.type === 'runtime_output' && evt.delta) {
-        reply += evt.delta
+        reply = replyAccumulator.append(evt)
         onDelta(reply)
       } else if (statusText[evt.type]) {
         noticed = true

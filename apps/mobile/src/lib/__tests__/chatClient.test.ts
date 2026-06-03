@@ -100,6 +100,25 @@ describe('sendChat', () => {
     expect(notices).toHaveLength(0)
   })
 
+  it('②b 按 runtime_output seq 去重，避免回放 chunk 拼进正文', async () => {
+    const deltas: string[] = []
+    const promise = sendChat({
+      ...base,
+      onDelta: (reply) => deltas.push(reply),
+      onNotice: () => {},
+      onError: () => {},
+    })
+    const xhr = FakeXHR.instance!
+    xhr.pushFrame({ type: 'runtime_output', delta: 'Hello ', mode: 'append', seq: 1 })
+    xhr.pushFrame({ type: 'runtime_output', delta: 'World', mode: 'append', seq: 2 })
+    xhr.pushFrame({ type: 'runtime_output', delta: 'Hello ', mode: 'append', seq: 1 })
+    xhr.pushFrame({ type: 'runtime_completed' })
+    xhr.finish(200)
+    const { reply } = await promise
+    expect(reply).toBe('Hello World')
+    expect(deltas.at(-1)).toBe('Hello World')
+  })
+
   it('③ 失败路径：HTTP 非 2xx 触发 onError，不伪造成功回复', async () => {
     let errMsg = ''
     const promise = sendChat({

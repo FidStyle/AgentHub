@@ -14,6 +14,16 @@ export interface RuntimeGatewayInvokeInput {
   cwd?: string
 }
 
+export type RuntimeOutputMode = 'append' | 'replace'
+
+export type RuntimeOutputEvent = {
+  type: 'runtime_output'
+  delta: string
+  endpointId?: string
+  mode?: RuntimeOutputMode
+  seq?: number
+}
+
 export type RuntimeGatewayEvent =
   | { type: 'gateway_connected'; endpointId: string }
   | { type: 'runtime_status'; status: string; endpointId?: string }
@@ -23,7 +33,7 @@ export type RuntimeGatewayEvent =
   | { type: 'local_runtime_offline'; endpointId?: string; deviceId?: string }
   | { type: 'tunnel_connected'; endpointId: string; deviceId: string }
   | { type: 'tunnel_disconnected'; endpointId: string; deviceId: string }
-  | { type: 'runtime_output'; delta: string; endpointId?: string }
+  | RuntimeOutputEvent
   | { type: 'tool_started'; toolCallId?: string; toolName: string; input?: unknown; endpointId?: string }
   | { type: 'tool_delta'; toolCallId?: string; toolName?: string; delta: string; endpointId?: string }
   | { type: 'tool_completed'; toolCallId?: string; toolName: string; result?: unknown; endpointId?: string }

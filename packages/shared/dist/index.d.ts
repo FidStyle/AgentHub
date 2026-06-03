@@ -28,7 +28,7 @@ interface Session {
     createdAt: Date;
 }
 
-type MessageType = 'text' | 'plan_card' | 'result_card' | 'approval' | 'system_event';
+type MessageType = 'text' | 'plan_card' | 'result_card' | 'approval' | 'system_event' | 'role_acknowledgement';
 type SenderType = 'user' | 'agent' | 'system';
 type StreamingStatus = 'idle' | 'streaming' | 'complete';
 type RuntimeMessagePart = {
@@ -151,7 +151,7 @@ interface RuntimeCapabilitiesSnapshot {
     diagnostic?: string;
 }
 
-type ActionType = 'preview' | 'test' | 'build' | 'shell';
+type ActionType = 'preview' | 'test' | 'build' | 'shell' | 'git_stage' | 'git_unstage' | 'git_discard';
 type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 type ActionStatus = 'pending' | 'approved' | 'running' | 'completed' | 'failed' | 'cancelled';
 interface ActionRequest {
@@ -252,6 +252,14 @@ interface RuntimeGatewayInvokeInput {
     userMessage: string;
     cwd?: string;
 }
+type RuntimeOutputMode = 'append' | 'replace';
+type RuntimeOutputEvent = {
+    type: 'runtime_output';
+    delta: string;
+    endpointId?: string;
+    mode?: RuntimeOutputMode;
+    seq?: number;
+};
 type RuntimeGatewayEvent = {
     type: 'gateway_connected';
     endpointId: string;
@@ -283,11 +291,7 @@ type RuntimeGatewayEvent = {
     type: 'tunnel_disconnected';
     endpointId: string;
     deviceId: string;
-} | {
-    type: 'runtime_output';
-    delta: string;
-    endpointId?: string;
-} | {
+} | RuntimeOutputEvent | {
     type: 'tool_started';
     toolCallId?: string;
     toolName: string;
@@ -343,6 +347,12 @@ type RuntimeGatewayEvent = {
     type: 'runtime_cancelled';
     endpointId?: string;
     reason?: string;
+};
+
+declare function appendRuntimeDelta(current: string, delta: string): string;
+declare function createRuntimeOutputAccumulator(initialContent?: string): {
+    append(eventOrDelta: RuntimeOutputEvent | string): string;
+    value(): string;
 };
 
 declare const RuntimeErrorCode: {
@@ -509,7 +519,7 @@ type MailboxStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' |
 
 /** Action execution types for orchestrator (extends domain types) */
 
-type OrchestratorActionType = 'shell' | 'file_write' | 'git_push' | 'deploy';
+type OrchestratorActionType = 'shell' | 'file_write' | 'git_push' | 'git_stage' | 'git_unstage' | 'git_discard' | 'deploy';
 type OrchestratorActionStatus = 'pending' | 'approved' | 'rejected' | 'running' | 'completed' | 'failed';
 interface OrchestratorAction {
     id: string;
@@ -618,4 +628,4 @@ declare function nextPlanNodeAttemptDraft(input: {
     attempts: PlanNodeAttempt[];
 }): PlanNodeAttemptDraft;
 
-export { type ActionRequest, type ActionStatus, type ActionType, type AgentMailboxItem, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type CliRuntimeType, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type MailboxDirection, type MailboxStatus, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeAttempt, type PlanNodeAttemptControl, type PlanNodeAttemptDraft, type PlanNodeControl, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCapabilitiesSnapshot, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeMessagePart, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, colors, nextPlanNodeAttemptDraft, parseFrame, selectReadyMailboxItems, serializeFrame };
+export { type ActionRequest, type ActionStatus, type ActionType, type AgentMailboxItem, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type CliRuntimeType, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type MailboxDirection, type MailboxStatus, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeAttempt, type PlanNodeAttemptControl, type PlanNodeAttemptDraft, type PlanNodeControl, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCapabilitiesSnapshot, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeMessagePart, type RuntimeOutputEvent, type RuntimeOutputMode, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, appendRuntimeDelta, colors, createRuntimeOutputAccumulator, nextPlanNodeAttemptDraft, parseFrame, selectReadyMailboxItems, serializeFrame };

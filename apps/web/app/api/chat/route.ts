@@ -4,12 +4,11 @@ import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
-import { createRuntimeDeltaAccumulator } from '@/lib/chat/markdown'
 import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
 import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
-import type { RuntimeGatewayEvent, RuntimeMessagePart } from '@agenthub/shared'
+import { createRuntimeOutputAccumulator, type RuntimeGatewayEvent, type RuntimeMessagePart } from '@agenthub/shared'
 import type { CliRuntimeType, RuntimeType } from '@agenthub/shared'
 import type { ContextPackage } from '@agenthub/shared'
 
@@ -574,7 +573,7 @@ export async function POST(req: NextRequest) {
           const currentRoleAgentId = role?.id ?? null
           const currentRoleName = role?.name ?? '默认 Agent'
           let reply = ''
-          const replyAccumulator = createRuntimeDeltaAccumulator()
+          const replyAccumulator = createRuntimeOutputAccumulator()
           let runtimeParts: RuntimeMessagePart[] = []
           let completed = false
           const receivedHandoffs = handoffs
@@ -663,7 +662,7 @@ export async function POST(req: NextRequest) {
           }
 
           for await (const evt of eventStream()) {
-            if (evt.type === 'runtime_output' && evt.delta) reply = replyAccumulator.append(evt.delta)
+            if (evt.type === 'runtime_output' && evt.delta) reply = replyAccumulator.append(evt)
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
             if (evt.type === 'runtime_completed') completed = true
             controller.enqueue(encode(evt))

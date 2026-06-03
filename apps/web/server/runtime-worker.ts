@@ -141,6 +141,7 @@ async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = 
 export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Promise<Terminal> {
   const id = job.runtimeSessionId
   let seq = 0
+  let outputSeq = 0
   let output = ''
   const emit = async (event: Record<string, unknown>) => {
     await log(id, String(event.type), event, seq++)
@@ -187,7 +188,8 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
       if (!chunk.delta) continue
       await setHeartbeat(id, HEARTBEAT_TTL_SEC)
       output += chunk.delta
-      await emit({ type: 'runtime_output', delta: chunk.delta, endpointId: job.endpointId })
+      outputSeq += 1
+      await emit({ type: 'runtime_output', delta: chunk.delta, endpointId: job.endpointId, mode: 'append', seq: outputSeq })
     }
   } catch (err) {
     clearInterval(heartbeatInterval)

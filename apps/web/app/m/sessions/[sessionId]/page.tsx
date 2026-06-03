@@ -4,8 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Card, CardContent, StateCard, Badge } from '@agenthub/ui'
 import { GitBranch, Paperclip, PlayCircle, RefreshCcw } from 'lucide-react'
-import type { Message, Plan, PlanNode, PlanNodeControl, RuntimeMessagePart } from '@agenthub/shared'
-import { createRuntimeDeltaAccumulator } from '@/lib/chat/markdown'
+import { createRuntimeOutputAccumulator, type Message, type Plan, type PlanNode, type PlanNodeControl, type RuntimeMessagePart, type RuntimeOutputEvent } from '@agenthub/shared'
 
 interface RoleAgent {
   id: string
@@ -207,7 +206,7 @@ export default function MobileSessionPage() {
 
       const replyId = `reply-${Date.now()}`
       let reply = ''
-      const replyAccumulator = createRuntimeDeltaAccumulator()
+      const replyAccumulator = createRuntimeOutputAccumulator()
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -237,7 +236,7 @@ export default function MobileSessionPage() {
         for (const frame of frames) {
           const line = frame.trim()
           if (!line.startsWith('data:')) continue
-          let evt: { type?: string; delta?: string; roleAgentId?: string | null }
+          let evt: { type?: string; delta?: string; mode?: RuntimeOutputEvent['mode']; seq?: number; roleAgentId?: string | null }
           try {
             evt = JSON.parse(line.slice(5).trim())
           } catch {
@@ -247,7 +246,7 @@ export default function MobileSessionPage() {
             respondingRoleAgentId = evt.roleAgentId
           }
           if (evt.type === 'runtime_output' && evt.delta) {
-            reply = replyAccumulator.append(evt.delta)
+            reply = replyAccumulator.append(evt as RuntimeOutputEvent)
             upsertReply()
           } else if (evt.type && statusText[evt.type] && !reply && !noticed) {
             noticed = true

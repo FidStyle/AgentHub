@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { RuntimeMessagePart } from '@agenthub/shared'
-import { appendRuntimeDelta, createRuntimeDeltaAccumulator, normalizeMessageMarkdown } from '@/lib/chat/markdown'
+import { normalizeMessageMarkdown } from '@/lib/chat/markdown'
 import { MessageContent } from '@/components/workspace/MessageContent'
 import { MessageMarkdown } from '@/components/workspace/MessageMarkdown'
 
@@ -122,60 +122,6 @@ describe('normalizeMessageMarkdown', () => {
     expect(html).toContain('data-language="markdown"')
     expect(html).toContain('```python')
     expect(html).toContain('print(&quot;Hello&quot;)')
-  })
-})
-
-describe('appendRuntimeDelta', () => {
-  it('does not append a replayed full answer after incremental deltas', () => {
-    const accumulator = createRuntimeDeltaAccumulator()
-    let content = ''
-    for (const delta of [
-      '你好！我是 AgentHub 架构师，',
-      '负责理解你的需求。',
-      '当前你的工作区是 `apps/web`，',
-      'git 状态里有两处改动待处理：',
-      '\n\n- `public/sw.js`（已修改，未提交）',
-      '\n- `__tests__/service-worker.test.ts`（新增的 Service Worker 测试）',
-    ]) {
-      content = accumulator.append(delta)
-    }
-
-    content = accumulator.append('你好！我是 AgentHub 架构师，负责理解你的需求。当前你的工作区是 `apps/web`,git 状态里有两处改动待处理：- `public/sw.js`（已修改，未提交）- `__tests__/service-worker.test.ts`（新增的 Service Worker 测试）')
-
-    expect(content.match(/你好！我是 AgentHub/g)).toHaveLength(1)
-    expect(content.match(/public\/sw\.js/g)).toHaveLength(1)
-  })
-
-  it('skips short replay chunks after a completed answer', () => {
-    const initial = [
-      '作为 @架构师，我给你输出几种常见的 Markdown 主要格式示例：',
-      '',
-      '# 一级标题',
-      '',
-      '- 第一项',
-      '- 第二项',
-      '',
-      '需要我针对某种格式展开说明吗？',
-    ].join('\n')
-    const accumulator = createRuntimeDeltaAccumulator(initial)
-    let content = initial
-
-    for (const delta of ['作为 @架构', '师，我给', '你输出几种常见的 Markdown', '主要格式示例：', '# 一级标题', '- 第一项']) {
-      content = accumulator.append(delta)
-    }
-
-    expect(content.match(/作为 @架构师/g)).toHaveLength(1)
-    expect(content.match(/一级标题/g)).toHaveLength(1)
-    expect(content.match(/第一项/g)).toHaveLength(1)
-  })
-
-  it('keeps raw markdown characters when whitespace-normalized overlap looks similar', () => {
-    const current = '```markdown\n标题 a b'
-    const delta = 'ab\n## 二级标题\n```'
-    const content = appendRuntimeDelta(current, delta)
-
-    expect(content).toBe('```markdown\n标题 a bab\n## 二级标题\n```')
-    expect(content.endsWith('```')).toBe(true)
   })
 })
 
