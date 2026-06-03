@@ -1,5 +1,6 @@
-const CACHE_NAME = 'agenthub-v1'
-const PRECACHE = ['/', '/m', '/m/approve', '/m/preview']
+const CACHE_NAME = 'agenthub-mobile-v2'
+const LEGACY_CACHE_NAMES = ['agenthub-v1']
+const PRECACHE = ['/m', '/m/approve', '/m/preview']
 
 function isMobilePwaRequest(request) {
   const url = new URL(request.url)
@@ -30,6 +31,16 @@ async function handleMobilePwaRequest(request) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE))
+  )
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((names) => Promise.all(
+      names
+        .filter((name) => name !== CACHE_NAME && (name.startsWith('agenthub-') || LEGACY_CACHE_NAMES.includes(name)))
+        .map((name) => caches.delete(name))
+    ))
   )
 })
 

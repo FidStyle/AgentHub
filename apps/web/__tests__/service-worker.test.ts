@@ -20,6 +20,8 @@ function loadServiceWorker() {
       open: vi.fn(async () => ({
         addAll: vi.fn(async () => undefined),
       })),
+      keys: vi.fn<() => Promise<string[]>>(async () => []),
+      delete: vi.fn(async () => true),
       match: vi.fn(async (request: Request | string) => {
         const key = typeof request === 'string' ? request : new URL(request.url).pathname
         return cacheStore.get(key)
@@ -58,6 +60,32 @@ describe('service worker fetch routing', () => {
     })
 
     expect(respondWith).not.toHaveBeenCalled()
+  })
+
+  it('pre-caches only mobile routes and not the desktop root document', async () => {
+    const { context, listeners } = loadServiceWorker()
+    const waitUntil = vi.fn((promise: Promise<unknown>) => promise)
+
+    listeners.get('install')?.({ waitUntil })
+
+    expect(waitUntil).toHaveBeenCalledTimes(1)
+    await waitUntil.mock.calls[0][0]
+    const openedCache = await context.caches.open.mock.results[0].value
+    expect(openedCache.addAll).toHaveBeenCalledWith(['/m', '/m/approve', '/m/preview'])
+  })
+
+  it('deletes legacy root-scope caches during activation', async () => {
+    const { context, listeners } = loadServiceWorker()
+    context.caches.keys.mockResolvedValueOnce(['agenthub-v1', 'agenthub-mobile-v2', 'other-cache'])
+    const waitUntil = vi.fn((promise: Promise<unknown>) => promise)
+
+    listeners.get('activate')?.({ waitUntil })
+
+    expect(waitUntil).toHaveBeenCalledTimes(1)
+    await waitUntil.mock.calls[0][0]
+    expect(context.caches.delete).toHaveBeenCalledWith('agenthub-v1')
+    expect(context.caches.delete).not.toHaveBeenCalledWith('agenthub-mobile-v2')
+    expect(context.caches.delete).not.toHaveBeenCalledWith('other-cache')
   })
 
   it('returns a real Response for offline mobile navigation fallback', async () => {

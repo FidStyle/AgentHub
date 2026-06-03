@@ -169,6 +169,187 @@ for await (const event of runtimeGateway.invoke(input)) {
 }
 ```
 
+## Scenario: Root-Cause-Only Runtime/Markdown Fixes
+
+### 1. Scope / Trigger
+
+- Trigger: Any bug where chat content, Markdown rendering, streaming output, SSE replay, runtime events, or cross-layer message persistence appears duplicated, flattened, out of order, or partially malformed.
+- Applies to runtime producers (`CliRuntimeExecutor`, Desktop runtime adapters, workers), relays (`subscribeEvents`, DeviceChannel, Gateway), API aggregation (`/api/chat`), shared accumulators, Web/Mobile stores, and Markdown renderers.
+- This is a cross-layer protocol rule. Code changes must prove where the bad data is created before changing downstream rendering behavior.
+
+### 2. Signatures
+
+```typescript
+interface RuntimeOutputEvent {
+  type: 'runtime_output';
+  delta: string;
+  endpointId?: string;
+  mode?: 'append' | 'replace';
+  seq?: number;
+}
+
+interface RuntimeCompletedEvent {
+  type: 'runtime_completed';
+  endpointId?: string;
+  summary?: string;
+}
+
+type RuntimeGatewayEvent = RuntimeOutputEvent | RuntimeCompletedEvent | RuntimeStatusEvent | RuntimeToolEvent;
+```
+
+Required trace points for investigation:
+
+- Producer emitted event: exact `type`, `delta.length`, `mode`, `seq`, `runtimeSessionId`.
+- Relay forwarded event: exact same fields, plus transport identity where relevant.
+- API/store accumulated content: before/after length and event id/seq.
+- Renderer input: accumulated message text only, not raw SSE transcript.
+
+### 3. Contracts
+
+- Do not fix protocol or runtime producer bugs by adding Markdown regexes, whitespace heuristics, duplicate-text guessing, or UI-only suppression.
+- If a displayed message is wrong, first determine whether the wrong bytes exist in producer output, relay output, API accumulation, persisted message content, or renderer input.
+- Runtime producers must emit each user-visible text unit once. If the CLI prints both incremental deltas and a final full answer, the producer must choose one protocol shape:
+  - stream only incremental `mode: 'append'` deltas with monotonic `seq`; or
+  - emit a final full answer as `mode: 'replace'`, never as another append sequence.
+- CLI stdout parsers must be stateful per invocation. They must remember whether visible deltas have already been emitted in the current run; once a delta has been emitted, final snapshots such as Claude `result`, Codex `item.completed`, Codex `agent_message` with `phase='final_answer'`, or Codex `task_complete.last_agent_message` are session/completion evidence only and must not emit another visible append.
+- Codex event streams must distinguish message phase and event shape:
+  - visible incremental output: `item/agentMessage/delta`, `item.agent_message.delta`, `item.delta`, or an explicit `agent_message_delta`;
+  - final fallback output: `agent_message` with `phase='final_answer'`, `task_complete.last_agent_message`, or completed `agent_message`, only when no visible delta has been emitted for that invocation;
+  - non-visible progress: `agent_message` with `phase='commentary'`, reasoning, tool progress, and completion snapshots after deltas.
+- Claude stream-json must use `content_block_delta` / nested `stream_event.content_block_delta` as visible incremental output. `result` is a final snapshot and must not be appended after streaming deltas.
+- Relays must not re-enqueue, replay, or duplicate an already-running runtime session unless they also preserve idempotent event identity. Pub/sub subscription setup must be separate from job start.
+- API/store consumers may ignore stale `seq <= lastSeq` as protocol idempotency. They must not infer replay from Markdown content, whitespace normalization, headings, list markers, code fences, or table syntax.
+- Markdown renderers are presentation components. They can style, sanitize, and render valid Markdown; they cannot repair runtime event ordering or duplicate delivery.
+- A compatibility guard is allowed only after the root cause is fixed or explicitly scoped to legacy producer input, and it must be documented as compatibility, not as the primary fix.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Runtime producer emits the same answer twice as append deltas | Fix producer or its CLI parser; add producer test proving one logical text stream |
+| Codex sends `item/agentMessage/delta` followed by `item/completed` for the same final answer | Emit only the deltas; use completed item only for native session/completion evidence |
+| Codex sends no visible deltas and only a final answer snapshot | Emit the final answer once as fallback; never split and append it after earlier deltas |
+| Codex sends `agent_message` with `phase='commentary'` | Treat as progress/non-visible output; do not persist it as the assistant reply |
+| Claude sends `content_block_delta` followed by `result` | Emit only the deltas; do not append `result` |
+| Relay forwards a runtime session from the beginning after live forwarding has started | Fix relay lifecycle/idempotency; add relay test proving no duplicate event sequence |
+| `/api/chat` creates two agent bubbles for one role turn without `role_selected` boundary | Fix API reply lifecycle; add API/store test with raw SSE frames |
+| Markdown output appears as `- item- next` or duplicated prose | Inspect renderer input first; if input is already malformed, fix upstream producer/accumulator |
+| Renderer receives valid Markdown but renders invalid DOM, such as block elements inside `<p>` | Fix renderer component mapping; this is a rendering root cause, not a protocol patch |
+| Consumer receives old legacy events without `seq` | Keep append compatibility, but any observed duplication must create a producer/relay fix task |
+
+### 5. Good/Base/Bad Cases
+
+- Good: A duplicated Markdown message is traced to `CliRuntimeExecutor` parsing Codex stdout plus `--output-last-message`; executor is changed to emit only one source of text, and tests assert the exact emitted event list.
+- Good: A hydration error caused by an image component returning `<div>` inside paragraph is fixed in `MessageMarkdown` because the renderer itself created invalid DOM.
+- Base: A legacy runtime event lacks `seq`; accumulator appends it for compatibility and tests document the legacy path.
+- Bad: Add a front-end rule that drops any later chunk whose normalized text starts like the current message.
+- Bad: Add a Markdown normalizer that guesses missing newlines around every `#`, `-`, or table pipe to hide a producer that stripped newlines.
+- Bad: Commit a UI-only change while raw SSE still contains duplicated `runtime_output` frames.
+
+### 6. Tests Required
+
+- Producer unit test: given representative CLI stdout/json, emitted `runtime_output` events are ordered, unique, and use either append deltas or a replace snapshot.
+- CLI parser regression tests:
+  - Claude streamed `content_block_delta` plus final `result` yields the visible text once.
+  - Codex streamed `item/agentMessage/delta` plus final `item/completed` yields the visible text once.
+  - Codex final-answer snapshot with no prior delta yields one fallback output.
+  - Codex commentary `agent_message` yields no visible assistant output.
+- Relay integration test: `subscribeEvents` plus enqueue/start lifecycle does not produce duplicate frames for one `runtimeSessionId`.
+- API/store test: raw SSE frames for one role turn produce exactly one agent message unless a real `role_selected` boundary starts a new role reply.
+- Persistence test: `runtime_logs.seq` and payload `runtime_output.seq` remain monotonic within one invocation.
+- Renderer test: valid Markdown input renders headings/lists/tables/code without hydration errors, but tests must not assert renderer-side suppression of protocol duplicates.
+- Regression fixture: keep at least one raw SSE transcript for any bug like this and assert the fixed layer no longer emits bad frames.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+// UI patch: hides a duplicated stream but leaves raw SSE and persisted content wrong.
+if (normalizeMarkdown(current).startsWith(normalizeMarkdown(delta))) {
+  return current;
+}
+```
+
+#### Correct
+
+```typescript
+// Producer fix: do not append final full output after streaming deltas.
+const parser = new CliOutputParser(runtimeType);
+
+for await (const line of stdoutLines) {
+  for (const chunk of parser.parseLine(line)) {
+    if (!chunk.delta) continue;
+    yield { type: 'runtime_output', delta: chunk.delta, mode: 'append', seq: nextSeq() };
+  }
+}
+```
+
+```typescript
+// Parser rule: completed/final snapshots are fallback only.
+if (finalText && !sawDelta) {
+  sawDelta = true;
+  yield { delta: finalText };
+}
+```
+
+```typescript
+// If the runtime explicitly provides a corrected full answer, declare replacement.
+if (correctedFinalText) {
+  yield { type: 'runtime_output', delta: correctedFinalText, mode: 'replace', seq: nextSeq() };
+}
+```
+
+#### Wrong
+
+```typescript
+// This duplicates output whenever the CLI also streamed deltas earlier.
+if (evt.type === 'item.completed' && evt.item?.type === 'agent_message') {
+  for (const delta of splitOutput(evt.item.text)) {
+    yield { delta };
+  }
+}
+```
+
+#### Correct
+
+```typescript
+if (deltaText) {
+  sawDelta = true;
+  yield { delta: deltaText };
+}
+
+if (finalText && !sawDelta) {
+  sawDelta = true;
+  yield { delta: finalText };
+}
+```
+
+#### Wrong
+
+```typescript
+// Appending a final snapshot after deltas corrupts Markdown and duplicates content.
+for (const delta of streamedDeltas) {
+  yield { type: 'runtime_output', delta: chunk.text, mode: 'append', seq: nextSeq() };
+}
+yield { type: 'runtime_output', delta: finalText, mode: 'append', seq: nextSeq() };
+```
+
+#### Wrong
+
+```typescript
+// Markdown normalizer tries to repair transport-stripped newlines.
+content.replace(/([^\n])(-\s+)/g, '$1\n$2');
+```
+
+#### Correct
+
+```typescript
+// Verify renderer input first. If newlines were lost before render, fix that layer.
+assert.deepEqual(rawProducerEvents.map((e) => e.delta), expectedDeltas);
+assert.equal(renderInput, expectedMarkdown);
+```
+
 ## Scenario: Public Cloud Worker Liveness Env
 
 ### 1. Scope / Trigger
