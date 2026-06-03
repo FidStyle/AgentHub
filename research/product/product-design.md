@@ -1,13 +1,26 @@
 # AgentHub 产品设计文档
 
-**作者：** joytion, Codex  
-**日期：** 2026-05-21  
-**状态：** Draft  
-**版本：** 0.1  
-**上游 PRD：** `research/prd.md`  
-**原始素材：** `bytedance_init_prd.md`, `bytedance_init_video_txt.txt`
+**作者：** joytion, Codex
+**日期：** 2026-05-21
+**状态：** Draft
+**版本：** 0.2
+**最高事实源：** `bytedance_init_prd.md`
+**补充说明源：** `bytedance_init_video_txt.txt`
+**上游 PRD：** `research/prd.md`
 
 ---
+
+## 0. 设计事实源
+
+本设计文档是 Bytedance 原始课题材料的产品化展开，不是独立产品范围裁剪。事实源优先级为：
+
+1. `bytedance_init_prd.md`
+2. `bytedance_init_video_txt.txt`
+3. 用户最新确认口径
+4. `research/prd.md`
+5. 本文档与 UI/技术设计
+
+当本文档与 Bytedance 原始材料冲突时，必须先修本文档和 `research/prd.md`，再继续实现。不能用“当前 PRD 未列入”来否定 Bytedance 原始要求。
 
 ## 1. 设计目标
 
@@ -116,7 +129,7 @@ User
 | Role Agent 管理页/面板 | P0 | 模板创建、编辑名称、能力、System Prompt、Runtime 绑定 | `FR-AGENT-001`, `FR-RUNTIME-001` |
 | 当前 Session 授权与变更 | P0 | 在会话中展示需要授权动作、运行结果、Git diff 和产物 | `FR-NOTIFY-001`, `FR-PERM-001`, `FR-RESULT-001` |
 | Workspace 设置页 | P0 | 查看执行域、权限策略、Desktop 连接状态 | `FR-WS-001`, `FR-PERM-001` |
-| Session 搜索/归档 | P1 | 搜索、置顶、归档 | `FR-IM-101` |
+| Session 搜索/归档 | P1 | 搜索、置顶、归档、恢复、按最近活跃排序 | `FR-IM-101` |
 | 工具集配置 | P1 | 配置 Role Agent 可用 Action | `FR-AGENT-101` |
 
 ### 4.2 Web 三栏布局
@@ -706,23 +719,25 @@ Diff 要求：
 
 ### 11.2 P1 可增强
 
-- Session 搜索、置顶、归档。
-- 消息引用和回复。
+- Session 搜索、置顶、归档、恢复和按最近活跃排序。
 - Role Agent 工具集配置。
 - 从一句需求创建新项目。
 - Desktop 系统通知和 Mobile Push。
 - Web 基础代码查看增强。
 
-### 11.3 P2/P3 预留
+### 11.3 Bytedance 后续完整产品 backlog
 
-- 多真人协作。
-- Agent Marketplace。
-- OpenCode Runtime。
-- 非 Git checkpoint、snapshot、回滚。
-- 富文档/PPT 编辑。
-- 飞书、微信、小程序发布。
-- 完整部署平台。
-- 复杂 Mobile 代码编辑。
+以下能力来自 Bytedance 原始材料或讲解转写。它们可以晚于当前 MVP 实现，但不能从产品范围中删除：
+
+- 完整 IM 消息操作：回复、引用、重新生成、一键应用 Diff、展开预览。
+- 高级产物体验：全屏预览、代码编辑器、版本历史、选中代码或文档片段后对话式修改。
+- 富文档与演示文稿：Markdown、飞书文档、文档渲染和 PPT 浏览/预览/编辑。
+- 部署发布：聊天中发起部署、部署状态卡片、预览 URL、静态站点部署、容器化部署、源码打包下载、小程序/飞书等第三方发布 Action。
+- 多端完整化：Web 全功能、Desktop 本地文件访问/系统通知/Agent 进程管理、Mobile 轻量 IM/审批/产物预览。当前 PWA/Connector 能力只是阶段实现。
+- OpenCode Runtime Adapter：与 Claude Code/Codex 同一 Runtime/Adapter 模型接入。
+- 多真人协作：多人 Workspace/Session、成员权限、并发审批和冲突处理。
+- Agent Marketplace：可发现、可安装、可审查权限和 Runtime 要求的 Agent 模板。
+- 非 Git checkpoint、snapshot、patch stack、回滚和跨 Agent 冲突处理。
 
 对应需求：`FR-IM-101`, `FR-AGENT-101`, `FR-WORKSPACE-101`, `FR-NOTIFY-101`, `FR-COLLAB-201`, `FR-MARKET-201`, `FR-RUNTIME-201`, `FR-VERSION-201`, `FR-DOCS-201`, `FR-PUBLISH-201`。
 

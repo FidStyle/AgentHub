@@ -2,7 +2,7 @@
 
 **日期：** 2026-05-25
 **状态：** 已收敛
-**输入来源：** `refer_proj/catlog22__maestro-flow`, `refer_proj/CodeStable`, `research/prd.md`, `research/architecture/technical-design.md`, `research/product/ui-design-system.md`, `research/maestro-automation-assessment.md`, `research/maestro-tdd-quality-gates.md`
+**输入来源：** `refer_proj/catlog22__maestro-flow`, `refer_proj/CodeStable`, `bytedance_init_prd.md`, `bytedance_init_video_txt.txt`, `research/prd.md`, `research/architecture/technical-design.md`, `research/product/ui-design-system.md`, `research/maestro-automation-assessment.md`, `research/maestro-tdd-quality-gates.md`
 **覆盖 FR-ID：** `FR-ORCH-001`, `FR-CTX-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-PERM-001`, `FR-RESULT-001`, `FR-UI-001`, `NFR-OBS-001`, `NFR-SEC-001`
 
 ---
@@ -13,7 +13,7 @@
 
 1. 全流程自动化：能不能从需求、计划、实现、验证、失败修复到测试闭环持续推进。
 2. E2E 与 UI 测试：能不能让三端功能和视觉门禁真实落地，而不是只写浅层 `toBeVisible`。
-3. 需求不确定时反写 PRD：执行中发现 PRD、UI 契约或参考项目结论不清楚时，能不能停止硬写代码并回到需求文档。
+3. 需求不确定时反写 Bytedance/PRD：执行中发现 Bytedance 原始材料、派生 PRD、UI 契约或参考项目结论不清楚时，能不能停止硬写代码并回到需求文档。
 
 结论是：**Maestro-Flow 更适合作为自动化执行闭环参考，CodeStable 更适合作为需求、设计、验收治理参考。AgentHub 不应该二选一，而应该采用“Maestro 跑闭环，CodeStable 管漂移”的融合路线。**
 
@@ -25,9 +25,9 @@
 | --- | --- | --- | --- |
 | 核心定位 | 多 Agent 工作流编排框架 | 软件生命周期要素建模 | 执行层参考 Maestro，治理层参考 CodeStable |
 | 核心实体 | lifecycle、command chain、plan、task、wave、verify、issue、wiki | requirement、architecture、roadmap、feature、issue、decision | AgentHub 使用 `FR-ID`、Plan DAG、Trellis task、research 文档承接 |
-| 自动化强项 | plan -> execute -> verify -> review -> test，失败后 debug/fix/retry | 需求、设计、实现、验收、回写文档的边界清晰 | 自动推进必须绑定 PRD 与测试门禁 |
+| 自动化强项 | plan -> execute -> verify -> review -> test，失败后 debug/fix/retry | 需求、设计、实现、验收、回写文档的边界清晰 | 自动推进必须绑定 Bytedance 原始来源、派生 PRD 与测试门禁 |
 | UI/E2E 价值 | quality pipeline 和 test-gen 思路强，适合作为流程编排 | accept 阶段要求前端真实验证、对照 design 核查 | 三端 E2E 工具仍按 `research/modules/ui-and-visual-testing.md` 使用 Playwright |
-| 需求不清处理 | plan 阶段可进入 `NEEDS_CONTEXT`，但偏执行链路 | design/impl 阶段默认停下来回需求或方案 | 执行中触发 PRD amendment gate |
+| 需求不清处理 | plan 阶段可进入 `NEEDS_CONTEXT`，但偏执行链路 | design/impl 阶段默认停下来回需求或方案 | 执行中触发 Bytedance/PRD amendment gate |
 | 参考项目注入 | task 有 `read_first[]`，execute 预加载 specs/wiki | design 是实现和验收唯一输入 | Trellis task 必须声明 `reference_sources` 或等价 read-first 文档 |
 | 人在环策略 | 支持 `-y`，但也有 decision gate | 明确人在环，不把人介入视为失败 | AgentHub 目标是 L4 Governed Autonomy，不是 L5 无闸门自动化 |
 | 风险 | 过度自动化时可能绕过产品边界 | 不负责高吞吐执行编排 | 两者分层使用，避免互相替代 |
@@ -56,7 +56,7 @@ Maestro plan 的成功标准要求每个 task 有 `read_first[]`、`convergence.
 
 AgentHub 应借鉴为硬规则：
 
-- 每个 `.trellis/tasks/*/` 实现任务必须声明 `FR-ID`、`read_first`、`reference_sources`、测试锚点和收敛标准。
+- 每个 `.trellis/tasks/*/` 实现任务必须声明 Bytedance 原始来源、派生 `FR-ID`、`read_first`、`reference_sources`、测试锚点和收敛标准。
 - 涉及 UI 的任务必须读取 `research/product/ui-design-system.md`、`.trellis/spec/frontend/ui-style-guidelines.md` 和对应参考项目来源。
 - 任务没有参考来源时，不允许进入实现阶段。
 

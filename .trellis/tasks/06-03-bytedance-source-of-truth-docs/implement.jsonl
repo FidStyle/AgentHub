@@ -1,0 +1,16 @@
+{"file":"bytedance_init_prd.md","reason":"Highest product source for this documentation alignment."}
+{"file":"bytedance_init_video_txt.txt","reason":"Supporting clarification for Bytedance phase and surface interpretation."}
+{"file":"research/prd.md","reason":"Derived FR-ID registry updated to state source hierarchy and Bytedance backlog."}
+{"file":"research/product/product-design.md","reason":"Product design updated to preserve Bytedance backlog and source priority."}
+{"file":"research/architecture/technical-design.md","reason":"Technical design updated with Bytedance source hierarchy, message operations, artifact editing, deployment, and multi-surface backlog."}
+{"file":"research/index.md","reason":"Research entrypoint updated to list Bytedance sources as canonical."}
+{"file":"research/workflow/ai-workflow-control.md","reason":"Workflow recovery and contract rules updated to read Bytedance source first."}
+{"file":"research/README.md","reason":"Research directory rules updated to match source hierarchy."}
+{"file":"research/decision-log.md","reason":"Decision log records Bytedance source-of-truth decision."}
+{"file":"research/architecture/automation-reference-comparison.md","reason":"Automation planning gate updated to bind Bytedance source plus derived FR-ID."}
+{"file":".trellis/spec/guides/product-planning-guide.md","reason":"Trellis planning guide updated for Bytedance source plus FR-ID binding."}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"Audit spec updated to detect source_doc_drift and Bytedance coverage gaps."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend spec index updated to require Bytedance source and derived FR-ID."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Component guide updated to bind components to Bytedance source and derived PRD."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend review checklist updated for Bytedance source plus FR-ID."}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"UI reference constraints updated to avoid conflicting with Bytedance source."}

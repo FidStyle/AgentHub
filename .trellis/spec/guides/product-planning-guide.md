@@ -1,6 +1,6 @@
 # 产品规划思考指南
 
-> **目的**：确保 AgentHub 实现工作始终绑定已确认的产品文档、`FR-ID`、UI 契约和测试门禁。
+> **目的**：确保 AgentHub 实现工作始终绑定 Bytedance 原始事实源、派生 `FR-ID`、UI 契约和测试门禁。
 
 ---
 
@@ -8,8 +8,11 @@
 
 先读取这些文档：
 
+- `bytedance_init_prd.md`
+- `bytedance_init_video_txt.txt`
 - `research/prd.md`
 - `research/product/product-design.md`
+- `research/architecture/technical-design.md`
 - `research/product/ui-design-system.md`
 - `research/architecture/automation-reference-comparison.md`
 - 涉及 UI Phase 3 时读取 `research/ui-phase3-task-plan.md`
@@ -17,8 +20,8 @@
 
 然后检查：
 
-- [ ] 每个任务都写明它实现的 PRD `FR-ID`。
-- [ ] 每个任务都写明 `read_first` 或等价必读文件，包含 PRD、产品设计、技术设计、相关模块研究和参考项目来源。
+- [ ] 每个任务都写明它对应的 Bytedance 原始来源和派生 PRD `FR-ID`。
+- [ ] 每个任务都写明 `read_first` 或等价必读文件，包含 Bytedance 原始材料、派生 PRD、产品设计、技术设计、相关模块研究和参考项目来源。
 - [ ] 每个任务都写明 `reference_sources` 或等价参考来源；涉及参考项目的任务必须指出 `refer_proj/*` 的具体来源或对应 `research/` 调研文档。
 - [ ] 自动化执行遵循 `research/architecture/automation-reference-comparison.md`：Maestro-Flow 负责执行闭环参考，CodeStable 负责需求暂停和验收回写参考。
 - [ ] 项目级任务规划已经先写入 `research/`；`.trellis/tasks/*/` 只承载可执行切片。
@@ -44,7 +47,7 @@ Phase 2 技术选型还要检查：
 - [ ] 热度和相关性分开判断；低 star 但涉及 CLI、session、PTY、resume、runtime-adapter 的仓库不能未经人工复核就丢弃。
 - [ ] 自动生成的分数只作为第一轮信号，不作为最终架构决策。
 - [ ] 面向评审的技术设计文档优先使用中文表格和 Mermaid/PlantUML 图，避免长篇代码式接口；精确类型签名放到实现任务或代码规范中。
-- [ ] UI 参考项目必须记录采用和不采用的部分；AionUi/codeg/lobehub/cherry-studio 只作为布局、密度和组件行为参考，不覆盖 PRD 中的执行域和凭证边界。
+- [ ] UI 参考项目必须记录采用和不采用的部分；AionUi/codeg/lobehub/cherry-studio 只作为布局、密度和组件行为参考，不覆盖 Bytedance 原始材料、派生 PRD 中的执行域和凭证边界。
 
 ---
 
@@ -52,15 +55,16 @@ Phase 2 技术选型还要检查：
 
 每个实现任务都应包含：
 
-- `FR-ID`：来自 `research/prd.md` 的一个或多个需求 ID。
+- `Bytedance 来源`：来自 `bytedance_init_prd.md` 的章节、条目或关键词；必要时补充 `bytedance_init_video_txt.txt` 的解释段。
+- `FR-ID`：来自 `research/prd.md` 的一个或多个派生需求 ID。
 - `产品端面`：Web、Desktop、Mobile、Backend、Runtime Adapter 或共享领域模型。
-- `验收来源`：正在实现的 PRD 验收标准或产品设计流程。
+- `验收来源`：Bytedance 原始要求、正在实现的派生 PRD 验收标准或产品设计流程。
 - `UI 契约`：如果任务涉及界面，必须写 `FR-UI-001`、参考组件、断点和视觉 E2E 断言。
 - `项目级规划`：如果任务属于某个阶段性规划，必须能追溯到 `research/` 下的对应规划文档。
 - `自动化约束`：必须写明执行闭环、参考项目注入和需求反写规则，来源是 `research/architecture/automation-reference-comparison.md`。
 - `参考来源`：必须列出实现前要读的 `research/*`、`.trellis/spec/*`、`refer_proj/*` 或任务级研究文档。
 
-如果某个行为无法映射到现有 `FR-ID`，先暂停实现并更新 PRD 或新增 `research/prd-amendments/*.md` 修订记录。
+如果某个行为无法映射到现有 `FR-ID`，但能映射到 `bytedance_init_prd.md` 或讲解转写，先暂停实现并更新 `research/prd.md`、产品设计和技术设计；影响范围较大时再新增 `research/prd-amendments/*.md` 修订记录。
 
 ---
 
@@ -73,18 +77,18 @@ AgentHub 实现阶段采用两层参考：
 
 实现中命中以下任一条件，必须停止继续写代码：
 
-- [ ] 新行为无法绑定到 `research/prd.md` 中的 `FR-ID`。
-- [ ] PRD Acceptance Criteria 不足以写出自动化断言。
+- [ ] 新行为无法绑定到 `bytedance_init_prd.md` 或 `research/prd.md` 中的 `FR-ID`。
+- [ ] Bytedance 要求或 PRD Acceptance Criteria 不足以写出自动化断言。
 - [ ] UI 任务缺少 `FR-UI-001`、UI 设计系统、视觉 E2E 或参考项目来源。
-- [ ] 参考项目建议与 PRD、产品设计、UI 契约或技术设计冲突。
-- [ ] 代码需要引入 PRD 未定义的权限、凭证、本地执行能力或发布动作。
+- [ ] 参考项目建议与 Bytedance 原始材料、派生 PRD、产品设计、UI 契约或技术设计冲突。
+- [ ] 代码需要引入 Bytedance/PRD 未定义的权限、凭证、本地执行能力或发布动作。
 - [ ] 实现步骤出现任务切片没有覆盖的方案外文件、方案外行为或方案外 UI 状态。
 - [ ] Playwright 截图或布局断言暴露新的视觉契约缺口。
 
 停止后按这个顺序处理：
 
 1. 在当前任务记录触发原因和受影响 `FR-ID`。
-2. 小修订直接更新 `research/prd.md`、`research/architecture/technical-design.md` 或 `research/product/ui-design-system.md`。
+2. 小修订直接更新 `research/prd.md`、`research/product/product-design.md`、`research/architecture/technical-design.md` 或 `research/product/ui-design-system.md`。
 3. 影响范围较大或需要用户确认时，新建 `research/prd-amendments/YYYY-MM-DD-{slug}.md`，写明触发任务、冲突点、建议改动、测试影响和待确认问题。
 4. 回填 `.trellis/tasks/*/prd.md`、`implement.jsonl`、`check.jsonl`，补齐测试与视觉门禁。
 5. 用户确认或文档提交后再恢复实现。
@@ -93,7 +97,7 @@ AgentHub 实现阶段采用两层参考：
 
 - 替用户决定新需求边界。
 - 让参考项目覆盖 AgentHub 已确认的执行域、凭证或 UI 契约。
-- 因为测试难写而降低 PRD Acceptance Criteria。
+- 因为测试难写而降低 Bytedance 要求或 PRD Acceptance Criteria。
 - 因为页面能显示就跳过截图、布局和敏感信息断言。
 
 ---
@@ -178,7 +182,7 @@ AgentHub 实现阶段采用两层参考：
 
 **症状**：实现中发现 PRD 没写、验收标准不够、参考项目和现有契约冲突，但 Agent 自行选择一个做法继续写代码。
 
-**修正**：停止实现，更新 PRD 或新增 `research/prd-amendments/*.md`，再回填任务切片和测试门禁。没有 `FR-ID` 和可验证验收标准的行为不能进入实现。
+**修正**：停止实现，优先按 `bytedance_init_prd.md` 更新 `research/prd.md`、产品设计或技术设计，必要时新增 `research/prd-amendments/*.md`，再回填任务切片和测试门禁。没有 Bytedance 来源、`FR-ID` 和可验证验收标准的行为不能进入实现。
 
 ### 错误：照搬参考项目的 Provider/API Key 配置
 

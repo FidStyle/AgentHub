@@ -1,0 +1,13 @@
+{"file":"research/prd.md","reason":"Verify derived PRD states Bytedance source hierarchy and backlog gaps."}
+{"file":"research/product/product-design.md","reason":"Verify product design keeps Bytedance backlog visible."}
+{"file":"research/architecture/technical-design.md","reason":"Verify technical design captures Bytedance implications for message operations, artifacts, deployment, and surfaces."}
+{"file":"research/index.md","reason":"Verify research entrypoint points to Bytedance source hierarchy."}
+{"file":"research/README.md","reason":"Verify research governance rules match source hierarchy."}
+{"file":"research/workflow/ai-workflow-control.md","reason":"Verify workflow recovery reads Bytedance source before derived docs."}
+{"file":"research/decision-log.md","reason":"Verify source-of-truth decision is recorded."}
+{"file":".trellis/spec/guides/product-planning-guide.md","reason":"Verify future tasks bind Bytedance source plus derived FR-ID."}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"Verify audits classify source_doc_drift and Bytedance coverage gaps."}
+{"file":".trellis/spec/frontend/index.md","reason":"Verify UI tasks require Bytedance source and derived FR-ID."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify components bind to Bytedance source and derived PRD."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify frontend quality checklist requires Bytedance source plus FR-ID."}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"Verify UI reference constraints do not conflict with Bytedance source."}

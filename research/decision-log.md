@@ -4,6 +4,38 @@
 
 ---
 
+## DEC-008: Bytedance 原始 PRD 作为最高产品事实源
+
+| 字段 | 内容 |
+|------|------|
+| **日期** | 2026-06-03 |
+| **决策者** | joytion |
+| **状态** | ✅ 已确认 |
+| **FR-ID** | 全部 FR-ID |
+
+### 背景
+
+用户明确指出当前 PRD 不再可信，后续应“按照 `bytedance_init_prd.md` 说的来”，并要求更新 PRD、产品设计、技术设计和 Trellis 规范。
+
+### 决策
+
+AgentHub 产品事实源优先级改为：
+
+1. `bytedance_init_prd.md`
+2. `bytedance_init_video_txt.txt`
+3. 用户最新明确决策
+4. `research/prd.md`
+5. 产品设计、技术设计、contracts、tracker、report、Trellis task 和代码证据
+
+`research/prd.md` 是派生 FR-ID 注册表，不是根事实源。若派生 PRD、产品设计、技术设计或实现与 Bytedance 原始材料冲突，先更新文档和 FR-ID，再进入实现。
+
+### 影响
+
+- Bytedance 明确要求但 P0 未完成的能力必须进入 backlog，不得从产品事实中删除。
+- 消息回复/引用/重新生成/Diff 操作、Artifact 二次编辑/版本/局部修改、文档/PPT、部署发布、OpenCode、多端补全等能力必须保留阶段口径。
+- Trellis 任务必须绑定 Bytedance 原始来源和派生 FR-ID。
+- 审计完成度时必须能识别 `source_doc_drift`：原始 Bytedance 有要求，但派生 PRD 或技术文档漏登。
+
 ## DEC-001: P0 认证方案选型
 
 | 字段 | 内容 |

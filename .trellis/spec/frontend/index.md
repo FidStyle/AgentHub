@@ -26,7 +26,7 @@
 
 ## 使用规则
 
-- 实现任何 UI 前，必须确认任务引用了 PRD 中的业务 `FR-ID`；涉及界面交付时还必须引用 `FR-UI-001`。
+- 实现任何 UI 前，必须确认任务引用了 `bytedance_init_prd.md` 中的原始来源和派生 PRD 业务 `FR-ID`；涉及界面交付时还必须引用 `FR-UI-001`。
 - Web、Desktop、Mobile/PWA 的用户可见文案必须使用简体中文。
 - P0 UI 组件基线为 `shadcn/ui + Tailwind CSS 4 + lucide-react`。
 - 视觉质量属于验收门禁，Playwright E2E 必须包含截图和布局断言。

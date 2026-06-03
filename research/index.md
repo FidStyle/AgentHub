@@ -8,9 +8,11 @@
 
 | 文档 | 说明 |
 |------|------|
-| [prd.md](./prd.md) | 总体 PRD，FR-ID 注册表 |
+| [../bytedance_init_prd.md](../bytedance_init_prd.md) | **最高产品事实源** — Bytedance 原始 PRD，PRD/产品/技术文档冲突时优先 |
+| [../bytedance_init_video_txt.txt](../bytedance_init_video_txt.txt) | **辅助产品事实源** — Bytedance 讲解转写，用于解释阶段、三端职责和 IM/Agent/Artifact 语义 |
+| [prd.md](./prd.md) | 派生 PRD 和 FR-ID 注册表，不是根事实源 |
 | [product-design.md](./product-design.md) | 产品设计：页面、用户流、组件状态 |
-| [prd-amendments/](./prd-amendments/) | PRD 增补修订（不直接改 prd.md） |
+| [prd-amendments/](./prd-amendments/) | PRD 增补修订；Bytedance 对齐类修订可直接更新 master PRD 和下游设计文档 |
 | [prd-amendments/2026-05-31-three-surface-workbench-permission-model.md](./prd-amendments/2026-05-31-three-surface-workbench-permission-model.md) | 三端会话工作台、权限模式、Desktop Host、Mobile 远程监督和参考组件迁移修订 |
 | [prd-amendments/2026-06-02-complete-multi-agent-orchestration.md](./prd-amendments/2026-06-02-complete-multi-agent-orchestration.md) | 完整多 Agent 编排与交接修订：Orchestrator DAG、mailbox/handoff、角色 runtime 绑定和三端状态 |
 | [contracts/](./contracts/) | **共享任务合同** — Trellis 与 Maestro/Ralph 的唯一协作接口 |
@@ -88,6 +90,7 @@
 1. **工作流入口**：新会话必须先按 `ai-workflow-control.md` 判断 Codex、Trellis、Maestro/Ralph 的职责边界。
 2. **共享合同**：中大型任务必须创建或引用 `contracts/<TASK-ID>.md`；Trellis task、Maestro prompt、execution report 和 Codex 验收都必须指向同一份合同。
 3. **跟进义务**：Maestro/Ralph 每完成一个用户可见阶段或里程碑，必须同步更新 `project-tracker.md` 和对应任务报告；bug/regression 进入 `regression-ledger.md`。没有公开跟进记录，不允许标记任务完成。
-4. **PRD 修订**：如发现 PRD/技术设计与当前计划冲突，只能新增 `prd-amendments/*.md`，不允许直接改业务代码。
-5. **索引维护**：只有长期入口、合同目录、关键当前报告需要同步本索引；碎片 report、单个 bug 记录、历史证据不得进入总索引。
-6. **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 并确认 exit 0。status.json completed 不等于项目完成。
+4. **事实源优先级**：`bytedance_init_prd.md` > `bytedance_init_video_txt.txt` > 用户最新明确决策 > `research/prd.md` > 产品设计 > 技术设计 > contracts/tracker/report/task/code。后续文档和实现不得用历史 PRD、报告或当前代码覆盖 Bytedance 原始材料。
+5. **PRD 修订**：如发现 PRD/技术设计与 Bytedance 原始材料或当前计划冲突，先修订 `research/prd.md`、产品设计和技术设计；影响范围大的变更再补 `prd-amendments/*.md`。不允许直接改业务代码来隐式改变产品范围。
+6. **索引维护**：只有长期入口、合同目录、关键当前报告需要同步本索引；碎片 report、单个 bug 记录、历史证据不得进入总索引。
+7. **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 并确认 exit 0。status.json completed 不等于项目完成。

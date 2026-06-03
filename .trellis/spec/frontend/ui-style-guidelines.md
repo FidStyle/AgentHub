@@ -22,7 +22,7 @@
 | 样式 | 使用 Tailwind CSS 4 语义 class 和主题变量；禁止用大段内联样式拼页面。 |
 | 图标 | 使用 `lucide-react`。工具按钮优先使用图标，复杂或不熟悉图标必须提供 tooltip 或可访问名称。 |
 | 文案 | 用户可见文案必须是简体中文。技术产品名、库名、命令名可以保留英文。 |
-| 参考 | codeg/shadcn 工作台风格是三端统一视觉母版；AionUi、lobehub、cherry-studio 只吸收布局、密度和组件行为，不复制不符合 PRD 的凭证或 Provider 流程。 |
+| 参考 | codeg/shadcn 工作台风格是三端统一视觉母版；AionUi、lobehub、cherry-studio 只吸收布局、密度和组件行为，不复制不符合 Bytedance 原始材料或派生 PRD 的凭证/Provider 流程。 |
 
 ### 2.1 统一视觉母版硬规则
 
@@ -181,7 +181,7 @@ export function RuntimeStatusCard() {
 
 涉及 UI 的 `.trellis/tasks/*/` 必须包含：
 
-- [ ] 绑定业务 `FR-ID` 和 `FR-UI-001`。
+- [ ] 绑定 Bytedance 原始来源、派生业务 `FR-ID` 和 `FR-UI-001`。
 - [ ] 引用 `research/product/ui-design-system.md` 和本文件。
 - [ ] 写明参考项目来源，例如 AionUi 聊天分栏或 codeg 权限弹窗。
 - [ ] 写明 codeg/shadcn 是统一视觉母版，其他参考项目只是结构或端侧行为参考。
