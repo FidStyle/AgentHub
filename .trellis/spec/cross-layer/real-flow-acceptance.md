@@ -82,6 +82,77 @@
 - Artifact 面板刷新后仍能展示同一 artifact title/content/ref。
 - 后续自动部署需要消费 artifact 时，必须有稳定 ID 或 contentRef。
 
+## Scenario: Rich Document And Presentation Artifacts
+
+### 1. Scope / Trigger
+
+- Trigger: 添加或修改富文档、演示稿、PPT、DOCX、Artifact 编辑、Artifact 导出能力。
+- Applies to: `artifacts.artifact_type`, `/api/artifacts`, `/api/artifacts/:id`, `/api/artifacts/:id/download`, Web `ArtifactPanel`, workspace file preview, and any helper used by both API routes and client components.
+
+### 2. Signatures
+
+- DB: `artifacts.artifact_type` must include `document` and `presentation` when those product types are supported.
+- `POST /api/artifacts`
+  - Request: `workspace_id`, `session_id?`, `title?`, `artifact_type=document|presentation`, `content?`, `metadata?`.
+  - Response: durable artifact row with `content` initialized when omitted.
+- `PATCH /api/artifacts/:id`
+  - Request: `title`, `content?`, `artifact_type?`, `metadata?`, `edit_request?`.
+  - Response: updated durable artifact row.
+- `GET /api/artifacts/:id/download`
+  - `document` returns DOCX MIME.
+  - `presentation` returns PPTX MIME.
+
+### 3. Contracts
+
+- `document.content` is editable source Markdown.
+- `presentation.content` is a JSON deck model with `version`, `title`, and `slides[]`.
+- `edit_request.instruction` must be recorded durably, normally under artifact metadata or a future revisions/edit-request table.
+- Client components may import only client-safe artifact model helpers. Node-only OpenXML/zip/export helpers must live in server-only modules used by API routes.
+- Workspace `.docx/.pptx` files may be classified as document/presentation artifacts, but if no editable source exists the UI must clearly show download-only status.
+
+### 4. Validation & Error Matrix
+
+| 条件 | 必须结果 | 禁止结果 |
+| --- | --- | --- |
+| Missing `workspace_id` | 400 中文错误 | 创建前端本地假 artifact |
+| Session 不属于 workspace | 403 中文错误 | 跨 workspace 写入 artifact |
+| Empty PATCH title | 400 `产物名称不能为空` | 保存空标题 |
+| Non-string content | 400 `产物内容必须是文本` | 写入 object 后让 UI 猜格式 |
+| Empty edit request | 400 `修改要求不能为空` | 记录空二次编辑意图 |
+| Client imports export helper with `node:*`/`Buffer` | build fails and must be fixed by split module | 在 client bundle polyfill Node-only code |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Web 创建演示稿 artifact -> DB row `artifact_type=presentation` + JSON content -> right panel previews slides -> PATCH 保存 -> download returns PPTX zip.
+- Base: Workspace 中已有 `.pptx` 文件 -> 标记为 `presentation` artifact -> UI shows download-only message when no editable JSON source exists.
+- Bad: Button creates a React-only slide preview with no `/api/artifacts` row, then reports PPT artifact complete.
+
+### 6. Tests Required
+
+- Unit: presentation JSON parse/default serialization and DOCX/PPTX export returns OpenXML zip bytes.
+- API: create document/presentation artifact; PATCH content and edit request; download MIME and zip signature.
+- Type/build: `pnpm --filter @agenthub/web build` must pass so client/server helper boundaries are verified.
+- UI/E2E when claiming browser acceptance: create, preview, edit, save, reload, and download from the real Web workspace entry.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+// Client component imports a helper that also exports Buffer/node:path based code.
+import { defaultPresentationDeck, createPptxBuffer } from '@/lib/artifacts/rich-artifacts'
+```
+
+#### Correct
+
+```typescript
+// Client-safe model helpers.
+import { defaultPresentationDeck } from '@/lib/artifacts/rich-artifacts'
+
+// Server-only route helper.
+import { createPptxBuffer } from '@/lib/artifacts/rich-artifact-export'
+```
+
 ## 4. Validation & Error Matrix
 
 | 条件 | 必须结果 | 禁止结果 |
@@ -203,6 +274,76 @@ Web cloud @角色通过：
 - OpenCLI：target=web，url=http://localhost:3000/workspace/...，auth_state=fixture，result=passed，evidence=...
 - Playwright 回归：npx playwright test e2e/workspace.spec.ts，exit 0。
 - 限制：未覆盖外部 OAuth 人工登录；该项不计入 passed。
+```
+
+## Scenario: Workspace Mini IDE Patch Review Flow
+
+### 1. Scope / Trigger
+
+- Trigger: Web Workspace exposes file editing, selected-context patch drafts, apply/reject review, or Git commit history.
+- Applies to `apps/web/lib/workspace/cloud-workspace-fs.ts`, `apps/web/app/api/workspaces/[id]/files/*`, `apps/web/app/api/workspaces/[id]/git/*`, and right-panel file/change UI.
+
+### 2. Signatures
+
+- `POST /api/workspaces/:workspaceId/files/patch`
+  - Draft request: `{ path: string, selectionStart: number, selectionEnd: number, replacement: string, apply?: false }`
+  - Apply request: `{ path: string, selectionStart: number, selectionEnd: number, expectedText: string, replacement: string, apply: true }`
+  - Draft response: `{ draft: { path, selectionStart, selectionEnd, selectedText, replacement, content, diff } }`
+  - Apply response: `{ ok: true, draft, preview, changes }`
+- `GET /api/workspaces/:workspaceId/git/history?limit=<n>`
+  - Response: `{ commits: Array<{ hash, shortHash, author, date, message }> }`
+
+### 3. Contracts
+
+- Patch draft must not write files. Only `apply: true` can update workspace content.
+- Apply must reread the current file and compare the current selected text with `expectedText`; stale drafts must fail.
+- All paths must go through `resolveWorkspacePath` and stay inside the workspace root.
+- Editable files are limited to ordinary text/code/markdown-like files and bounded size; binary/image/large files must return a Chinese error.
+- Git history must come from real `git log`; empty repositories return `commits: []`, not mock commit rows.
+- UI must emit or otherwise trigger workspace file/Git refresh after apply.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Missing auth | Existing auth guard response. |
+| Workspace not owned | Existing workspace ownership error. |
+| Missing `path` | `400 { error: "path 必填" }` or equivalent Chinese error. |
+| Invalid selection range | `400` with Chinese selection error. |
+| Path escapes workspace root | `400` with workspace boundary error. |
+| Binary/image/large file | `400` with Chinese unsupported-edit error. |
+| Stale selected text on apply | `400 { error: "文件内容已变化，请重新选择后再应用" }`. |
+| Empty Git history | `200 { commits: [] }`. |
+
+### 5. Good/Base/Bad Cases
+
+- Good: User opens a cloud workspace text file, selects a range, creates a draft, sees diff, rejects without file changes, then creates/applies another draft and Git status shows the modified file.
+- Base: New repository has no commits; history panel shows a Chinese empty state.
+- Bad: UI edits local state only, shows a fake diff, or applies a stale selection after the file changed on disk.
+
+### 6. Tests Required
+
+- Unit/helper tests for draft no-write behavior, apply write behavior, stale selection rejection, path boundary rejection, unsupported file types where applicable, and real Git history parsing.
+- API tests when route-level auth/ownership fixtures are available.
+- UI/E2E or real-browser evidence for the right-panel flow when auth/env fixtures are available: select text, generate diff, reject, apply, verify Git changes refresh.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+setPreview({ ...preview, content: nextContent })
+setGitCommits([{ shortHash: 'demo', message: '示例提交' }])
+```
+
+#### Correct
+
+```typescript
+await applyWorkspaceSelectionPatch(root, path, start, end, expectedText, replacement)
+return NextResponse.json({
+  preview: await readCloudWorkspacePreview(root, path),
+  changes: await readWorkspaceGitStatus(root),
+})
 ```
 
 ## Scenario: Final Multi-Agent Orchestration Acceptance

@@ -27,7 +27,7 @@ export interface RuntimeWorkspaceScope {
   visibleFiles: string[]
 }
 
-export interface ContextPackage {
+export interface RuntimeWorkspaceContextPackage {
   id: string
   workspaceId: string
   sessionId: string
@@ -48,7 +48,7 @@ export interface RuntimeInvokeInput {
   executionDomain: ExecutionDomain
   workspaceRoot: string
   cwd: string
-  contextPackage: ContextPackage
+  contextPackage: RuntimeWorkspaceContextPackage
   userMessage: string
   permissionMode?: RuntimePermissionMode
   nativeSessionId?: string
@@ -227,7 +227,7 @@ export function createRuntimeInvokeInputFromChat(
     input.selectedWorkspaceId,
     input.fileCandidates,
   )
-  const contextPackage: ContextPackage = {
+  const contextPackage: RuntimeWorkspaceContextPackage = {
     id: `ctx-${input.selectedWorkspaceId}-${input.sessionId}-${input.roleAgentId}`,
     workspaceId: scope.workspaceId,
     sessionId: input.sessionId,
