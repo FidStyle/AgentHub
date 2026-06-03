@@ -96,7 +96,7 @@ function MarkdownPre({
         <CopyButton
           text={code}
           label="复制代码"
-          className="opacity-100 shadow-none md:opacity-0 md:group-hover/code-block:opacity-100"
+          className="opacity-100 shadow-none"
         />
       </div>
       <pre {...preProps} data-streamdown="code-block-body">
