@@ -322,3 +322,36 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: IM 表面体验优化收尾
+
+**Date**: 2026-06-03
+**Task**: IM 表面体验优化收尾
+**Branch**: `feature/chat-im-polish`
+
+### Summary
+
+优化 Web IM 表面对话列表、消息复制引用、Role Agent 联系人 picker 和 Artifact 卡片；补充组件级回归测试；按 chat-polish 固定端口 3104 完成未登录入口 smoke，已登录真实工作台 UAT 因缺少 auth/DB env 未覆盖。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9ebc0f1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

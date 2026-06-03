@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
+- **Total Sessions**: 10
 - **Last Active**: 2026-06-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~324 | Active |
+| `journal-1.md` | ~349 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -30,6 +30,7 @@
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
 | 9 | 2026-06-03 | Self-hosted hash-path deploy v1 | `6dba01d` | `feature/deploy-v1` |
+| 10 | 2026-06-03 | IM 表面体验优化收尾 | `9ebc0f1` | `feature/chat-im-polish` |
 | 8 | 2026-06-03 | 补齐会话归档与删除能力 | `2306d0b` | `AgentHub_new_claude_test` |
 | 7 | 2026-06-03 | 完整多 Agent 编排最终补全 | `a5384fd` | `AgentHub_new_claude_test` |
 | 6 | 2026-06-03 | 完成完整多 Agent 编排收口 | `5ec2d68`, `6268de7`, `b371190` | `AgentHub_new_claude_test` |
