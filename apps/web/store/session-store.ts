@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { RuntimeMessagePart } from '@agenthub/shared'
-import { appendRuntimeDelta } from '@/lib/chat/markdown'
+import { createRuntimeDeltaAccumulator } from '@/lib/chat/markdown'
 
 export interface Session {
   id: string
@@ -417,6 +417,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       let replySeq = 0
       let replyId = `reply-${Date.now()}-${replySeq}`
       let reply = ''
+      let replyAccumulator = createRuntimeDeltaAccumulator()
       let runtimeParts: RuntimeMessagePart[] = []
       let replyCreated = false
       let respondingRoleAgentId: string | null = primaryRoleAgentId
@@ -503,6 +504,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               replySeq += 1
               replyId = `reply-${Date.now()}-${replySeq}`
               reply = ''
+              replyAccumulator = createRuntimeDeltaAccumulator()
               runtimeParts = []
               replyCreated = false
             }
@@ -534,7 +536,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             upsertReply()
           }
           if (evt.type === 'runtime_output' && evt.delta) {
-            reply = appendRuntimeDelta(reply, evt.delta)
+            reply = replyAccumulator.append(evt.delta)
             upsertReply()
           } else if (evt.type && statusText[evt.type] && !replyCreated) {
             showSystemNotice(statusText[evt.type])

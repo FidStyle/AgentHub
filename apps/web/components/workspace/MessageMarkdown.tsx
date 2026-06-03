@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useMemo } from 'react'
+import { Check, Copy } from 'lucide-react'
 import { Streamdown, type StreamdownTranslations } from 'streamdown'
+import { IconButton } from '@agenthub/ui'
 import { normalizeMessageMarkdown } from '@/lib/chat/markdown'
 
 const STREAMDOWN_TRANSLATIONS: Partial<StreamdownTranslations> = {
@@ -36,6 +38,43 @@ const STREAMDOWN_TRANSLATIONS: Partial<StreamdownTranslations> = {
   viewFullscreen: '查看全屏',
 }
 
+function CopyButton({ text, label, className }: { text: string; label: string; className?: string }) {
+  const [copied, setCopied] = React.useState(false)
+  const canCopy = text.trim().length > 0
+
+  const copyText = async () => {
+    if (!canCopy || typeof window === 'undefined') return
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.setAttribute('readonly', '')
+      textarea.setAttribute('aria-hidden', 'true')
+      textarea.style.position = 'absolute'
+      textarea.style.left = '-9999px'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      textarea.remove()
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1200)
+  }
+
+  return (
+    <IconButton
+      icon={copied ? Check : Copy}
+      label={copied ? '已复制' : label}
+      size="sm"
+      disabled={!canCopy}
+      onClick={() => void copyText()}
+      className={className}
+    />
+  )
+}
+
 export function MessageMarkdown({ content, streaming = false }: { content: string; streaming?: boolean }) {
   const normalizedContent = useMemo(() => normalizeMessageMarkdown(content), [content])
   const components = useMemo(() => ({
@@ -52,7 +91,12 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
   if (!normalizedContent) return null
 
   return (
-    <div data-testid="message-markdown" className="message-markdown">
+    <div data-testid="message-markdown" className="message-markdown group/message-markdown relative">
+      <CopyButton
+        text={normalizedContent}
+        label="复制整条消息"
+        className="absolute right-0 top-0 z-10 opacity-0 shadow-sm transition-opacity group-hover/message-markdown:opacity-100 focus:opacity-100"
+      />
       <Streamdown
         mode={streaming ? 'streaming' : 'static'}
         isAnimating={streaming}
@@ -65,7 +109,7 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
         components={components}
         lineNumbers={false}
         translations={STREAMDOWN_TRANSLATIONS}
-        className="max-w-none break-words text-[15px] leading-[22px] text-foreground [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:my-2 [&_blockquote]:border-l-[3px] [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_code]:break-words [&_li]:my-0.5 [&_li]:leading-[22px] [&_ol]:my-1.5 [&_p]:my-1 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:text-[13px] [&_table]:leading-5 [&_ul]:my-1.5"
+        className="agenthub-markdown max-w-none break-words text-[15px] leading-[23px] text-foreground"
       >
         {normalizedContent}
       </Streamdown>

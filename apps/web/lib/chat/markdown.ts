@@ -103,44 +103,78 @@ function normalizeMarkdownTextSegment(segment: string) {
     .replace(/([a-zA-Z0-9_/`])([，,])([a-zA-Z])/g, '$1$2 $3')
 }
 
-function normalizeForOverlap(value: string) {
+function normalizeForReplay(value: string) {
   return value
     .replace(/\s+/g, '')
     .replace(/[，,]/g, '，')
 }
 
-function commonNormalizedOverlapLength(left: string, right: string) {
+function commonRawOverlapLength(left: string, right: string) {
   const max = Math.min(left.length, right.length)
   for (let length = max; length > 0; length--) {
     const leftSuffix = left.slice(-length)
     const rightPrefix = right.slice(0, length)
-    if (normalizeForOverlap(leftSuffix) === normalizeForOverlap(rightPrefix)) return length
+    if (leftSuffix === rightPrefix) return length
   }
   return 0
 }
 
-function isLikelyReplay(current: string, delta: string) {
-  const normalizedCurrent = normalizeForOverlap(current)
-  const normalizedDelta = normalizeForOverlap(delta)
-  if (!normalizedCurrent || !normalizedDelta) return false
-  if (normalizedDelta.length < 3) return false
-  if (normalizedDelta.length >= 4 && normalizedCurrent.includes(normalizedDelta)) return true
-  if (delta.length < 24) return false
-  const sharedPrefix = normalizedDelta.slice(0, Math.min(18, normalizedDelta.length))
-  const sharedTail = normalizedDelta.slice(-Math.min(18, normalizedDelta.length))
-  return normalizedCurrent.includes(sharedPrefix) && normalizedCurrent.includes(sharedTail)
+function consumedRawLengthForReplay(current: string, delta: string, offset: number) {
+  const target = normalizeForReplay(delta)
+  if (target.length < 4) return null
+  let normalized = ''
+  for (let index = offset; index < current.length; index += 1) {
+    const next = normalizeForReplay(current[index])
+    if (!next) continue
+    normalized += next
+    if (normalized === target) return index - offset + 1
+    if (!target.startsWith(normalized)) return null
+  }
+  return null
 }
 
 export function appendRuntimeDelta(current: string, delta: string) {
   if (!delta) return current
   if (!current) return delta
   if (current.endsWith(delta)) return current
-  if (isLikelyReplay(current, delta)) return current
 
-  const overlap = commonNormalizedOverlapLength(current, delta)
+  const overlap = commonRawOverlapLength(current, delta)
   if (overlap > 0) return current + delta.slice(overlap)
 
   return current + delta
+}
+
+export function createRuntimeDeltaAccumulator(initialContent = '') {
+  let content = initialContent
+  let replayOffset = 0
+
+  return {
+    append(delta: string) {
+      if (!delta) return content
+      if (!content) {
+        content = delta
+        replayOffset = 0
+        return content
+      }
+
+      const canStartReplay = replayOffset > 0 || content.length > 40
+      if (canStartReplay) {
+        const offset = replayOffset > 0 ? replayOffset : 0
+        const consumed = consumedRawLengthForReplay(content, delta, offset)
+        if (consumed !== null) {
+          replayOffset = Math.min(content.length, offset + consumed)
+          return content
+        }
+      }
+
+      replayOffset = 0
+      content = appendRuntimeDelta(content, delta)
+      return content
+    },
+    value() {
+      return content
+    },
+  }
 }
 
 export function normalizeMessageMarkdown(content: string) {

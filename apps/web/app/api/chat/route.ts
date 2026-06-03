@@ -4,7 +4,7 @@ import { createClient } from '@/lib/app-db-client'
 import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
-import { appendRuntimeDelta } from '@/lib/chat/markdown'
+import { createRuntimeDeltaAccumulator } from '@/lib/chat/markdown'
 import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
 import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
@@ -574,6 +574,7 @@ export async function POST(req: NextRequest) {
           const currentRoleAgentId = role?.id ?? null
           const currentRoleName = role?.name ?? '默认 Agent'
           let reply = ''
+          const replyAccumulator = createRuntimeDeltaAccumulator()
           let runtimeParts: RuntimeMessagePart[] = []
           let completed = false
           const receivedHandoffs = handoffs
@@ -662,7 +663,7 @@ export async function POST(req: NextRequest) {
           }
 
           for await (const evt of eventStream()) {
-            if (evt.type === 'runtime_output' && evt.delta) reply = appendRuntimeDelta(reply, evt.delta)
+            if (evt.type === 'runtime_output' && evt.delta) reply = replyAccumulator.append(evt.delta)
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
             if (evt.type === 'runtime_completed') completed = true
             controller.enqueue(encode(evt))

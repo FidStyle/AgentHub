@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { Button, Input, Card, CardContent, StateCard, Badge } from '@agenthub/ui'
 import { GitBranch, Paperclip, PlayCircle, RefreshCcw } from 'lucide-react'
 import type { Message, Plan, PlanNode, PlanNodeControl, RuntimeMessagePart } from '@agenthub/shared'
-import { appendRuntimeDelta } from '@/lib/chat/markdown'
+import { createRuntimeDeltaAccumulator } from '@/lib/chat/markdown'
 
 interface RoleAgent {
   id: string
@@ -207,6 +207,7 @@ export default function MobileSessionPage() {
 
       const replyId = `reply-${Date.now()}`
       let reply = ''
+      const replyAccumulator = createRuntimeDeltaAccumulator()
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -246,7 +247,7 @@ export default function MobileSessionPage() {
             respondingRoleAgentId = evt.roleAgentId
           }
           if (evt.type === 'runtime_output' && evt.delta) {
-            reply = appendRuntimeDelta(reply, evt.delta)
+            reply = replyAccumulator.append(evt.delta)
             upsertReply()
           } else if (evt.type && statusText[evt.type] && !reply && !noticed) {
             noticed = true
