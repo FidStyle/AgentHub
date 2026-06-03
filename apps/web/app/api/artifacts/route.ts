@@ -1,15 +1,16 @@
 import { createClient } from '@/lib/app-db-client'
+import { ARTIFACT_TYPES, artifactTypeForPath, defaultDocumentContent, defaultPresentationDeck, serializePresentationDeck } from '@/lib/artifacts/rich-artifacts'
 import { requireAuth } from '@/lib/auth-guard'
 import { buildWorkspaceFolderManifest, previewKindForPath, readCloudWorkspacePreview } from '@/lib/workspace/cloud-workspace-fs'
 import { loadCloudWorkspaceRoot, loadOwnedWorkspace } from '@/lib/workspace/workspace-api'
 import { NextResponse } from 'next/server'
 
-const ARTIFACT_TYPES = new Set(['html', 'markdown', 'code', 'image', 'diff', 'folder', 'generic_file'])
-
 function normalizeArtifactType(value: unknown, sourcePath?: string, isFolder = false) {
-  if (typeof value === 'string' && ARTIFACT_TYPES.has(value)) return value
+  if (typeof value === 'string' && ARTIFACT_TYPES.has(value as never)) return value
   if (isFolder) return 'folder'
   if (!sourcePath) return 'generic_file'
+  const richType = artifactTypeForPath(sourcePath)
+  if (richType) return richType
   const kind = previewKindForPath(sourcePath)
   if (kind === 'html' || kind === 'markdown' || kind === 'code' || kind === 'image' || kind === 'folder') return kind
   return 'generic_file'
@@ -100,6 +101,12 @@ export async function POST(request: Request) {
   }
 
   const artifactType = normalizeArtifactType(body.artifact_type, sourcePath ?? undefined, isFolder)
+  if (artifactType === 'document' && content === null) {
+    content = defaultDocumentContent(title)
+  }
+  if (artifactType === 'presentation' && content === null) {
+    content = serializePresentationDeck(defaultPresentationDeck(title))
+  }
   const { data, error } = await db
     .from('artifacts')
     .insert({

@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/p
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import os from 'node:os'
+import { artifactTypeForPath } from '@/lib/artifacts/rich-artifacts'
 
 export type CloudWorkspaceOwner = {
   id: string
@@ -46,9 +47,13 @@ const MIME_BY_EXT: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.doc': 'application/msword',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.ppt': 'application/vnd.ms-powerpoint',
 }
 
-export type WorkspacePreviewKind = 'html' | 'markdown' | 'code' | 'image' | 'text' | 'binary' | 'folder'
+export type WorkspacePreviewKind = 'html' | 'markdown' | 'code' | 'image' | 'text' | 'binary' | 'folder' | 'document' | 'presentation'
 
 export type WorkspaceFilePreview = {
   path: string
@@ -187,6 +192,9 @@ export function mimeForPath(filePath: string) {
 
 export function previewKindForPath(filePath: string, mime = mimeForPath(filePath)): WorkspacePreviewKind {
   const ext = path.extname(filePath).toLowerCase()
+  const richType = artifactTypeForPath(filePath)
+  if (richType === 'document' && ext !== '.md' && ext !== '.markdown') return 'document'
+  if (richType === 'presentation') return 'presentation'
   if (mime.startsWith('image/')) return 'image'
   if (ext === '.html' || ext === '.htm') return 'html'
   if (ext === '.md' || ext === '.markdown') return 'markdown'

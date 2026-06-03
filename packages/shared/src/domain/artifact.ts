@@ -1,4 +1,4 @@
-export type ArtifactType = 'markdown' | 'code' | 'image' | 'file' | 'preview' | 'diff' | 'action_status'
+export type ArtifactType = 'markdown' | 'code' | 'image' | 'file' | 'preview' | 'diff' | 'action_status' | 'document' | 'presentation'
 
 export interface Artifact {
   id: string

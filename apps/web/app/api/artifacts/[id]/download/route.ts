@@ -1,10 +1,18 @@
 import { createClient } from '@/lib/app-db-client'
+import { createDocxBuffer, createPptxBuffer } from '@/lib/artifacts/rich-artifact-export'
+import { parsePresentationDeck } from '@/lib/artifacts/rich-artifacts'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 
 function downloadName(title: string, type: string) {
-  const ext = type === 'folder' ? 'json' : type === 'html' ? 'html' : type === 'markdown' ? 'md' : type === 'diff' ? 'patch' : 'txt'
+  const ext = type === 'folder' ? 'json' : type === 'html' ? 'html' : type === 'markdown' ? 'md' : type === 'document' ? 'docx' : type === 'presentation' ? 'pptx' : type === 'diff' ? 'patch' : 'txt'
   return `${title || 'artifact'}.${ext}`.replace(/["\r\n/\\]/g, '_')
+}
+
+function contentDisposition(title: string, type: string) {
+  const name = downloadName(title, type)
+  const ext = name.split('.').pop() || 'txt'
+  return `attachment; filename="artifact.${ext}"; filename*=UTF-8''${encodeURIComponent(name)}`
 }
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,13 +32,30 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     .single()
   if (!workspace) return NextResponse.json({ error: '产物不存在' }, { status: 404 })
 
+  if (row.artifact_type === 'document') {
+    return new Response(createDocxBuffer(row.title, row.content ?? ''), {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': contentDisposition(row.title, row.artifact_type),
+      },
+    })
+  }
+  if (row.artifact_type === 'presentation') {
+    return new Response(createPptxBuffer(parsePresentationDeck(row.content, row.title)), {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'Content-Disposition': contentDisposition(row.title, row.artifact_type),
+      },
+    })
+  }
+
   const body = row.artifact_type === 'folder'
     ? JSON.stringify(row.metadata?.manifest ?? {}, null, 2)
     : row.content ?? JSON.stringify(row.metadata ?? {}, null, 2)
   return new Response(body, {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${downloadName(row.title, row.artifact_type)}"`,
+      'Content-Disposition': contentDisposition(row.title, row.artifact_type),
     },
   })
 }

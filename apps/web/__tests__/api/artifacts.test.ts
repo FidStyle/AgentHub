@@ -3,6 +3,7 @@ import {
   createPostgresChain,
   resetMockAuth,
   resetMockClient,
+  mockArtifact,
   setupMockAuth,
   setupMockClient,
 } from '../utils'
@@ -20,6 +21,21 @@ async function callRoute<T>(
   })
   const response = await handler(request)
   return { status: response.status, data: await response.json() as T }
+}
+
+async function callArtifactRoute<T>(
+  handler: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>,
+  method: 'GET' | 'PATCH',
+  id: string,
+  body?: unknown,
+): Promise<{ status: number; data: T; response: Response }> {
+  const request = new Request(new URL(`/api/artifacts/${id}`, 'http://localhost'), {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: method === 'PATCH' ? JSON.stringify(body ?? {}) : undefined,
+  })
+  const response = await handler(request, { params: Promise.resolve({ id }) })
+  return { status: response.status, data: await response.clone().json().catch(() => null) as T, response }
 }
 
 describe('/api/artifacts', () => {
@@ -59,6 +75,92 @@ describe('/api/artifacts', () => {
     expect(result.data.title).toBe('Markdown 产物')
     expect(result.data.artifact_type).toBe('markdown')
     expect(result.data.content).toContain('Markdown 产物')
+  })
+
+  it('creates document and presentation artifacts with editable content', async () => {
+    const { POST } = await import('@/app/api/artifacts/route')
+
+    const documentResult = await callRoute<{ artifact_type: string; content: string }>(
+      POST,
+      'POST',
+      '/api/artifacts',
+      {
+        workspace_id: 'ws-001',
+        session_id: 'session-001',
+        title: '富文档产物',
+        artifact_type: 'document',
+      },
+    )
+    expect(documentResult.status).toBe(201)
+    expect(documentResult.data.artifact_type).toBe('document')
+    expect(documentResult.data.content).toContain('富文档产物')
+
+    const presentationResult = await callRoute<{ artifact_type: string; content: string }>(
+      POST,
+      'POST',
+      '/api/artifacts',
+      {
+        workspace_id: 'ws-001',
+        session_id: 'session-001',
+        title: '演示稿产物',
+        artifact_type: 'presentation',
+      },
+    )
+    expect(presentationResult.status).toBe(201)
+    expect(presentationResult.data.artifact_type).toBe('presentation')
+    expect(JSON.parse(presentationResult.data.content).slides.length).toBeGreaterThan(0)
+  })
+
+  it('updates artifact content and records edit requests durably', async () => {
+    const { PATCH } = await import('@/app/api/artifacts/[id]/route')
+    const result = await callArtifactRoute<{
+      title: string
+      content: string
+      metadata: { editRequests: Array<{ instruction: string }> }
+    }>(
+      PATCH,
+      'PATCH',
+      'artifact-001',
+      {
+        title: '更新后的富文档',
+        artifact_type: 'document',
+        content: '# 更新后的富文档',
+        edit_request: { instruction: '把摘要改成三点列表' },
+      },
+    )
+
+    expect(result.status).toBe(200)
+    expect(result.data.title).toBe('更新后的富文档')
+    expect(result.data.content).toContain('更新后的富文档')
+    expect(result.data.metadata.editRequests[0].instruction).toBe('把摘要改成三点列表')
+  })
+
+  it('downloads document and presentation artifacts as OpenXML files', async () => {
+    setupMockClient(createPostgresChain(undefined, undefined, undefined, undefined, undefined, [
+      { ...mockArtifact, artifact_type: 'document', title: '导出文档', content: '# 导出文档' },
+    ]))
+    const { GET } = await import('@/app/api/artifacts/[id]/download/route')
+    const documentResult = await callArtifactRoute<unknown>(GET, 'GET', 'artifact-001')
+
+    expect(documentResult.status).toBe(200)
+    expect(documentResult.response.headers.get('Content-Type')).toContain('wordprocessingml.document')
+    const bytes = Buffer.from(await documentResult.response.arrayBuffer())
+    expect(bytes.subarray(0, 4).toString('hex')).toBe('504b0304')
+
+    setupMockClient(createPostgresChain(undefined, undefined, undefined, undefined, undefined, [
+      {
+        ...mockArtifact,
+        artifact_type: 'presentation',
+        title: '导出演示稿',
+        content: JSON.stringify({ version: 1, title: '导出演示稿', slides: [{ title: '第一页', body: ['要点'] }] }),
+      },
+    ]))
+    const presentationResult = await callArtifactRoute<unknown>(GET, 'GET', 'artifact-001')
+
+    expect(presentationResult.status).toBe(200)
+    expect(presentationResult.response.headers.get('Content-Type')).toContain('presentationml.presentation')
+    const pptxBytes = Buffer.from(await presentationResult.response.arrayBuffer())
+    expect(pptxBytes.subarray(0, 4).toString('hex')).toBe('504b0304')
   })
 
   it('rejects artifact creation without workspace_id', async () => {

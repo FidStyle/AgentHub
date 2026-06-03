@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, CheckCircle2, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, RotateCcw, ShieldCheck, Trash2, Upload, WandSparkles, X } from 'lucide-react'
+import { Bot, Boxes, CheckCircle2, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, Presentation, RotateCcw, Save, SendHorizontal, ShieldCheck, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
+import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
 
 const TABS = ['角色', '文件', '变更', '产物'] as const
 
@@ -27,6 +28,8 @@ const ARTIFACT_TYPE_LABELS: Record<ArtifactRow['artifact_type'], string> = {
   image: '图片',
   diff: 'Diff',
   folder: '目录',
+  document: '富文档',
+  presentation: '演示稿',
   generic_file: '文件',
 }
 
@@ -58,7 +61,7 @@ type FilePreview = {
   type: 'file' | 'directory'
   size: number
   mime: string
-  previewKind: 'html' | 'markdown' | 'code' | 'image' | 'text' | 'binary' | 'folder' | 'diff'
+  previewKind: 'html' | 'markdown' | 'code' | 'image' | 'text' | 'binary' | 'folder' | 'diff' | 'document' | 'presentation'
   content: string | null
   truncated: boolean
   downloadUrl: string
@@ -68,7 +71,7 @@ type ArtifactRow = {
   workspace_id: string
   session_id: string | null
   source_path: string | null
-  artifact_type: 'html' | 'markdown' | 'code' | 'image' | 'diff' | 'folder' | 'generic_file'
+  artifact_type: ArtifactDbType
   title: string
   content: string | null
   content_ref: string | null
@@ -140,6 +143,8 @@ function artifactTypeForPreview(preview: FilePreview) {
   if (preview.previewKind === 'markdown') return 'markdown'
   if (preview.previewKind === 'code') return 'code'
   if (preview.previewKind === 'image') return 'image'
+  if (preview.previewKind === 'document') return 'document'
+  if (preview.previewKind === 'presentation') return 'presentation'
   if (preview.previewKind === 'folder') return 'folder'
   return 'generic_file'
 }
@@ -177,6 +182,30 @@ function PreviewBlock({
       </div>
     )
   }
+  if (preview.previewKind === 'document') {
+    if (preview.content) {
+      return (
+        <div data-testid="workspace-document-preview" className="prose prose-sm max-w-none rounded-md border border-border bg-background p-3 dark:prose-invert">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.content}</ReactMarkdown>
+        </div>
+      )
+    }
+    return (
+      <div data-testid="workspace-document-preview" className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        该文档可下载查看；当前文件没有可内联编辑的源内容。
+      </div>
+    )
+  }
+  if (preview.previewKind === 'presentation') {
+    if (preview.content) {
+      return <PresentationPreview deck={parsePresentationDeck(preview.content, preview.name)} />
+    }
+    return (
+      <div data-testid="workspace-presentation-preview" className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        该演示稿可下载查看；当前文件没有可内联编辑的源内容。
+      </div>
+    )
+  }
   if ((preview.previewKind === 'code' || preview.previewKind === 'text' || preview.previewKind === 'folder' || preview.previewKind === 'diff') && preview.content !== null) {
     return (
       <pre data-testid="workspace-code-preview" className="max-h-72 overflow-auto rounded-md border border-border bg-muted p-3 text-xs leading-relaxed">
@@ -197,6 +226,31 @@ function PreviewBlock({
   return (
     <div data-testid="workspace-binary-preview" className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
       该文件类型暂不支持在线预览，请下载后查看。
+    </div>
+  )
+}
+
+function PresentationPreview({ deck }: { deck: PresentationDeck }) {
+  return (
+    <div data-testid="workspace-presentation-preview" className="space-y-3">
+      <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{deck.title}</div>
+          <p className="text-xs text-muted-foreground">{deck.slides.length} 页演示稿</p>
+        </div>
+        <Presentation className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="space-y-3">
+        {deck.slides.map((slide, index) => (
+          <section key={`${index}-${slide.title}`} className="aspect-video rounded-md border border-border bg-background p-4">
+            <div className="text-xs text-muted-foreground">第 {index + 1} 页</div>
+            <h4 className="mt-3 text-base font-semibold">{slide.title}</h4>
+            <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+              {slide.body.map((line) => <li key={line}>• {line}</li>)}
+            </ul>
+          </section>
+        ))}
+      </div>
     </div>
   )
 }
@@ -1435,25 +1489,97 @@ function ChangesTab() {
   )
 }
 
-function ArtifactCard({ artifact }: { artifact: ArtifactRow }) {
+function artifactEditableContent(artifact: ArtifactRow) {
+  if (artifact.artifact_type === 'document') return artifact.content ?? defaultDocumentContent(artifact.title)
+  if (artifact.artifact_type === 'presentation') return artifact.content ?? serializePresentationDeck(defaultPresentationDeck(artifact.title))
+  return artifact.content ?? ''
+}
+
+function artifactPreviewKind(type: ArtifactDbType): FilePreview['previewKind'] {
+  if (type === 'generic_file') return 'binary'
+  if (type === 'document') return 'document'
+  if (type === 'presentation') return 'presentation'
+  return type
+}
+
+function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChanged: () => void }) {
   const downloadUrl = `/api/artifacts/${artifact.id}/download`
   const typeLabel = artifactTypeLabel(artifact.artifact_type)
   const previewLabel = artifactPreviewLabel(artifact)
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(artifact.title)
+  const [content, setContent] = useState(artifactEditableContent(artifact))
+  const [instruction, setInstruction] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
+  const editable = ['document', 'presentation', 'markdown', 'html', 'code'].includes(artifact.artifact_type)
+
+  useEffect(() => {
+    setTitle(artifact.title)
+    setContent(artifactEditableContent(artifact))
+  }, [artifact])
   const preview = {
-    previewKind: artifact.artifact_type === 'generic_file' ? 'binary' : artifact.artifact_type,
-    content: artifact.content ?? (artifact.artifact_type === 'folder' ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2) : null),
+    previewKind: artifactPreviewKind(artifact.artifact_type),
+    content: artifactEditableContent(artifact) || (artifact.artifact_type === 'folder' ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2) : null),
     mime: String(artifact.metadata?.mime ?? 'application/octet-stream'),
     path: artifact.source_path ?? artifact.id,
     name: artifact.title,
     truncated: Boolean(artifact.metadata?.truncated),
   } as Pick<FilePreview, 'previewKind' | 'content' | 'mime' | 'path' | 'name' | 'truncated'>
 
+  async function saveArtifact() {
+    setStatus('正在保存产物...')
+    try {
+      const res = await fetch(`/api/artifacts/${artifact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content,
+          artifact_type: artifact.artifact_type,
+          metadata: { editor: 'web_artifact_panel' },
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `保存失败（${res.status}）`)
+      setStatus('已保存')
+      setEditing(false)
+      onChanged()
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : '保存失败')
+    }
+  }
+
+  async function sendEditRequest() {
+    if (!instruction.trim()) {
+      setStatus('修改要求不能为空')
+      return
+    }
+    setStatus('正在记录修改要求...')
+    try {
+      const res = await fetch(`/api/artifacts/${artifact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          edit_request: { instruction: instruction.trim() },
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `记录失败（${res.status}）`)
+      setInstruction('')
+      setStatus('已记录修改要求，后续 Agent 可基于该产物继续迭代')
+      onChanged()
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : '记录失败')
+    }
+  }
+
   return (
     <div data-testid="artifact-card" className="space-y-3 rounded-lg border border-border bg-background p-3">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            {artifact.artifact_type === 'presentation' ? <Presentation className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
             <span className="truncate text-sm font-medium">{artifact.title}</span>
           </div>
           <div className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -1471,14 +1597,73 @@ function ArtifactCard({ artifact }: { artifact: ArtifactRow }) {
           </Badge>
         </div>
       </div>
-      <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
-      <a
-        href={downloadUrl}
-        className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
-      >
-        <Download className="mr-1 h-3.5 w-3.5" />
-        下载产物
-      </a>
+      {editing ? (
+        <div data-testid="rich-artifact-editor" className="space-y-3">
+          <div className="grid gap-2">
+            <label htmlFor={`artifact-title-${artifact.id}`} className="text-xs font-medium">标题</label>
+            <input
+              id={`artifact-title-${artifact.id}`}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="grid gap-2">
+            <label htmlFor={`artifact-content-${artifact.id}`} className="text-xs font-medium">
+              {artifact.artifact_type === 'presentation' ? '演示稿 JSON' : '正文内容'}
+            </label>
+            <textarea
+              id={`artifact-content-${artifact.id}`}
+              rows={artifact.artifact_type === 'presentation' ? 10 : 8}
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              className="min-h-48 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs leading-relaxed"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => void saveArtifact()}>
+              <Save className="mr-1 h-3.5 w-3.5" />
+              保存
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+              取消
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
+      )}
+      <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
+        <label htmlFor={`artifact-edit-request-${artifact.id}`} className="text-xs font-medium">二次交互编辑</label>
+        <textarea
+          id={`artifact-edit-request-${artifact.id}`}
+          rows={2}
+          value={instruction}
+          onChange={(event) => setInstruction(event.target.value)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
+          placeholder="例如：把第二页改成问题、方案、收益三段"
+        />
+        <div className="flex flex-wrap gap-2">
+          {editable && (
+            <Button size="sm" variant="outline" onClick={() => setEditing((value) => !value)}>
+              <Pencil className="mr-1 h-3.5 w-3.5" />
+              {editing ? '返回预览' : '基础编辑'}
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => void sendEditRequest()}>
+            <SendHorizontal className="mr-1 h-3.5 w-3.5" />
+            记录修改要求
+          </Button>
+          <a
+            href={downloadUrl}
+            className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+          >
+            <Download className="mr-1 h-3.5 w-3.5" />
+            下载产物
+          </a>
+        </div>
+      </div>
+      {status && <p className="text-xs text-muted-foreground">{status}</p>}
     </div>
   )
 }
@@ -1488,6 +1673,8 @@ function ArtifactsTab() {
   const [artifacts, setArtifacts] = useState<ArtifactRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [createStatus, setCreateStatus] = useState<string | null>(null)
+  const loadRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     if (!activeWorkspaceId) return
     const load = () => {
@@ -1500,6 +1687,7 @@ function ArtifactsTab() {
         .catch((e) => setError(e instanceof Error ? e.message : '加载产物失败'))
         .finally(() => setLoaded(true))
     }
+    loadRef.current = load
     load()
     const onChanged = (event: Event) => {
       const detail = (event as CustomEvent<{ workspaceId?: string; sessionId?: string | null }>).detail
@@ -1508,13 +1696,69 @@ function ArtifactsTab() {
     window.addEventListener('artifacts:changed', onChanged)
     return () => window.removeEventListener('artifacts:changed', onChanged)
   }, [activeWorkspaceId, activeSessionId])
+
+  async function createRichArtifact(type: 'document' | 'presentation') {
+    if (!activeWorkspaceId || !activeSessionId) return
+    const title = type === 'document' ? '新建富文档' : '新建演示稿'
+    setCreateStatus(`正在创建${type === 'document' ? '富文档' : '演示稿'}...`)
+    try {
+      const content = type === 'document'
+        ? defaultDocumentContent(title)
+        : serializePresentationDeck(defaultPresentationDeck(title))
+      const res = await fetch('/api/artifacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: activeWorkspaceId,
+          session_id: activeSessionId,
+          title,
+          artifact_type: type,
+          content,
+          metadata: { source: 'web_artifact_panel', editor: 'web_artifact_panel' },
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `创建失败（${res.status}）`)
+      setCreateStatus('已创建产物')
+      window.dispatchEvent(new CustomEvent('artifacts:changed', { detail: { workspaceId: activeWorkspaceId, sessionId: activeSessionId } }))
+      loadRef.current?.()
+    } catch (e) {
+      setCreateStatus(e instanceof Error ? e.message : '创建失败')
+    }
+  }
+
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，Agent 产出的产物将在此展示" />
   if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，Agent 产出的产物将在此展示" />
   if (error) return <p data-testid="artifact-output-error" className="text-sm text-destructive">{error}</p>
-  if (loaded && artifacts.length === 0) return <StateCard variant="empty" title="暂无产物" description="当前会话还没有 Agent 产出的代码、文件或结果" />
   return (
     <div data-testid="artifact-output" className="space-y-2">
-      {artifacts.map((artifact) => <ArtifactCard key={artifact.id} artifact={artifact} />)}
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-2">
+        <Button size="sm" variant="outline" onClick={() => void createRichArtifact('document')} data-testid="create-document-artifact">
+          <FileText className="mr-1 h-3.5 w-3.5" />
+          新建富文档
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => void createRichArtifact('presentation')} data-testid="create-presentation-artifact">
+          <Presentation className="mr-1 h-3.5 w-3.5" />
+          新建演示稿
+        </Button>
+        {createStatus && <span className="text-xs text-muted-foreground">{createStatus}</span>}
+      </div>
+      {!loaded ? (
+        <StateCard variant="loading" title="加载产物" />
+      ) : artifacts.length === 0 ? (
+        <StateCard variant="empty" title="暂无产物" description="当前会话还没有 Agent 产出的代码、文件或结果，可先新建富文档或演示稿" />
+      ) : (
+        artifacts.map((artifact) => (
+          <ArtifactCard
+            key={artifact.id}
+            artifact={artifact}
+            onChanged={() => {
+              window.dispatchEvent(new CustomEvent('artifacts:changed', { detail: { workspaceId: activeWorkspaceId, sessionId: activeSessionId } }))
+              loadRef.current?.()
+            }}
+          />
+        ))
+      )}
     </div>
   )
 }

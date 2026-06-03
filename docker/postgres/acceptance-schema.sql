@@ -357,7 +357,7 @@ CREATE TABLE IF NOT EXISTS public.artifacts (
   source_message_id uuid REFERENCES public.messages(id) ON DELETE SET NULL,
   source_run_id uuid REFERENCES public.runtime_sessions(id) ON DELETE SET NULL,
   source_path text,
-  artifact_type text NOT NULL DEFAULT 'generic_file' CHECK (artifact_type IN ('html','markdown','code','image','diff','folder','generic_file')),
+  artifact_type text NOT NULL DEFAULT 'generic_file' CHECK (artifact_type IN ('html','markdown','code','image','diff','folder','document','presentation','generic_file')),
   title text NOT NULL,
   content text,
   content_ref text,
