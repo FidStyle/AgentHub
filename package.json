@@ -8,6 +8,8 @@
     "release:web": "pnpm --filter @agenthub/web build",
     "release:desktop:mac": "pnpm --filter @agenthub/desktop dist:mac",
     "release:local": "pnpm release:web && pnpm release:desktop:mac",
+    "deploy:web:stage": "pnpm --filter @agenthub/web build && node scripts/stage-self-hosted-web.mjs",
+    "deploy:self-hosted:config": "docker compose -p agenthub_deploy -f docker/docker-compose.deploy.yml config",
     "env:acceptance:db:up": "docker compose -p agenthub_acceptance -f docker/docker-compose.acceptance.yml up -d postgres",
     "env:acceptance:db:down": "docker compose -p agenthub_acceptance -f docker/docker-compose.acceptance.yml down",
     "env:acceptance:seed": "pnpm --filter @agenthub/web exec tsx scripts/setup-acceptance-test-db.ts",

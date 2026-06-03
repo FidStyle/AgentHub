@@ -46,24 +46,24 @@ function attempt(partial: Partial<PlanNodeAttempt> & Pick<PlanNodeAttempt, 'id' 
 }
 
 describe('mailbox scheduling helpers', () => {
-  it('selects the earliest queued inbound item for a session and keeps later roles queued', () => {
+  it('selects the earliest queued inbound item for each role queue', () => {
     const ready = selectReadyMailboxItems([
       mailbox({ id: 'mail-2', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:02.000Z' }),
       mailbox({ id: 'mail-1', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:01.000Z' }),
       mailbox({ id: 'mail-3', to_role_agent_id: 'agent-be', status: 'queued', created_at: '2026-06-02T00:00:03.000Z' }),
     ])
 
-    expect(ready.map((item) => item.id)).toEqual(['mail-1'])
+    expect(ready.map((item) => item.id)).toEqual(['mail-1', 'mail-3'])
   })
 
-  it('does not select queued work when the session already has running inbound work', () => {
+  it('does not select queued work when the same role already has running inbound work', () => {
     const ready = selectReadyMailboxItems([
       mailbox({ id: 'running-fe', to_role_agent_id: 'agent-fe', status: 'running', created_at: '2026-06-02T00:00:01.000Z' }),
       mailbox({ id: 'queued-fe', to_role_agent_id: 'agent-fe', status: 'queued', created_at: '2026-06-02T00:00:02.000Z' }),
       mailbox({ id: 'queued-be', to_role_agent_id: 'agent-be', status: 'queued', created_at: '2026-06-02T00:00:03.000Z' }),
     ])
 
-    expect(ready.map((item) => item.id)).toEqual([])
+    expect(ready.map((item) => item.id)).toEqual(['queued-be'])
   })
 
   it('accepts Date timestamps from local Postgres rows when selecting ready work', () => {
@@ -73,7 +73,7 @@ describe('mailbox scheduling helpers', () => {
       mailbox({ id: 'mail-3', to_role_agent_id: 'agent-be', status: 'queued', created_at: new Date('2026-06-02T00:00:03.000Z') as unknown as string }),
     ])
 
-    expect(ready.map((item) => item.id)).toEqual(['mail-1'])
+    expect(ready.map((item) => item.id)).toEqual(['mail-1', 'mail-3'])
   })
 
   it('allows one queued item in each independent session', () => {

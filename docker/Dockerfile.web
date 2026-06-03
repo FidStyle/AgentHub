@@ -1,0 +1,28 @@
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/ui/package.json packages/ui/package.json
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS builder
+
+COPY . .
+RUN pnpm --filter @agenthub/shared build
+RUN pnpm --filter @agenthub/web build
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+
+RUN corepack enable
+COPY --from=builder /app /app
+
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@agenthub/web", "start"]

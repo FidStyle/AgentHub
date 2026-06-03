@@ -65,7 +65,8 @@ function MarkdownCode({
   className,
   ...rest
 }: React.ComponentProps<'code'> & { node?: unknown }) {
-  const { node: _node, ...codeProps } = rest
+  const { node, ...codeProps } = rest
+  void node
 
   return (
     <code {...codeProps} className={className}>
@@ -78,7 +79,8 @@ function MarkdownPre({
   children,
   ...rest
 }: React.ComponentProps<'pre'> & { node?: unknown }) {
-  const { node: _node, ...preProps } = rest
+  const { node, ...preProps } = rest
+  void node
   const child = React.Children.toArray(children).find(React.isValidElement)
 
   if (!React.isValidElement<{ children?: React.ReactNode; className?: string }>(child)) {
@@ -111,11 +113,14 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
   const components = useMemo(() => ({
     code: MarkdownCode,
     pre: MarkdownPre,
-    a: ({ children, href, node: _node, ...rest }: React.ComponentProps<'a'> & { node?: unknown }) => (
-      <a href={href} target={href?.startsWith('#') ? undefined : '_blank'} rel={href?.startsWith('#') ? undefined : 'noreferrer'} {...rest}>
-        {children}
-      </a>
-    ),
+    a: ({ children, href, node, ...rest }: React.ComponentProps<'a'> & { node?: unknown }) => {
+      void node
+      return (
+        <a href={href} target={href?.startsWith('#') ? undefined : '_blank'} rel={href?.startsWith('#') ? undefined : 'noreferrer'} {...rest}>
+          {children}
+        </a>
+      )
+    },
     img: ({ alt, src, title }: React.ComponentProps<'img'>) => (
       <img
         alt={alt ?? ''}
@@ -124,11 +129,14 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
         className="my-2 max-h-80 max-w-full rounded-md border border-border object-contain"
       />
     ),
-    table: ({ children, node: _node, ...rest }: React.ComponentProps<'table'> & { node?: unknown }) => (
-      <div data-streamdown="table-wrapper">
-        <table {...rest}>{children}</table>
-      </div>
-    ),
+    table: ({ children, node, ...rest }: React.ComponentProps<'table'> & { node?: unknown }) => {
+      void node
+      return (
+        <div data-streamdown="table-wrapper">
+          <table {...rest}>{children}</table>
+        </div>
+      )
+    },
   }), [])
 
   if (!normalizedContent) return null

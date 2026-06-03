@@ -54,18 +54,19 @@ function timestampMillis(value: string | Date): number {
 
 export function selectReadyMailboxItems(items: AgentMailboxItem[]): AgentMailboxItem[] {
   const ordered = [...items].sort((a, b) => timestampMillis(a.created_at) - timestampMillis(b.created_at))
-  const activeSessions = new Set(
+  const activeRoleQueues = new Set(
     ordered
       .filter((item) => item.direction === 'inbound' && ACTIVE_MAILBOX_STATUSES.has(item.status))
-      .map((item) => item.session_id),
+      .map((item) => `${item.session_id}:${item.to_role_agent_id}`),
   )
-  const selectedSessions = new Set<string>()
+  const selectedRoleQueues = new Set<string>()
 
   return ordered.filter((item) => {
     if (item.direction !== 'inbound' || item.status !== 'queued') return false
-    if (activeSessions.has(item.session_id)) return false
-    if (selectedSessions.has(item.session_id)) return false
-    selectedSessions.add(item.session_id)
+    const queueKey = `${item.session_id}:${item.to_role_agent_id}`
+    if (activeRoleQueues.has(queueKey)) return false
+    if (selectedRoleQueues.has(queueKey)) return false
+    selectedRoleQueues.add(queueKey)
     return true
   })
 }

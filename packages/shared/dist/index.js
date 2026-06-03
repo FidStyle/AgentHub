@@ -68,7 +68,12 @@ function createRuntimeOutputAccumulator(initialContent = "") {
         content = event.delta ?? "";
         return content;
       }
-      content = appendRuntimeDelta(content, event.delta ?? "");
+      const delta = event.delta ?? "";
+      if (event.mode === "append" || typeof event.seq === "number") {
+        content += delta;
+        return content;
+      }
+      content = appendRuntimeDelta(content, delta);
       return content;
     },
     value() {
@@ -132,15 +137,16 @@ function timestampMillis(value) {
 }
 function selectReadyMailboxItems(items) {
   const ordered = [...items].sort((a, b) => timestampMillis(a.created_at) - timestampMillis(b.created_at));
-  const activeSessions = new Set(
-    ordered.filter((item) => item.direction === "inbound" && ACTIVE_MAILBOX_STATUSES.has(item.status)).map((item) => item.session_id)
+  const activeRoleQueues = new Set(
+    ordered.filter((item) => item.direction === "inbound" && ACTIVE_MAILBOX_STATUSES.has(item.status)).map((item) => `${item.session_id}:${item.to_role_agent_id}`)
   );
-  const selectedSessions = /* @__PURE__ */ new Set();
+  const selectedRoleQueues = /* @__PURE__ */ new Set();
   return ordered.filter((item) => {
     if (item.direction !== "inbound" || item.status !== "queued") return false;
-    if (activeSessions.has(item.session_id)) return false;
-    if (selectedSessions.has(item.session_id)) return false;
-    selectedSessions.add(item.session_id);
+    const queueKey = `${item.session_id}:${item.to_role_agent_id}`;
+    if (activeRoleQueues.has(queueKey)) return false;
+    if (selectedRoleQueues.has(queueKey)) return false;
+    selectedRoleQueues.add(queueKey);
     return true;
   });
 }

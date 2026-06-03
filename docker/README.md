@@ -2,6 +2,36 @@
 
 本目录放项目级环境依赖。端到端验收默认使用 Docker Postgres，避免依赖远端 Postgres 控制台或手工数据库。
 
+## 自托管部署 v1
+
+自托管部署使用项目内 Docker Compose + Caddy，不依赖包装型托管平台。Web app 只在 Compose 网络内监听 `3000`，对外入口由 Caddy 发布。
+
+构建并把静态产物写入 hash release 目录：
+
+```bash
+pnpm deploy:web:stage
+```
+
+默认输出：
+
+- `deploy/self-hosted/releases/<BUILD_ID>/public`
+- `deploy/self-hosted/releases/<BUILD_ID>/public/_next/static`
+- `deploy/self-hosted/current -> releases/<BUILD_ID>`
+
+检查 Compose 配置：
+
+```bash
+AUTH_SECRET=replace-me pnpm deploy:self-hosted:config
+```
+
+启动自托管栈：
+
+```bash
+AUTH_SECRET=replace-me docker compose -p agenthub_deploy -f docker/docker-compose.deploy.yml up -d --build
+```
+
+默认访问入口为 `http://localhost:8080`。如需变更外部端口，设置 `CADDY_HTTP_PORT`。生产环境还需要配置真实 `APP_BASE_URL`、`AUTH_URL`/`NEXTAUTH_URL`、`AUTH_GITHUB_ID` 和 `AUTH_GITHUB_SECRET`。
+
 ## 验收测试环境
 
 推荐验收入口：

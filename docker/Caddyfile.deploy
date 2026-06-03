@@ -1,0 +1,23 @@
+{
+	auto_https off
+}
+
+:80 {
+	encode zstd gzip
+
+	root * /srv/agenthub/current/public
+
+	@nextStatic path /_next/static/*
+	handle @nextStatic {
+		file_server
+	}
+
+	@publicFile file
+	handle @publicFile {
+		file_server
+	}
+
+	handle {
+		reverse_proxy app:3000
+	}
+}

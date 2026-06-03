@@ -93,3 +93,78 @@ type ForbiddenManagedPlatform =
 ```
 
 Correct only means the package is protocol/open-source compatible; the actual deployment must still be self-hosted.
+
+## Scenario: Hash Release Static Deploy With Caddy
+
+### 1. Scope / Trigger
+
+- Trigger: Adding or changing self-hosted production deployment for AgentHub Web.
+- Applies to Dockerfile, Docker Compose, Caddyfile, deploy staging scripts, package dependency declarations, and docs that describe production startup.
+
+### 2. Signatures
+
+- Static stage command: `pnpm deploy:web:stage`
+  - Builds `@agenthub/web`.
+  - Reads `apps/web/.next/BUILD_ID`.
+  - Writes `deploy/self-hosted/releases/<BUILD_ID>/public`.
+  - Writes Next static assets to `deploy/self-hosted/releases/<BUILD_ID>/public/_next/static`.
+  - Updates `deploy/self-hosted/current` to point at the active hash release.
+- Compose config command: `AUTH_SECRET=... CADDY_HTTP_PORT=<lane-port> APP_BASE_URL=http://localhost:<lane-port> AUTH_URL=http://localhost:<lane-port> NEXTAUTH_URL=http://localhost:<lane-port> pnpm deploy:self-hosted:config`.
+- Public route: Caddy publishes the lane port and proxies to internal app service `app:3000`.
+
+### 3. Contracts
+
+- App service must use `expose: ["3000"]` or equivalent internal-only networking; it must not publish host ports directly.
+- Caddy is the only public HTTP entrypoint for self-hosted deploy.
+- Caddy serves `/_next/static/*` and existing public files from `deploy/self-hosted/current/public`, then reverse-proxies all remaining requests to `app:3000`.
+- Deployment output directories under `deploy/self-hosted/` are generated artifacts and must stay ignored by git.
+- Package-local build requirements must be declared by the package that owns the imported file. Example: if `packages/ui/src/globals.css` imports `tailwindcss`, `packages/ui/package.json` must declare `tailwindcss`; do not rely on another app's hoisted dependency.
+
+### 4. Validation & Error Matrix
+
+| 条件 | 必须结果 |
+| --- | --- |
+| `.next/BUILD_ID` missing | staging script fails with an explicit "run build first" error |
+| `.next/static` missing | staging script fails; do not create a partial release |
+| Caddy config invalid | `caddy validate` fails before handoff |
+| Compose config uses default or unknown port in parallel worktree | not accepted as final evidence; rerun with the lane's fixed port |
+| Docker build cannot resolve package-local CSS/type dependencies | add the dependency to the owning package manifest and refresh lockfile |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `pnpm deploy:web:stage` creates a hash release; `CADDY_HTTP_PORT=3101 ... pnpm deploy:self-hosted:config` shows only Caddy publishing `3101:80` and app exposing internal `3000`; Docker image build succeeds.
+- Base: Local static stage and Compose config pass, but full stack is not started because secrets or OAuth credentials are unavailable; report this as config/build verification only.
+- Bad: Next app publishes `3000:3000` directly, Caddy is bypassed, or deploy docs rely on managed platforms.
+
+### 6. Tests Required
+
+- `pnpm install --frozen-lockfile`.
+- `pnpm type-check`, `pnpm lint`, and `pnpm test`.
+- `pnpm deploy:web:stage`, then assert `deploy/self-hosted/current/manifest.json` and `deploy/self-hosted/current/public/_next/static` exist.
+- Fixed-port Compose validation for the current lane, for example deploy-v1 uses `http://localhost:3101`.
+- Docker app image build: `docker compose -p agenthub_deploy -f docker/docker-compose.deploy.yml build app`.
+- Caddy syntax validation: `docker run --rm -v "$PWD/docker/Caddyfile.deploy:/etc/caddy/Caddyfile:ro" caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile`.
+- Managed-platform scan over product code/config: `rg -n -i "supabase|fly|neon|upstash|vercel/postgres|planetscale|firebase|clerk|auth0|turso|convex" package.json apps packages scripts docker --glob '!**/node_modules/**'`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```yaml
+services:
+  app:
+    ports:
+      - "3000:3000"
+```
+
+#### Correct
+
+```yaml
+services:
+  app:
+    expose:
+      - "3000"
+  caddy:
+    ports:
+      - "${CADDY_HTTP_PORT:-8080}:80"
+```

@@ -39,7 +39,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
     if (!info.isFile()) return NextResponse.json({ error: '仅支持下载普通文件或文件夹' }, { status: 400 })
     const data = await readFile(target.fullPath)
-    return new Response(data, {
+    return new Response(new Uint8Array(data), {
       headers: {
         'Content-Type': mimeForPath(target.relativePath),
         'Content-Disposition': `attachment; filename="${safeDownloadName(target.relativePath, 'download')}"`,

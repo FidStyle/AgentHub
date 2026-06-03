@@ -4,6 +4,7 @@ node_modules/
 .pnpm-store/
 dist/
 release/
+deploy/self-hosted/
 apps/desktop/release/
 .next/
 .env.local
