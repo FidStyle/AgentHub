@@ -42,12 +42,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-WS-001, FR-ACTION-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-05-sync-role-runtime-opencli-failure-evidence` |
 | **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
-| **当前状态** | committed（2026-06-05）：已从旧 `.trellis/tasks/06-03-role-runtime-workspace-permissions/research/acceptance-report.md` 同步事实。旧 lane 只有 shared/domain/Desktop 合同级证据；旧报告明确未启动 dev server、未使用 `http://127.0.0.1:3106`，因此 Web、Mobile/PWA、Desktop/Electron OpenCLI 真实 UI UAT 均未通过。 |
+| **当前状态** | closed（2026-06-05）：已从旧 `.trellis/tasks/06-03-role-runtime-workspace-permissions/research/acceptance-report.md` 同步事实。旧 lane 只有 shared/domain/Desktop 合同级证据；旧报告明确未启动 dev server、未使用 `http://127.0.0.1:3106`，因此 Web、Mobile/PWA、Desktop/Electron OpenCLI 真实 UI UAT 均未通过。Trellis 任务已归档到 `.trellis/tasks/archive/2026-06/06-05-sync-role-runtime-opencli-failure-evidence`。 |
 | **目标** | 防止旧 worktree/lane 合同测试被误记为 Bytedance 主链路验收通过；把失败/未验收事实写入当前分支公开总账，并保持后续修复队列不被跳过。 |
 | **验收方式** | 文档和证据同步检查；核对旧报告、顺序执行总表、OpenCLI 三端验收规范；不修改业务代码。 |
-| **测试证据** | `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-05-sync-role-runtime-opencli-failure-evidence` PASS；`python3 -m json.tool .trellis/tasks/06-05-sync-role-runtime-opencli-failure-evidence/task.json` PASS；JSONL 逐行解析 PASS；`python3 ./.trellis/scripts/task.py current --source` 指向本任务；`rg` 可检索 `not-run` / `not-accepted` 结论；`git diff --check` PASS；work commit `31dc562 docs: 同步 role runtime OpenCLI 未验收事实`。当前报告：`research/execution-reports/role-runtime-opencli-failure-evidence-2026-06-05.md`。 |
+| **测试证据** | `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-05-sync-role-runtime-opencli-failure-evidence` PASS；`python3 -m json.tool .trellis/tasks/06-05-sync-role-runtime-opencli-failure-evidence/task.json` PASS；JSONL 逐行解析 PASS；`python3 ./.trellis/scripts/task.py current --source` 归档前指向本任务、归档后为 none；`rg` 可检索 `not-run` / `not-accepted` 结论；`git diff --check` PASS；work commit `31dc562 docs: 同步 role runtime OpenCLI 未验收事实`；status commit `2d42395 docs: 记录 role runtime 证据同步提交状态`。当前报告：`research/execution-reports/role-runtime-opencli-failure-evidence-2026-06-05.md`。 |
 | **阻塞问题** | 无当前阻塞。产品主链路仍未验收：固定样本 workspace `/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2` 与 prompt `做一个加减乘除的简单网站，使用sqlite存储历史记录` 尚未跑 Web/Mobile/PWA/Desktop/Electron OpenCLI UAT。 |
-| **下一步动作** | 关闭本任务后，进入 `06-05-fix-role-runtime-cwd-context-isolation`；不得直接跳到最终 OpenCLI UAT。 |
+| **下一步动作** | clean 后进入 `06-05-fix-role-runtime-cwd-context-isolation`；不得直接跳到最终 OpenCLI UAT。 |
 
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 

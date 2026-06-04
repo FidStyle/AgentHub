@@ -21,13 +21,13 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 当前任务 | `.trellis/tasks/06-05-sync-role-runtime-opencli-failure-evidence` |
+| 当前任务 | `.trellis/tasks/archive/2026-06/06-05-sync-role-runtime-opencli-failure-evidence` |
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
 | 开始状态 | `git status --short` clean（2026-06-05，本任务开始前） |
-| 当前状态 | committed |
+| 当前状态 | closed |
 | 阻塞项 | 无 |
-| 下一步 | 关闭本任务后进入 `06-05-fix-role-runtime-cwd-context-isolation` |
+| 下一步 | clean 后进入 `06-05-fix-role-runtime-cwd-context-isolation` |
 
 ---
 
@@ -36,7 +36,7 @@
 | 顺序 | 功能点 / Trellis task | 优先级 | 状态 | 验证方式 | 证据路径 | 阻塞项 | 下一步 |
 | ---: | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `06-05-sequential-execution-governance-reset` | P0 | closed | 文档/spec 检查；`git status --short`；Trellis current 指针；本表和 tracker/index 可检索 | `python3 -m json.tool` 覆盖 7 个 touched task.json；`python3 ./.trellis/scripts/task.py current --source` 指向本任务；`python3 ./.trellis/scripts/task.py list` 显示旧 lane 为 `superseded-by-sequential-queue`；`rg` 可检索 `sequential-execution-progress` / 三端 OpenCLI 规则；`git diff --check` PASS；work commit `10c9e87 docs: 建立单分支顺序执行治理` | 无 | clean 后进入 `06-05-sync-role-runtime-opencli-failure-evidence` |
-| 2 | `06-05-sync-role-runtime-opencli-failure-evidence` | P0 | committed | 只同步旧 `role-runtime-workspace-permissions` lane 的合同级证据与 OpenCLI 三端未验收事实；不修业务代码 | Source: `.trellis/tasks/06-03-role-runtime-workspace-permissions/research/acceptance-report.md`；Report: `research/execution-reports/role-runtime-opencli-failure-evidence-2026-06-05.md`；结论：旧 lane 未启动 dev server、未使用 `http://127.0.0.1:3106`、Web/Mobile/PWA/Desktop/Electron OpenCLI 均 `not-run`；验证：`task.py validate` PASS、task.json JSON PASS、JSONL 逐行解析 PASS、`task.py current --source` 指向本任务、`rg` 可检索 not-run/not-accepted 结论、`git diff --check` PASS；work commit `31dc562 docs: 同步 role runtime OpenCLI 未验收事实` | 无 | 关闭本任务后进入 `06-05-fix-role-runtime-cwd-context-isolation` |
+| 2 | `06-05-sync-role-runtime-opencli-failure-evidence` | P0 | closed | 只同步旧 `role-runtime-workspace-permissions` lane 的合同级证据与 OpenCLI 三端未验收事实；不修业务代码 | Source: `.trellis/tasks/06-03-role-runtime-workspace-permissions/research/acceptance-report.md`；Report: `research/execution-reports/role-runtime-opencli-failure-evidence-2026-06-05.md`；归档：`.trellis/tasks/archive/2026-06/06-05-sync-role-runtime-opencli-failure-evidence`；结论：旧 lane 未启动 dev server、未使用 `http://127.0.0.1:3106`、Web/Mobile/PWA/Desktop/Electron OpenCLI 均 `not-run`；验证：`task.py validate` PASS、task.json JSON PASS、JSONL 逐行解析 PASS、`task.py current --source` 归档后为 none、`rg` 可检索 not-run/not-accepted 结论、`git diff --check` PASS；work commit `31dc562 docs: 同步 role runtime OpenCLI 未验收事实`；status commit `2d42395 docs: 记录 role runtime 证据同步提交状态` | 无 | clean 后进入 `06-05-fix-role-runtime-cwd-context-isolation` |
 | 3 | `06-05-fix-role-runtime-cwd-context-isolation` | P0 | queued | Unit/API/runtime worker cwd 断言；context payload 不含宿主 repo；三端 OpenCLI UAT 相关状态不假绿 | 待补 | 等待任务 2 完成 | 修复 cloud workspace runtime `cwd` 绑定与上下文隔离 |
 | 4 | `06-05-fix-architect-durable-dispatch` | P0 | queued | 架构师收到工程需求后产生 durable plan/mailbox/attempt 或等价可审计派发记录；三端可见或可读回 | 待补 | 等待任务 3 完成 | 修复 `@架构师` 不派发问题 |
 | 5 | `06-05-fix-runtime-permission-broker` | P0 | queued | 写文件、依赖安装、启动服务、网络、越界路径、破坏性命令的 allow/reject；Web/Mobile/Electron 权限卡或状态可验收 | 待补 | 等待任务 4 完成 | 修复工具权限 broker 与结构化权限卡 |
