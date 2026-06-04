@@ -4,6 +4,8 @@ Date: 2026-06-05
 Task: `.trellis/tasks/06-05-fix-architect-durable-dispatch`
 Contract: `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`
 Work commit: `8ab4b10 fix: 修复架构师 durable dispatch`
+Status commit: `161ca12 docs: 记录架构师 dispatch 修复提交`
+Archive commit: `3a6bf73 chore(task): archive 06-05-fix-architect-durable-dispatch`
 
 ## Summary
 

@@ -70,12 +70,12 @@
 |------|------|
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-WS-001 |
-| **对应计划** | `.trellis/tasks/06-05-fix-architect-durable-dispatch` |
+| **对应计划** | `.trellis/tasks/archive/2026-06/06-05-fix-architect-durable-dispatch` |
 | **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
-| **当前状态** | committed（2026-06-05）：已修复单独 `@架构师` / 默认架构师收到工程实现请求时只走 direct chat 的问题。`/api/chat` 现在使用 shared `createArchitectDispatch` 判断工程需求，并把请求的 backend/frontend 目标映射到当前 workspace 的真实角色，再进入既有 durable orchestration 路径，产生 plan、plan nodes、attempts、mailbox items 和携带 selected workspace cwd 的 runtime jobs。 |
+| **当前状态** | closed（2026-06-05）：已修复单独 `@架构师` / 默认架构师收到工程实现请求时只走 direct chat 的问题，并归档 Trellis task。`/api/chat` 现在使用 shared `createArchitectDispatch` 判断工程需求，并把请求的 backend/frontend 目标映射到当前 workspace 的真实角色，再进入既有 durable orchestration 路径，产生 plan、plan nodes、attempts、mailbox items 和携带 selected workspace cwd 的 runtime jobs。 |
 | **目标** | 固定样本 `做一个加减乘除的简单网站，使用sqlite存储历史记录` 必须触发后端与前端工程角色派发，并留下可刷新读回的 durable dispatch evidence；不得只让架构师直接回复。 |
 | **验收方式** | Web API/orchestrator/mailbox tests + Shared runtime-workspace contract tests + type-check/lint；本任务不声明 OpenCLI 三端 UAT 通过。 |
-| **测试证据** | Report: `research/execution-reports/architect-durable-dispatch-2026-06-05.md`；focused Web chat/orchestrator suite PASS（2 files / 31 tests）；focused Web dispatcher/mailbox suite PASS（2 files / 10 tests）；`pnpm --filter @agenthub/web test` PASS（30 files / 253 tests）；`pnpm --filter @agenthub/shared test` PASS（7 files / 47 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning，无 ESLint warnings/errors）；`task.py validate` PASS；task JSON/JSONL parse PASS；`git diff --check` PASS；work commit `8ab4b10`。 |
+| **测试证据** | Report: `research/execution-reports/architect-durable-dispatch-2026-06-05.md`；focused Web chat/orchestrator suite PASS（2 files / 31 tests）；focused Web dispatcher/mailbox suite PASS（2 files / 10 tests）；`pnpm --filter @agenthub/web test` PASS（30 files / 253 tests）；`pnpm --filter @agenthub/shared test` PASS（7 files / 47 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning，无 ESLint warnings/errors）；`task.py validate` PASS；task JSON/JSONL parse PASS；`git diff --check` PASS；work commit `8ab4b10`；status commit `161ca12`；archive commit `3a6bf73`。 |
 | **阻塞问题** | 无当前代码阻塞。OpenCLI Web/Mobile/PWA/Desktop-Electron UAT 仍为 `not-run`，按顺序队列留给 `06-05-opencli-role-runtime-uat`。 |
 | **下一步动作** | 提交并归档后进入 `06-05-fix-runtime-permission-broker`；不得跳过 permission broker 修复直接跑最终 OpenCLI UAT。 |
 
