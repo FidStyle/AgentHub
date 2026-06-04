@@ -21,6 +21,8 @@ Trellis task: `.trellis/tasks/06-05-fix-runtime-permission-broker`
 ## Verification
 
 - Work commit: `d9c4b27 fix: 修复 runtime permission broker`
+- Status commit: `7a5b0a2 docs: 记录 runtime permission broker 提交`
+- Archive commit: `77f4e0f chore(task): archive 06-05-fix-runtime-permission-broker`
 - `pnpm --filter @agenthub/shared test -- src/domain/runtime-workspace.test.ts` PASS（1 file / 15 tests）
 - `pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/orchestrator/action-dispatcher.test.ts __tests__/message-markdown.test.ts __tests__/api/chat.test.ts __tests__/runtime/gateway-gating.test.ts __tests__/runtime/local-device-relay.test.ts` PASS（6 files / 66 tests）
 - `pnpm --filter @agenthub/web type-check` PASS
