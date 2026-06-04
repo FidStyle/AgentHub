@@ -2,7 +2,9 @@ node_modules/
 .pnpm-store/
 .git/
 .next/
-apps/web/.next/
+!apps/web/.next/
+!apps/web/.next/**
+apps/web/.next/cache/
 dist/
 release/
 apps/desktop/release/

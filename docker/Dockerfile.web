@@ -1,4 +1,4 @@
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS deps
 
 WORKDIR /app
 RUN corepack enable
@@ -12,10 +12,11 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 
 COPY . .
+RUN test -f apps/web/.next/BUILD_ID
+RUN test -d apps/web/.next/static
 RUN pnpm --filter @agenthub/shared build
-RUN pnpm --filter @agenthub/web build
 
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production

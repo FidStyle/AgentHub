@@ -9,7 +9,7 @@
 构建并把静态产物写入 hash release 目录：
 
 ```bash
-pnpm deploy:web:stage
+NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<base64-32-byte-key> pnpm deploy:web:stage
 ```
 
 默认输出：
@@ -18,19 +18,23 @@ pnpm deploy:web:stage
 - `deploy/self-hosted/releases/<BUILD_ID>/public/_next/static`
 - `deploy/self-hosted/current -> releases/<BUILD_ID>`
 
+Docker app 镜像复用这次 build 写出的 `apps/web/.next`，不要在 stage 之后再改源码或重新生成另一套 `.next` 后直接启动旧镜像。
+
 检查 Compose 配置：
 
 ```bash
-AUTH_SECRET=replace-me pnpm deploy:self-hosted:config
+AUTH_SECRET=replace-me NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<same-key-as-stage> pnpm deploy:self-hosted:config
 ```
 
 启动自托管栈：
 
 ```bash
-AUTH_SECRET=replace-me docker compose -p agenthub_deploy -f docker/docker-compose.deploy.yml up -d --build
+AUTH_SECRET=replace-me NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<same-key-as-stage> docker compose -p agenthub_deploy -f docker/docker-compose.deploy.yml up -d --build
 ```
 
 默认访问入口为 `http://localhost:8080`。如需变更外部端口，设置 `CADDY_HTTP_PORT`。生产环境还需要配置真实 `APP_BASE_URL`、`AUTH_URL`/`NEXTAUTH_URL`、`AUTH_GITHUB_ID` 和 `AUTH_GITHUB_SECRET`。
+
+`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` 必须在静态 stage 和 Docker app build 中保持一致，否则 Next.js 生成的 Server Actions 客户端 chunk 可能不同，Caddy 发布的 `deploy/self-hosted/current/public/_next/static` 会和 app 返回的 HTML 不匹配。可用 `openssl rand -base64 32` 生成生产密钥。
 
 ## 验收测试环境
 
