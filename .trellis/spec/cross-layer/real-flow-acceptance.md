@@ -233,6 +233,8 @@ Web cloud @角色通过：
 - If a test requires a real browser, use OpenCLI first. Do not replace it with ad hoc Playwright unless OpenCLI is unavailable or the task is explicitly a Playwright regression test.
 - OpenCLI must start from the same real product entry a user would use: no direct internal route, no mocked API route, no hidden test-only DOM shortcut.
 - Authentication-sensitive flows may use a documented fixture only after login/session scope is declared; external login or sensitive permission steps must be marked as manual handoff when needed.
+- Multi-worktree acceptance must record the current `location.href` in OpenCLI evidence and verify the port matches the lane's explicit fixed port. If OpenCLI state is still on another worktree or old port, navigate to the correct entry and recapture state, DOM, and screenshots before making any pass/fail claim.
+- When OAuth/GitHub login is not the behavior under test and local OAuth config is missing, a documented acceptance session fixture may be used. The report must set `auth_state=fixture` and still exercise the real DB/API/UI path; fixtures must not create fake business results or mock product APIs.
 - A conventional Playwright run can support the evidence, but the acceptance report must distinguish `Playwright regression passed` from `OpenCLI real-browser UAT passed`.
 - If OpenCLI cannot run, the report must say `OpenCLI not run` and mark real-browser acceptance as blocked or not covered.
 
@@ -245,12 +247,16 @@ Web cloud @角色通过：
 | OpenCLI 不可用 | 写明原因和未覆盖范围 | 用截图存在或 `playwright --list` 顶替 |
 | Playwright 回归通过但未跑 OpenCLI | 报告为回归通过、UAT 未验收 | 报告为完整验收通过 |
 | 真实入口失败但内部测试入口通过 | 真实验收失败 | 以内部门户通过关闭任务 |
+| OpenCLI state 显示旧端口或其他 worktree | 导航到本 lane 显式固定端口并重新抓取 state/DOM/screenshot | 沿用旧端口截图声明当前 worktree 通过 |
+| OAuth client 未配置但任务不验证 OAuth 本身 | 使用 documented acceptance fixture 并声明 `auth_state=fixture` | 收集凭证，或把 fixture 登录写成真实 OAuth 通过 |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: 功能改完后，OpenCLI 打开真实 Web 工作台，使用声明的 auth state 发送消息，截图和 DOM 证据显示刷新后状态仍正确；报告同时列出补充 Playwright 回归命令。
+- Good: `opencli browser agenthub open http://localhost:3107` 后先保存 state；若 state 仍在旧端口，先导航到 `localhost:3107`，再重抓 DOM/screenshot 并确认 `location.href`。
 - Base: OpenCLI 因外部 OAuth 需要用户授权而阻塞，报告写 `blocked: manual login required`，不把该链路计入通过。
 - Bad: 只运行 `npx playwright test e2e/foo.spec.ts`，然后在验收报告写“真实浏览器 UAT 通过”。
+- Bad: OpenCLI 打开目标 URL 返回成功，但 `state` 实际显示另一个端口；继续截图并把该截图当成当前 worktree 证据。
 
 ### 6. Tests Required
 
