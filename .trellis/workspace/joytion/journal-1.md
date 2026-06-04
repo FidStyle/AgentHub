@@ -496,3 +496,38 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: 修复 runtime permission broker
+
+**Date**: 2026-06-05
+**Task**: 修复 runtime permission broker
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+修复 native CLI/tool permission broker：解析 Claude/Codex tool 事件，worker 创建 pending approval 并 fail-closed，approved action 投递前重新校验 workspace root，补权限卡元数据与顺序队列证据。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d9c4b27` | (see git log) |
+| `7a5b0a2` | (see git log) |
+| `7e4d3d4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

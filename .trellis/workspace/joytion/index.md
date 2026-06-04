@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
+- **Total Sessions**: 15
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~498 | Active |
+| `journal-1.md` | ~533 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-06-05 | 修复 runtime permission broker | `d9c4b27`, `7a5b0a2`, `7e4d3d4` | `AgentHub_new_claude_test` |
 | 14 | 2026-06-05 | 修复架构师 durable dispatch | `8ab4b10`, `161ca12`, `ccb29ad` | `AgentHub_new_claude_test` |
 | 13 | 2026-06-05 | 单分支顺序执行治理重置 | `10c9e87`, `7c3d21b` | `AgentHub_new_claude_test` |
 | 12 | 2026-06-04 | 消息 Markdown wrapper 简化与 E2E 门禁 | `d39aa77`, `63001a1` | `AgentHub_new_claude_test` |
