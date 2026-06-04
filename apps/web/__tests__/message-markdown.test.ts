@@ -208,14 +208,14 @@ describe('MessageMarkdown', () => {
     expect(html).not.toContain('data-streamdown="image-wrapper"')
   })
 
-  it('renders message-level copy control without invalid paragraph nesting', () => {
+  it('does not render message-level actions inside markdown content', () => {
     const html = renderToStaticMarkup(createElement(MessageMarkdown, {
       content: ['一段说明文字。', '', '- 第一项', '- 第二项', '', '> 关键引用'].join('\n'),
     }))
 
-    expect(html).toContain('aria-label="复制整条消息"')
-    expect(html).toContain('class="flex shrink-0 items-center gap-1"')
-    expect(html).toContain('opacity-100 shadow-sm transition-opacity md:opacity-0')
+    expect(html).not.toContain('aria-label="复制整条消息"')
+    expect(html).not.toContain('class="flex shrink-0 items-center gap-1"')
+    expect(html).not.toContain('opacity-100 shadow-sm transition-opacity md:opacity-0')
     expect(html).not.toContain('message-markdown-actions')
     expect(html).not.toContain('aria-label="复制段落"')
     expect(html).not.toContain('aria-label="复制列表"')

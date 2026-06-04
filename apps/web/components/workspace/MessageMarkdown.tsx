@@ -143,13 +143,6 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
 
   return (
     <div data-testid="message-markdown" className="message-markdown group/message-markdown">
-      <div className="flex shrink-0 items-center gap-1">
-        <CopyButton
-          text={normalizedContent}
-          label="复制整条消息"
-          className="opacity-100 shadow-sm transition-opacity md:opacity-0 md:group-hover/message-markdown:opacity-100 md:group-focus-within/message-markdown:opacity-100"
-        />
-      </div>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
         rehypePlugins={[rehypeKatex]}

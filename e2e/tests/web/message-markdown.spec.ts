@@ -6,7 +6,7 @@ const hasAuth = !!(process.env.TEST_AUTH_COOKIE || process.env.TEST_AUTH_COOKIE_
 test.describe('Web 消息 Markdown 真实渲染', () => {
   test.skip(!hasAuth, 'DEFERRED：需真实 DB session（TEST_AUTH_COOKIE/TEST_AUTH_STORAGE_STATE）')
 
-  test('发送 Markdown 消息后不再渲染旧 wrapper class，copy 入口仍可见', async ({ authedPage: page }) => {
+  test('发送 Markdown 消息后只保留消息顶栏 copy 入口', async ({ authedPage: page }) => {
     const ts = Date.now()
     const workspaceResp = await page.request.post('/api/workspaces', {
       data: { name: `E2E-MARKDOWN-${ts}`, execution_domain: 'cloud' },
@@ -44,9 +44,9 @@ test.describe('Web 消息 Markdown 真实渲染', () => {
     await expect(markdown).toBeVisible({ timeout: 10000 })
     await expect(markdown).toContainText('第一项')
     await expect(markdown).toContainText('const value = 1')
-    await expect(markdown.locator('.flex.shrink-0.items-center.gap-1')).toBeVisible()
+    await expect(markdown.locator('.flex.shrink-0.items-center.gap-1')).toHaveCount(0)
     await expect(page.locator('.message-markdown-actions')).toHaveCount(0)
-    await expect(markdown.getByRole('button', { name: '复制整条消息' })).toBeVisible()
+    await expect(chatPanel.getByTestId('message-copy-btn').first()).toBeVisible()
 
     await assertNoHorizontalScroll(page)
   })
