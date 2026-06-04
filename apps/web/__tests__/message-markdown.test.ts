@@ -214,9 +214,9 @@ describe('MessageMarkdown', () => {
     }))
 
     expect(html).toContain('aria-label="复制整条消息"')
-    expect(html).toContain('class="message-markdown-actions"')
+    expect(html).toContain('class="flex shrink-0 items-center gap-1"')
     expect(html).toContain('opacity-100 shadow-sm transition-opacity md:opacity-0')
-    expect(html).not.toContain('absolute right-0 top-0')
+    expect(html).not.toContain('message-markdown-actions')
     expect(html).not.toContain('aria-label="复制段落"')
     expect(html).not.toContain('aria-label="复制列表"')
     expect(html).not.toContain('aria-label="复制引用"')
@@ -227,8 +227,8 @@ describe('MessageMarkdown', () => {
     const css = readFileSync(fileURLToPath(new URL('../app/globals.css', import.meta.url)), 'utf8')
 
     expect(css).toContain('.message-markdown .agenthub-markdown')
-    expect(css).toContain('.message-markdown-actions')
     expect(css).toContain('padding-right: 0')
+    expect(css).not.toContain('.message-markdown-actions')
     expect(css).toContain('.message-markdown ul')
     expect(css).toContain('list-style-type: disc')
     expect(css).toContain('.message-markdown ul ul')

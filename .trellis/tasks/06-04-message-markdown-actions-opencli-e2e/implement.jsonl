@@ -1,0 +1,8 @@
+{"file":".trellis/spec/frontend/index.md","reason":"前端 UI 任务总入口，包含消息 Markdown 组件、视觉与测试门禁。"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"MessageMarkdown 属于前端组件，实现和拆分方式需要遵守组件规范。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"本任务涉及 UI 和测试更新，需要遵守前端质量与 OpenCLI/UAT 门禁。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"需要确认消息 Markdown 的视觉与可访问性风格约束。"}
+{"file":".trellis/spec/cross-layer/index.md","reason":"任务包含真实浏览器验收和跨层质量口径，需要读取跨层规范索引。"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"真实浏览器 E2E 和主链路验收必须遵守该规范。"}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"消息 Markdown 与 IM/Markdown 共享合同相关，需保持与主合同一致。"}
+{"file":"research/product/ui-design-system.md","reason":"UI 任务需要对齐产品级视觉与交互系统。"}

@@ -1,0 +1,6 @@
+{"file":".trellis/spec/frontend/index.md","reason":"检查阶段需要确认前端 UI 任务的完成门禁和文案/视觉要求。"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"检查 MessageMarkdown 和 copy 按钮结构是否仍符合组件规范。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查阶段必须验证 UI 质量、测试和 OpenCLI 证据。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"检查消息 Markdown 的视觉与可访问性约束是否保持。"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"OpenCLI 真实浏览器验收和主链路口径必须按该规范复核。"}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"需要核对 IM Markdown 共享合同中的消息渲染和 Git 变更面板约束。"}

@@ -143,7 +143,7 @@ export function MessageMarkdown({ content, streaming = false }: { content: strin
 
   return (
     <div data-testid="message-markdown" className="message-markdown group/message-markdown">
-      <div className="message-markdown-actions">
+      <div className="flex shrink-0 items-center gap-1">
         <CopyButton
           text={normalizedContent}
           label="复制整条消息"

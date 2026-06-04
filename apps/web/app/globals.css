@@ -25,29 +25,6 @@
   padding-right: 0;
 }
 
-.message-markdown-actions {
-  display: flex;
-  min-height: 1.9rem;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding-bottom: 0.125rem;
-}
-
-.message-markdown-actions > button:hover,
-.message-markdown-actions > button:focus-visible {
-  background: var(--markdown-soft);
-  color: var(--color-foreground);
-}
-
-.message-markdown-actions > button {
-  flex: 0 0 auto;
-  height: 1.75rem;
-  width: 1.75rem;
-  border: 1px solid var(--markdown-faint-border);
-  background: color-mix(in oklab, var(--color-background) 92%, transparent);
-  color: var(--markdown-muted);
-}
-
 .message-markdown p {
   margin: 0.25rem 0 0.5rem;
 }
