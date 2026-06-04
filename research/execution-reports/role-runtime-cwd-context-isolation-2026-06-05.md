@@ -3,6 +3,7 @@
 Date: 2026-06-05
 Task: `.trellis/tasks/06-05-fix-role-runtime-cwd-context-isolation`
 Contract: `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`
+Work commit: `b5da89d fix: 绑定角色 runtime 工作区 cwd`
 
 ## Summary
 
