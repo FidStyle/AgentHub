@@ -39,6 +39,16 @@
 
 ---
 
+## E2E 默认门禁
+
+- 任何用户可见的 Web、Desktop/Electron、Mobile/PWA 功能改动或 UI 回归修复，都必须有对应 E2E 验证，或在报告里明确写出 `E2E not applicable / blocked` 及原因。不能只用单元测试、组件测试、截图存在或 `playwright --list` 关闭任务。
+- 真实浏览器验收优先使用 OpenCLI：Web/PWA 用 `opencli browser` 复用真实浏览器状态；Desktop/Electron 优先使用可用的 opencli app/Electron adapter，缺失时才按项目合同 fallback 到 Playwright Electron，并记录原因。
+- 三端任务必须按受影响端分别给证据：Web、Electron/Desktop、Mobile/PWA 各自的入口、操作、结果和截图/DOM/数据证据。Web-only 组件清理至少要有 Web 真实页面 E2E；若同组件被 Electron 或 Mobile 复用，再补对应端。
+- E2E 报告必须区分 `OpenCLI real-browser UAT passed`、`Playwright regression passed`、`blocked/not-run`，被跳过或被外部登录/权限卡住的链路不得计入通过。
+- 多 worktree 或多 lane 并行时，E2E/OpenCLI 必须声明并使用当前 lane 固定端口，禁止用自动跳端口结果作为最终验收。
+
+---
+
 ## 测试要求
 
 | 测试类型 | 要求 |
