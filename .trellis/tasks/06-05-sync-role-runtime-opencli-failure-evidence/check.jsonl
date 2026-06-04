@@ -1,0 +1,4 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Check the synchronized report against the original shared contract and completion gates."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Check that OpenCLI/Web/Mobile/Electron evidence is not overstated."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Check that cwd/context/dispatch/permission facts are recorded using the current backend contract."}
+{"file":".trellis/tasks/06-05-sync-role-runtime-opencli-failure-evidence/prd.md","reason":"Check the task scope remains evidence synchronization only, with no business-code fix claims."}

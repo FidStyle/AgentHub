@@ -1,0 +1,4 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Shared contract for the role runtime workspace isolation and permission broker evidence being synchronized."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Defines OpenCLI tri-surface acceptance and forbids claiming real-flow completion from partial tests."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Defines the cwd, context isolation, role dispatch, and permission broker contracts referenced by the old lane evidence."}
+{"file":".trellis/tasks/06-03-role-runtime-workspace-permissions/research/acceptance-report.md","reason":"Old lane evidence source that must be synchronized without changing business code."}
