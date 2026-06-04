@@ -55,14 +55,14 @@
 |------|------|
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-WS-001 |
-| **对应计划** | `.trellis/tasks/06-05-fix-role-runtime-cwd-context-isolation` |
+| **对应计划** | `.trellis/tasks/archive/2026-06/06-05-fix-role-runtime-cwd-context-isolation` |
 | **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
-| **当前状态** | committed（2026-06-05）：已修复 cloud workspace role runtime `cwd` 绑定与上下文隔离。`/api/chat` 从 selected workspace 解析 cloud root；runtime session、Redis worker job、mailbox/runtime-node dispatch、local relay payload、real CLI worker executor 均不再 fallback 到 AgentHub 宿主 repo、`process.cwd()` 或 `RUNTIME_CWD`。业务角色 prompt 加入 selected workspace root 和禁止推断宿主 `AGENTS.md`、Trellis、monorepo、Next.js/React/Drizzle/Postgres/next-auth 上下文的约束。Work commit `b5da89d fix: 绑定角色 runtime 工作区 cwd`。 |
+| **当前状态** | closed（2026-06-05）：已修复 cloud workspace role runtime `cwd` 绑定与上下文隔离并归档 Trellis task。`/api/chat` 从 selected workspace 解析 cloud root；runtime session、Redis worker job、mailbox/runtime-node dispatch、local relay payload、real CLI worker executor 均不再 fallback 到 AgentHub 宿主 repo、`process.cwd()` 或 `RUNTIME_CWD`。业务角色 prompt 加入 selected workspace root 和禁止推断宿主 `AGENTS.md`、Trellis、monorepo、Next.js/React/Drizzle/Postgres/next-auth 上下文的约束。 |
 | **目标** | 固定样本 workspace `/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2` 的 role runtime 只能在 selected cloud workspace root 下创建 session、投递 job、执行 CLI，并且上下文不注入宿主 repo 技术栈判断。 |
 | **验收方式** | Web API/runtime/orchestrator/mailbox/unit tests + Shared runtime-workspace contract tests + type-check/lint；本任务不声明 OpenCLI 三端 UAT 通过。 |
-| **测试证据** | Report: `research/execution-reports/role-runtime-cwd-context-isolation-2026-06-05.md`；`pnpm --filter @agenthub/shared build` PASS；`pnpm --filter @agenthub/web test` PASS（30 files / 252 tests）；focused Web runtime/chat suite PASS（7 files / 57 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/shared test -- src/domain/runtime-workspace.test.ts` PASS（1 file / 9 tests）；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning，无 ESLint warnings/errors）；`task.py validate` PASS；task JSON/JSONL parse PASS；`git diff --check` PASS；work commit `b5da89d`。 |
+| **测试证据** | Report: `research/execution-reports/role-runtime-cwd-context-isolation-2026-06-05.md`；`pnpm --filter @agenthub/shared build` PASS；`pnpm --filter @agenthub/web test` PASS（30 files / 252 tests）；focused Web runtime/chat suite PASS（7 files / 57 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/shared test -- src/domain/runtime-workspace.test.ts` PASS（1 file / 9 tests）；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning，无 ESLint warnings/errors）；`task.py validate` PASS；task JSON/JSONL parse PASS；`git diff --check` PASS；work commit `b5da89d`；status commit `cf161b7`；archive commit `0478ce3`。 |
 | **阻塞问题** | 无当前代码阻塞。OpenCLI Web/Mobile/PWA/Desktop-Electron UAT 仍为 `not-run`，按顺序队列留给 `06-05-opencli-role-runtime-uat`。 |
-| **下一步动作** | 归档本任务；clean 后进入 `06-05-fix-architect-durable-dispatch`，不得跳过 durable dispatch 和 permission broker 修复。 |
+| **下一步动作** | clean 后进入 `06-05-fix-architect-durable-dispatch`，不得跳过 durable dispatch 和 permission broker 修复。 |
 
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
