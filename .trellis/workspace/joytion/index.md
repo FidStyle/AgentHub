@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~463 | Active |
+| `journal-1.md` | ~498 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-06-05 | 修复架构师 durable dispatch | `8ab4b10`, `161ca12`, `ccb29ad` | `AgentHub_new_claude_test` |
 | 13 | 2026-06-05 | 单分支顺序执行治理重置 | `10c9e87`, `7c3d21b` | `AgentHub_new_claude_test` |
 | 12 | 2026-06-04 | 消息 Markdown wrapper 简化与 E2E 门禁 | `d39aa77`, `63001a1` | `AgentHub_new_claude_test` |
 | 11 | 2026-06-04 | 总控接管集成分支验证 | `3899a3c`, `5d81953`, `d31934d`, `5b4ba59`, `99f876a`, `82ef64b` | `AgentHub_new_claude_test` |

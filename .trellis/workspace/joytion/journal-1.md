@@ -461,3 +461,38 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: 修复架构师 durable dispatch
+
+**Date**: 2026-06-05
+**Task**: 修复架构师 durable dispatch
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+修复默认/单独架构师工程请求不产生 durable dispatch 的问题：固定 SQLite 计算器样本会扩展到真实后端/前端角色并创建 plan、attempt、mailbox、runtime job evidence；同步报告、tracker 和顺序队列，OpenCLI 仍按后续任务 not-run。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8ab4b10` | (see git log) |
+| `161ca12` | (see git log) |
+| `ccb29ad` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
