@@ -1,0 +1,6 @@
+{"file":"research/execution-reports/opencli-role-runtime-uat-2026-06-05.md","reason":"Primary failure evidence for malformed approved native tool continuation."}
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Defines permission broker, selected workspace cwd, allow/reject, and fixed-sample contracts."}
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"Requires real runtime/API/DB/session evidence and forbids fake product closure."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Executable contract for native CLI permission events, approval dispatch, workspace-root rechecks, and fail-closed behavior."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Quality bar for rerunning OpenCLI and data evidence after the fix."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime session/log/event dispatch constraints for approved action reruns."}

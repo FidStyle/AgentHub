@@ -1,0 +1,8 @@
+{"file":"research/sequential-execution-progress.md","reason":"Defines the single-branch queue, task 6 fixed sample, OpenCLI tri-surface requirement, and failure policy."}
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Primary contract for workspace cwd/context isolation, architect dispatch, permission broker, and fixed sample acceptance."}
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"Requires real DB/API/session/runtime UAT, OpenCLI evidence, and forbids fake/script runtime success."}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"Backtrace contract for IM multi-agent collaboration, orchestrator dispatch, markdown/runtime output, and artifact evidence."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Executable workspace runtime contract for cwd, visible files, architect dispatch, and native CLI permission events."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Quality bar for real browser UAT, runtime sessions/logs/messages, and no mock product closure."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime gateway routing, event, session/log, endpoint unavailable, and no fake assistant success contract."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Guides cross-layer evidence collection across UI, API, DB, runtime, and persistence boundaries."}

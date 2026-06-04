@@ -1,0 +1,7 @@
+{"file":"research/sequential-execution-progress.md","reason":"Check that task 6 status, evidence paths, blockers, and next action are recorded truthfully."}
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Check fixed-sample UAT covers cwd/context isolation, durable dispatch, permission reject/allow, and workspace root limits."}
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"Check UAT evidence uses real user entry, auth/session, DB/API/runtime, and does not rely on mock success."}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"Check Bytedance multi-agent and orchestrator regressions are included in the acceptance report."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Check runtime workspace fields, permission events, and fail-closed behavior against the backend contract."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Check report lists commands, environment, data ids, UI screenshots, negative evidence, and skipped/blocked facts accurately."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Check runtime unavailable and output/session/log events obey gateway contracts without fake assistant success."}

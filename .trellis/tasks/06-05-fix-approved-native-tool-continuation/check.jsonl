@@ -1,0 +1,5 @@
+{"file":"research/execution-reports/opencli-role-runtime-uat-2026-06-05.md","reason":"Check the fix closes the exact blocked UAT finding and rerun evidence is recorded."}
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Check approved native tool behavior, reject behavior, and workspace boundary against the role runtime contract."}
+{"file":"research/contracts/ACCEPTANCE-REAL-FLOW-2026-06-01.md","reason":"Check no fake/script runtime success is used in the rerun."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Check approved action dispatch preserves cwd/root and does not malformed non-shell tools."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Check Web/Mobile/Electron UAT evidence includes commands, ids, screenshots, and skipped/blocked facts."}
