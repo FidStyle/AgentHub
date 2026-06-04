@@ -1,0 +1,7 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Primary contract for checking permission broker completion and scoped exclusions."}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"Structured approval card expectations and existing permission UI behavior."}
+{"file":"research/sequential-execution-progress.md","reason":"Single-task sequential execution and OpenCLI not-run accounting rules."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Backend broker validation matrix and fixed workspace boundary tests."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Quality gate for real API/runtime evidence and no mock main-flow shortcuts."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime event and persistence boundaries for verification."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer consistency review guide for final verification."}

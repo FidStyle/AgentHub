@@ -79,6 +79,21 @@
 | **阻塞问题** | 无当前代码阻塞。OpenCLI Web/Mobile/PWA/Desktop-Electron UAT 仍为 `not-run`，按顺序队列留给 `06-05-opencli-role-runtime-uat`。 |
 | **下一步动作** | 提交并归档后进入 `06-05-fix-runtime-permission-broker`；不得跳过 permission broker 修复直接跑最终 OpenCLI UAT。 |
 
+### RUNTIME-PERMISSION-BROKER-2026-06-05: Runtime permission broker 修复
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WS-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-05-fix-runtime-permission-broker` |
+| **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`；`.trellis/spec/backend/runtime-workspace-contract.md` |
+| **当前状态** | verified（2026-06-05）：已修复 native CLI/tool request 进入产品 permission broker 的路径。Claude/Codex JSON tool 事件会转为结构化 `toolRequest`；runtime worker 基于 selected workspace context 创建 pending action + notification + `approval_requested`，并停止当前 job，避免工具请求被当作普通输出执行；已授权 action 投递前会重新校验 `cwd` 与命令中的 absolute path 是否仍在 selected workspace root 内。Web message permission card 展示动作、命令、cwd、workspace root、路径和风险，拒绝后显示 `已拒绝，未执行该操作。`。 |
+| **目标** | 写文件、依赖安装、启动服务、网络请求、workspace 外路径访问、破坏性命令都必须先进入产品权限 broker；拒绝不执行；允许后仍受 selected workspace root 限制。 |
+| **验收方式** | Shared permission evaluator tests + Web runtime parser/worker/action-dispatcher/API/message-card tests + type-check/lint；本任务不声明 OpenCLI 三端 UAT 通过。 |
+| **测试证据** | Report: `research/execution-reports/runtime-permission-broker-2026-06-05.md`；`pnpm --filter @agenthub/shared test -- src/domain/runtime-workspace.test.ts` PASS（1 file / 15 tests）；`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/orchestrator/action-dispatcher.test.ts __tests__/message-markdown.test.ts __tests__/api/chat.test.ts __tests__/runtime/gateway-gating.test.ts __tests__/runtime/local-device-relay.test.ts` PASS（6 files / 66 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning，无 ESLint errors）；`git diff --check` PASS。 |
+| **阻塞问题** | 无当前代码阻塞。OpenCLI Web/Mobile/PWA/Desktop-Electron UAT 仍为 `not-run by scope`，按顺序队列留给 `06-05-opencli-role-runtime-uat`。 |
+| **下一步动作** | 提交并归档后进入 `06-05-opencli-role-runtime-uat`，跑固定样本三端真实 UI UAT。 |
+
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
 | 字段 | 内容 |

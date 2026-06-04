@@ -84,11 +84,96 @@ function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Rec
             }),
           }
         }
+        if (table === 'actions' || table === 'notifications') {
+          return {
+            insert: (values: Record<string, unknown>) => {
+              writes.push({ table, values })
+              return { data: null, error: null }
+            },
+            update: (values: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                writes.push({ table, values, id })
+                return { data: null, error: null }
+              },
+            }),
+          }
+        }
         return { select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }) }
       }),
     },
   }
 }
+
+describe('dispatchApprovedAction', () => {
+  beforeEach(() => {
+    resolveEndpointMock.mockClear()
+    createSessionMock.mockClear()
+    isWorkerAliveMock.mockClear()
+    enqueueMock.mockClear()
+    process.env.REDIS_URL = 'redis://localhost:6379'
+  })
+
+  it('blocks an approved action when cwd is outside the selected workspace root', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-outside-cwd',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'shell',
+      command: 'pnpm test',
+      cwd: '/Users/joytion/Documents/code/AgentHub_new_claude_test',
+      runtime_type: 'codex',
+    })
+
+    expect(result).toEqual({
+      status: 'unavailable',
+      error: '该操作试图使用 workspace 外工作目录，已阻止。',
+    })
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-outside-cwd',
+        values: expect.objectContaining({
+          result: expect.objectContaining({
+            dispatch: 'unavailable',
+            error: '该操作试图使用 workspace 外工作目录，已阻止。',
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'notifications',
+        values: expect.objectContaining({
+          user_id: 'user-001',
+          type: 'action_dispatch_failed',
+        }),
+      }),
+    ]))
+  })
+
+  it('blocks an approved action when command targets an absolute path outside the workspace root', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-outside-target',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'shell',
+      command: 'cat /Users/joytion/Documents/code/AgentHub_new_claude_test/package.json',
+      cwd: workspaceRoot,
+      runtime_type: 'codex',
+    })
+
+    expect(result.status).toBe('unavailable')
+    expect(result.error).toContain('该操作试图访问 workspace 外路径')
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('dispatchRuntimeInvokeNode', () => {
   beforeEach(() => {

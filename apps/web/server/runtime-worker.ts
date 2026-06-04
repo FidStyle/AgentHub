@@ -1,8 +1,16 @@
 import { createClient } from '../lib/app-db-client'
 import { advancePlanProgress } from '../lib/orchestrator/plan-progress'
-import { CliRuntimeExecutor, FakeExecutor, ScriptedRealExecutor, type CliRuntimeType, type RuntimeExecutor } from '../lib/runtime/executor'
+import {
+  CliRuntimeExecutor,
+  FakeExecutor,
+  ScriptedRealExecutor,
+  type CliRuntimeType,
+  type NativeCliToolRequest,
+  type RuntimeExecutor,
+} from '../lib/runtime/executor'
 import { dequeue, publishEvent, isCancelled, setHeartbeat, isAlive, clearHeartbeat, setWorkerAlive, clearWorkerAlive, type RuntimeJob } from '../lib/runtime/redis-client'
 import { redact } from '../lib/runtime/redact'
+import { evaluateNativeCliToolPermission, type NativeCliToolCall } from '@agenthub/shared'
 
 const HEARTBEAT_TTL_SEC = Number(process.env.RUNTIME_HEARTBEAT_TTL_SEC ?? 30)
 const HEARTBEAT_EVENT_INTERVAL_MS = Number(process.env.RUNTIME_HEARTBEAT_EVENT_INTERVAL_MS ?? 15_000)
@@ -99,6 +107,75 @@ function terminalToMailboxStatus(terminal: Terminal) {
   return 'failed'
 }
 
+function toolRequestDescription(tool: NativeCliToolRequest, workspaceRoot: string) {
+  const command = tool.commandPreview ? `命令: ${tool.commandPreview}` : `工具: ${tool.toolName}`
+  const targets = tool.targetPaths && tool.targetPaths.length > 0 ? `\n路径: ${tool.targetPaths.join(', ')}` : ''
+  return [
+    'Runtime 请求执行需要授权的 native CLI 工具。',
+    `动作: ${tool.actionKind}`,
+    command,
+    `Workspace: ${workspaceRoot}`,
+    targets,
+  ].filter(Boolean).join('\n')
+}
+
+function toolCallFromRequest(job: RuntimeJob, tool: NativeCliToolRequest): NativeCliToolCall | null {
+  if (!job.workspaceId || !job.sessionId || !job.workspaceRoot || !job.cwd) return null
+  return {
+    id: tool.id ?? `tool-${job.runtimeSessionId}-${Date.now()}`,
+    workspaceId: job.workspaceId,
+    sessionId: job.sessionId,
+    runtimeInvocationId: job.runtimeSessionId,
+    actionKind: tool.actionKind,
+    cwd: tool.cwd ?? job.cwd,
+    targetPaths: tool.targetPaths,
+    commandPreview: tool.commandPreview,
+    requestedAt: new Date().toISOString(),
+  }
+}
+
+async function createPermissionAction(job: RuntimeJob, toolCall: NativeCliToolCall, riskLevel: string) {
+  if (!job.ownerId) {
+    throw new Error('Runtime 权限请求缺少用户归属，已阻止执行。')
+  }
+  const db = await createClient()
+  const command = toolCall.commandPreview ?? `${toolCall.actionKind}: ${toolCall.targetPaths?.join(', ') || toolCall.cwd}`
+  const { data: action, error } = await db
+    .from('actions')
+    .insert({
+      session_id: toolCall.sessionId,
+      plan_node_id: job.planNodeId ?? null,
+      owner_id: job.ownerId,
+      action_type: toolCall.actionKind,
+      command,
+      cwd: toolCall.cwd,
+      risk_level: riskLevel,
+      status: 'pending',
+      requires_approval: true,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: job.runtimeSessionId,
+        toolCallId: toolCall.id,
+        targetPaths: toolCall.targetPaths ?? [],
+      },
+    })
+    .select('id')
+    .single()
+  if (error || !action) {
+    throw new Error(error?.message ?? '创建权限动作失败。')
+  }
+  const actionId = (action as { id: string }).id
+  await db.from('notifications').insert({
+    user_id: job.ownerId,
+    type: 'approval_required',
+    title: `Runtime 工具需要授权: ${command.slice(0, 50)}`,
+    body: `风险等级: ${riskLevel}`,
+    ref_type: 'action',
+    ref_id: actionId,
+  })
+  return actionId
+}
+
 async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = '', error?: string): Promise<void> {
   const db = await createClient()
   const now = new Date().toISOString()
@@ -187,6 +264,38 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         lastNativeSessionId = chunk.nativeSessionId
         await setNativeSessionId(id, chunk.nativeSessionId)
         await emit({ type: 'native_session', nativeSessionId: chunk.nativeSessionId, endpointId: job.endpointId })
+      }
+      if (chunk.toolRequest) {
+        const toolCall = toolCallFromRequest(job, chunk.toolRequest)
+        if (!toolCall || !job.workspaceRoot || !job.workspaceId) {
+          throw new Error('Runtime 权限请求缺少 workspace 上下文，已阻止执行。')
+        }
+        const permission = evaluateNativeCliToolPermission(toolCall, {
+          workspaceId: job.workspaceId,
+          workspaceRoot: job.workspaceRoot,
+        })
+        if (permission.code === 'OUTSIDE_WORKSPACE_ROOT') {
+          throw new Error('该操作试图访问 workspace 外路径，已阻止。')
+        }
+        if (permission.code !== 'APPROVAL_REQUIRED' || !permission.approval) {
+          throw new Error('Runtime 权限请求无法进入审批队列，已阻止执行。')
+        }
+        const riskLevel = permission.approval.riskLevel
+        const actionId = await createPermissionAction(job, toolCall, riskLevel)
+        await emit({
+          type: 'approval_requested',
+          actionId,
+          title: 'Runtime 工具需要授权',
+          description: toolRequestDescription(chunk.toolRequest, job.workspaceRoot),
+          riskLevel,
+          endpointId: job.endpointId,
+          actionKind: toolCall.actionKind,
+          workspaceRoot: job.workspaceRoot,
+          cwd: toolCall.cwd,
+          targetPaths: toolCall.targetPaths ?? [],
+          commandPreview: toolCall.commandPreview,
+        })
+        throw new Error('Runtime 工具已进入权限审批，未执行该操作。')
       }
       if (!chunk.delta) continue
       await setHeartbeat(id, HEARTBEAT_TTL_SEC)

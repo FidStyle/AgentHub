@@ -253,7 +253,20 @@ describe('MessageContent', () => {
   it('renders runtime tool and permission parts behind a stable message-content boundary', () => {
     const parts: RuntimeMessagePart[] = [
       { id: 'tool-1', type: 'tool', status: 'completed', toolName: 'git status', result: { changed: 2 } },
-      { id: 'permission-1', type: 'permission', status: 'pending', actionId: 'action-1', title: '需要执行命令', description: '该动作需要授权后继续。', riskLevel: 'medium' },
+      {
+        id: 'permission-1',
+        type: 'permission',
+        status: 'pending',
+        actionId: 'action-1',
+        title: '需要执行命令',
+        description: '该动作需要授权后继续。',
+        riskLevel: 'medium',
+        actionKind: 'install_dependency',
+        commandPreview: 'pnpm install',
+        workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+        cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+        targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json'],
+      },
     ]
 
     const html = renderToStaticMarkup(createElement(MessageContent, {
@@ -267,5 +280,8 @@ describe('MessageContent', () => {
     expect(html).toContain('data-testid="message-permission-card"')
     expect(html).toContain('工具：git status')
     expect(html).toContain('需要执行命令')
+    expect(html).toContain('install_dependency')
+    expect(html).toContain('pnpm install')
+    expect(html).toContain('/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2')
   })
 })

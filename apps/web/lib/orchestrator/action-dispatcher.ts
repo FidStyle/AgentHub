@@ -101,6 +101,10 @@ export async function dispatchApprovedAction(
   if (!workspaceRoot) {
     return recordDispatchFailure(db, action, 'unavailable', '云端工作区目录缺失，已阻止执行以避免读取宿主仓库。')
   }
+  const violation = actionWorkspaceViolation(action, workspaceRoot)
+  if (violation) {
+    return recordDispatchFailure(db, action, 'unavailable', violation)
+  }
 
   const endpoint = await resolveEndpoint({
     userId: action.owner_id,
@@ -137,6 +141,10 @@ export async function dispatchApprovedAction(
 
   await enqueue({
     runtimeSessionId: runtimeSession.id,
+    workspaceId: workspace.id,
+    sessionId: action.session_id,
+    ownerId: action.owner_id,
+    workspaceRoot,
     endpointId: endpoint.id ?? undefined,
     runtimeType: action.runtime_type ?? 'claude_code',
     nativeSessionId: runtimeSession.nativeSessionId ?? null,
@@ -236,6 +244,44 @@ type RoleDispatchRow = {
   runtime_type: CliRuntimeType
 }
 
+function normalizeAbsolutePath(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('/')) return null
+  const parts: string[] = []
+  for (const part of trimmed.split('/')) {
+    if (!part || part === '.') continue
+    if (part === '..') parts.pop()
+    else parts.push(part)
+  }
+  return `/${parts.join('/')}`
+}
+
+function isPathInsideRoot(root: string, candidate: string): boolean {
+  const normalizedRoot = normalizeAbsolutePath(root)
+  const normalizedCandidate = normalizeAbsolutePath(candidate)
+  if (!normalizedRoot || !normalizedCandidate) return false
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}/`)
+}
+
+function absolutePathTokens(command: string): string[] {
+  const matches = command.match(/(?:^|[\s"'=])\/[^\s"'`;$|&<>)]*/g) ?? []
+  return matches
+    .map((match) => match.trim().replace(/^["'=]*/, '').replace(/^[^/]*/, '').replace(/[,.]$/, ''))
+    .filter((token) => token.startsWith('/'))
+}
+
+function actionWorkspaceViolation(action: ActionRecordForDispatch, workspaceRoot: string): string | null {
+  const cwd = action.cwd?.trim()
+  if (cwd && !isPathInsideRoot(workspaceRoot, cwd)) {
+    return '该操作试图使用 workspace 外工作目录，已阻止。'
+  }
+  const outsideTarget = absolutePathTokens(action.command).find((token) => !isPathInsideRoot(workspaceRoot, token))
+  if (outsideTarget) {
+    return `该操作试图访问 workspace 外路径 ${outsideTarget}，已阻止。`
+  }
+  return null
+}
+
 function payloadString(payload: Record<string, unknown>, key: string) {
   const value = payload[key]
   return typeof value === 'string' ? value : undefined
@@ -318,6 +364,10 @@ export async function dispatchPreparedRuntimeInvokeNode(
 
   const job: RuntimeJob = {
     runtimeSessionId: runtimeSession.id,
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    ownerId: input.userId,
+    workspaceRoot: payloadString(payload, 'workspaceRoot') ?? cwd,
     endpointId: endpoint.id ?? undefined,
     runtimeType: input.runtimeType,
     nativeSessionId: runtimeSession.nativeSessionId ?? null,

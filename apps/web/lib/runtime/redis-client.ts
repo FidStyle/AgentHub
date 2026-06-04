@@ -15,6 +15,10 @@ const SUB_TOTAL_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS ?? 
 
 export interface RuntimeJob {
   runtimeSessionId: string
+  workspaceId?: string
+  sessionId?: string
+  ownerId?: string
+  workspaceRoot?: string | null
   endpointId?: string
   runtimeType?: 'claude_code' | 'codex'
   nativeSessionId?: string | null

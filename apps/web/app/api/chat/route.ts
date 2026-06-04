@@ -549,7 +549,20 @@ export async function POST(req: NextRequest) {
       ]
     }
     if (evt.type === 'approval_requested') {
-      return [...parts, { id: partId('approval', evt), type: 'permission', status: 'pending', actionId: evt.actionId, title: evt.title, description: evt.description, riskLevel: evt.riskLevel }]
+      return [...parts, {
+        id: partId('approval', evt),
+        type: 'permission',
+        status: 'pending',
+        actionId: evt.actionId,
+        title: evt.title,
+        description: evt.description,
+        riskLevel: evt.riskLevel,
+        actionKind: evt.actionKind,
+        workspaceRoot: evt.workspaceRoot,
+        cwd: evt.cwd,
+        targetPaths: evt.targetPaths,
+        commandPreview: evt.commandPreview,
+      }]
     }
     if (evt.type === 'question') {
       return [...parts, { id: partId('question', evt), type: 'question', status: 'pending', questionId: evt.questionId, title: evt.title, content: evt.content }]

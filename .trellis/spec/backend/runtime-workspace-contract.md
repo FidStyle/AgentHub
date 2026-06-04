@@ -28,6 +28,10 @@ Concrete source: `packages/shared/src/domain/runtime-workspace.ts`.
 - Business role context must not infer stack, package manager, `AGENTS.md`, Trellis, or monorepo context from the AgentHub host repository.
 - Architect direct messages that require implementation must produce plan/mailbox/dispatch events before role execution.
 - Native CLI tool execution must go through the product permission broker before execution.
+- Runtime worker jobs that can broker native tools must carry `workspaceId`, `sessionId`, `ownerId`, `workspaceRoot`, and `cwd`. If a native CLI tool request is detected without that context, the worker must fail closed with a Chinese runtime failure instead of guessing the workspace.
+- Runtime permission events use `approval_requested` with `actionId`, `actionKind`, `workspaceRoot`, `cwd`, `targetPaths`, `commandPreview`, and `riskLevel`; `/api/chat` must persist those fields into `RuntimeMessagePart.type === "permission"` so the message stream can render a structured approval card.
+- Approving an action is not enough to execute it: `dispatchApprovedAction` must re-check `action.cwd` and absolute path tokens in `action.command` against the selected `workspaceRoot` immediately before `createSession` / `enqueue`.
+- A detected native CLI tool request is a fail-closed boundary. The worker creates a pending product action and notification, emits `approval_requested`, and stops the current runtime job with `Runtime 工具已进入权限审批，未执行该操作。`; it must not stream the requested tool as normal output.
 
 ### 4. Validation & Error Matrix
 
@@ -41,6 +45,9 @@ Concrete source: `packages/shared/src/domain/runtime-workspace.ts`.
 | no approval decision | `approval_required`, `allowed=false` |
 | rejected approval | `rejected` + `execution_blocked`, `allowed=false` |
 | approved and inside root | `approved` + `execution_allowed`, `allowed=true` |
+| native tool request missing runtime workspace context | `runtime_failed`, Chinese fail-closed error |
+| approved action cwd outside selected root | `action_dispatch_failed`, `unavailable`, `该操作试图使用 workspace 外工作目录，已阻止。` |
+| approved action command targets outside absolute path | `action_dispatch_failed`, `unavailable`, `该操作试图访问 workspace 外路径 ...，已阻止。` |
 
 ### 5. Good/Base/Bad Cases
 
@@ -48,6 +55,8 @@ Concrete source: `packages/shared/src/domain/runtime-workspace.ts`.
 - Base: file candidates include host repo files; only workspace-relative visible files survive.
 - Bad: CLI spawn uses `/Users/joytion/Documents/code/agenthub-worktrees/role-runtime-workspace-permissions`; reject with `RUNTIME_CWD_MISMATCH`.
 - Bad: user approves an install command but target path points to the AgentHub host repo; reject with `OUTSIDE_WORKSPACE_ROOT`.
+- Bad: runtime executor emits a native tool request without `workspaceId` / `sessionId` / `ownerId` / `workspaceRoot`; emit runtime failure and do not create a guessed approval.
+- Bad: approval endpoint receives an already-approved shell action whose `cwd` points at the AgentHub host repo; record dispatch failure and do not call `createSession` or `enqueue`.
 
 ### 6. Tests Required
 
@@ -56,6 +65,9 @@ Concrete source: `packages/shared/src/domain/runtime-workspace.ts`.
 - Unit test `/api/chat` contract creates `RuntimeInvokeInput` with workspace root cwd and context constraints.
 - Unit test architect dispatch for the request `做一个加减乘除的简单网站，使用sqlite存储历史记录` targets backend and frontend roles.
 - Unit test permission broker for write file, install dependency, start service, network request, external path access, and destructive command.
+- Unit test executor parsing for Claude `tool_use` and Codex `exec_command` JSON records into native tool permission requests.
+- Unit test runtime worker creates pending action + notification + `approval_requested` event and emits no `runtime_output` for the requested tool.
+- Unit test approved action dispatch blocks outside-root `cwd` and outside-root absolute command paths before queueing.
 - Desktop adapter test must assert CLI command planning rejects host repo cwd.
 
 ### 7. Wrong vs Correct

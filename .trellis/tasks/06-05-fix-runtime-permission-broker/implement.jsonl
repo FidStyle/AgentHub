@@ -1,0 +1,9 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Primary P0 contract for runtime permission broker, approval cards, cwd boundaries, and fixed sample scope."}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"Existing structured permission confirmation and message card behavior to reuse rather than invent."}
+{"file":"research/sequential-execution-progress.md","reason":"Current single-branch queue state and not-run/OpenCLI accounting rules."}
+{"file":"research/execution-reports/role-runtime-cwd-context-isolation-2026-06-05.md","reason":"Preceding cwd/context isolation evidence to preserve during broker work."}
+{"file":"research/execution-reports/architect-durable-dispatch-2026-06-05.md","reason":"Preceding durable dispatch evidence to preserve while adding permission broker behavior."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Backend selected workspace and native CLI permission broker contract."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Rules against fake main-flow success and requirements for real approval evidence."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime gateway/session/job persistence and event protocol boundaries."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer data flow guide for API, runtime, persistence, and UI permission events."}

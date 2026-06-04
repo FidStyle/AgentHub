@@ -1,9 +1,21 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
+import { NativeCliToolActionKind, type NativeCliToolActionKind as NativeCliToolActionKindType } from '@agenthub/shared'
+
+export interface NativeCliToolRequest {
+  id?: string
+  toolName: string
+  actionKind: NativeCliToolActionKindType
+  cwd?: string
+  targetPaths?: string[]
+  commandPreview?: string
+  input?: unknown
+}
 
 export interface ExecutorChunk {
   delta?: string
   nativeSessionId?: string
+  toolRequest?: NativeCliToolRequest
 }
 
 export interface ExecutorJob {
@@ -124,6 +136,101 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? value as Record<string, unknown> : null
 }
 
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item)) : []
+}
+
+function stringValue(record: Record<string, unknown> | null | undefined, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record?.[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (Array.isArray(value) && value.every((item) => typeof item === 'string')) return value.join(' ').trim()
+  }
+  return undefined
+}
+
+function collectPathValues(value: unknown, paths: string[]) {
+  if (typeof value === 'string' && value.trim()) {
+    paths.push(value.trim())
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectPathValues(item, paths)
+  }
+}
+
+function pathsFromInput(input: Record<string, unknown> | null): string[] {
+  if (!input) return []
+  const paths: string[] = []
+  for (const key of ['path', 'file_path', 'filepath', 'target_path', 'targetPath', 'target', 'paths', 'files']) {
+    collectPathValues(input[key], paths)
+  }
+  return [...new Set(paths)]
+}
+
+function shellActionKind(command: string): NativeCliToolActionKindType {
+  const normalized = command.toLowerCase()
+  if (/\brm\s+-[^\n;|&]*r|git\s+reset\s+--hard|git\s+clean\s+-[^\n;|&]*f|drop\s+(table|database)|delete\s+from/.test(normalized)) {
+    return NativeCliToolActionKind.DestructiveCommand
+  }
+  if (/\b(npm|pnpm|yarn|bun|pip|uv|cargo|go)\s+(install|add|get)\b/.test(normalized)) {
+    return NativeCliToolActionKind.InstallDependency
+  }
+  if (/\b(npm|pnpm|yarn|bun)\s+(run\s+)?(dev|start|serve)\b|\b(vite|next|astro)\s+(dev|start)\b/.test(normalized)) {
+    return NativeCliToolActionKind.StartService
+  }
+  if (/\b(curl|wget)\b|https?:\/\//.test(normalized)) {
+    return NativeCliToolActionKind.NetworkRequest
+  }
+  return NativeCliToolActionKind.ShellCommand
+}
+
+function actionKindForTool(toolName: string, input: Record<string, unknown> | null, commandPreview?: string): NativeCliToolActionKindType {
+  const name = toolName.toLowerCase()
+  if (commandPreview) return shellActionKind(commandPreview)
+  if (name.includes('write') || name.includes('edit') || name.includes('patch') || name.includes('create')) {
+    return NativeCliToolActionKind.WriteFile
+  }
+  if (name.includes('fetch') || name.includes('web') || name.includes('http')) {
+    return NativeCliToolActionKind.NetworkRequest
+  }
+  if (pathsFromInput(input).length > 0) return NativeCliToolActionKind.ReadFile
+  return NativeCliToolActionKind.ShellCommand
+}
+
+function toolRequestFromBlock(block: Record<string, unknown>): NativeCliToolRequest | null {
+  if (block.type !== 'tool_use' && block.type !== 'tool_call' && block.type !== 'function_call' && block.type !== 'exec_command') return null
+  const input = asRecord(block.input) ?? asRecord(block.arguments) ?? asRecord(block.args)
+  const toolName = stringValue(block, ['name', 'toolName', 'tool_name', 'functionName', 'function_name'])
+    ?? stringValue(asRecord(block.function), ['name'])
+    ?? (block.type === 'exec_command' ? 'exec_command' : 'tool')
+  const commandPreview = stringValue(input, ['command', 'cmd', 'shell_command', 'shellCommand'])
+  return {
+    id: stringValue(block, ['id', 'toolCallId', 'tool_call_id', 'callId']),
+    toolName,
+    input: input ?? block.input ?? block.arguments,
+    actionKind: actionKindForTool(toolName, input, commandPreview),
+    cwd: stringValue(input, ['cwd', 'working_directory', 'workingDirectory']),
+    targetPaths: pathsFromInput(input),
+    commandPreview,
+  }
+}
+
+function toolRequestsFromRecord(record: Record<string, unknown>): NativeCliToolRequest[] {
+  const candidates: Record<string, unknown>[] = []
+  const nestedEvent = asRecord(record.event)
+  const params = asRecord(record.params)
+  const payload = asRecord(record.payload)
+  candidates.push(
+    ...[record, nestedEvent, params, payload, asRecord(record.item), asRecord(params?.item), asRecord(payload?.item), asRecord(record.content_block), asRecord(nestedEvent?.content_block)]
+      .filter((item): item is Record<string, unknown> => Boolean(item)),
+  )
+  for (const source of [record.content, asRecord(record.message)?.content, payload?.content]) {
+    candidates.push(...asRecordArray(source))
+  }
+  return candidates.map(toolRequestFromBlock).filter((item): item is NativeCliToolRequest => Boolean(item))
+}
+
 function textFromClaudeDelta(record: Record<string, unknown>) {
   const nestedEvent = asRecord(record.event)
   const nestedDelta = asRecord(nestedEvent?.delta)
@@ -192,6 +299,13 @@ export class CliOutputParser {
     try {
       const record = JSON.parse(line) as Record<string, unknown>
       const nativeSessionId = nativeSessionIdFromRecord(record)
+      const toolRequests = toolRequestsFromRecord(record)
+      if (toolRequests.length > 0) {
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          ...toolRequests.map((toolRequest) => ({ toolRequest })),
+        ]
+      }
       const delta = textFromClaudeDelta(record)
       if (delta) {
         this.sawDelta = true
@@ -222,6 +336,13 @@ export class CliOutputParser {
       const item = asRecord(record.item) ?? asRecord(asRecord(record.params)?.item)
       const nativeSessionId = nativeSessionIdFromRecord(record)
         ?? (item ? nativeSessionIdFromRecord(item) : null)
+      const toolRequests = toolRequestsFromRecord(record)
+      if (toolRequests.length > 0) {
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          ...toolRequests.map((toolRequest) => ({ toolRequest })),
+        ]
+      }
       const delta = textFromCodexDelta(record)
       if (delta) {
         this.sawDelta = true

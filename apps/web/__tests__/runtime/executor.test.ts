@@ -21,7 +21,13 @@ vi.mock('../../lib/app-db-client', () => ({
   createClient: async () => ({
     from: (table: string) => ({
       update: (patch: Record<string, unknown>) => { dbUpdates.push(patch); return { eq: () => ({ eq: () => {} }) } },
-      insert: (row: Record<string, unknown>) => { dbInserts.push(row); return {} },
+      insert: (row: Record<string, unknown>) => {
+        dbInserts.push({ table, row })
+        if (table === 'actions') {
+          return { select: () => ({ single: () => ({ data: { id: 'action-runtime-approval', ...row }, error: null }) }) }
+        }
+        return {}
+      },
       select: () => ({
         eq: (field: string) => (
           field === 'id'
@@ -100,6 +106,51 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
   it('extracts Codex thread_id as native session evidence', () => {
     const chunks = outputChunks('codex', JSON.stringify({ type: 'thread.started', thread_id: 'thread-native-001' }))
     expect(chunks).toEqual([{ nativeSessionId: 'thread-native-001' }])
+  })
+
+  it('extracts Claude tool_use blocks as native tool permission requests', () => {
+    const chunks = outputChunks('claude_code', JSON.stringify({
+      type: 'content_block_start',
+      content_block: {
+        type: 'tool_use',
+        id: 'toolu-write-1',
+        name: 'Write',
+        input: { file_path: '/workspace/src/App.tsx', content: 'hello' },
+      },
+    }))
+
+    expect(chunks).toEqual([
+      {
+        toolRequest: expect.objectContaining({
+          id: 'toolu-write-1',
+          toolName: 'Write',
+          actionKind: 'write_file',
+          targetPaths: ['/workspace/src/App.tsx'],
+        }),
+      },
+    ])
+  })
+
+  it('extracts Codex exec_command items as dependency install permission requests', () => {
+    const chunks = outputChunks('codex', JSON.stringify({
+      type: 'item.started',
+      item: {
+        type: 'exec_command',
+        id: 'call-install-1',
+        input: { command: 'pnpm install', cwd: '/workspace' },
+      },
+    }))
+
+    expect(chunks).toEqual([
+      {
+        toolRequest: expect.objectContaining({
+          id: 'call-install-1',
+          actionKind: 'install_dependency',
+          commandPreview: 'pnpm install',
+          cwd: '/workspace',
+        }),
+      },
+    ])
   })
 
   it('extracts Claude stream-json session and text delta evidence', () => {
@@ -308,6 +359,74 @@ describe('processJob — FakeExecutor regression', () => {
     const failed = published.find((p) => p.event.type === 'runtime_failed')
     expect(failed).toBeDefined()
     expect(String(failed!.event.error)).toContain('not found')
+  })
+
+  it('turns native CLI tool requests into pending approval events and stops before execution', async () => {
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          toolRequest: {
+            id: 'tool-install-1',
+            toolName: 'exec_command',
+            actionKind: 'install_dependency',
+            cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+            commandPreview: 'pnpm install',
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-tool-approval',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      prompt: 'install deps',
+      planNodeId: 'node-runtime-001',
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        row: expect.objectContaining({
+          owner_id: 'user-001',
+          action_type: 'install_dependency',
+          command: 'pnpm install',
+          status: 'pending',
+          requires_approval: true,
+        }),
+      }),
+      expect.objectContaining({
+        table: 'notifications',
+        row: expect.objectContaining({
+          user_id: 'user-001',
+          type: 'approval_required',
+          ref_id: 'action-runtime-approval',
+        }),
+      }),
+    ]))
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'approval_requested',
+          actionId: 'action-runtime-approval',
+          actionKind: 'install_dependency',
+          commandPreview: 'pnpm install',
+          workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_failed',
+          error: 'Runtime 工具已进入权限审批，未执行该操作。',
+        }),
+      }),
+    ]))
+    expect(published.some((p) => p.event.type === 'runtime_output')).toBe(false)
   })
 
   it('updates linked action and plan node when a queued action completes', async () => {

@@ -22,6 +22,7 @@ export interface ResolvedEndpoint {
 
 export interface RuntimeSessionRecord {
   id: string
+  sessionId?: string
   nativeSessionId?: string | null
   endpoint: ResolvedEndpoint
   runtimeType: RuntimeType
@@ -188,6 +189,7 @@ export async function createSession(input: {
   }
   return {
     id: data?.id ?? '',
+    sessionId: input.sessionId,
     nativeSessionId: previous?.native_session_id ?? null,
     endpoint: input.endpoint,
     runtimeType: input.runtimeType,
@@ -334,6 +336,9 @@ export async function* invoke(input: {
     let failed = false
     for await (const raw of subscribeEvents(input.runtimeSession.id, () => enqueue({
       runtimeSessionId: input.runtimeSession.id,
+      sessionId: input.runtimeSession.sessionId,
+      ownerId: input.userId,
+      workspaceRoot: input.runtimeSession.cwd,
       endpointId: endpoint.id ?? undefined,
       runtimeType: input.runtimeType === 'codex' ? 'codex' : input.runtimeType === 'claude_code' ? 'claude_code' : undefined,
       nativeSessionId: input.runtimeSession.nativeSessionId ?? null,

@@ -94,9 +94,16 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
     approving: '授权中',
     rejecting: '拒绝中',
     approved: '已允许本次执行',
-    rejected: '已拒绝',
+    rejected: '已拒绝，未执行该操作。',
     error: '处理失败',
   }[decision]
+  const detailRows = [
+    part.actionKind ? ['动作', part.actionKind] : null,
+    part.commandPreview ? ['命令', part.commandPreview] : null,
+    part.cwd ? ['目录', part.cwd] : null,
+    part.workspaceRoot ? ['Workspace', part.workspaceRoot] : null,
+    part.targetPaths && part.targetPaths.length > 0 ? ['路径', part.targetPaths.join('\n')] : null,
+  ].filter((row): row is [string, string] => Boolean(row))
 
   return (
     <div data-testid="message-permission-card" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
@@ -108,6 +115,16 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
         <Badge variant="warning">{part.riskLevel ?? '待确认'}</Badge>
       </div>
       <p className="mt-1 text-muted-foreground">{part.description}</p>
+      {detailRows.length > 0 && (
+        <dl className="mt-2 grid gap-1 rounded-md bg-background/70 p-2 text-[11px] leading-4">
+          {detailRows.map(([label, value]) => (
+            <div key={label} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="whitespace-pre-wrap break-words font-mono">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-muted-foreground">{statusText}</span>
         {part.actionId ? (

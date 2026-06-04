@@ -162,6 +162,37 @@ describe('role runtime workspace permission contract', () => {
   })
 
   it.each([
+    NativeCliToolActionKind.WriteFile,
+    NativeCliToolActionKind.InstallDependency,
+    NativeCliToolActionKind.StartService,
+    NativeCliToolActionKind.NetworkRequest,
+    NativeCliToolActionKind.WorkspaceExternalPathAccess,
+    NativeCliToolActionKind.DestructiveCommand,
+  ])('requires approval before native CLI %s execution', (actionKind) => {
+    const result = evaluateNativeCliToolPermission(
+      {
+        id: `tool-pending-${actionKind}`,
+        workspaceId: 'workspace-test2',
+        sessionId: 'session-acceptance',
+        runtimeInvocationId: 'runtime-1',
+        actionKind,
+        cwd: workspaceRoot,
+        targetPaths: [`${workspaceRoot}/package.json`],
+        commandPreview: `${actionKind} package.json`,
+      },
+      {
+        workspaceId: 'workspace-test2',
+        workspaceRoot,
+      },
+    )
+
+    expect(result.allowed).toBe(false)
+    expect(result.code).toBe('APPROVAL_REQUIRED')
+    expect(result.approval).toEqual(expect.objectContaining({ status: 'pending' }))
+    expect(result.events.map((event) => event.kind)).toEqual([PermissionBrokerEventKind.ApprovalRequired])
+  })
+
+  it.each([
     NativeCliToolActionKind.InstallDependency,
     NativeCliToolActionKind.StartService,
     NativeCliToolActionKind.NetworkRequest,
