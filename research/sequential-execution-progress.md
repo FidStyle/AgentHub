@@ -25,9 +25,9 @@
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
 | 开始状态 | `git status --short` clean（2026-06-05） |
-| 当前状态 | verified |
+| 当前状态 | closed |
 | 阻塞项 | 无 |
-| 下一步 | 提交本任务变更；clean 后进入 `06-05-sync-role-runtime-opencli-failure-evidence` |
+| 下一步 | clean 后进入 `06-05-sync-role-runtime-opencli-failure-evidence` |
 
 ---
 
@@ -35,7 +35,7 @@
 
 | 顺序 | 功能点 / Trellis task | 优先级 | 状态 | 验证方式 | 证据路径 | 阻塞项 | 下一步 |
 | ---: | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `06-05-sequential-execution-governance-reset` | P0 | verified | 文档/spec 检查；`git status --short`；Trellis current 指针；本表和 tracker/index 可检索 | `python3 -m json.tool` 覆盖 7 个 touched task.json；`python3 ./.trellis/scripts/task.py current --source` 指向本任务；`python3 ./.trellis/scripts/task.py list` 显示旧 lane 为 `superseded-by-sequential-queue`；`rg` 可检索 `sequential-execution-progress` / 三端 OpenCLI 规则；`git diff --check` PASS | 无 | 提交本任务变更；clean 后进入 `06-05-sync-role-runtime-opencli-failure-evidence` |
+| 1 | `06-05-sequential-execution-governance-reset` | P0 | closed | 文档/spec 检查；`git status --short`；Trellis current 指针；本表和 tracker/index 可检索 | `python3 -m json.tool` 覆盖 7 个 touched task.json；`python3 ./.trellis/scripts/task.py current --source` 指向本任务；`python3 ./.trellis/scripts/task.py list` 显示旧 lane 为 `superseded-by-sequential-queue`；`rg` 可检索 `sequential-execution-progress` / 三端 OpenCLI 规则；`git diff --check` PASS；work commit `10c9e87 docs: 建立单分支顺序执行治理` | 无 | clean 后进入 `06-05-sync-role-runtime-opencli-failure-evidence` |
 | 2 | `06-05-sync-role-runtime-opencli-failure-evidence` | P0 | queued | 只同步 `role-runtime-opencli-uat` 失败事实、证据路径和本表状态；不修业务代码 | 待补 execution report / OpenCLI 证据路径 | 等待任务 1 clean commit | 创建/启动任务，回写失败证据 |
 | 3 | `06-05-fix-role-runtime-cwd-context-isolation` | P0 | queued | Unit/API/runtime worker cwd 断言；context payload 不含宿主 repo；三端 OpenCLI UAT 相关状态不假绿 | 待补 | 等待任务 2 完成 | 修复 cloud workspace runtime `cwd` 绑定与上下文隔离 |
 | 4 | `06-05-fix-architect-durable-dispatch` | P0 | queued | 架构师收到工程需求后产生 durable plan/mailbox/attempt 或等价可审计派发记录；三端可见或可读回 | 待补 | 等待任务 3 完成 | 修复 `@架构师` 不派发问题 |
