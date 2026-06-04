@@ -1,3 +1,368 @@
+// src/domain/runtime-workspace.ts
+var WORKSPACE_ROOT_REQUIRED = "WORKSPACE_ROOT_REQUIRED";
+var SELECTED_WORKSPACE_NOT_FOUND = "SELECTED_WORKSPACE_NOT_FOUND";
+var RUNTIME_CWD_MISMATCH = "RUNTIME_CWD_MISMATCH";
+var PermissionBrokerEventKind = {
+  ApprovalRequired: "approval_required",
+  Rejected: "rejected",
+  Approved: "approved",
+  ExecutionAllowed: "execution_allowed",
+  ExecutionBlocked: "execution_blocked"
+};
+var RoleDispatchEventKind = {
+  PlanCreated: "plan_created",
+  MailboxCreated: "mailbox_created",
+  RoleDispatched: "role_dispatched"
+};
+var NativeCliToolActionKind = {
+  ReadFile: "read_file",
+  WriteFile: "write_file",
+  InstallDependency: "install_dependency",
+  StartService: "start_service",
+  NetworkRequest: "network_request",
+  WorkspaceExternalPathAccess: "workspace_external_path_access",
+  DestructiveCommand: "destructive_command",
+  ShellCommand: "shell_command"
+};
+function resolveSelectedWorkspaceScope(workspaces, selectedWorkspaceId, fileCandidates = []) {
+  const workspace = workspaces.find((item) => item.id === selectedWorkspaceId);
+  if (!workspace) {
+    throw new Error(SELECTED_WORKSPACE_NOT_FOUND);
+  }
+  const workspaceRoot = normalizeWorkspaceRoot(workspace);
+  return {
+    workspaceId: workspace.id,
+    executionDomain: workspace.executionDomain,
+    workspaceRoot,
+    cwd: workspaceRoot,
+    visibleFiles: visibleWorkspaceFiles(workspaceRoot, fileCandidates)
+  };
+}
+function createRuntimeInvokeInputFromChat(input) {
+  const scope = resolveSelectedWorkspaceScope(
+    input.workspaces,
+    input.selectedWorkspaceId,
+    input.fileCandidates
+  );
+  const contextPackage = {
+    id: `ctx-${input.selectedWorkspaceId}-${input.sessionId}-${input.roleAgentId}`,
+    workspaceId: scope.workspaceId,
+    sessionId: input.sessionId,
+    roleAgentId: input.roleAgentId,
+    workspaceRoot: scope.workspaceRoot,
+    messages: [...input.messages ?? [input.userMessage]],
+    artifacts: [...input.artifacts ?? []],
+    files: [...scope.visibleFiles],
+    visibleFiles: [...scope.visibleFiles],
+    constraints: [
+      "Only use files visible inside the selected workspace root.",
+      "Do not infer stack, package manager, AGENTS.md, Trellis, or monorepo context from the AgentHub host repository.",
+      ...input.constraints ?? []
+    ]
+  };
+  return {
+    workspaceId: scope.workspaceId,
+    sessionId: input.sessionId,
+    roleAgentId: input.roleAgentId,
+    runtimeType: input.runtimeType,
+    executionDomain: scope.executionDomain,
+    workspaceRoot: scope.workspaceRoot,
+    cwd: scope.cwd,
+    contextPackage,
+    userMessage: input.userMessage,
+    permissionMode: input.permissionMode,
+    nativeSessionId: input.nativeSessionId
+  };
+}
+function assertRuntimeCwdMatchesWorkspaceRoot(input) {
+  if (normalizeAbsolutePath(input.cwd) !== normalizeAbsolutePath(input.workspaceRoot)) {
+    throw new Error(RUNTIME_CWD_MISMATCH);
+  }
+}
+function createRuntimeWorkerJob(input) {
+  assertRuntimeCwdMatchesWorkspaceRoot(input);
+  return {
+    id: `worker-${input.workspaceId}-${input.sessionId}-${input.roleAgentId}`,
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    roleAgentId: input.roleAgentId,
+    runtimeType: input.runtimeType,
+    executionDomain: input.executionDomain,
+    workspaceRoot: input.workspaceRoot,
+    cwd: input.cwd,
+    runtimeInvocationContextId: input.contextPackage.id
+  };
+}
+function visibleWorkspaceFiles(workspaceRoot, fileCandidates) {
+  const root = normalizeAbsolutePath(workspaceRoot);
+  return fileCandidates.map((candidate) => normalizeCandidatePath(root, candidate)).filter((candidate) => Boolean(candidate)).map((candidate) => relativePathFromRoot(root, candidate)).filter((file, index, files) => file.length > 0 && files.indexOf(file) === index).sort();
+}
+function evaluateNativeCliToolPermission(toolCall, input) {
+  const workspaceRoot = normalizeAbsolutePath(input.workspaceRoot);
+  const timestamp = toolCall.requestedAt ?? "1970-01-01T00:00:00.000Z";
+  const normalizedTargets = [toolCall.cwd, ...toolCall.targetPaths ?? []].map(
+    (path) => normalizeCandidatePath(workspaceRoot, path)
+  );
+  if (toolCall.workspaceId !== input.workspaceId) {
+    return blockedPermissionResult(toolCall, {
+      reason: "Tool call workspace does not match the selected workspace.",
+      workspaceRoot,
+      targetPaths: [],
+      timestamp,
+      code: "WORKSPACE_MISMATCH"
+    });
+  }
+  if (normalizedTargets.some((path) => !path)) {
+    return blockedPermissionResult(toolCall, {
+      reason: "Tool call targets a path outside the selected workspace root.",
+      workspaceRoot,
+      targetPaths: normalizedTargets.filter((path) => Boolean(path)),
+      timestamp,
+      code: "OUTSIDE_WORKSPACE_ROOT"
+    });
+  }
+  const approval = createToolApproval(toolCall);
+  const targetPaths = normalizedTargets;
+  if (!input.decision) {
+    return {
+      allowed: false,
+      approval,
+      code: "APPROVAL_REQUIRED",
+      events: [
+        permissionEvent(toolCall, {
+          kind: PermissionBrokerEventKind.ApprovalRequired,
+          approvalId: approval.id,
+          reason: "Tool call requires product permission approval before execution.",
+          workspaceRoot,
+          targetPaths,
+          timestamp
+        })
+      ]
+    };
+  }
+  if (input.decision.status === "rejected") {
+    return {
+      allowed: false,
+      approval: decideToolApproval(approval, input.decision),
+      code: "APPROVAL_REJECTED",
+      events: [
+        permissionEvent(toolCall, {
+          kind: PermissionBrokerEventKind.Rejected,
+          approvalId: approval.id,
+          reason: "User rejected the permission request.",
+          workspaceRoot,
+          targetPaths,
+          timestamp: input.decision.decidedAt ?? timestamp
+        }),
+        permissionEvent(toolCall, {
+          kind: PermissionBrokerEventKind.ExecutionBlocked,
+          approvalId: approval.id,
+          reason: "Rejected permission prevents execution.",
+          workspaceRoot,
+          targetPaths,
+          timestamp: input.decision.decidedAt ?? timestamp
+        })
+      ]
+    };
+  }
+  return {
+    allowed: true,
+    approval: decideToolApproval(approval, input.decision),
+    events: [
+      permissionEvent(toolCall, {
+        kind: PermissionBrokerEventKind.Approved,
+        approvalId: approval.id,
+        reason: "User approved the permission request.",
+        workspaceRoot,
+        targetPaths,
+        timestamp: input.decision.decidedAt ?? timestamp
+      }),
+      permissionEvent(toolCall, {
+        kind: PermissionBrokerEventKind.ExecutionAllowed,
+        approvalId: approval.id,
+        reason: "Approved tool call is constrained to the selected workspace root.",
+        workspaceRoot,
+        targetPaths,
+        timestamp: input.decision.decidedAt ?? timestamp
+      })
+    ]
+  };
+}
+function createArchitectDispatch(input) {
+  const targetRoleAgentIds = inferEngineeringRoleTargets(input.userMessage);
+  const requiresEngineeringDispatch = targetRoleAgentIds.length > 0;
+  const planId = `plan-${input.sessionId}-architect`;
+  const mailboxId = `mailbox-${input.sessionId}-architect`;
+  if (!requiresEngineeringDispatch) {
+    return {
+      requiresEngineeringDispatch,
+      planId,
+      mailboxId,
+      targetRoleAgentIds,
+      events: []
+    };
+  }
+  const base = {
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    planId,
+    mailboxId,
+    fromRoleAgentId: input.architectRoleAgentId
+  };
+  return {
+    requiresEngineeringDispatch,
+    planId,
+    mailboxId,
+    targetRoleAgentIds,
+    events: [
+      {
+        ...base,
+        id: `dispatch-${planId}-created`,
+        kind: RoleDispatchEventKind.PlanCreated,
+        reason: "Architect request requires structured engineering execution."
+      },
+      {
+        ...base,
+        id: `dispatch-${mailboxId}-created`,
+        kind: RoleDispatchEventKind.MailboxCreated,
+        reason: "Architect created a mailbox for downstream role handoff."
+      },
+      ...targetRoleAgentIds.map((roleAgentId) => ({
+        ...base,
+        id: `dispatch-${planId}-${roleAgentId}`,
+        kind: RoleDispatchEventKind.RoleDispatched,
+        toRoleAgentId: roleAgentId,
+        reason: "Architect dispatched an engineering role for implementation work."
+      }))
+    ]
+  };
+}
+function createAcceptancePlanSummary(input) {
+  const dispatch = createArchitectDispatch({
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    architectRoleAgentId: "role-architect",
+    userMessage: input.userMessage
+  });
+  return {
+    id: dispatch.planId,
+    runId: `run-${input.sessionId}-architect`,
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    version: 1,
+    summary: "\u67B6\u6784\u5E08\u5C06\u7B80\u5355\u8BA1\u7B97\u5668\u7F51\u7AD9\u62C6\u5206\u4E3A\u524D\u7AEF\u754C\u9762\u4E0E SQLite \u5386\u53F2\u8BB0\u5F55\u540E\u7AEF\u5B9E\u73B0\u3002",
+    status: "validated",
+    nodes: dispatch.targetRoleAgentIds.map((roleAgentId) => ({
+      id: `node-${roleAgentId}`,
+      title: roleAgentId === "role-backend" ? "\u5B9E\u73B0 SQLite \u5386\u53F2\u8BB0\u5F55\u540E\u7AEF" : "\u5B9E\u73B0\u52A0\u51CF\u4E58\u9664\u7F51\u7AD9\u754C\u9762",
+      roleAgentId,
+      dependsOn: [],
+      expectedArtifact: "implementation-result",
+      frIds: ["FR-ORCH-001", "FR-RUNTIME-001", "FR-PERM-001"],
+      riskLevel: "medium",
+      status: "ready"
+    }))
+  };
+}
+function normalizeWorkspaceRoot(workspace) {
+  const root = workspace.descriptor?.cloudProjectDir ?? workspace.descriptor?.rootPath;
+  if (!root) {
+    throw new Error(WORKSPACE_ROOT_REQUIRED);
+  }
+  return normalizeAbsolutePath(root);
+}
+function normalizeCandidatePath(root, candidate) {
+  const normalized = candidate.startsWith("/") ? normalizeAbsolutePath(candidate) : normalizeAbsolutePath(`${root}/${candidate}`);
+  return isPathInsideRoot(root, normalized) ? normalized : null;
+}
+function normalizeAbsolutePath(path) {
+  if (!path.startsWith("/")) {
+    throw new Error("ABSOLUTE_PATH_REQUIRED");
+  }
+  const parts = [];
+  for (const part of path.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") parts.pop();
+    else parts.push(part);
+  }
+  return `/${parts.join("/")}`;
+}
+function isPathInsideRoot(root, candidate) {
+  return candidate === root || candidate.startsWith(`${root}/`);
+}
+function relativePathFromRoot(root, candidate) {
+  return candidate === root ? "" : candidate.slice(root.length + 1);
+}
+function createToolApproval(toolCall) {
+  return {
+    id: `approval-${toolCall.id}`,
+    sourceType: "permission_escalation",
+    sourceId: toolCall.runtimeInvocationId,
+    status: "pending",
+    riskLevel: permissionRiskLevel(toolCall.actionKind)
+  };
+}
+function decideToolApproval(approval, decision) {
+  return {
+    ...approval,
+    status: decision.status,
+    decidedAt: new Date(decision.decidedAt ?? "1970-01-01T00:00:00.000Z")
+  };
+}
+function blockedPermissionResult(toolCall, input) {
+  return {
+    allowed: false,
+    code: input.code,
+    events: [
+      permissionEvent(toolCall, {
+        kind: PermissionBrokerEventKind.ExecutionBlocked,
+        reason: input.reason,
+        workspaceRoot: input.workspaceRoot,
+        targetPaths: input.targetPaths,
+        timestamp: input.timestamp
+      })
+    ]
+  };
+}
+function permissionEvent(toolCall, input) {
+  return {
+    id: `permission-${toolCall.id}-${input.kind}`,
+    workspaceId: toolCall.workspaceId,
+    sessionId: toolCall.sessionId,
+    runtimeInvocationId: toolCall.runtimeInvocationId,
+    toolCallId: toolCall.id,
+    actionKind: toolCall.actionKind,
+    kind: input.kind,
+    approvalId: input.approvalId,
+    reason: input.reason,
+    workspaceRoot: input.workspaceRoot,
+    cwd: normalizeAbsolutePath(toolCall.cwd),
+    targetPaths: input.targetPaths,
+    commandPreview: toolCall.commandPreview,
+    timestamp: input.timestamp
+  };
+}
+function permissionRiskLevel(actionKind) {
+  if (actionKind === NativeCliToolActionKind.DestructiveCommand || actionKind === NativeCliToolActionKind.WorkspaceExternalPathAccess) {
+    return "high";
+  }
+  if (actionKind === NativeCliToolActionKind.ReadFile) {
+    return "low";
+  }
+  return "medium";
+}
+function inferEngineeringRoleTargets(userMessage) {
+  const normalized = userMessage.toLowerCase();
+  const targets = /* @__PURE__ */ new Set();
+  if (normalized.includes("sqlite") || normalized.includes("\u6570\u636E\u5E93") || normalized.includes("\u5B58\u50A8") || normalized.includes("\u540E\u7AEF") || normalized.includes("api")) {
+    targets.add("role-backend");
+  }
+  if (normalized.includes("\u7F51\u7AD9") || normalized.includes("\u9875\u9762") || normalized.includes("\u524D\u7AEF") || normalized.includes("ui") || normalized.includes("\u52A0\u51CF\u4E58\u9664")) {
+    targets.add("role-frontend");
+  }
+  return [...targets];
+}
+
 // src/constants/fr-ids.ts
 var FR_IDS = {
   AUTH_001: "FR-AUTH-001",
@@ -164,13 +529,27 @@ export {
   DEFAULT_ORCHESTRATOR_CONFIG,
   DEFAULT_POLICIES,
   FR_IDS,
+  NativeCliToolActionKind,
+  PermissionBrokerEventKind,
+  RUNTIME_CWD_MISMATCH,
+  RoleDispatchEventKind,
   RuntimeErrorCode,
+  SELECTED_WORKSPACE_NOT_FOUND,
   SeqGenerator,
+  WORKSPACE_ROOT_REQUIRED,
   appendRuntimeDelta,
+  assertRuntimeCwdMatchesWorkspaceRoot,
   colors,
+  createAcceptancePlanSummary,
+  createArchitectDispatch,
+  createRuntimeInvokeInputFromChat,
   createRuntimeOutputAccumulator,
+  createRuntimeWorkerJob,
+  evaluateNativeCliToolPermission,
   nextPlanNodeAttemptDraft,
   parseFrame,
+  resolveSelectedWorkspaceScope,
   selectReadyMailboxItems,
-  serializeFrame
+  serializeFrame,
+  visibleWorkspaceFiles
 };

@@ -1,0 +1,4 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Shared P0 contract for selected workspace cwd, context isolation, dispatch, permission broker, and fixed acceptance sample."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Backend implementation contract for deriving runtime cwd from selected workspace and filtering context."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Acceptance rules that prevent claiming OpenCLI or real-flow completion from unit/type-check evidence."}
+{"file":"research/execution-reports/role-runtime-opencli-failure-evidence-2026-06-05.md","reason":"Previous queue item's synchronized evidence showing old lane gaps and required follow-up scope."}

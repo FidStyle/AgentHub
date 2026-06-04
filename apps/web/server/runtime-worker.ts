@@ -17,7 +17,10 @@ function runtimeTypeForJob(job?: RuntimeJob): CliRuntimeType {
 // Real mode is selected per job so one worker can dispatch all available machine CLIs.
 export function createExecutor(job?: RuntimeJob): RuntimeExecutor {
   if (!process.env.RUNTIME_EXECUTOR || process.env.RUNTIME_EXECUTOR === 'real') {
-    return new CliRuntimeExecutor({ runtimeType: runtimeTypeForJob(job), cwd: job?.cwd ?? process.env.RUNTIME_CWD })
+    if (!job?.cwd) {
+      throw new Error('RUNTIME_CWD_REQUIRED')
+    }
+    return new CliRuntimeExecutor({ runtimeType: runtimeTypeForJob(job), cwd: job.cwd })
   }
   const testExecutorAllowed = process.env.NODE_ENV === 'test' || process.env.AGENTHUB_ALLOW_TEST_EXECUTOR === 'true'
   if (!testExecutorAllowed) {

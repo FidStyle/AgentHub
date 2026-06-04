@@ -84,7 +84,7 @@ export async function dispatchApprovedAction(
 
   const { data: workspace } = await db
     .from('workspaces')
-    .select('id, owner_id, execution_domain')
+    .select('id, owner_id, execution_domain, cloud_project_dir')
     .eq('id', session.workspace_id)
     .eq('owner_id', action.owner_id)
     .single()
@@ -96,6 +96,10 @@ export async function dispatchApprovedAction(
   const executionDomain = workspace.execution_domain as ExecutionDomain
   if (executionDomain !== 'cloud') {
     return recordDispatchFailure(db, action, 'unsupported', '本地 Desktop 动作执行尚未接入队列执行器，未执行任何命令。')
+  }
+  const workspaceRoot = requireCloudWorkspaceRoot(workspace as WorkspaceDispatchRow | null)
+  if (!workspaceRoot) {
+    return recordDispatchFailure(db, action, 'unavailable', '云端工作区目录缺失，已阻止执行以避免读取宿主仓库。')
   }
 
   const endpoint = await resolveEndpoint({
@@ -115,7 +119,7 @@ export async function dispatchApprovedAction(
     endpoint,
     roleAgentId: action.role_agent_id ?? undefined,
     runtimeType: action.runtime_type ?? 'claude_code',
-    cwd: action.cwd ?? process.env.RUNTIME_CWD ?? null,
+    cwd: action.cwd ?? workspaceRoot,
   })
   const now = new Date().toISOString()
   await db.from('actions').update({
@@ -136,7 +140,7 @@ export async function dispatchApprovedAction(
     endpointId: endpoint.id ?? undefined,
     runtimeType: action.runtime_type ?? 'claude_code',
     nativeSessionId: runtimeSession.nativeSessionId ?? null,
-    cwd: runtimeSession.cwd ?? process.env.RUNTIME_CWD ?? null,
+    cwd: runtimeSession.cwd,
     prompt: buildActionPrompt(action),
     actionId: action.id,
     planNodeId: action.plan_node_id ?? undefined,
@@ -222,6 +226,7 @@ type WorkspaceDispatchRow = {
   id?: string
   owner_id?: string
   execution_domain?: ExecutionDomain
+  cloud_project_dir?: string | null
 }
 
 type RoleDispatchRow = {
@@ -234,6 +239,26 @@ type RoleDispatchRow = {
 function payloadString(payload: Record<string, unknown>, key: string) {
   const value = payload[key]
   return typeof value === 'string' ? value : undefined
+}
+
+function requireCloudWorkspaceRoot(workspace: WorkspaceDispatchRow | null): string | null {
+  if (!workspace?.id || workspace.execution_domain !== 'cloud') return null
+  const root = typeof workspace.cloud_project_dir === 'string' ? workspace.cloud_project_dir.trim() : ''
+  return root.length > 0 ? root : null
+}
+
+function withRuntimeWorkspacePayload(
+  node: RuntimeInvokeNodeForDispatch,
+  workspaceRoot: string,
+): RuntimeInvokeNodeForDispatch {
+  return {
+    ...node,
+    action_payload: {
+      ...(node.action_payload ?? {}),
+      cwd: workspaceRoot,
+      workspaceRoot,
+    },
+  }
 }
 
 export async function dispatchPreparedRuntimeInvokeNode(
@@ -269,7 +294,13 @@ export async function dispatchPreparedRuntimeInvokeNode(
     return { status: 'unavailable', error: 'Runtime 执行器未就绪，节点未投递。' }
   }
 
-  const cwd = payloadString(payload, 'cwd') ?? process.env.RUNTIME_CWD ?? null
+  const cwd = payloadString(payload, 'cwd') ?? null
+  if (!cwd) {
+    const error = 'Runtime 工作目录缺失，节点未投递以避免读取宿主仓库。'
+    await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'dead_letter', error })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error } }).eq('id', input.node.id)
+    return { status: 'unavailable', error }
+  }
   const runtimeSession = await createSession({
     sessionId: input.sessionId,
     endpoint,
@@ -290,7 +321,7 @@ export async function dispatchPreparedRuntimeInvokeNode(
     endpointId: endpoint.id ?? undefined,
     runtimeType: input.runtimeType,
     nativeSessionId: runtimeSession.nativeSessionId ?? null,
-    cwd: runtimeSession.cwd ?? cwd,
+    cwd: runtimeSession.cwd,
     prompt: buildRuntimeInvokePrompt({
       label: input.node.label,
       userMessage: payloadString(payload, 'userMessage') ?? '继续执行该编排节点。',
@@ -356,7 +387,7 @@ export async function dispatchMailboxRuntimeInvokeItem(
 
   const { data: workspace } = await db
     .from('workspaces')
-    .select('id, owner_id, execution_domain')
+    .select('id, owner_id, execution_domain, cloud_project_dir')
     .eq('id', workspaceId)
     .eq('owner_id', input.userId)
     .single()
@@ -370,6 +401,12 @@ export async function dispatchMailboxRuntimeInvokeItem(
     await markAttemptAndMailbox(db, { attemptId, mailboxItemId: input.mailboxItem.id, status: 'dead_letter', error: '当前完整线路只支持 cloud mailbox 调度。' })
     await db.from('plan_nodes').update({ status: 'failed', result: { error: '当前完整线路只支持 cloud mailbox 调度。' } }).eq('id', input.node.id)
     return { status: 'unsupported', error: '当前完整线路只支持 cloud mailbox 调度。' }
+  }
+  const workspaceRoot = requireCloudWorkspaceRoot(workspaceRow)
+  if (!workspaceRoot) {
+    await markAttemptAndMailbox(db, { attemptId, mailboxItemId: input.mailboxItem.id, status: 'dead_letter', error: '云端工作区目录缺失，Mailbox 未投递。' })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: '云端工作区目录缺失，Mailbox 未投递。' } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: '云端工作区目录缺失，Mailbox 未投递。' }
   }
 
   const { data: role } = await db
@@ -388,7 +425,7 @@ export async function dispatchMailboxRuntimeInvokeItem(
   return dispatchPreparedRuntimeInvokeNode(db, {
     userId: input.userId,
     sessionId: input.mailboxItem.session_id,
-    node: input.node,
+    node: withRuntimeWorkspacePayload(input.node, workspaceRoot),
     workspaceId: workspaceRow.id,
     executionDomain: workspaceRow.execution_domain,
     role: roleRow,
@@ -420,7 +457,7 @@ export async function dispatchRuntimeInvokeNode(
 
   const { data: workspace } = await db
     .from('workspaces')
-    .select('id, owner_id, execution_domain')
+    .select('id, owner_id, execution_domain, cloud_project_dir')
     .eq('id', workspaceId)
     .eq('owner_id', input.userId)
     .single()
@@ -433,6 +470,11 @@ export async function dispatchRuntimeInvokeNode(
   if (executionDomain !== 'cloud') {
     await db.from('plan_nodes').update({ status: 'failed', result: { error: '当前完整线路只支持 cloud runtime_invoke。' } }).eq('id', input.node.id)
     return { status: 'unsupported', error: '当前完整线路只支持 cloud runtime_invoke。' }
+  }
+  const workspaceRoot = requireCloudWorkspaceRoot(workspaceRow)
+  if (!workspaceRoot) {
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: '云端工作区目录缺失，节点未投递 Runtime。' } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: '云端工作区目录缺失，节点未投递 Runtime。' }
   }
 
   const { data: role } = input.node.agent_id
@@ -513,7 +555,7 @@ export async function dispatchRuntimeInvokeNode(
   return dispatchPreparedRuntimeInvokeNode(db, {
     userId: input.userId,
     sessionId: input.sessionId,
-    node: input.node,
+    node: withRuntimeWorkspacePayload(input.node, workspaceRoot),
     workspaceId: workspaceRow.id,
     executionDomain,
     role: roleRow,

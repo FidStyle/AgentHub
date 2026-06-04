@@ -85,7 +85,7 @@ interface Message {
     updated_at: string;
 }
 
-type ArtifactType = 'markdown' | 'code' | 'image' | 'file' | 'preview' | 'diff' | 'action_status';
+type ArtifactType = 'markdown' | 'code' | 'image' | 'file' | 'preview' | 'diff' | 'action_status' | 'document' | 'presentation';
 interface Artifact {
     id: string;
     messageId: string;
@@ -187,6 +187,211 @@ interface TaskResult {
     diffUrl?: string;
     previewUrl?: string;
 }
+
+declare const WORKSPACE_ROOT_REQUIRED = "WORKSPACE_ROOT_REQUIRED";
+declare const SELECTED_WORKSPACE_NOT_FOUND = "SELECTED_WORKSPACE_NOT_FOUND";
+declare const RUNTIME_CWD_MISMATCH = "RUNTIME_CWD_MISMATCH";
+type RuntimeInvocationStatus = 'starting' | 'running' | 'awaiting_approval' | 'completed' | 'failed' | 'cancelled';
+type RuntimePermissionMode = 'default' | 'plan' | 'read_only' | 'dangerous_bypass';
+interface RuntimeWorkspaceDescriptor {
+    rootPath?: string | null;
+    cloudProjectDir?: string | null;
+}
+interface RuntimeWorkspace extends Pick<Workspace, 'id' | 'name' | 'executionDomain'> {
+    descriptor?: RuntimeWorkspaceDescriptor | null;
+}
+interface RuntimeWorkspaceScope {
+    workspaceId: string;
+    executionDomain: ExecutionDomain;
+    workspaceRoot: string;
+    cwd: string;
+    visibleFiles: string[];
+}
+interface RuntimeWorkspaceContextPackage {
+    id: string;
+    workspaceId: string;
+    sessionId: string;
+    roleAgentId: string;
+    workspaceRoot: string;
+    messages: string[];
+    artifacts: string[];
+    files: string[];
+    visibleFiles: string[];
+    constraints: string[];
+}
+interface RuntimeInvokeInput {
+    workspaceId: string;
+    sessionId: string;
+    roleAgentId: string;
+    runtimeType: RuntimeType;
+    executionDomain: ExecutionDomain;
+    workspaceRoot: string;
+    cwd: string;
+    contextPackage: RuntimeWorkspaceContextPackage;
+    userMessage: string;
+    permissionMode?: RuntimePermissionMode;
+    nativeSessionId?: string;
+}
+interface RuntimeSessionRecord {
+    workspaceId: string;
+    sessionId: string;
+    roleAgentId: string;
+    runtimeType: RuntimeType;
+    executionDomain: ExecutionDomain;
+    workspaceRoot: string;
+    cwd: string;
+    status: RuntimeInvocationStatus;
+    adapterVersion: string;
+    nativeSessionId?: string;
+    lastInvocationAt: string;
+}
+interface ChatRuntimeInvocationInput {
+    selectedWorkspaceId: string;
+    sessionId: string;
+    roleAgentId: string;
+    runtimeType: RuntimeType;
+    workspaces: RuntimeWorkspace[];
+    userMessage: string;
+    messages?: string[];
+    artifacts?: string[];
+    fileCandidates?: string[];
+    constraints?: string[];
+    permissionMode?: RuntimePermissionMode;
+    nativeSessionId?: string;
+}
+declare const PermissionBrokerEventKind: {
+    readonly ApprovalRequired: "approval_required";
+    readonly Rejected: "rejected";
+    readonly Approved: "approved";
+    readonly ExecutionAllowed: "execution_allowed";
+    readonly ExecutionBlocked: "execution_blocked";
+};
+type PermissionBrokerEventKind = (typeof PermissionBrokerEventKind)[keyof typeof PermissionBrokerEventKind];
+declare const RoleDispatchEventKind: {
+    readonly PlanCreated: "plan_created";
+    readonly MailboxCreated: "mailbox_created";
+    readonly RoleDispatched: "role_dispatched";
+};
+type RoleDispatchEventKind = (typeof RoleDispatchEventKind)[keyof typeof RoleDispatchEventKind];
+declare const NativeCliToolActionKind: {
+    readonly ReadFile: "read_file";
+    readonly WriteFile: "write_file";
+    readonly InstallDependency: "install_dependency";
+    readonly StartService: "start_service";
+    readonly NetworkRequest: "network_request";
+    readonly WorkspaceExternalPathAccess: "workspace_external_path_access";
+    readonly DestructiveCommand: "destructive_command";
+    readonly ShellCommand: "shell_command";
+};
+type NativeCliToolActionKind = (typeof NativeCliToolActionKind)[keyof typeof NativeCliToolActionKind];
+interface NativeCliToolCall {
+    id: string;
+    workspaceId: string;
+    sessionId: string;
+    runtimeInvocationId: string;
+    actionKind: NativeCliToolActionKind;
+    cwd: string;
+    targetPaths?: string[];
+    commandPreview?: string;
+    requestedAt?: string;
+}
+interface PermissionBrokerDecision {
+    approvalId: string;
+    status: Extract<ApprovalStatus, 'approved' | 'rejected'>;
+    decidedBy: string;
+    decidedAt?: string;
+}
+interface PermissionBrokerEvent {
+    id: string;
+    workspaceId: string;
+    sessionId: string;
+    runtimeInvocationId: string;
+    toolCallId: string;
+    actionKind: NativeCliToolActionKind;
+    kind: PermissionBrokerEventKind;
+    approvalId?: string;
+    reason: string;
+    workspaceRoot: string;
+    cwd: string;
+    targetPaths: string[];
+    commandPreview?: string;
+    timestamp: string;
+}
+interface PermissionBrokerResult {
+    allowed: boolean;
+    approval?: PendingApproval;
+    events: PermissionBrokerEvent[];
+    code?: 'APPROVAL_REQUIRED' | 'APPROVAL_REJECTED' | 'OUTSIDE_WORKSPACE_ROOT' | 'WORKSPACE_MISMATCH';
+}
+interface ArchitectDispatchInput {
+    workspaceId: string;
+    sessionId: string;
+    architectRoleAgentId: string;
+    userMessage: string;
+}
+interface RoleDispatchEvent {
+    id: string;
+    kind: RoleDispatchEventKind;
+    workspaceId: string;
+    sessionId: string;
+    planId: string;
+    mailboxId: string;
+    fromRoleAgentId: string;
+    toRoleAgentId?: string;
+    reason: string;
+}
+interface ArchitectDispatchResult {
+    requiresEngineeringDispatch: boolean;
+    planId: string;
+    mailboxId: string;
+    targetRoleAgentIds: string[];
+    events: RoleDispatchEvent[];
+}
+interface RuntimeWorkerJob {
+    id: string;
+    workspaceId: string;
+    sessionId: string;
+    roleAgentId: string;
+    runtimeType: RuntimeType;
+    executionDomain: ExecutionDomain;
+    workspaceRoot: string;
+    cwd: string;
+    runtimeInvocationContextId: string;
+}
+declare function resolveSelectedWorkspaceScope(workspaces: RuntimeWorkspace[], selectedWorkspaceId: string, fileCandidates?: string[]): RuntimeWorkspaceScope;
+declare function createRuntimeInvokeInputFromChat(input: ChatRuntimeInvocationInput): RuntimeInvokeInput;
+declare function assertRuntimeCwdMatchesWorkspaceRoot(input: Pick<RuntimeInvokeInput, 'cwd' | 'workspaceRoot'>): void;
+declare function createRuntimeWorkerJob(input: RuntimeInvokeInput): RuntimeWorkerJob;
+declare function visibleWorkspaceFiles(workspaceRoot: string, fileCandidates: string[]): string[];
+declare function evaluateNativeCliToolPermission(toolCall: NativeCliToolCall, input: {
+    workspaceRoot: string;
+    workspaceId: string;
+    decision?: PermissionBrokerDecision;
+}): PermissionBrokerResult;
+declare function createArchitectDispatch(input: ArchitectDispatchInput): ArchitectDispatchResult;
+declare function createAcceptancePlanSummary(input: {
+    workspaceId: string;
+    sessionId: string;
+    userMessage: string;
+}): {
+    id: string;
+    runId: string;
+    workspaceId: string;
+    sessionId: string;
+    version: number;
+    summary: string;
+    status: string;
+    nodes: {
+        id: string;
+        title: string;
+        roleAgentId: string;
+        dependsOn: never[];
+        expectedArtifact: string;
+        frIds: string[];
+        riskLevel: "medium";
+        status: string;
+    }[];
+};
 
 declare const FR_IDS: {
     readonly AUTH_001: "FR-AUTH-001";
@@ -628,4 +833,4 @@ declare function nextPlanNodeAttemptDraft(input: {
     attempts: PlanNodeAttempt[];
 }): PlanNodeAttemptDraft;
 
-export { type ActionRequest, type ActionStatus, type ActionType, type AgentMailboxItem, type ApprovalSource, type ApprovalStatus, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type CliRuntimeType, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type MailboxDirection, type MailboxStatus, type Message, type MessageType, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeAttempt, type PlanNodeAttemptControl, type PlanNodeAttemptDraft, type PlanNodeControl, type PlanNodeStatus, type PlanStatus, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCapabilitiesSnapshot, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeMessagePart, type RuntimeOutputEvent, type RuntimeOutputMode, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, type Workspace, appendRuntimeDelta, colors, createRuntimeOutputAccumulator, nextPlanNodeAttemptDraft, parseFrame, selectReadyMailboxItems, serializeFrame };
+export { type ActionRequest, type ActionStatus, type ActionType, type AgentMailboxItem, type ApprovalSource, type ApprovalStatus, type ArchitectDispatchInput, type ArchitectDispatchResult, type Artifact, type ArtifactType, type AuthFrame, type BaseFrame, type BaseRuntimeEvent, type ChatRuntimeInvocationInput, type CliRuntimeType, type ColorToken, type ConnectedFrame, type ContextPackage, DEFAULT_ORCHESTRATOR_CONFIG, DEFAULT_POLICIES, type Device, type DeviceFrame, type DeviceRuntimeChannelStatus, type DeviceType, type EventFrame, type ExecutionDomain, FR_IDS, type FrId, type FrameType, type HeartbeatAckFrame, type HeartbeatFrame, type MailboxDirection, type MailboxStatus, type Message, type MessageType, NativeCliToolActionKind, type NativeCliToolCall, type Notification, type NotificationType, type OrchestratorAction, type OrchestratorActionStatus, type OrchestratorActionType, type OrchestratorConfig, type PendingApproval, type PermissionBrokerDecision, type PermissionBrokerEvent, PermissionBrokerEventKind, type PermissionBrokerResult, type PermissionPolicy, type Plan, type PlanDAG, type PlanNode, type PlanNodeAttempt, type PlanNodeAttemptControl, type PlanNodeAttemptDraft, type PlanNodeControl, type PlanNodeStatus, type PlanStatus, RUNTIME_CWD_MISMATCH, type RequestFrame, type RequestType, type ResponseFrame, type RiskLevel, type RoleAgent, type RoleDispatchEvent, RoleDispatchEventKind, type RoleType, type RoutingMode, type RuntimeAdapter, type RuntimeApprovalRequestedEvent, type RuntimeArtifactCreatedEvent, type RuntimeBinding, type RuntimeCancelledEvent, type RuntimeCapabilitiesSnapshot, type RuntimeCompletedEvent, type RuntimeEndpoint, type RuntimeEndpointKind, type RuntimeEndpointStatus, RuntimeErrorCode, type RuntimeEvent, type RuntimeEventType, type RuntimeFailedEvent, type RuntimeGatewayEvent, type RuntimeGatewayInvokeInput, type RuntimeInvocationStatus, type RuntimeInvokeInput, type RuntimeMessagePart, type RuntimeOutputEvent, type RuntimeOutputMode, type RuntimePermissionMode, type RuntimeResult, type RuntimeRunStatus, type RuntimeSession, type RuntimeSessionDiscoveredEvent, type RuntimeSessionRecord, type RuntimeSessionStatus, type RuntimeStartedEvent, type RuntimeTextDeltaEvent, type RuntimeToolCompletedEvent, type RuntimeToolDeltaEvent, type RuntimeToolStartedEvent, type RuntimeType, type RuntimeWorkerJob, type RuntimeWorkspace, type RuntimeWorkspaceContextPackage, type RuntimeWorkspaceDescriptor, type RuntimeWorkspaceScope, SELECTED_WORKSPACE_NOT_FOUND, type SenderType, SeqGenerator, type Session, type SessionStatus, type StreamingStatus, type TaskResult, type TaskResultStatus, WORKSPACE_ROOT_REQUIRED, type Workspace, appendRuntimeDelta, assertRuntimeCwdMatchesWorkspaceRoot, colors, createAcceptancePlanSummary, createArchitectDispatch, createRuntimeInvokeInputFromChat, createRuntimeOutputAccumulator, createRuntimeWorkerJob, evaluateNativeCliToolPermission, nextPlanNodeAttemptDraft, parseFrame, resolveSelectedWorkspaceScope, selectReadyMailboxItems, serializeFrame, visibleWorkspaceFiles };

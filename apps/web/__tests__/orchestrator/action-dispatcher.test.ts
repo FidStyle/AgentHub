@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock } = vi.hoisted(() => ({
+const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock, workspaceRoot } = vi.hoisted(() => ({
+  workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
   resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
-  createSessionMock: vi.fn(async (_input: unknown) => ({ id: 'runtime-001', nativeSessionId: 'native-001', cwd: '/repo' })),
+  createSessionMock: vi.fn(async (input: { cwd?: string | null }) => ({ id: 'runtime-001', nativeSessionId: 'native-001', cwd: input.cwd })),
   isWorkerAliveMock: vi.fn(async () => true),
   enqueueMock: vi.fn(async (_input: unknown) => undefined),
 }))
 
 vi.mock('@/lib/runtime/gateway', () => ({
   resolveEndpoint: (input: unknown) => resolveEndpointMock(input),
-  createSession: (input: unknown) => createSessionMock(input),
+  createSession: (input: unknown) => createSessionMock(input as { cwd?: string | null }),
 }))
 
 vi.mock('@/lib/runtime/redis-client', () => ({
@@ -17,10 +18,12 @@ vi.mock('@/lib/runtime/redis-client', () => ({
   enqueue: (input: unknown) => enqueueMock(input),
 }))
 
-function dispatchDb(overrides: { role?: Record<string, unknown> } = {}) {
+function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Record<string, unknown> | null } = {}) {
   const writes: Array<{ table: string; values: Record<string, unknown>; id?: string }> = []
   const session = { id: 'session-001', workspace_id: 'ws-001' }
-  const workspace = { id: 'ws-001', owner_id: 'user-001', execution_domain: 'cloud' }
+  const workspace = overrides.workspace === null
+    ? null
+    : { id: 'ws-001', owner_id: 'user-001', execution_domain: 'cloud', cloud_project_dir: workspaceRoot, ...overrides.workspace }
   const role = {
     id: 'agent-be',
     name: '后端工程师',
@@ -136,10 +139,12 @@ describe('dispatchRuntimeInvokeNode', () => {
     expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
       roleAgentId: 'agent-be',
       runtimeType: 'codex',
+      cwd: workspaceRoot,
     }))
     expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
       runtimeSessionId: 'runtime-001',
       runtimeType: 'codex',
+      cwd: workspaceRoot,
       planNodeId: 'node-001',
       attemptId: 'attempt-001',
       mailboxItemId: 'mailbox-001',
@@ -177,10 +182,46 @@ describe('dispatchRuntimeInvokeNode', () => {
     ]))
     expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
       runtimeType: 'claude_code',
+      cwd: workspaceRoot,
     }))
     expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
       runtimeType: 'claude_code',
+      cwd: workspaceRoot,
       planNodeId: 'node-legacy-tag',
     }))
+  })
+
+  it('fails closed when the cloud workspace root is missing', async () => {
+    const { dispatchRuntimeInvokeNode } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb({ workspace: { cloud_project_dir: null } })
+
+    const result = await dispatchRuntimeInvokeNode(db as never, {
+      userId: 'user-001',
+      sessionId: 'session-001',
+      node: {
+        id: 'node-missing-root',
+        plan_id: 'plan-001',
+        label: '缺少工作区目录',
+        agent_id: 'agent-be',
+        action_payload: { phase: 'worker', userMessage: '实现 API' },
+      },
+    })
+
+    expect(result).toEqual({
+      status: 'unavailable',
+      error: '云端工作区目录缺失，节点未投递 Runtime。',
+    })
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'plan_nodes',
+        values: expect.objectContaining({
+          status: 'failed',
+          result: { error: '云端工作区目录缺失，节点未投递 Runtime。' },
+        }),
+        id: 'node-missing-root',
+      }),
+    ]))
   })
 })

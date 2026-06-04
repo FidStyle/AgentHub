@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const statusUpdates: string[] = []
 const sentPayloads: Array<Record<string, unknown>> = []
+const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
 
 vi.mock('../../server/device-connections', () => ({
   getConnectionByUserId: () => ({ deviceId: 'desktop-1', userId: 'u1', workspaceIds: ['w1'], lastHeartbeat: Date.now() }),
@@ -67,7 +68,7 @@ describe('gateway user_local relay', () => {
       id: 'rs-local-1',
       endpoint: { id: 'ep-local-1', kind: 'user_local', status: 'available', deviceId: 'desktop-1' },
       runtimeType: 'codex',
-      cwd: null,
+      cwd: workspaceRoot,
     }
 
     const events = await drain(invoke({
@@ -80,6 +81,7 @@ describe('gateway user_local relay', () => {
     expect(sentPayloads[0]).toMatchObject({
       sessionId: 'rs-local-1',
       runtimeType: 'codex',
+      cwd: workspaceRoot,
     })
     expect(sentPayloads[0].prompt).toContain('hello local')
     expect(events.some((event) => event.type === 'tunnel_connected')).toBe(true)
@@ -94,7 +96,7 @@ describe('gateway user_local relay', () => {
       id: 'rs-local-2',
       endpoint: { id: 'ep-local-1', kind: 'user_local', status: 'available', deviceId: 'desktop-1' },
       runtimeType: 'claude_code',
-      cwd: null,
+      cwd: workspaceRoot,
     }
 
     const events = await drain(invoke({

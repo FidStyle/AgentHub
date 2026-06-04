@@ -46,6 +46,8 @@ vi.mock('../../lib/runtime/executor', () => ({
 import { invoke, type RuntimeSessionRecord } from '../../lib/runtime/gateway'
 import type { RuntimeGatewayEvent } from '@agenthub/shared'
 
+const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+
 async function drain(gen: AsyncGenerator<RuntimeGatewayEvent>): Promise<RuntimeGatewayEvent[]> {
   const out: RuntimeGatewayEvent[] = []
   for await (const e of gen) out.push(e)
@@ -56,7 +58,7 @@ const cloudSession = (status: string, id: string | null): RuntimeSessionRecord =
   id: 'rs-1',
   endpoint: { id, kind: 'public_cloud', status: status as 'available' | 'offline' | 'unconfigured' },
   runtimeType: 'claude_code',
-  cwd: null,
+  cwd: workspaceRoot,
 })
 
 beforeEach(() => {
@@ -113,6 +115,7 @@ describe('gateway public_cloud gating', () => {
       invoke({ userId: 'u1', runtimeSession: cloudSession('available', 'ep-1'), userMessage: 'hi' }),
     )
     expect(enqueueMock).toHaveBeenCalledTimes(1)
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({ cwd: workspaceRoot }))
     expect(events.some((e) => e.type === 'public_runtime_available' && e.available === true)).toBe(true)
     expect(events.some((e) => e.type === 'runtime_completed')).toBe(true)
   })

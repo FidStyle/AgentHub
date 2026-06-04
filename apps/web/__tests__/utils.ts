@@ -15,11 +15,14 @@ export const mockUser = {
   image: null,
 }
 
+export const mockWorkspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+
 export const mockWorkspace = {
   id: 'ws-001',
   owner_id: 'user-001',
   name: '测试工作区',
   execution_domain: 'cloud',
+  cloud_project_dir: mockWorkspaceRoot,
   description: '一个测试工作区',
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',

@@ -8,7 +8,13 @@ import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
 import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
-import { createRuntimeOutputAccumulator, type RuntimeGatewayEvent, type RuntimeMessagePart } from '@agenthub/shared'
+import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
+import {
+  createRuntimeInvokeInputFromChat,
+  createRuntimeOutputAccumulator,
+  type RuntimeGatewayEvent,
+  type RuntimeMessagePart,
+} from '@agenthub/shared'
 import type { CliRuntimeType, RuntimeType } from '@agenthub/shared'
 import type { ContextPackage } from '@agenthub/shared'
 
@@ -281,11 +287,23 @@ export async function POST(req: NextRequest) {
 
   const { data: ws } = await db
     .from('workspaces')
-    .select('id, execution_domain')
+    .select('id, name, execution_domain, cloud_project_dir')
     .eq('id', session.workspace_id)
     .eq('owner_id', user.id)
     .single()
   if (!ws) return Response.json({ error: '无权限' }, { status: 403 })
+
+  let runtimeWorkspaceRoot: string | null = null
+  if (ws.execution_domain === 'cloud') {
+    const cloud = await loadCloudWorkspaceRoot(db, ws as unknown as {
+      id: string
+      name: string
+      execution_domain: 'cloud'
+      cloud_project_dir?: string | null
+    }, user)
+    if (!cloud.ok) return Response.json({ error: cloud.error }, { status: cloud.status })
+    runtimeWorkspaceRoot = cloud.root
+  }
 
   if (ws.execution_domain === 'local_desktop') {
     const operability = await localDesktopOperability(db, user.id)
@@ -343,6 +361,33 @@ export async function POST(req: NextRequest) {
     }
   }
   const primaryRoleAgentId = selectedRoleAgents[0]?.id ?? null
+  const runtimeContextForRole = (role: (typeof selectedRoleAgents)[number] | null) => {
+    if (!runtimeWorkspaceRoot || !role) return null
+    return createRuntimeInvokeInputFromChat({
+      selectedWorkspaceId: ws.id,
+      sessionId,
+      roleAgentId: role.id,
+      runtimeType: runtimeTypeForRole(role) ?? 'claude_code',
+      workspaces: [{
+        id: ws.id,
+        name: typeof ws.name === 'string' ? ws.name : '当前工作区',
+        executionDomain: ws.execution_domain,
+        descriptor: { cloudProjectDir: runtimeWorkspaceRoot },
+      }],
+      userMessage: content,
+      fileCandidates: [`${runtimeWorkspaceRoot}/README.md`],
+      constraints: [`Selected workspace root: ${runtimeWorkspaceRoot}`],
+    })
+  }
+  const runtimeContextConstraintPrompt = (role: (typeof selectedRoleAgents)[number] | null) => {
+    const runtimeContext = runtimeContextForRole(role)
+    if (!runtimeContext) return null
+    return [
+      `Selected workspace root: ${runtimeContext.workspaceRoot}`,
+      ...runtimeContext.contextPackage.constraints,
+      `Visible workspace files: ${runtimeContext.contextPackage.visibleFiles.length > 0 ? runtimeContext.contextPackage.visibleFiles.join(', ') : '(none)'}`,
+    ].join('\n')
+  }
   const roleContextPrompt = selectedRoleAgents.length > 0
     ? [
         'AgentHub 角色上下文：',
@@ -370,6 +415,7 @@ export async function POST(req: NextRequest) {
     if (!role) return roleContextPrompt
     return [
       roleContextPrompt,
+      runtimeContextConstraintPrompt(role),
       handoffContextPrompt(handoffs),
       `当前回复角色：@${role.name}。请只从该角色职责出发回答，不要冒充其他被选中的角色。`,
     ].filter(Boolean).join('\n\n')
@@ -516,6 +562,8 @@ export async function POST(req: NextRequest) {
                 phase: target.phase,
                 runtimeType: target.role?.runtime_type ?? null,
                 userMessage,
+                cwd: runtimeWorkspaceRoot,
+                workspaceRoot: runtimeWorkspaceRoot,
               },
               depends_on: `{${target.dependsOn.map((id) => `"${id}"`).join(',')}}`,
               status: target.dependsOn.length === 0 ? 'ready' : 'pending',
@@ -568,6 +616,7 @@ export async function POST(req: NextRequest) {
           const eventStream = async function* (): AsyncGenerator<RuntimeGatewayEvent> {
             if (useOrchestratedRun && planId && target.nodeId && evidence?.attemptId && role && ws.execution_domain === 'cloud') {
               const runtimeEvents: { current?: AsyncGenerator<unknown> } = {}
+              const dispatchRole = runtimeDispatchRole(role)
               const dispatch = await dispatchPreparedRuntimeInvokeNode(db, {
                 userId: user.id,
                 sessionId,
@@ -581,11 +630,15 @@ export async function POST(req: NextRequest) {
                     phase: target.phase,
                     userMessage,
                     handoffs: receivedHandoffs,
+                    cwd: runtimeWorkspaceRoot,
+                    workspaceRoot: runtimeWorkspaceRoot,
                   },
                 },
                 workspaceId: ws.id,
                 executionDomain: 'cloud',
-                role: runtimeDispatchRole(role),
+                role: dispatchRole
+                  ? { ...dispatchRole, system_prompt: systemPromptForRole(role, receivedHandoffs) }
+                  : null,
                 runtimeType: role.runtime_type,
                 attemptId: evidence.attemptId,
                 mailboxItemId: evidence.mailboxItemId,
@@ -620,6 +673,7 @@ export async function POST(req: NextRequest) {
               systemPrompt: systemPromptForRole(role, receivedHandoffs),
               roleAgentId: currentRoleAgentId ?? undefined,
               runtimeType: runtimeTypeForRole(role),
+              cwd: runtimeWorkspaceRoot,
               planNodeId: target.nodeId ?? undefined,
               attemptId: evidence?.attemptId,
               mailboxItemId: evidence?.mailboxItemId ?? null,

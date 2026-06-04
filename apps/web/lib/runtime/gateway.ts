@@ -25,7 +25,7 @@ export interface RuntimeSessionRecord {
   nativeSessionId?: string | null
   endpoint: ResolvedEndpoint
   runtimeType: RuntimeType
-  cwd: string | null
+  cwd: string
 }
 
 const LOCAL_HOST_PATTERN =
@@ -155,13 +155,16 @@ export async function createSession(input: {
 }): Promise<RuntimeSessionRecord> {
   const db = await createClient()
   const cwd = input.cwd ?? null
+  if (!cwd) {
+    throw new Error('RUNTIME_CWD_REQUIRED')
+  }
   let previousQuery = db
     .from('runtime_sessions')
     .select('native_session_id')
     .eq('session_id', input.sessionId)
     .eq('runtime_type', input.runtimeType)
   previousQuery = input.roleAgentId ? previousQuery.eq('role_agent_id', input.roleAgentId) : previousQuery.is('role_agent_id', null)
-  previousQuery = cwd ? previousQuery.eq('cwd', cwd) : previousQuery.is('cwd', null)
+  previousQuery = previousQuery.eq('cwd', cwd)
   const { data: previousRows } = await previousQuery.order('created_at', { ascending: false }).limit(5)
   const previous = Array.isArray(previousRows)
     ? (previousRows as Array<{ native_session_id?: string | null }>).find((row) => row.native_session_id)
@@ -334,7 +337,7 @@ export async function* invoke(input: {
       endpointId: endpoint.id ?? undefined,
       runtimeType: input.runtimeType === 'codex' ? 'codex' : input.runtimeType === 'claude_code' ? 'claude_code' : undefined,
       nativeSessionId: input.runtimeSession.nativeSessionId ?? null,
-      cwd: input.runtimeSession.cwd ?? process.env.RUNTIME_CWD ?? null,
+      cwd: input.runtimeSession.cwd,
       prompt: input.userMessage ?? '',
       systemPrompt: input.systemPrompt,
       planNodeId: input.planNodeId,
@@ -386,7 +389,7 @@ export async function* invoke(input: {
     runtimeType: invokePayload.runtimeType,
     prompt: invokePayload.prompt,
     nativeSessionId: input.runtimeSession.nativeSessionId ?? null,
-    cwd: process.env.RUNTIME_CWD ?? process.cwd(),
+    cwd: input.runtimeSession.cwd,
   })) {
     if (event.type === 'response') {
       if (!event.ok) {

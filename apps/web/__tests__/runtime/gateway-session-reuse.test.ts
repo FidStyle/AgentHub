@@ -41,6 +41,8 @@ vi.mock('../../lib/app-db-client', () => ({
 
 import { createSession } from '../../lib/runtime/gateway'
 
+const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+
 beforeEach(() => {
   previousRows.length = 0
   inserts.length = 0
@@ -58,20 +60,20 @@ describe('createSession native session reuse scope', () => {
       endpoint,
       roleAgentId: 'agent-fe',
       runtimeType: 'codex',
-      cwd: '/repo',
+      cwd: workspaceRoot,
     })
 
     expect(runtimeSession).toMatchObject({
       id: 'runtime-new',
       nativeSessionId: 'native-fe-codex-repo',
       runtimeType: 'codex',
-      cwd: '/repo',
+      cwd: workspaceRoot,
     })
     expect(selectFilters[0]).toEqual([
       { op: 'eq', column: 'session_id', value: 'session-001' },
       { op: 'eq', column: 'runtime_type', value: 'codex' },
       { op: 'eq', column: 'role_agent_id', value: 'agent-fe' },
-      { op: 'eq', column: 'cwd', value: '/repo' },
+      { op: 'eq', column: 'cwd', value: workspaceRoot },
     ])
     expect(inserts[0]).toMatchObject({
       session_id: 'session-001',
@@ -79,30 +81,40 @@ describe('createSession native session reuse scope', () => {
       role_agent_id: 'agent-fe',
       runtime_type: 'codex',
       native_session_id: 'native-fe-codex-repo',
-      cwd: '/repo',
+      cwd: workspaceRoot,
       status: 'idle',
     })
   })
 
-  it('uses null role and cwd scope for direct chat without leaking a role scoped native id', async () => {
+  it('uses null role and selected cwd scope for direct chat without leaking a role scoped native id', async () => {
     previousRows.push({ native_session_id: 'native-direct' })
 
     await createSession({
       sessionId: 'session-001',
       endpoint,
       runtimeType: 'claude_code',
+      cwd: workspaceRoot,
     })
 
     expect(selectFilters[0]).toEqual([
       { op: 'eq', column: 'session_id', value: 'session-001' },
       { op: 'eq', column: 'runtime_type', value: 'claude_code' },
       { op: 'is', column: 'role_agent_id', value: null },
-      { op: 'is', column: 'cwd', value: null },
+      { op: 'eq', column: 'cwd', value: workspaceRoot },
     ])
     expect(inserts[0]).toMatchObject({
       role_agent_id: null,
       native_session_id: 'native-direct',
-      cwd: null,
+      cwd: workspaceRoot,
     })
+  })
+
+  it('rejects runtime session creation without cwd', async () => {
+    await expect(createSession({
+      sessionId: 'session-001',
+      endpoint,
+      runtimeType: 'claude_code',
+    })).rejects.toThrow('RUNTIME_CWD_REQUIRED')
+    expect(inserts).toHaveLength(0)
   })
 })

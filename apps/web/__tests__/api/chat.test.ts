@@ -13,15 +13,16 @@ import {
   setupMockClient,
   createPostgresChain,
   resetMockClient,
+  mockWorkspaceRoot,
 } from '../utils'
 
 const invokeSpy = vi.fn()
 const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock } = vi.hoisted(() => ({
   resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
-  createSessionMock: vi.fn(async (input: { roleAgentId?: string | null; runtimeType?: string }) => ({
+  createSessionMock: vi.fn(async (input: { roleAgentId?: string | null; runtimeType?: string; cwd?: string | null }) => ({
     id: `runtime-${input.roleAgentId ?? input.runtimeType ?? 'none'}`,
     nativeSessionId: `native-${input.roleAgentId ?? input.runtimeType ?? 'none'}`,
-    cwd: '/repo',
+    cwd: input.cwd,
   })),
   isWorkerAliveMock: vi.fn(async () => true),
   enqueueMock: vi.fn(async (_input: unknown) => undefined),
@@ -51,7 +52,7 @@ vi.mock('@/lib/runtime/hosted-adapter', () => ({
 
 vi.mock('@/lib/runtime/gateway', () => ({
   resolveEndpoint: (input: unknown) => resolveEndpointMock(input),
-  createSession: (input: unknown) => createSessionMock(input as { roleAgentId?: string | null; runtimeType?: string }),
+  createSession: (input: unknown) => createSessionMock(input as { roleAgentId?: string | null; runtimeType?: string; cwd?: string | null }),
 }))
 
 vi.mock('@/lib/runtime/redis-client', () => ({
@@ -147,8 +148,17 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(status).toBe(200)
     expect(invokeSpy).toHaveBeenCalledOnce()
     const arg = invokeSpy.mock.calls[0][0]
+    expect(arg.cwd).toBe(mockWorkspaceRoot)
     expect(arg.systemPrompt).toContain('@Analyzer Agent')
     expect(arg.systemPrompt).toContain('You analyze things.')
+    expect(arg.systemPrompt).toContain(`Selected workspace root: ${mockWorkspaceRoot}`)
+    expect(arg.systemPrompt).toContain('Only use files visible inside the selected workspace root.')
+    expect(arg.systemPrompt).toContain('Do not infer stack, package manager, AGENTS.md, Trellis, or monorepo context from the AgentHub host repository.')
+    expect(arg.systemPrompt).not.toContain('Next.js 15')
+    expect(arg.systemPrompt).not.toContain('React 19')
+    expect(arg.systemPrompt).not.toContain('Drizzle')
+    expect(arg.systemPrompt).not.toContain('Postgres')
+    expect(arg.systemPrompt).not.toContain('next-auth')
     expect(arg.roleAgentId).toBe('agent-001')
     const userMsg = insertedMessages[0]
     expect(userMsg.role_agent_id).toBe('agent-001')
@@ -387,13 +397,19 @@ describe('POST /api/chat — role-chat-core', () => {
     })
     expect(invokeSpy).not.toHaveBeenCalled()
     expect(createSessionMock).toHaveBeenCalledTimes(4)
+    expect(createSessionMock.mock.calls.every((call) => call[0].cwd === mockWorkspaceRoot)).toBe(true)
     expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-fe', 'agent-be', 'agent-orch'])
     expect(createSessionMock.mock.calls.map((call) => call[0].runtimeType)).toEqual(['claude_code', 'claude_code', 'codex', 'claude_code'])
     expect(enqueueMock).toHaveBeenCalledTimes(4)
+    expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).cwd === mockWorkspaceRoot)).toBe(true)
+    expect(insertedPlanNodes.every((node) => (node.action_payload as Record<string, unknown>).cwd === mockWorkspaceRoot)).toBe(true)
+    expect(insertedPlanNodes.every((node) => (node.action_payload as Record<string, unknown>).workspaceRoot === mockWorkspaceRoot)).toBe(true)
     expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).planNodeId)).toEqual(insertedPlanNodes.map((node) => node.id))
     expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3', 'attempt-4'])
     expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3', 'mailbox-4'])
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).prompt)).toContain('Context handoffs')
+    expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain(`Selected workspace root: ${mockWorkspaceRoot}`)
+    expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('Do not infer stack, package manager, AGENTS.md, Trellis, or monorepo context from the AgentHub host repository.')
     expect(String(firstMockArg(enqueueMock.mock.calls[3]).prompt)).toContain('前端工程师')
     expect(String(firstMockArg(enqueueMock.mock.calls[3]).prompt)).toContain('后端工程师')
     expect(insertedMailboxItems[1].context_package).toMatchObject({

@@ -22,6 +22,11 @@ export class HostedRuntimeAdapter {
     mailboxItemId?: string | null
   }): AsyncGenerator<RuntimeGatewayEvent> {
     const runtimeType = input.runtimeType === 'codex' ? 'codex' : 'claude_code'
+    const cwd = input.cwd ?? null
+    if (!cwd) {
+      yield { type: 'runtime_failed', error: 'Runtime 工作目录缺失，已阻止执行以避免读取宿主仓库。' }
+      return
+    }
     const endpoint = await resolveEndpoint({
       userId: input.userId,
       workspaceId: input.workspaceId,
@@ -32,7 +37,7 @@ export class HostedRuntimeAdapter {
       endpoint,
       roleAgentId: input.roleAgentId,
       runtimeType,
-      cwd: input.cwd ?? process.env.RUNTIME_CWD ?? null,
+      cwd,
     })
 
     const shouldPersistGatewayEvent = (event: RuntimeGatewayEvent): boolean => {

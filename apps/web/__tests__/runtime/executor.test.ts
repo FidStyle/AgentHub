@@ -444,24 +444,28 @@ describe('credential isolation', () => {
 })
 
 describe('createExecutor factory', () => {
-  it('defaults to the real CLI executor', () => {
-    expect(createExecutor()).toBeInstanceOf(CliRuntimeExecutor)
+  const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+
+  it('rejects the real CLI executor without queued job cwd', () => {
+    expect(() => createExecutor()).toThrow('RUNTIME_CWD_REQUIRED')
   })
 
   it('returns CliRuntimeExecutor when RUNTIME_EXECUTOR=real', () => {
     process.env.RUNTIME_EXECUTOR = 'real'
-    expect(createExecutor()).toBeInstanceOf(CliRuntimeExecutor)
+    expect(createExecutor({ runtimeSessionId: 's-real', prompt: 'hi', cwd: workspaceRoot })).toBeInstanceOf(CliRuntimeExecutor)
   })
 
   it('selects the real CLI executor per queued job runtimeType', () => {
     process.env.RUNTIME_EXECUTOR = 'real'
-    const codex = createExecutor({ runtimeSessionId: 's-codex', prompt: 'hi', runtimeType: 'codex' })
-    const claude = createExecutor({ runtimeSessionId: 's-claude', prompt: 'hi', runtimeType: 'claude_code' })
+    const codex = createExecutor({ runtimeSessionId: 's-codex', prompt: 'hi', runtimeType: 'codex', cwd: workspaceRoot })
+    const claude = createExecutor({ runtimeSessionId: 's-claude', prompt: 'hi', runtimeType: 'claude_code', cwd: workspaceRoot })
 
     expect(codex).toBeInstanceOf(CliRuntimeExecutor)
     expect(claude).toBeInstanceOf(CliRuntimeExecutor)
     expect((codex as unknown as { options: { runtimeType: string } }).options.runtimeType).toBe('codex')
     expect((claude as unknown as { options: { runtimeType: string } }).options.runtimeType).toBe('claude_code')
+    expect((codex as unknown as { options: { cwd: string } }).options.cwd).toBe(workspaceRoot)
+    expect((claude as unknown as { options: { cwd: string } }).options.cwd).toBe(workspaceRoot)
   })
 
   it('returns FakeExecutor only when RUNTIME_EXECUTOR=fake', () => {

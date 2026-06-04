@@ -15,6 +15,7 @@ import { Pool } from 'pg'
 import { RuntimeErrorCode } from '@agenthub/shared'
 
 const DATABASE_URL = process.env.DATABASE_URL
+const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
 
 let passed = 0
 let failed = 0
@@ -84,7 +85,7 @@ async function testChannelAndTunnel(pool: Pool) {
     // offline 分支不持久化 session（id='' 跳过 setSessionStatus），事件 emit 不依赖 runtime_sessions 落库
     const disconnectEvents = await collect(invoke({
       userId,
-      runtimeSession: { id: '', endpoint: { id: endpointId, kind: 'user_local', status: 'available', deviceId }, runtimeType: 'claude_code', cwd: null },
+      runtimeSession: { id: '', endpoint: { id: endpointId, kind: 'user_local', status: 'available', deviceId }, runtimeType: 'claude_code', cwd: workspaceRoot },
     }))
     assert(disconnectEvents.some(e => e.type === 'tunnel_disconnected'), '曾连接后断开 → emit tunnel_disconnected')
     assert(
@@ -107,7 +108,7 @@ async function testChannelAndTunnel(pool: Pool) {
     const endpointId2 = firstId(ep2)
     const offlineEvents = await collect(invoke({
       userId: userId2,
-      runtimeSession: { id: '', endpoint: { id: endpointId2, kind: 'user_local', status: 'offline', deviceId: deviceId2 }, runtimeType: 'claude_code', cwd: null },
+      runtimeSession: { id: '', endpoint: { id: endpointId2, kind: 'user_local', status: 'offline', deviceId: deviceId2 }, runtimeType: 'claude_code', cwd: workspaceRoot },
     }))
     assert(offlineEvents.some(e => e.type === 'local_runtime_offline'), '从未连接 → emit local_runtime_offline')
     assert(!offlineEvents.some(e => e.type === 'tunnel_disconnected'), '从未连接不误报 tunnel_disconnected')

@@ -6,12 +6,13 @@ import {
   setupMockClient,
 } from '../utils'
 
-const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock } = vi.hoisted(() => ({
+const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock, workspaceRoot } = vi.hoisted(() => ({
+  workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
   resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
-  createSessionMock: vi.fn(async (input: { roleAgentId?: string }) => ({
+  createSessionMock: vi.fn(async (input: { roleAgentId?: string; cwd?: string | null }) => ({
     id: `runtime-${input.roleAgentId ?? 'none'}`,
     nativeSessionId: `native-${input.roleAgentId ?? 'none'}`,
-    cwd: '/repo',
+    cwd: input.cwd,
   })),
   isWorkerAliveMock: vi.fn(async () => true),
   enqueueMock: vi.fn(async (_input: unknown) => undefined),
@@ -19,7 +20,7 @@ const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock }
 
 vi.mock('@/lib/runtime/gateway', () => ({
   resolveEndpoint: (input: unknown) => resolveEndpointMock(input),
-  createSession: (input: unknown) => createSessionMock(input as { roleAgentId?: string }),
+  createSession: (input: unknown) => createSessionMock(input as { roleAgentId?: string; cwd?: string | null }),
 }))
 
 vi.mock('@/lib/runtime/redis-client', () => ({
@@ -105,7 +106,7 @@ function mailboxControlChain(options: {
 } = {}) {
   const writes: Write[] = []
   const item = options.item === undefined ? mailbox() : options.item
-  const workspace = options.workspaceOwned === false ? null : { id: 'ws-001', owner_id: 'user-001', execution_domain: 'cloud' }
+  const workspace = options.workspaceOwned === false ? null : { id: 'ws-001', owner_id: 'user-001', execution_domain: 'cloud', cloud_project_dir: workspaceRoot }
   const roles = options.roles ?? [
     { id: 'agent-arch', name: '架构师', runtime_type: 'claude_code', workspace_id: 'ws-001' },
     { id: 'agent-be', name: '后端工程师', runtime_type: 'codex', workspace_id: 'ws-001' },
@@ -422,11 +423,13 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
       runtimeType: 'codex',
       planNodeId: 'node-001',
       runtimeSessionId: 'runtime-agent-be',
+      cwd: workspaceRoot,
     }))
     expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
       runtimeType: 'claude_code',
       planNodeId: 'node-arch',
       runtimeSessionId: 'runtime-agent-arch',
+      cwd: workspaceRoot,
     }))
     expect(writes).toEqual(expect.arrayContaining([
       expect.objectContaining({

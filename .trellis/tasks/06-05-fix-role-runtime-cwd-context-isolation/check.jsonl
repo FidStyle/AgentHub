@@ -1,0 +1,4 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Verify implementation remains aligned to the shared contract without overstating later dispatch/permission scope."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Check cwd/context behavior against the selected workspace runtime isolation code-spec."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Check test reporting and tri-surface status do not claim unrun OpenCLI UAT."}
+{"file":".trellis/tasks/06-05-fix-role-runtime-cwd-context-isolation/prd.md","reason":"Verify this task stays scoped to cwd and context isolation only."}
