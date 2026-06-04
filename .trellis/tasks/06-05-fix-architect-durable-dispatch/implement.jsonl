@@ -1,0 +1,9 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Shared P0 contract for architect dispatch, durable evidence, workspace cwd, and task boundaries."}
+{"file":"research/contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md","reason":"Orchestrator DAG, mailbox, handoff, retry/resume, and runtime role coordination contract."}
+{"file":"research/prd-amendments/2026-06-02-complete-multi-agent-orchestration.md","reason":"Product amendment defining durable multi-agent orchestration behavior and role handoff expectations."}
+{"file":"research/sequential-execution-progress.md","reason":"Current single-branch queue, task scope, and OpenCLI not-run accounting rules."}
+{"file":"research/execution-reports/role-runtime-cwd-context-isolation-2026-06-05.md","reason":"Preceding task evidence and non-regression requirements for runtime cwd/context isolation."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Backend runtime workspace contract including architect dispatch and fixed-sample tests."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Real-flow acceptance rules forbidding mock product flows and false-green UAT claims."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime gateway persistence and execution boundary rules used by role runtime flows."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer reasoning guide for data flow, persistence, UI/API consistency, and acceptance evidence."}

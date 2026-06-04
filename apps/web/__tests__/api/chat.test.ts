@@ -430,6 +430,158 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(text).toContain('orchestrator_plan_started')
   })
 
+  it('AT-002c [critical]: default architect engineering request expands to durable backend/frontend dispatch', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    const base = createPostgresChain(undefined, undefined, undefined, undefined, [
+      {
+        id: 'agent-orch',
+        workspace_id: 'ws-001',
+        name: '架构师',
+        role_type: 'orchestrator',
+        system_prompt: '负责协调',
+        capabilities: ['规划'],
+        runtime_type: 'claude_code',
+        is_orchestrator: true,
+      },
+      {
+        id: 'agent-fe',
+        workspace_id: 'ws-001',
+        name: '前端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责前端',
+        capabilities: ['前端'],
+        runtime_type: 'claude_code',
+        is_orchestrator: false,
+      },
+      {
+        id: 'agent-be',
+        workspace_id: 'ws-001',
+        name: '后端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责后端',
+        capabilities: ['后端', '数据库'],
+        runtime_type: 'codex',
+        is_orchestrator: false,
+      },
+    ])
+    setupMockClient(vi.fn(() => {
+      const client = base()
+      const origFrom = client.from
+      client.from = vi.fn((table: string) => {
+        if (table === 'plans') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              insertedPlans.push(vals)
+              return { select: () => ({ single: () => ({ data: { id: 'plan-001', ...vals }, error: null }) }) }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        if (table === 'plan_nodes') {
+          return {
+            insert: (vals: Record<string, unknown> | Record<string, unknown>[]) => {
+              insertedPlanNodes.push(...(Array.isArray(vals) ? vals : [vals]))
+              return { data: null, error: null }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        if (table === 'plan_node_attempts') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `attempt-${insertedAttempts.length + 1}`, ...vals }
+              insertedAttempts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedAttempts.find((attempt) => attempt.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'agent_mailbox_items') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `mailbox-${insertedMailboxItems.length + 1}`, ...vals }
+              insertedMailboxItems.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedMailboxItems.find((mailbox) => mailbox.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'runtime_sessions') {
+          const runtimeRows = [{ id: 'runtime-latest', native_session_id: 'native-latest' }]
+          const runtimeChain = {
+            eq: () => runtimeChain,
+            is: () => runtimeChain,
+            order: () => ({ limit: () => ({ data: runtimeRows, error: null }) }),
+          }
+          return {
+            select: () => runtimeChain,
+          }
+        }
+        const t = origFrom(table)
+        if (table === 'messages') {
+          const origInsert = t.insert
+          t.insert = (vals: Record<string, unknown>) => {
+            insertedMessages.push(vals)
+            return origInsert(vals)
+          }
+        }
+        return t
+      })
+      return client
+    }))
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: '做一个加减乘除的简单网站，使用sqlite存储历史记录',
+    })
+
+    expect(status).toBe(200)
+    expect(invokeSpy).not.toHaveBeenCalled()
+    expect(insertedPlans[0]).toMatchObject({ session_id: 'session-001', owner_id: 'user-001', status: 'running' })
+    expect(insertedPlanNodes.map((node) => node.label)).toEqual(['架构师规划', '后端工程师执行', '前端工程师执行', '架构师汇总'])
+    const backendNode = insertedPlanNodes.find((node) => node.label === '后端工程师执行')
+    const frontendNode = insertedPlanNodes.find((node) => node.label === '前端工程师执行')
+    expect((frontendNode?.depends_on as string)).toContain(String(backendNode?.id))
+    expect(insertedAttempts).toHaveLength(4)
+    expect(insertedAttempts.every((attempt) => attempt.status === 'completed')).toBe(true)
+    expect(insertedAttempts.every((attempt) => attempt.runtime_session_id === 'runtime-latest')).toBe(true)
+    expect(insertedMailboxItems.map((mailbox) => mailbox.to_role_agent_id)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-orch'])
+    expect(insertedMailboxItems.map((mailbox) => mailbox.runtime_type)).toEqual(['claude_code', 'codex', 'claude_code', 'claude_code'])
+    expect(createSessionMock.mock.calls.every((call) => call[0].cwd === mockWorkspaceRoot)).toBe(true)
+    expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-orch'])
+    expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).cwd === mockWorkspaceRoot)).toBe(true)
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3', 'attempt-4'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3', 'mailbox-4'])
+    expect(insertedMessages[0].metadata).toMatchObject({
+      mentions: ['agent-orch', 'agent-be', 'agent-fe'],
+      roleAgents: [
+        { id: 'agent-orch', name: '架构师', roleType: 'orchestrator', runtimeType: 'claude_code', isOrchestrator: true },
+        { id: 'agent-be', name: '后端工程师', roleType: 'engineer', runtimeType: 'codex', isOrchestrator: false },
+        { id: 'agent-fe', name: '前端工程师', roleType: 'engineer', runtimeType: 'claude_code', isOrchestrator: false },
+      ],
+      architectDispatch: {
+        requestedTargets: ['role-backend', 'role-frontend'],
+        selectedTargets: ['agent-be', 'agent-fe'],
+      },
+    })
+    expect(text).toContain('orchestrator_plan_started')
+  })
+
   it('AT-003 [high]: no roleAgentId uses the default orchestrator role instead of appending @ text', async () => {
     setupMockClient(chainCapturingInserts())
     const { status } = await callChat({ sessionId: 'session-001', content: 'hi' })

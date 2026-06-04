@@ -1,0 +1,7 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Primary contract for checking durable architect dispatch and scoped exclusions."}
+{"file":"research/sequential-execution-progress.md","reason":"Single-task sequential execution, evidence, and not-run accounting requirements."}
+{"file":"research/execution-reports/role-runtime-cwd-context-isolation-2026-06-05.md","reason":"Preceding cwd/context isolation evidence to preserve during checks."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Backend acceptance contract and required fixed-sample dispatch tests."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Quality gate for real API/DB/runtime evidence and no mock main-flow shortcuts."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime gateway persistence and workspace boundary rules for verification."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer consistency review guide for final verification."}

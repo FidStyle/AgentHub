@@ -56,6 +56,8 @@ function frontendDependsOnBackend(task: string) {
     'api first',
     '接口先',
     '数据库',
+    'sqlite',
+    '存储',
     'schema',
     'migration',
     '接口定义',

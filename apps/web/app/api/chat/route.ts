@@ -10,6 +10,7 @@ import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
 import {
+  createArchitectDispatch,
   createRuntimeInvokeInputFromChat,
   createRuntimeOutputAccumulator,
   type RuntimeGatewayEvent,
@@ -48,6 +49,22 @@ type RuntimeDispatchRole = {
   name: string
   system_prompt?: string | null
   runtime_type: CliRuntimeType
+}
+
+function roleSearchText(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capabilities'>) {
+  const capabilities = Array.isArray(role.capabilities) ? role.capabilities.join(' ') : ''
+  return `${role.name} ${role.role_type} ${capabilities}`.toLowerCase()
+}
+
+function roleMatchesArchitectDispatchTarget(role: SelectedRoleAgent, targetRoleAgentId: string) {
+  const text = roleSearchText(role)
+  if (targetRoleAgentId === 'role-backend') {
+    return text.includes('back') || text.includes('api') || text.includes('server') || text.includes('后端') || text.includes('接口') || text.includes('数据库') || text.includes('runtime')
+  }
+  if (targetRoleAgentId === 'role-frontend') {
+    return text.includes('front') || text.includes('ui') || text.includes('web') || text.includes('前端') || text.includes('页面') || text.includes('界面')
+  }
+  return false
 }
 
 type PinnedContextMessage = {
@@ -345,6 +362,26 @@ export async function POST(req: NextRequest) {
     const orchestrator = rows.find((role) => role.name === '架构师' || role.name === 'Orchestrator' || role.is_orchestrator) ?? rows[0]
     if (orchestrator) selectedRoleAgents = [orchestrator]
   }
+  const architectDispatch = selectedRoleAgents.length === 1 && selectedRoleAgents[0]?.is_orchestrator
+    ? createArchitectDispatch({
+        workspaceId: ws.id,
+        sessionId,
+        architectRoleAgentId: selectedRoleAgents[0].id,
+        userMessage: content,
+      })
+    : null
+  if (architectDispatch?.requiresEngineeringDispatch) {
+    const expandedRoles = [...selectedRoleAgents]
+    for (const targetRoleAgentId of architectDispatch.targetRoleAgentIds) {
+      const targetRole = allWorkspaceRoles.find((role) => (
+        !role.is_orchestrator &&
+        !expandedRoles.some((selected) => selected.id === role.id) &&
+        roleMatchesArchitectDispatchTarget(role, targetRoleAgentId)
+      ))
+      if (targetRole) expandedRoles.push(targetRole)
+    }
+    if (expandedRoles.length > selectedRoleAgents.length) selectedRoleAgents = expandedRoles
+  }
   const roleCapabilities = (role: (typeof selectedRoleAgents)[number]) =>
     Array.isArray(role.capabilities) ? role.capabilities.map((item) => String(item)) : []
   const runtimeTypeForRole = (role: (typeof selectedRoleAgents)[number] | null): RuntimeType | undefined => {
@@ -443,6 +480,15 @@ export async function POST(req: NextRequest) {
       runtimeType: role.runtime_type,
       isOrchestrator: role.is_orchestrator,
     }))
+  }
+  if (architectDispatch?.requiresEngineeringDispatch && selectedRoleAgents.length > 1) {
+    metadata.architectDispatch = {
+      planId: architectDispatch.planId,
+      mailboxId: architectDispatch.mailboxId,
+      requestedTargets: architectDispatch.targetRoleAgentIds,
+      selectedTargets: selectedRoleAgents.slice(1).map((role) => role.id),
+      eventKinds: architectDispatch.events.map((event) => event.kind),
+    }
   }
   if (permissionMode) metadata.permissionMode = permissionMode
   if (pinnedContextMessages.length > 0) {
