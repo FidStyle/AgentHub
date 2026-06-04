@@ -393,3 +393,37 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: 消息 Markdown wrapper 简化与 E2E 门禁
+
+**Date**: 2026-06-04
+**Task**: 消息 Markdown wrapper 简化与 E2E 门禁
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+移除 MessageMarkdown 旧 message-markdown-actions wrapper，保留 flex action 容器；更新单测和新增真实 Web E2E；将用户补充的所有可见改动必须做 E2E/OpenCLI 三端验收规则沉淀到前端质量规范。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d39aa77` | (see git log) |
+| `63001a1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
