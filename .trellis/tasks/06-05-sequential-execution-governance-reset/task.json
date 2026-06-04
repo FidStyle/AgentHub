@@ -1,0 +1,29 @@
+{
+  "id": "sequential-execution-governance-reset",
+  "name": "sequential-execution-governance-reset",
+  "title": "sequential execution governance reset",
+  "description": "",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "joytion",
+  "assignee": "joytion",
+  "createdAt": "2026-06-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "AgentHub_new_claude_test",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "2026-06-05: Establish single-branch sequential execution governance, tri-surface OpenCLI acceptance, and old lane supersession.",
+  "meta": {
+    "execution_mode": "sequential",
+    "progress_ledger": "research/sequential-execution-progress.md"
+  }
+}

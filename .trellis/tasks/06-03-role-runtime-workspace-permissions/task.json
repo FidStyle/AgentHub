@@ -3,7 +3,7 @@
   "name": "role-runtime-workspace-permissions",
   "title": "修复 role runtime workspace 权限隔离",
   "description": "修复 /api/chat selected workspace 到 runtime cwd、权限 broker、业务角色上下文隔离与架构师派发链路，并补充跨层回归合同与验收报告。",
-  "status": "in_progress",
+  "status": "superseded-by-sequential-queue",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -21,6 +21,17 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
-  "meta": {}
+  "notes": "2026-06-05 sequential governance reset: this P0 lane is split into sequential current-branch tasks: sync failure evidence, cwd/context isolation, architect durable dispatch, permission broker, and OpenCLI role-runtime UAT. Do not continue this as a parallel worktree task.",
+  "meta": {
+    "superseded_by": ".trellis/tasks/06-05-sequential-execution-governance-reset",
+    "progress_ledger": "research/sequential-execution-progress.md",
+    "previous_status": "in_progress",
+    "sequential_children": [
+      "06-05-sync-role-runtime-opencli-failure-evidence",
+      "06-05-fix-role-runtime-cwd-context-isolation",
+      "06-05-fix-architect-durable-dispatch",
+      "06-05-fix-runtime-permission-broker",
+      "06-05-opencli-role-runtime-uat"
+    ]
+  }
 }

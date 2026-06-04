@@ -57,6 +57,7 @@
 |------|------|
 | [ai-workflow-control.md](./ai-workflow-control.md) | **AI 工作流控制协议** — Codex/Trellis/Maestro 分工、共享合同和验收口径 |
 | [workflow/codex-trellis-worktree-workflow.md](./workflow/codex-trellis-worktree-workflow.md) | **Codex + Trellis + Git Worktree 操作流** — 多功能线并行开发、锁、Trellis 阶段、合并和 clean 检查 |
+| [sequential-execution-progress.md](./sequential-execution-progress.md) | **单分支顺序执行总表** — 2026-06-05 起的当前执行队列、三端验收、OpenCLI 证据和旧 lane 收口状态 |
 | [project-tracker.md](./project-tracker.md) | **P0/P1/P2 项目跟进表** — 所有功能状态必须在此同步 |
 | [regression-ledger.md](./regression-ledger.md) | **回归、缺陷与未完成项台账** — 已完成功能暴露的问题、质量债和关闭条件 |
 | [decision-log.md](./decision-log.md) | 关键产品与技术决策日志 |
@@ -97,3 +98,4 @@
 5. **PRD 修订**：如发现 PRD/技术设计与 Bytedance 原始材料或当前计划冲突，先修订 `research/prd.md`、产品设计和技术设计；影响范围大的变更再补 `prd-amendments/*.md`。不允许直接改业务代码来隐式改变产品范围。
 6. **索引维护**：只有长期入口、合同目录、关键当前报告需要同步本索引；碎片 report、单个 bug 记录、历史证据不得进入总索引。
 7. **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 并确认 exit 0。status.json completed 不等于项目完成。
+8. **顺序执行**：2026-06-05 起默认按 `sequential-execution-progress.md` 在当前分支顺序推进；每个任务必须三端验收，OpenCLI 覆盖 Web、Mobile 浏览器/PWA 和 Electron 真实 UI 链路。旧 worktree/lane 规划只作历史参考，不再自动推进。

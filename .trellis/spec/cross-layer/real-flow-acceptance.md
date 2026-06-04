@@ -211,7 +211,7 @@ Web cloud @角色通过：
 ### 1. Scope / Trigger
 
 - Trigger: Any feature implementation or fix that needs a real browser to verify Web, Desktop, Electron, OAuth/session, DeviceChannel, local runtime, or cross-surface user flow behavior.
-- Applies to post-change acceptance, UAT evidence, screenshots, browser-session checks, and any report claiming "真实浏览器已验收".
+- Applies to post-change acceptance, UAT evidence, screenshots, browser-session checks, tri-surface acceptance, and any report claiming "真实浏览器已验收".
 - Conventional Playwright remains valid for unit-like browser automation, component tests, layout assertions, and deterministic E2E regression, but it is not the default real-browser UAT tool.
 
 ### 2. Signatures
@@ -222,26 +222,39 @@ Web cloud @角色通过：
   - Outputs: action log, screenshot/video evidence when available, explicit pass/fail/blocked status.
 - Report fields:
   - `tool=opencli`
-  - `target=<web|desktop|electron|browser>`
+  - `target=<web|mobile_browser|pwa|desktop|electron|browser>`
   - `url_or_entry=<real entry>`
+  - `surface=<web|mobile_pwa|desktop_electron>`
   - `auth_state=<fixture|real-login|manual-handoff|not-needed>`
   - `evidence=<screenshot/log/artifact path>`
   - `result=<passed|failed|blocked|not-run>`
 
+- Tri-surface acceptance report:
+  - `web.result=<passed|failed|blocked|not-run|not-applicable>`
+  - `mobile_pwa.result=<passed|failed|blocked|not-run|not-applicable>`
+  - `desktop_electron.result=<passed|failed|blocked|not-run|not-applicable>`
+  - `surface_decision=<changed|inspected-no-change|not-applicable>` for each surface.
+
 ### 3. Contracts
 
+- Every AgentHub feature task must start from tri-surface acceptance planning: Web, Mobile browser/PWA, and Desktop/Electron are all in scope by default. A surface can be marked `not-applicable` only with a product reason tied to FR-ID/surface ownership. `not-run`, `blocked`, skipped login, missing worker, missing Electron build, or missing mobile viewport evidence are not passing evidence.
 - If a test requires a real browser, use OpenCLI first. Do not replace it with ad hoc Playwright unless OpenCLI is unavailable or the task is explicitly a Playwright regression test.
+- OpenCLI is the preferred real UI tool for Web browser, Mobile browser/PWA viewport, and Electron/Desktop UAT. Use a mobile browser/PWA viewport for Mobile acceptance unless the task specifically requires native RN device/simulator behavior; native RN gaps must be listed separately and not counted as passed.
 - OpenCLI must start from the same real product entry a user would use: no direct internal route, no mocked API route, no hidden test-only DOM shortcut.
 - Authentication-sensitive flows may use a documented fixture only after login/session scope is declared; external login or sensitive permission steps must be marked as manual handoff when needed.
 - Multi-worktree acceptance must record the current `location.href` in OpenCLI evidence and verify the port matches the lane's explicit fixed port. If OpenCLI state is still on another worktree or old port, navigate to the correct entry and recapture state, DOM, and screenshots before making any pass/fail claim.
 - When OAuth/GitHub login is not the behavior under test and local OAuth config is missing, a documented acceptance session fixture may be used. The report must set `auth_state=fixture` and still exercise the real DB/API/UI path; fixtures must not create fake business results or mock product APIs.
 - A conventional Playwright run can support the evidence, but the acceptance report must distinguish `Playwright regression passed` from `OpenCLI real-browser UAT passed`.
 - If OpenCLI cannot run, the report must say `OpenCLI not run` and mark real-browser acceptance as blocked or not covered.
+- A task is not complete until the tri-surface report is updated. If one surface fails, stop the queue and split a fix/verification child task in the same feature area; do not continue to the next feature.
 
 ### 4. Validation & Error Matrix
 
 | 条件 | 必须结果 | 禁止结果 |
 | --- | --- | --- |
+| 任务验收缺 Web/Mobile/Electron 任一端决策 | 标记任务未完成，补 surface decision | 只写“Web 已过，因此完成” |
+| Mobile 只跑桌面宽度浏览器 | 重跑 OpenCLI mobile/PWA viewport 或标 `not-run` | 把桌面 Web 截图计入 Mobile 通过 |
+| Electron/Desktop 只跑 renderer unit test | 标为 regression passed、Electron UAT not-run | 写 Desktop/Electron 真实验收通过 |
 | 功能改动需要真实浏览器验收 | 使用 OpenCLI 跑真实入口并记录证据 | 只跑常规 Playwright 后写“真实浏览器通过” |
 | OpenCLI 未登录或缺少权限 | 记录 manual handoff / blocked | 把跳过的登录合并进 passed |
 | OpenCLI 不可用 | 写明原因和未覆盖范围 | 用截图存在或 `playwright --list` 顶替 |
@@ -252,18 +265,24 @@ Web cloud @角色通过：
 
 ### 5. Good/Base/Bad Cases
 
+- Good: 任务报告列出 Web、Mobile/PWA、Electron 三行 surface matrix；Web 和 Mobile 用 OpenCLI 浏览器不同视口，Electron 用 OpenCLI Electron/Desktop entry，三端都验证同一 workspace/session 状态可刷新读回。
 - Good: 功能改完后，OpenCLI 打开真实 Web 工作台，使用声明的 auth state 发送消息，截图和 DOM 证据显示刷新后状态仍正确；报告同时列出补充 Playwright 回归命令。
 - Good: `opencli browser agenthub open http://localhost:3107` 后先保存 state；若 state 仍在旧端口，先导航到 `localhost:3107`，再重抓 DOM/screenshot 并确认 `location.href`。
+- Base: 纯后端 helper 不改变用户可见 UI，报告仍列三端为 `inspected-no-change` 或 `not-applicable`，并说明无 Web/Mobile/Electron 行为变化。
 - Base: OpenCLI 因外部 OAuth 需要用户授权而阻塞，报告写 `blocked: manual login required`，不把该链路计入通过。
+- Bad: 只跑 Web OpenCLI 后把 “Mobile 同 Web 代码” 当 Mobile 通过，没有移动视口或 PWA 状态证据。
 - Bad: 只运行 `npx playwright test e2e/foo.spec.ts`，然后在验收报告写“真实浏览器 UAT 通过”。
 - Bad: OpenCLI 打开目标 URL 返回成功，但 `state` 实际显示另一个端口；继续截图并把该截图当成当前 worktree 证据。
 
 ### 6. Tests Required
 
+- Tri-surface matrix: every task must record Web, Mobile browser/PWA, and Desktop/Electron as `changed`, `inspected-no-change`, or `not-applicable`, with result and evidence for each.
 - OpenCLI UAT: every user-visible feature change that needs real browser behavior must include one OpenCLI run or an explicit blocked/not-run statement.
+- Mobile/PWA UAT: if Mobile is user-visible for the feature, run OpenCLI browser/PWA at a mobile viewport and assert no horizontal overflow, no overlapping controls, correct Chinese status text, and refresh/readback where state is involved.
+- Electron UAT: if Desktop/Electron is user-visible for the feature, run OpenCLI against the Electron/Desktop entry where available; if OpenCLI cannot drive Electron, record the blocker and use Playwright Electron only as supplemental regression evidence.
 - Regression: keep Playwright tests for deterministic behavior, layout, screenshot, sensitive text, and no-overlap assertions.
 - Evidence assertions: capture the real entry, user action, resulting UI state, refresh/reopen state when relevant, and any DB/API/runtime IDs required by this spec.
-- Report assertion: separate OpenCLI UAT result from Playwright regression result; skipped/blocked OpenCLI cannot be counted as passed.
+- Report assertion: separate OpenCLI UAT result from Playwright regression result; skipped/blocked OpenCLI or any missing surface cannot be counted as passed.
 
 ### 7. Wrong vs Correct
 
@@ -277,7 +296,9 @@ Web cloud @角色通过：
 
 ```text
 真实浏览器验收：
-- OpenCLI：target=web，url=http://localhost:3000/workspace/...，auth_state=fixture，result=passed，evidence=...
+- OpenCLI：target=web，surface=web，url=http://localhost:3000/workspace/...，auth_state=fixture，result=passed，evidence=...
+- OpenCLI：target=mobile_browser，surface=mobile_pwa，viewport=390x844，result=passed，evidence=...
+- OpenCLI：target=electron，surface=desktop_electron，entry=apps/desktop，result=passed，evidence=...
 - Playwright 回归：npx playwright test e2e/workspace.spec.ts，exit 0。
 - 限制：未覆盖外部 OAuth 人工登录；该项不计入 passed。
 ```

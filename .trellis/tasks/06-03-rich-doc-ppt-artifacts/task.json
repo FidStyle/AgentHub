@@ -3,7 +3,7 @@
   "name": "rich-doc-ppt-artifacts",
   "title": "PPT and rich document artifacts",
   "description": "",
-  "status": "in_progress",
+  "status": "superseded-by-sequential-queue",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -21,6 +21,10 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
-  "meta": {}
+  "notes": "2026-06-05 sequential governance reset: old parallel worktree/lane task is no longer an execution entry. Rich document and presentation artifact work remains demo-relevant and must be re-entered through research/sequential-execution-progress.md with Web, Mobile/PWA, and Electron acceptance.",
+  "meta": {
+    "superseded_by": ".trellis/tasks/06-05-sequential-execution-governance-reset",
+    "progress_ledger": "research/sequential-execution-progress.md",
+    "previous_status": "in_progress"
+  }
 }

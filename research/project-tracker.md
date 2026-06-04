@@ -14,10 +14,25 @@
 - Analyze/plan/verify/review 等非代码阶段只要修改 `research/`、`.workflow/roadmap.md`、`.workflow/scratch/*/plan.json` 或测试/代码文件，也必须精确 `git add` 本阶段相关文件并中文 commit；不得只更新 `status.json`。
 - 如果工作区已有无关 dirty 文件，必须记录 baseline，只提交本阶段相关文件，并在完成输出中列出剩余 dirty 项。
 - **治理门禁**：milestone/session complete 前必须运行 `bash scripts/verify-governance-gate.sh <TASK-ID>` 且 exit 0。status.json completed ≠ 项目完成。
+- **顺序执行总表**：2026-06-05 起当前执行队列以 `research/sequential-execution-progress.md` 为准。每个任务默认必须覆盖 Web、Mobile 浏览器/PWA、Desktop/Electron 三端验收；OpenCLI 是三端真实 UI UAT 首选工具，未跑或阻塞不得计入通过。
 
 ---
 
 ## P0 任务
+
+### SEQUENTIAL-EXECUTION-GOVERNANCE-RESET-2026-06-05: 单分支顺序执行治理重置
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-05-sequential-execution-governance-reset` |
+| **当前状态** | verified（2026-06-05）：从多 worktree/lane 并行治理切换为当前分支顺序执行；新增顺序执行总表；旧 worktree/lane active task 被 sequential queue 接管；三端验收和 OpenCLI Web/Mobile/Electron 规则沉淀到 Trellis spec。 |
+| **目标** | 建立可持续迭代的单分支队列，确保当前任务失败即停、验证通过再提交关闭，后续 P0/P1/P2 均按 Bytedance 目标和三端 OpenCLI 验收推进。 |
+| **验收方式** | 文档/spec 检查；`git status --short`；Trellis current 指针；`research/sequential-execution-progress.md`、`research/index.md`、`.trellis/spec/cross-layer/real-flow-acceptance.md` 可检索到新规则。 |
+| **测试证据** | `python3 -m json.tool` 校验 7 个 touched task.json PASS；`python3 ./.trellis/scripts/task.py current --source` 指向 `.trellis/tasks/06-05-sequential-execution-governance-reset`；`python3 ./.trellis/scripts/task.py list` 显示旧 lane task 为 `superseded-by-sequential-queue` 且本任务为 current；`rg` 可检索 `sequential-execution-progress` / 三端 OpenCLI 规则；`git diff --check` PASS。 |
+| **阻塞问题** | 无。 |
+| **下一步动作** | 完成治理 reset 后提交并关闭，clean 后进入 `06-05-sync-role-runtime-opencli-failure-evidence`。 |
 
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 

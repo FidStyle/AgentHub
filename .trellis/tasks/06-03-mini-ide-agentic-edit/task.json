@@ -3,7 +3,7 @@
   "name": "mini-ide-agentic-edit",
   "title": "Mini IDE agentic edit workbench",
   "description": "",
-  "status": "in_progress",
+  "status": "superseded-by-sequential-queue",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -21,6 +21,10 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
-  "meta": {}
+  "notes": "2026-06-05 sequential governance reset: old parallel worktree/lane task is no longer an execution entry. Demo value is preserved and must be re-entered through research/sequential-execution-progress.md as a current-branch sequential task with tri-surface OpenCLI acceptance.",
+  "meta": {
+    "superseded_by": ".trellis/tasks/06-05-sequential-execution-governance-reset",
+    "progress_ledger": "research/sequential-execution-progress.md",
+    "previous_status": "in_progress"
+  }
 }

@@ -3,7 +3,7 @@
   "name": "oss-component-migration-workbench-upgrade",
   "title": "brainstorm: mature OSS component migration and workbench upgrade",
   "description": "",
-  "status": "in_progress",
+  "status": "superseded-by-sequential-queue",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -21,6 +21,10 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
-  "meta": {}
+  "notes": "2026-06-05 sequential governance reset: planning material is retained, but this old lane is no longer an active execution entry. Any implementation must be re-queued through research/sequential-execution-progress.md.",
+  "meta": {
+    "superseded_by": ".trellis/tasks/06-05-sequential-execution-governance-reset",
+    "progress_ledger": "research/sequential-execution-progress.md",
+    "previous_status": "in_progress"
+  }
 }

@@ -2,6 +2,8 @@
 
 > 多功能线并行开发时，任何 dev server、预览服务、E2E webServer、runtime worker 或本地回调服务都必须显式指定端口，不能依赖框架默认端口或自动递增端口。
 
+> **2026-06-05 顺序执行覆盖规则**：当前默认执行模式是 `AgentHub_new_claude_test` 当前分支单任务顺序执行，队列记录在 `research/sequential-execution-progress.md`。本文件保留为历史并行 worktree 模式的端口规范；除非用户显式要求恢复并行 worktree/lane，不能再把本文件的 lane/端口表当作新任务派发依据。
+
 ## Scenario: Parallel Worktree Test Ports
 
 ### 1. Scope / Trigger
@@ -9,6 +11,7 @@
 - Trigger: 在多个 Git worktree/lane 并行运行 `pnpm dev`、`next dev`、Playwright、OpenCLI UAT、Docker app、runtime worker 或任何需要监听本地端口的验收命令。
 - Applies to: `deploy-v1`、`mini-ide`、`rich-artifacts`、`chat-polish`、`orchestrator-spike` 以及后续新增 lane。
 - Problem prevented: 多个窗口抢占 `3000`、`3001`、`5173` 等默认端口，导致测试连到错误 worktree、服务启动失败、截图来自旧页面或 E2E 假绿。
+- Current default: 顺序执行模式下同一时间只允许一个任务启动服务；仍必须显式写 `PORT`/`BASE_URL`，但不再创建新的 lane 端口分配。
 
 ### 2. Signatures
 
@@ -46,6 +49,7 @@ webServer: {
 
 ### 3. Contracts
 
+- 顺序执行模式优先级高于本历史并行规范。新任务必须先查 `research/sequential-execution-progress.md`；如果当前任务未关闭或工作区不 clean，不得启动另一个任务或创建新 worktree。
 - 总控创建或建议新增 worktree/lane 时，必须同时分配显式端口并写入派发 prompt、合同或验收要求；禁止先开 lane 后让执行窗口自行选择端口。
 - 启动命令、E2E 命令、验收报告必须写出实际端口和 base URL。
 - 禁止直接运行依赖默认端口的命令后宣称通过，例如裸 `pnpm dev`、裸 `next dev`、裸 `playwright test` 且未声明 base URL。
@@ -58,6 +62,8 @@ webServer: {
 
 | 条件 | 必须结果 | 禁止结果 |
 | --- | --- | --- |
+| 顺序执行模式下有人建议新建 worktree/lane | 拒绝并回到当前分支队列，除非用户显式恢复并行 | 套用旧 lane 端口表继续并行 |
+| 当前任务未关闭或工作区 dirty | 停止启动下一个任务/服务 | 继续开新任务或新端口 |
 | 默认端口已被其他 lane 占用 | 失败并要求显式换端口重跑 | 框架自动递增端口后继续验收 |
 | Playwright 连接到非本 lane URL | 测试失败，报告为环境配置错误 | 用旧页面截图宣称当前 lane 通过 |
 | dev server 命令未声明 `PORT` | 不接受为并行验收证据 | 报告“本地跑通” |
@@ -70,11 +76,14 @@ webServer: {
 - Good: `mini-ide` 使用 `PORT=3102 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3102 pnpm test:e2e`，报告记录 URL、exit code、截图路径和当前 worktree branch。
 - Good: 总控新建 `feature/role-runtime-workspace-permissions` 时，同步声明 `PORT=3106`，派发 prompt 要求所有 dev/E2E/OpenCLI 命令使用 `http://127.0.0.1:3106`。
 - Base: `orchestrator-spike` 只做代码阅读和调研，不启动服务；报告写明未占用端口。
+- Base: 顺序执行模式下只跑当前分支服务，报告写 `mode=sequential`、`branch=AgentHub_new_claude_test`、`task=<current task>`、`BASE_URL=<explicit url>`。
+- Bad: 2026-06-05 后未获用户显式许可，继续创建 `feature/role-runtime-workspace-permissions` worktree 并用 `3106` 当作当前验收证据。
 - Bad: `chat-polish` 直接运行 `pnpm dev`，Next 自动从 `3000` 跳到 `3001`，随后 Playwright 仍访问 `http://localhost:3000` 并截图。
 
 ### 6. Tests Required
 
 - 启动前断言：报告中列出 lane、worktree path、branch、`PORT`、`BASE_URL`。
+- 顺序执行断言：报告中列出 `mode=sequential`、当前 Trellis task、`git status --short` baseline、当前分支和显式 `BASE_URL`。
 - 派发断言：新增 lane 的任务合同或 prompt 必须包含端口分配；没有端口分配不得进入实现。
 - 服务断言：测试访问的 URL 必须包含该 lane 显式端口。
 - 视觉/E2E 断言：截图、trace 或 OpenCLI 证据必须能对应到同一 `BASE_URL`。

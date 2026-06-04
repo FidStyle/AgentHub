@@ -3,7 +3,7 @@
   "name": "worktree-e2e-governance",
   "title": "brainstorm: worktree cleanup and tri-surface e2e governance",
   "description": "",
-  "status": "planning",
+  "status": "superseded-by-sequential-queue",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -21,6 +21,10 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
-  "meta": {}
+  "notes": "2026-06-05 sequential governance reset: this worktree governance brainstorm is replaced by research/sequential-execution-progress.md and the sequential execution code-spec updates.",
+  "meta": {
+    "superseded_by": ".trellis/tasks/06-05-sequential-execution-governance-reset",
+    "progress_ledger": "research/sequential-execution-progress.md",
+    "previous_status": "planning"
+  }
 }
