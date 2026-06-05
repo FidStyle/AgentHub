@@ -745,3 +745,73 @@ const approval = action === 'discard_file'
   : null;
 return { status, diff, approval };
 ```
+
+## Scenario: Bytedance Fixed-Sample Product Gate
+
+### 1. Scope / Trigger
+
+- Trigger: Any report or task claims the fixed sample `做一个加减乘除的简单网站，使用sqlite存储历史记录` is accepted as a Bytedance product-flow pass.
+- Applies to: `/api/chat`, Orchestrator plan creation, plan nodes, mailbox, runtime worker, actions/approvals, workspace files, Git changes, file tree/code references, Web UI, Mobile/PWA readback, and Desktop/Electron supervision.
+
+### 2. Signatures
+
+- User prompt: `做一个加减乘除的简单网站，使用sqlite存储历史记录`
+- Required durable rows:
+  - `messages.sender_type='agent'` for Orchestrator/architect first response.
+  - `plans.status` eventually `completed` or a documented terminal failure.
+  - `plan_nodes.label` includes at least architect planning, frontend engineer execution, backend engineer execution when backend storage is required, and architect summary/validation.
+  - `agent_mailbox_items` and `plan_node_attempts` exist for assigned worker roles.
+  - `actions` rows exist for permission-bound file/tool/git/destructive operations.
+- Surface evidence:
+  - Web workspace session page.
+  - Mobile/PWA `/m/sessions/:sessionId`.
+  - Desktop/Electron runtime supervision or fallback smoke when OpenCLI has no app adapter.
+
+### 3. Contracts
+
+- The first assistant-visible response must be an Orchestrator/architect response that plans the task and explicitly assigns the frontend engineer. If SQLite/storage/backend work is required, backend assignment must also be recorded.
+- A generated product URL passing is not sufficient. The AgentHub orchestration state must show that assigned roles received durable work, ran through runtime, and handed results back to Orchestrator.
+- The final Orchestrator/architect summary or validation must occur after worker nodes complete. If the plan stops at a permission boundary, the report must state `partial` or `blocked`, not `accepted`.
+- Permission control must be exercised through real `actions` approval/rejection APIs. Workspace boundary rejections, such as `/tmp` writes outside the selected workspace root, are valid security behavior but do not complete the product gate.
+- Git/file tree/code-reference evidence must be user-visible or queryable through AgentHub. At minimum, report file tree/readback paths, relevant changed files, and Git/change status or explicitly mark that portion partial.
+- Web, Mobile/PWA, and Desktop/Electron evidence must cover AgentHub state, not only the generated calculator product site.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Orchestrator does not reply first | Mark product gate failed/partial | Count worker output as Orchestrator success |
+| Frontend node/mailbox missing or waiting | Mark product gate partial | Claim full multi-agent orchestration complete |
+| Worker product artifact runs but plan summary is waiting | Product artifact pass, product gate partial | Treat product URL as full AgentHub pass |
+| Permission request is rejected for outside-workspace path | Security pass, plan may remain waiting | Weaken workspace isolation to force completion |
+| Git/file tree/code reference not verified | Mark that portion partial | Omit it from the acceptance matrix |
+| Electron OpenCLI adapter unavailable | Use Playwright Electron fallback and state why | Claim OpenCLI Electron passed without adapter |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Web sends the fixed prompt, Orchestrator replies with a plan assigning frontend/backend, both worker nodes complete, permissions are approved/rejected through real APIs, Git/file tree/code references are readable, architect summary completes, and Web/Mobile/Desktop surfaces all read back the same state.
+- Base: Permission continuation bug is fixed and the calculator runs, but frontend/summary nodes remain waiting. Report this as blocker accepted and product gate partial.
+- Bad: Run the generated calculator on `localhost`, take Web/Mobile screenshots, and claim Bytedance multi-Agent product flow complete while the AgentHub plan is still waiting.
+
+### 6. Tests Required
+
+- DB/API: query and record `workspaceId`, `sessionId`, `planId`, all `plan_nodes`, `agent_mailbox_items`, `plan_node_attempts`, `actions`, and relevant `messages`.
+- Web OpenCLI: screenshot/DOM assertions for Orchestrator plan, worker status, approval cards, file tree/code references, Git/change state, and final summary.
+- Mobile/PWA OpenCLI: same session readback includes plan/permission/action state and product artifact link/preview where applicable.
+- Desktop/Electron: runtime supervision/build smoke or app-adapter UAT; state explicitly when using fallback.
+- Product artifact: calculator API/UI passes add/sub/mul/div, divide-by-zero, invalid input/operator, and SQLite history persistence.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Calculator Web and Mobile UI passed, so fixed sample accepted.
+```
+
+#### Correct
+
+```text
+Approved-result blocker accepted. Fixed sample product artifact passed.
+Bytedance product gate remains partial: frontend plan node is waiting, architect summary is waiting, and Git/code-reference readback was not verified.
+```

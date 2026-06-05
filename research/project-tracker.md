@@ -139,6 +139,36 @@
 | **阻塞问题** | REG-20260605-002 已解除。 |
 | **下一步动作** | 已关闭；clean 后回到 `06-05-opencli-role-runtime-uat` 固定样本三端 UAT。 |
 
+### APPROVED-NATIVE-TOOL-EXECUTION-RESULT-2026-06-05: approved native tool 执行结果续接
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WS-001, FR-MOB-001, FR-DESK-001 |
+| **对应计划** | `.trellis/tasks/06-05-fix-approved-native-tool-execution-result` |
+| **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`；`.trellis/spec/backend/runtime-workspace-contract.md` |
+| **当前状态** | verified-for-blocker / product-gate-partial（2026-06-05）：approved native tool 执行结果已能注入 continuation 并被 worker/action terminal update 保留；旧 parser 产生的 `Glob (shell_command)` pending action 通过兼容路径真实批准并完成，后续新 `Glob` 已归类为 `read_file`。固定样本 workspace 已产出可运行 calculator + SQLite 网站，并通过 Web/Mobile OpenCLI 真实 UI 验收与 Electron fallback。按 Bytedance 原始 PRD/视频和用户最新固定样本验收标准，完整 Orchestrator -> 前端工程师 -> 编排执行 -> 架构师验收链路仍未完成。 |
+| **目标** | 解决“批准 native tool 后只恢复会话但没有满足原工具请求，导致同一工具或下一步权限循环/结果丢失”的 P0 blocker；确保固定样本能继续产出真实可运行网页，而不是停在审批结果未注入的状态。 |
+| **验收方式** | Real acceptance stack + OpenCLI Web/Mobile/PWA + Electron fallback；DB action/runtime/plan/mailbox rows；workspace artifact API/UI 验证；focused regression tests、type-check、lint；Bytedance 固定样本门槛反查 Orchestrator 首响、前端工程师派发、逐步编排、权限/Git/审批/文件树/代码引用。 |
+| **测试证据** | Report: `research/execution-reports/approved-native-tool-execution-result-uat-2026-06-05.md`；Artifacts: `e2e/artifacts/opencli-uat/approved-native-tool-execution-result-taskupdate-2026-06-05/`；session `bd36feef-c731-45c8-8551-b1f29fb4940c`；Orchestrator/架构师首响 PASS：message `bf47ea1a-f004-4ff6-9fcc-554807d3412a` 和 node `f708e666-66f5-4a3e-8f99-27e627bacd5b`；后端工程师 node PASS：`8a1be434-7d6f-4438-912a-7a6dd5e59186` completed；前端工程师派发 PARTIAL：node `2aebd4a0-1ca4-4b30-aa12-b8b2425d149b` / mailbox `c787275c-24c1-4a6f-b971-fadba0f85441` exists but waiting；架构师汇总 PARTIAL：node `251844da-0d35-4517-9d97-2dc132922db8` waiting；completed actions: `Read server.js`, legacy `Glob (shell_command)`, `Read public/index.html`, new `Glob (read_file)`, node check, `Write verify.mjs`；deliberately rejected outside-workspace `/tmp` destructive validation command；`DB_PATH=./calc-verify.db node verify.mjs` PASS；Web product UI `8 * 9 = 72`；Mobile product UI `12 / 3 = 4`；Mobile AgentHub readback shows 7 durable authorization records；`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/api/chat.test.ts __tests__/orchestrator/action-dispatcher.test.ts --run` PASS（69 tests）；Web/shared type-check PASS；Web lint PASS；Desktop build PASS；Electron Playwright fallback 3/3 PASS。 |
+| **阻塞问题** | 原 approved-result blocker 已解除。完整 Bytedance product gate 未过：固定样本 `前端工程师执行` 与 `架构师汇总` 仍 waiting，Git/change/code-reference 三端一体读回未在本轮闭环。最后一个 `/tmp` destructive command 被正确拒绝，这是 workspace isolation 的正确行为，不作为权限层 blocker。已补 runtime system prompt，要求临时验证脚本/DB/log/清理命令也必须留在 selected workspace root 内。 |
+| **下一步动作** | 提交/归档当前 blocker task；clean 后先进入固定样本 Bytedance product gate completion，fresh rerun/续跑证明新提示避免 `/tmp` 并完成三端 AgentHub 编排读回。未通过前不进入 P1；未开始的 P2 不启动。 |
+
+### BYTEDANCE-FIXED-SAMPLE-PRODUCT-GATE-2026-06-05: 固定样本 Bytedance 产品门槛闭环
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WS-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-UI-001 |
+| **对应计划** | 待拆 Trellis task（当前 blocker task 归档后创建） |
+| **合同路径** | `bytedance_init_prd.md`；`bytedance_init_video_txt.txt`；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
+| **当前状态** | queued（2026-06-05）：用户指定固定 prompt 为后续验收标准。必须从真实 IM 入口发送 `做一个加减乘除的简单网站，使用sqlite存储历史记录`，验证 Orchestrator 首响、前端工程师被指定并收到任务、逐步编排实现、最终架构师验收，以及权限控制、Git 控制、审批机制、文件树、代码引用和三端读回。 |
+| **目标** | 把当前“权限续接修复 + 计算器产物可运行”推进为 Bytedance 原始多 Agent 协作平台主链路完成。 |
+| **验收方式** | OpenCLI Web + Mobile/PWA；Electron 无 OpenCLI adapter 时使用 Playwright Electron fallback；真实 DB/API/session/runtime worker/CLI；不得使用 fake/script runtime 或只验证生成站点 URL。 |
+| **测试证据** | 待补。当前基线：session `bd36feef-c731-45c8-8551-b1f29fb4940c` 中 Orchestrator 首响与后端节点通过，前端节点和架构师汇总仍 waiting。 |
+| **阻塞问题** | 等待当前 Trellis task 提交/归档；后续 fresh rerun/续跑必须避免 workspace 外 `/tmp` 临时验证路径。 |
+| **下一步动作** | clean 后创建并执行 P0 Trellis task；完成前不得进入 P1 队列。 |
+
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
 | 字段 | 内容 |

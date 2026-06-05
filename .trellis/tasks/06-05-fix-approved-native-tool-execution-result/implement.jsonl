@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "Owns selected workspace cwd isolation, native CLI permission broker, approved native continuation metadata, and required tests."}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "Defines real runtime/UAT acceptance and forbids fake/script runtime completion for product flows."}
+{"file": ".trellis/spec/cross-layer/runtime-gateway-contract.md", "reason": "Defines runtime event, worker, and output protocol boundaries touched by approved continuation."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer runtime broker fix must preserve producer/consumer contracts rather than UI or prompt-only symptom repair."}

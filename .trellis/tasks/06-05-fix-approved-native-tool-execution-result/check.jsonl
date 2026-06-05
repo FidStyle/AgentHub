@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "Check native permission broker metadata, workspace validation, and approved continuation behavior."}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "Check that verification evidence uses real runtime/OpenCLI and does not fake product acceptance."}
+{"file": ".trellis/spec/cross-layer/runtime-gateway-contract.md", "reason": "Check runtime event/worker protocol consistency after the fix."}
