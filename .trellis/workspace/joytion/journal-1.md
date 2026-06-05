@@ -685,3 +685,36 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: 剩余 P1 功能收口
+
+**Date**: 2026-06-05
+**Task**: 剩余 P1 功能收口
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+完成 IM/联系人/自建 Agent、聊天式部署发布闭环、Artifact workbench P1 可交付部分；完成 Web/Mobile OpenCLI 与 Desktop Electron fallback 验收，排除 Demo 包和 3 分钟素材。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a39b6d5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

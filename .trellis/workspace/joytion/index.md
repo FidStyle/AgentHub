@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 17
+- **Total Sessions**: 18
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~687 | Active |
+| `journal-1.md` | ~720 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 18 | 2026-06-05 | 剩余 P1 功能收口 | `a39b6d5` | `AgentHub_new_claude_test` |
 | 17 | 2026-06-05 | Bytedance 固定样本 Product Gate | `7754605`, `cd446c2` | `AgentHub_new_claude_test` |
 | 16 | 2026-06-05 | 修复 approved native tool continuation | `5280a7c` | `AgentHub_new_claude_test` |
 | 15 | 2026-06-05 | 修复 runtime permission broker | `d9c4b27`, `7a5b0a2`, `7e4d3d4` | `AgentHub_new_claude_test` |
