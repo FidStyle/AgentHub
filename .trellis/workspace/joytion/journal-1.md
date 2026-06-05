@@ -47,6 +47,50 @@
 - None - task complete
 
 
+## Session 17: 修复 AskUserQuestion 原生问题事件
+
+**Date**: 2026-06-05
+**Task**: 修复 Claude native AskUserQuestion 分类与持久化
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+修复 `AskUserQuestion` 被误归类为 `shell_command` 的 P0 blocker。现在 executor 输出结构化 `question`，runtime worker 发布 durable question event 并停止等待用户补充确认，不创建 action/notification；`/api/chat` 会持久化 `runtimeParts.question`，Web 和 Mobile/PWA 可从真实 session 读回问题卡。
+
+### Main Changes
+
+- `apps/web/lib/runtime/executor.ts`：支持 direct 与 streamed `AskUserQuestion` 解析，优先识别为 `question`。
+- `apps/web/server/runtime-worker.ts`：发布 `question` runtime event，不创建 shell approval。
+- `apps/web/app/api/chat/route.ts`：runtime_failed 但带 question part 时仍持久化 agent message。
+- 补 regression tests、runtime workspace spec、execution report、regression ledger、sequential progress 和 tracker。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3a13421` | fix: 修复 AskUserQuestion 原生问题事件 |
+| `1ef7644` | chore(task): archive 06-05-fix-ask-user-question-native-tool |
+
+### Testing
+
+- [OK] `pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/api/chat.test.ts`（52 passed）
+- [OK] `pnpm --filter @agenthub/web type-check`
+- [OK] `pnpm --filter @agenthub/web lint`
+- [OK] `pnpm --filter @agenthub/shared type-check`
+- [OK] `pnpm --filter @agenthub/shared test -- src/domain/runtime-workspace.test.ts`（15 passed）
+- [OK] `pnpm --filter @agenthub/desktop build`
+- [OK] `npx playwright test --config e2e/playwright.desktop.config.ts e2e/tests/desktop/electron.spec.ts --reporter=line`（3 passed）
+- [OK] Web OpenCLI question card readback and Mobile/PWA OpenCLI question card readback recorded under `e2e/artifacts/opencli-uat/ask-user-question-native-tool-2026-06-05/`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Continue with `REG-20260605-002`: Mobile/PWA durable permission detail readback.
+
+
 ## Session 2: LOCAL-DESKTOP-OPERABILITY-001 本地工作区可操作性
 
 **Date**: 2026-05-31

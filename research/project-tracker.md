@@ -115,14 +115,14 @@
 |------|------|
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-MOB-001 |
-| **对应计划** | `.trellis/tasks/06-05-fix-ask-user-question-native-tool` |
+| **对应计划** | `.trellis/tasks/archive/2026-06/06-05-fix-ask-user-question-native-tool` |
 | **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`；`.trellis/spec/backend/runtime-workspace-contract.md` |
-| **当前状态** | verified（2026-06-05）：已修复 Claude native `AskUserQuestion` 被归类成 `shell_command` 的 P0 blocker。executor 在 direct 与 streamed `input_json_delta` 模式下优先识别 `AskUserQuestion`，产出 `question` chunk；runtime worker 发布 `question` event 并 fail closed 等待用户补充确认，不创建 `actions` 或 notifications；`/api/chat` 即使 runtime_failed 也会持久化 `runtimeParts.question`，Web/Mobile 可从真实 session/message 路径读回。 |
+| **当前状态** | closed（2026-06-05）：已修复 Claude native `AskUserQuestion` 被归类成 `shell_command` 的 P0 blocker，并归档 Trellis task。executor 在 direct 与 streamed `input_json_delta` 模式下优先识别 `AskUserQuestion`，产出 `question` chunk；runtime worker 发布 `question` event 并 fail closed 等待用户补充确认，不创建 `actions` 或 notifications；`/api/chat` 即使 runtime_failed 也会持久化 `runtimeParts.question`，Web/Mobile 可从真实 session/message 路径读回。 |
 | **目标** | `AskUserQuestion` 必须是用户问题/选择题型 runtime part，不得伪装为 shell approval；真实 UAT 中 Web/Mobile 都能读回问题卡，DB/API 不产生 `AskUserQuestion (shell_command)` action。 |
 | **验收方式** | Web runtime parser/worker/chat persistence regression tests + real acceptance stack OpenCLI Web/Mobile readback + Electron fallback smoke。 |
-| **测试证据** | Report: `research/execution-reports/ask-user-question-native-tool-uat-2026-06-05.md`；Artifacts: `e2e/artifacts/opencli-uat/ask-user-question-native-tool-2026-06-05/`；real-user session `02ebaf71-fcef-4b5f-bec6-e334bad137db`；SSE `hasQuestion=true`、`hasApproval=false`、`questionId=tooluse_EEqwBGTYilRNQOUUIw706G`；Web OpenCLI `questionCards=1`；Mobile/PWA OpenCLI `questionCards=1`；DB/API 无 `AskUserQuestion` action，agent message `metadata.runtimeParts[0].type=question`；`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/api/chat.test.ts` PASS（52 tests）；Web type-check/lint PASS；Shared type-check PASS；Shared `runtime-workspace.test.ts` PASS（15 tests）；Desktop build PASS；Electron Playwright fallback PASS（3/3）。 |
+| **测试证据** | Report: `research/execution-reports/ask-user-question-native-tool-uat-2026-06-05.md`；Artifacts: `e2e/artifacts/opencli-uat/ask-user-question-native-tool-2026-06-05/`；real-user session `02ebaf71-fcef-4b5f-bec6-e334bad137db`；SSE `hasQuestion=true`、`hasApproval=false`、`questionId=tooluse_EEqwBGTYilRNQOUUIw706G`；Web OpenCLI `questionCards=1`；Mobile/PWA OpenCLI `questionCards=1`；DB/API 无 `AskUserQuestion` action，agent message `metadata.runtimeParts[0].type=question`；`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/api/chat.test.ts` PASS（52 tests）；Web type-check/lint PASS；Shared type-check PASS；Shared `runtime-workspace.test.ts` PASS（15 tests）；Desktop build PASS；Electron Playwright fallback PASS（3/3）；work commit `3a13421`；archive commit `1ef7644`。 |
 | **阻塞问题** | REG-20260605-001 已解除；REG-20260605-002 Mobile/PWA durable permission detail readback 仍为 P0 open。 |
-| **下一步动作** | 提交并关闭当前 Trellis task；clean 后创建 `06-05-fix-mobile-permission-readback`。 |
+| **下一步动作** | 已关闭；clean 后创建 `06-05-fix-mobile-permission-readback`。 |
 
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
