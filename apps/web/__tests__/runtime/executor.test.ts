@@ -58,6 +58,7 @@ beforeEach(() => {
   delete process.env.RUNTIME_EXECUTOR
   delete process.env.RUNTIME_CLI
   delete process.env.AGENTHUB_ALLOW_TEST_EXECUTOR
+  delete process.env.RUNTIME_JOB_TIMEOUT_MS
 })
 
 describe('CliRuntimeExecutor — executor_unavailable', () => {
@@ -87,10 +88,22 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       'exec',
       '--json',
       '-s',
-      'read-only',
+      'workspace-write',
       '--skip-git-repo-check',
       '--color',
       'never',
+      'hello',
+    ])
+    expect(cliArgs('codex', 'hello', null, '/workspace')).toEqual([
+      'exec',
+      '--json',
+      '-s',
+      'workspace-write',
+      '--skip-git-repo-check',
+      '--color',
+      'never',
+      '-C',
+      '/workspace',
       'hello',
     ])
     expect(cliArgs('codex', 'hello again', 'thread-123')).toEqual([
@@ -191,6 +204,65 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
     expect(chunks[0].question?.content).toContain('SQLite：使用本地 SQLite 数据库')
   })
 
+  it('ignores Claude TaskUpdate progress tools instead of requesting shell approval', () => {
+    const chunks = outputChunks('claude_code', JSON.stringify({
+      type: 'content_block_start',
+      content_block: {
+        type: 'tool_use',
+        id: 'toolu-task-update-1',
+        name: 'TaskUpdate',
+        input: { taskId: '1', status: 'in_progress' },
+      },
+    }))
+
+    expect(chunks).toEqual([])
+  })
+
+  it('ignores Claude internal orchestration tools instead of requesting shell approval', () => {
+    const parser = new CliOutputParser('claude_code')
+    const lines = [
+      {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'toolu-agent-1',
+          name: 'Agent',
+          input: {
+            description: '后端：Express + SQLite API',
+            prompt: '请实现后端 API。',
+            subagent_type: 'general-purpose',
+          },
+        },
+      },
+      {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'toolu-task-create-1',
+          name: 'TaskCreate',
+          input: {
+            subject: '初始化 package.json 与依赖',
+            activeForm: '初始化项目配置',
+            description: '创建 package.json，声明 express、better-sqlite3 依赖与启动脚本',
+          },
+        },
+      },
+      {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'toolu-todo-1',
+          name: 'TodoWrite',
+          input: { todos: [{ content: '实现 API', status: 'in_progress' }] },
+        },
+      },
+    ]
+
+    const chunks = lines.flatMap((line) => parser.parseLine(JSON.stringify(line)))
+
+    expect(chunks).toEqual([])
+  })
+
   it('buffers Claude streamed tool input JSON before emitting a Read approval request', () => {
     const parser = new CliOutputParser('claude_code')
     const lines = [
@@ -282,6 +354,30 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
           actionKind: 'install_dependency',
           commandPreview: 'pnpm install',
           cwd: '/workspace',
+        }),
+      },
+    ])
+  })
+
+  it('classifies Claude Glob as read_file instead of shell_command', () => {
+    const chunks = outputChunks('claude_code', JSON.stringify({
+      type: 'content_block_start',
+      content_block: {
+        type: 'tool_use',
+        id: 'toolu-glob-1',
+        name: 'Glob',
+        input: { pattern: 'public/**/*' },
+      },
+    }))
+
+    expect(chunks).toEqual([
+      {
+        toolRequest: expect.objectContaining({
+          id: 'toolu-glob-1',
+          toolName: 'Glob',
+          actionKind: 'read_file',
+          input: { pattern: 'public/**/*' },
+          targetPaths: [],
         }),
       },
     ])
@@ -495,6 +591,46 @@ describe('processJob — FakeExecutor regression', () => {
     expect(String(failed!.event.error)).toContain('not found')
   })
 
+  it('fails and closes the executor when a runtime job exceeds the hard timeout', async () => {
+    vi.useFakeTimers()
+    process.env.RUNTIME_JOB_TIMEOUT_MS = '25'
+    let returned = false
+    const hanging: RuntimeExecutor = {
+      execute() {
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next: () => new Promise<IteratorResult<never>>(() => {}),
+              return: async () => {
+                returned = true
+                return { done: true, value: undefined }
+              },
+            }
+          },
+        }
+      },
+    }
+    const run = processJob({ runtimeSessionId: 's-timeout', prompt: 'hang' }, hanging)
+
+    await vi.advanceTimersByTimeAsync(25)
+    const result = await run
+
+    expect(result).toBe('failed')
+    expect(returned).toBe(true)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_failed',
+          error: 'Runtime 执行超时，已终止。',
+        }),
+      }),
+    ]))
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'failed' }),
+    ]))
+    vi.useRealTimers()
+  })
+
   it('turns native CLI tool requests into pending approval events and stops before execution', async () => {
     const executor: RuntimeExecutor = {
       async *execute() {
@@ -518,6 +654,8 @@ describe('processJob — FakeExecutor regression', () => {
       cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
       prompt: 'install deps',
       planNodeId: 'node-runtime-001',
+      attemptId: 'attempt-runtime-approval',
+      mailboxItemId: 'mailbox-runtime-approval',
     }
 
     const result = await processJob(job, executor)
@@ -561,6 +699,19 @@ describe('processJob — FakeExecutor regression', () => {
       }),
     ]))
     expect(published.some((p) => p.event.type === 'runtime_output')).toBe(false)
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'waiting', runtime_session_id: 'runtime-tool-approval', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({ status: 'waiting', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({
+        status: 'waiting',
+        completed_at: null,
+        result: expect.objectContaining({
+          terminal: 'failed',
+          runtimeSessionId: 'runtime-tool-approval',
+          error: 'Runtime 工具已进入权限审批，未执行该操作。',
+        }),
+      }),
+    ]))
   })
 
   it('persists Claude Read approvals with native tool metadata instead of shell_command cwd fallback', async () => {
@@ -809,6 +960,352 @@ describe('processJob — FakeExecutor regression', () => {
     ]))
   })
 
+  it('consumes one repeated approved native tool request without creating another pending action', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          toolRequest: {
+            id: 'tool-write-approved',
+            toolName: 'Write',
+            actionKind: 'write_file',
+            cwd: workspaceRoot,
+            targetPaths: [`${workspaceRoot}/server.js`],
+            input: { file_path: `${workspaceRoot}/server.js`, content: 'console.log("ok")\n' },
+          },
+        }
+        yield { delta: 'continued after approved write' }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved-repeat',
+      prompt: 'approved write continuation',
+      actionId: 'action-write-approved',
+      planNodeId: 'node-write-approved',
+      attemptId: 'attempt-write-approved',
+      mailboxItemId: 'mailbox-write-approved',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      actionResult: {
+        source: 'runtime_permission_broker',
+        toolCallId: 'tool-write-approved',
+        toolName: 'Write',
+        actionKind: 'write_file',
+        targetPaths: [`${workspaceRoot}/server.js`],
+        dispatch: 'queued',
+      },
+      approvedNativeTool: {
+        toolCallId: 'tool-write-approved',
+        toolName: 'Write',
+        actionKind: 'write_file',
+        targetPaths: [`${workspaceRoot}/server.js`],
+        executed: true,
+        output: `Wrote 18 bytes to ${workspaceRoot}/server.js`,
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('completed')
+    expect(dbInserts.some((insert) => insert.table === 'actions')).toBe(false)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'approved_tool_result_consumed',
+          toolName: 'Write',
+          toolCallId: 'tool-write-approved',
+          actionKind: 'write_file',
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_output',
+          delta: 'continued after approved write',
+        }),
+      }),
+    ]))
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        status: 'completed',
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          toolName: 'Write',
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved-repeat',
+        }),
+      }),
+    ]))
+  })
+
+  it('keeps the approved action completed when continuation reaches a different next permission', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          toolRequest: {
+            id: 'tool-read-next',
+            toolName: 'Read',
+            actionKind: 'read_file',
+            cwd: workspaceRoot,
+            targetPaths: [`${workspaceRoot}/README.md`],
+            input: { file_path: `${workspaceRoot}/README.md` },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved-next-permission',
+      prompt: 'approved write then next read',
+      actionId: 'action-write-approved',
+      planNodeId: 'node-write-approved',
+      attemptId: 'attempt-write-approved',
+      mailboxItemId: 'mailbox-write-approved',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      actionResult: {
+        source: 'runtime_permission_broker',
+        toolCallId: 'tool-write-approved',
+        toolName: 'Write',
+        actionKind: 'write_file',
+        targetPaths: [`${workspaceRoot}/server.js`],
+        dispatch: 'queued',
+      },
+      approvedNativeTool: {
+        toolCallId: 'tool-write-approved',
+        toolName: 'Write',
+        actionKind: 'write_file',
+        targetPaths: [`${workspaceRoot}/server.js`],
+        executed: true,
+        output: `Wrote 18 bytes to ${workspaceRoot}/server.js`,
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        row: expect.objectContaining({
+          action_type: 'read_file',
+          command: `Read: ${workspaceRoot}/README.md`,
+          status: 'pending',
+          result: expect.objectContaining({
+            toolCallId: 'tool-read-next',
+            toolName: 'Read',
+            targetPaths: [`${workspaceRoot}/README.md`],
+          }),
+        }),
+      }),
+    ]))
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'waiting', runtime_session_id: 'runtime-approved-next-permission', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({ status: 'waiting', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({
+        status: 'completed',
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          toolName: 'Write',
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved-next-permission',
+        }),
+      }),
+      expect.objectContaining({
+        status: 'waiting',
+        completed_at: null,
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved-next-permission',
+        }),
+      }),
+    ]))
+    const completedActionUpdate = dbUpdates.find((update) => update.status === 'completed' && typeof update.result === 'object')
+    expect(completedActionUpdate?.result).toEqual(expect.not.objectContaining({
+      error: 'Runtime 工具已进入权限审批，未执行该操作。',
+    }))
+  })
+
+  it('keeps an approved broker shell action completed when it reaches the next permission after useful output', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield { delta: '工作区状态已确认，继续落地前端文件。' }
+        yield {
+          toolRequest: {
+            id: 'tool-write-next',
+            toolName: 'Write',
+            actionKind: 'write_file',
+            cwd: workspaceRoot,
+            targetPaths: [`${workspaceRoot}/public/index.html`],
+            input: { file_path: `${workspaceRoot}/public/index.html`, content: '<!doctype html>\n' },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved-shell-next-permission',
+      prompt: 'approved shell then next write',
+      actionId: 'action-shell-approved',
+      planNodeId: 'node-shell-approved',
+      attemptId: 'attempt-shell-approved',
+      mailboxItemId: 'mailbox-shell-approved',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      actionResult: {
+        source: 'runtime_permission_broker',
+        toolCallId: 'tool-shell-approved',
+        toolName: 'Bash',
+        actionKind: 'shell_command',
+        commandPreview: 'ls -la',
+        dispatch: 'queued',
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        row: expect.objectContaining({
+          action_type: 'write_file',
+          command: `Write: ${workspaceRoot}/public/index.html`,
+          status: 'pending',
+          result: expect.objectContaining({
+            toolCallId: 'tool-write-next',
+            toolName: 'Write',
+            targetPaths: [`${workspaceRoot}/public/index.html`],
+          }),
+        }),
+      }),
+    ]))
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'waiting', runtime_session_id: 'runtime-approved-shell-next-permission', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({ status: 'waiting', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({
+        status: 'completed',
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          toolName: 'Bash',
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved-shell-next-permission',
+          output: '工作区状态已确认，继续落地前端文件。',
+        }),
+      }),
+      expect.objectContaining({
+        status: 'waiting',
+        completed_at: null,
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved-shell-next-permission',
+        }),
+      }),
+    ]))
+    const completedActionUpdate = dbUpdates.find((update) => update.status === 'completed' && typeof update.result === 'object')
+    expect(completedActionUpdate?.result).toEqual(expect.not.objectContaining({
+      error: 'Runtime 工具已进入权限审批，未执行该操作。',
+    }))
+  })
+
+  it('keeps an approved native-tool continuation waiting when it reaches a user-question boundary', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          question: {
+            id: 'tool-question-after-approved-read',
+            toolName: 'AskUserQuestion',
+            questionId: 'tool-question-after-approved-read',
+            title: '技术路线确认',
+            content: '请选择是否继续使用 SQLite',
+            input: { questions: [{ header: '技术路线确认', question: '请选择是否继续使用 SQLite' }] },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved-question-boundary',
+      prompt: 'continue after approved Read',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      actionId: 'action-approved-read',
+      planNodeId: 'node-approved-read',
+      attemptId: 'attempt-approved-read',
+      mailboxItemId: 'mailbox-approved-read',
+      actionResult: {
+        source: 'runtime_permission_broker',
+        toolName: 'Read',
+        actionKind: 'read_file',
+        dispatch: 'queued',
+      },
+      approvedNativeTool: {
+        toolCallId: 'tool-read-approved',
+        toolName: 'Read',
+        actionKind: 'read_file',
+        targetPaths: [`${workspaceRoot}/README.md`],
+        executed: true,
+        output: `Read ${workspaceRoot}/README.md\n\n# test2`,
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts.some((insert) => insert.table === 'actions')).toBe(false)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'question',
+          questionId: 'tool-question-after-approved-read',
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_failed',
+          error: 'Runtime 等待用户补充确认，未继续执行。',
+        }),
+      }),
+    ]))
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'waiting', runtime_session_id: 'runtime-approved-question-boundary', error: 'Runtime 等待用户补充确认，未继续执行。' }),
+      expect.objectContaining({ status: 'waiting', error: 'Runtime 等待用户补充确认，未继续执行。' }),
+      expect.objectContaining({
+        status: 'completed',
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          toolName: 'Read',
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved-question-boundary',
+        }),
+      }),
+      expect.objectContaining({
+        status: 'waiting',
+        completed_at: null,
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved-question-boundary',
+        }),
+      }),
+    ]))
+    const completedActionUpdate = dbUpdates.find((update) => update.status === 'completed' && typeof update.result === 'object')
+    expect(completedActionUpdate?.result).toEqual(expect.not.objectContaining({
+      error: 'Runtime 等待用户补充确认，未继续执行。',
+    }))
+  })
+
   it('updates a runtime_invoke plan node even when no action row exists', async () => {
     const job: RuntimeJob = {
       runtimeSessionId: 's-node',
@@ -875,7 +1372,14 @@ describe('processJob — FakeExecutor regression', () => {
     planNodeRows = [
       { id: 'node-a', plan_id: 'plan-001', label: 'A', status: 'completed', depends_on: [] },
       { id: 'node-b', plan_id: 'plan-001', label: 'B', status: 'completed', depends_on: [] },
-      { id: 'node-c', plan_id: 'plan-001', label: 'C', status: 'waiting', depends_on: ['node-a', 'node-b'] },
+      {
+        id: 'node-c',
+        plan_id: 'plan-001',
+        label: 'C',
+        status: 'waiting',
+        depends_on: ['node-a', 'node-b'],
+        result: { scheduler: 'waiting', reason: 'dependencies still waiting' },
+      },
     ]
     const job: RuntimeJob = {
       runtimeSessionId: 's-fanin',

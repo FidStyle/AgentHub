@@ -12,7 +12,7 @@ export interface DagValidationIssue {
 export interface PlanNodeTransition {
   nodeId: string
   from: PlanNodeStatus
-  to: 'ready' | 'blocked'
+  to: 'ready' | 'blocked' | 'waiting'
   reason?: string
 }
 
@@ -28,6 +28,36 @@ const FAILED_DEPENDENCY_STATUSES = new Set<PlanNodeStatus>(['failed', 'cancelled
 const ADVANCEABLE_STATUSES = new Set<PlanNodeStatus>(['pending', 'waiting', 'blocked'])
 const TERMINAL_STATUSES = new Set<PlanNodeStatus>(['completed', 'failed', 'skipped', 'cancelled', 'blocked'])
 const FAILED_PLAN_STATUSES = new Set<PlanNodeStatus>(['failed', 'cancelled', 'blocked'])
+
+function resultError(node: PlanNode): string | null {
+  const error = node.result?.error
+  return typeof error === 'string' ? error : null
+}
+
+function resultString(node: PlanNode, key: string): string | null {
+  const value = node.result?.[key]
+  return typeof value === 'string' ? value : null
+}
+
+function isDependencyWaitingNode(node: PlanNode): boolean {
+  if (node.status !== 'waiting') return false
+  if (resultString(node, 'scheduler') !== 'waiting') return false
+  const reason = resultString(node, 'reason') ?? ''
+  return reason.includes('dependencies') || reason.includes('上游角色等待')
+}
+
+function isRecoverableUnrunFailure(node: PlanNode): boolean {
+  return node.status === 'failed' && !node.started_at && (resultError(node)?.includes('节点未运行') ?? false)
+}
+
+function canBlockFromDependency(node: PlanNode): boolean {
+  return ADVANCEABLE_STATUSES.has(node.status) || isRecoverableUnrunFailure(node)
+}
+
+function canBecomeReady(node: PlanNode): boolean {
+  if (node.status === 'waiting') return isDependencyWaitingNode(node)
+  return ADVANCEABLE_STATUSES.has(node.status) || isRecoverableUnrunFailure(node)
+}
 
 /**
  * DAG Scheduler: determines which nodes are ready to execute.
@@ -135,7 +165,7 @@ export function evaluatePlanProgress(nodes: PlanNode[]): PlanProgressEvaluation 
   if (validationIssues.length > 0) {
     const reason = `invalid DAG: ${validationIssues.map((issue) => issue.message).join('; ')}`
     for (const node of nodes) {
-      if (ADVANCEABLE_STATUSES.has(node.status) || node.status === 'ready') {
+      if (canBlockFromDependency(node) || node.status === 'ready') {
         transitions.push({ nodeId: node.id, from: node.status, to: 'blocked', reason })
       }
     }
@@ -150,10 +180,12 @@ export function evaluatePlanProgress(nodes: PlanNode[]): PlanProgressEvaluation 
   const byId = new Map(nodes.map((node) => [node.id, node]))
 
   for (const node of nodes) {
-    if (!ADVANCEABLE_STATUSES.has(node.status)) continue
+    if (!canBlockFromDependency(node)) continue
 
     const dependencies = node.depends_on.map((dependencyId) => byId.get(dependencyId)).filter((item): item is PlanNode => Boolean(item))
-    const failedDependency = dependencies.find((dependency) => FAILED_DEPENDENCY_STATUSES.has(dependency.status))
+    const failedDependency = dependencies.find((dependency) => (
+      FAILED_DEPENDENCY_STATUSES.has(dependency.status) && !isRecoverableUnrunFailure(dependency)
+    ))
     if (failedDependency) {
       transitions.push({
         nodeId: node.id,
@@ -164,8 +196,15 @@ export function evaluatePlanProgress(nodes: PlanNode[]): PlanProgressEvaluation 
       continue
     }
 
-    if (dependencies.every((dependency) => SUCCESS_DEPENDENCY_STATUSES.has(dependency.status))) {
+    if (canBecomeReady(node) && dependencies.every((dependency) => SUCCESS_DEPENDENCY_STATUSES.has(dependency.status))) {
       transitions.push({ nodeId: node.id, from: node.status, to: 'ready' })
+    } else if (isRecoverableUnrunFailure(node)) {
+      transitions.push({
+        nodeId: node.id,
+        from: node.status,
+        to: 'waiting',
+        reason: 'dependencies still waiting',
+      })
     }
   }
 

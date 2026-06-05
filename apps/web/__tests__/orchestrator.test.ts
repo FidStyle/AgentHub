@@ -65,10 +65,31 @@ describe('DAG Scheduler', () => {
     const ready = evaluatePlanProgress([
       makeNode('a', 'completed'),
       makeNode('b', 'completed'),
-      makeNode('c', 'waiting', ['a', 'b']),
+      {
+        ...makeNode('c', 'waiting', ['a', 'b']),
+        result: { scheduler: 'waiting', reason: 'dependencies still waiting' },
+      },
     ])
     expect(ready.readyNodeIds).toEqual(['c'])
     expect(ready.transitions).toContainEqual(expect.objectContaining({ nodeId: 'c', from: 'waiting', to: 'ready' }))
+  })
+
+  it('does not auto-ready a node waiting on a runtime permission boundary', () => {
+    const result = evaluatePlanProgress([
+      makeNode('planner', 'completed'),
+      makeNode('backend', 'completed', ['planner']),
+      {
+        ...makeNode('frontend', 'waiting', ['planner', 'backend']),
+        result: {
+          terminal: 'failed',
+          error: 'Runtime 工具已进入权限审批，未执行该操作。',
+          runtimeSessionId: 'runtime-front-permission',
+        },
+      },
+    ])
+
+    expect(result.readyNodeIds).toEqual([])
+    expect(result.transitions).toEqual([])
   })
 
   it('blocks downstream nodes when an upstream dependency fails or is cancelled', () => {
@@ -84,6 +105,43 @@ describe('DAG Scheduler', () => {
       expect.objectContaining({ nodeId: 'b', to: 'blocked', reason: expect.stringContaining('a') }),
       expect.objectContaining({ nodeId: 'd', to: 'blocked', reason: expect.stringContaining('c') }),
     ]))
+  })
+
+  it('recovers unrun downstream failures after the upstream approval continuation completes', () => {
+    const result = evaluatePlanProgress([
+      makeNode('planner', 'completed'),
+      {
+        ...makeNode('backend', 'failed', ['planner']),
+        started_at: undefined,
+        result: { error: '上游角色执行失败，节点未运行' },
+      },
+      {
+        ...makeNode('frontend', 'failed', ['planner', 'backend']),
+        started_at: undefined,
+        result: { error: '上游角色执行失败，节点未运行' },
+      },
+    ])
+
+    expect(result.readyNodeIds).toEqual(['backend'])
+    expect(result.blockedNodeIds).toEqual([])
+    expect(result.transitions).toEqual([
+      expect.objectContaining({ nodeId: 'backend', from: 'failed', to: 'ready' }),
+      expect.objectContaining({ nodeId: 'frontend', from: 'failed', to: 'waiting' }),
+    ])
+  })
+
+  it('does not recover a node that actually started and failed', () => {
+    const result = evaluatePlanProgress([
+      makeNode('planner', 'completed'),
+      {
+        ...makeNode('backend', 'failed', ['planner']),
+        started_at: '2026-06-05T00:00:00.000Z',
+        result: { error: 'runtime crashed' },
+      },
+    ])
+
+    expect(result.readyNodeIds).toEqual([])
+    expect(result.transitions).toEqual([])
   })
 
   it('blocks runnable nodes when the DAG is invalid instead of dispatching malformed work', () => {

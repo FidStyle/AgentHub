@@ -70,6 +70,14 @@ export async function advancePlanProgress(db: AppDbClient, input: {
     if (transition.to === 'blocked') {
       patch.completed_at = now
       patch.result = { scheduler: 'blocked', reason: transition.reason ?? 'dependency blocked', at: now }
+    } else if (transition.to === 'waiting') {
+      patch.started_at = null
+      patch.completed_at = null
+      patch.result = { scheduler: 'waiting', reason: transition.reason ?? 'dependencies waiting', at: now }
+    } else if (transition.to === 'ready') {
+      patch.started_at = null
+      patch.completed_at = null
+      patch.result = { scheduler: 'ready', reason: transition.reason ?? 'dependencies completed', at: now }
     }
     await db.from('plan_nodes').update(patch).eq('id', transition.nodeId)
     updatedStatuses.set(transition.nodeId, transition.to)
@@ -85,6 +93,7 @@ export async function advancePlanProgress(db: AppDbClient, input: {
 
   const statuses = Array.from(updatedStatuses.values())
   if (statuses.some((status) => ACTIVE_STATUSES.has(status))) {
+    await db.from('plans').update({ status: 'running', updated_at: now }).eq('id', planId)
     return { planId, transitions: evaluation.transitions, queuedMailboxItemIds, planStatus: null }
   }
 

@@ -1,7 +1,9 @@
 import { createClient } from '../lib/app-db-client'
 import { advancePlanProgress } from '../lib/orchestrator/plan-progress'
+import { dispatchReadyMailboxItems } from '../lib/orchestrator/mailbox-control'
 import {
   CliRuntimeExecutor,
+  type ExecutorChunk,
   FakeExecutor,
   ScriptedRealExecutor,
   type CliRuntimeType,
@@ -15,6 +17,9 @@ import { evaluateNativeCliToolPermission, type NativeCliToolCall } from '@agenth
 
 const HEARTBEAT_TTL_SEC = Number(process.env.RUNTIME_HEARTBEAT_TTL_SEC ?? 30)
 const HEARTBEAT_EVENT_INTERVAL_MS = Number(process.env.RUNTIME_HEARTBEAT_EVENT_INTERVAL_MS ?? 15_000)
+const WORKER_PRESENCE_TTL_SEC = Number(process.env.RUNTIME_WORKER_PRESENCE_TTL_SEC ?? 15)
+const WORKER_PRESENCE_INTERVAL_MS = Math.max(1_000, Math.floor((WORKER_PRESENCE_TTL_SEC * 1_000) / 3))
+const DEFAULT_RUNTIME_JOB_TIMEOUT_MS = 15 * 60_000
 
 function runtimeTypeForJob(job?: RuntimeJob): CliRuntimeType {
   if (job?.runtimeType === 'codex' || job?.runtimeType === 'claude_code') return job.runtimeType
@@ -41,6 +46,8 @@ export function createExecutor(job?: RuntimeJob): RuntimeExecutor {
 }
 
 type Terminal = 'completed' | 'cancelled' | 'failed'
+type PlanNodeTerminalStatus = 'completed' | 'failed' | 'waiting'
+type AttemptStatus = ReturnType<typeof terminalToMailboxStatus> | 'waiting'
 
 async function setStatus(runtimeSessionId: string, status: string, terminal = false): Promise<void> {
   if (!runtimeSessionId) return
@@ -97,15 +104,89 @@ async function markActionRunning(job: RuntimeJob): Promise<void> {
   }
 }
 
-async function settleParentPlan(db: Awaited<ReturnType<typeof createClient>>, planNodeId?: string): Promise<void> {
+async function settleParentPlan(db: Awaited<ReturnType<typeof createClient>>, job: RuntimeJob): Promise<void> {
+  const planNodeId = job.planNodeId
   if (!planNodeId) return
-  await advancePlanProgress(db, { planNodeId })
+  if (job.suppressPlanProgress) return
+  const progress = await advancePlanProgress(db, { planNodeId })
+  if (progress.queuedMailboxItemIds.length > 0 && job.sessionId && job.ownerId) {
+    await dispatchReadyMailboxItems({
+      db,
+      sessionId: job.sessionId,
+      userId: job.ownerId,
+    })
+  }
 }
 
 function terminalToMailboxStatus(terminal: Terminal) {
   if (terminal === 'completed') return 'completed'
   if (terminal === 'cancelled') return 'cancelled'
   return 'failed'
+}
+
+function isApprovalBoundaryError(error: string): boolean {
+  return error === 'Runtime 工具已进入权限审批，未执行该操作。'
+}
+
+function isQuestionBoundaryError(error: string): boolean {
+  return error === 'Runtime 等待用户补充确认，未继续执行。'
+}
+
+function isRuntimePermissionBrokerAction(job: RuntimeJob): boolean {
+  const result = job.actionResult
+  return Boolean(
+    job.actionId
+      && result
+      && typeof result === 'object'
+      && !Array.isArray(result)
+      && (result as Record<string, unknown>).source === 'runtime_permission_broker',
+  )
+}
+
+function shouldCompleteApprovedActionAtBoundary(job: RuntimeJob, error: string, output: string): boolean {
+  if (job.approvedNativeTool?.executed && (isApprovalBoundaryError(error) || isQuestionBoundaryError(error))) return true
+  if (!isRuntimePermissionBrokerAction(job)) return false
+  if (!isApprovalBoundaryError(error) && !isQuestionBoundaryError(error)) return false
+  return output.trim().length > 0
+}
+
+function runtimeJobTimeoutMs(): number {
+  const value = Number(process.env.RUNTIME_JOB_TIMEOUT_MS ?? DEFAULT_RUNTIME_JOB_TIMEOUT_MS)
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_RUNTIME_JOB_TIMEOUT_MS
+}
+
+async function nextRuntimeChunk(iterator: AsyncIterator<ExecutorChunk>, deadlineAt: number) {
+  const remainingMs = deadlineAt - Date.now()
+  if (remainingMs <= 0) {
+    await iterator.return?.()
+    throw new Error('Runtime 执行超时，已终止。')
+  }
+
+  let timer: ReturnType<typeof setTimeout> | null = null
+  try {
+    return await Promise.race([
+      iterator.next(),
+      new Promise<IteratorResult<ExecutorChunk>>((_, reject) => {
+        timer = setTimeout(() => {
+          void iterator.return?.().catch(() => {})
+          reject(new Error('Runtime 执行超时，已终止。'))
+        }, remainingMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+function sameApprovedNativeToolRequest(job: RuntimeJob, tool: NativeCliToolRequest): boolean {
+  const approved = job.approvedNativeTool
+  if (!approved?.executed) return false
+  if (approved.toolCallId && tool.id && approved.toolCallId === tool.id) return true
+  if (approved.toolName !== tool.toolName || approved.actionKind !== tool.actionKind) return false
+  const approvedTargets = new Set((approved.targetPaths ?? []).filter(Boolean))
+  const requestedTargets = (tool.targetPaths ?? []).filter(Boolean)
+  if (approvedTargets.size === 0 && requestedTargets.length === 0) return true
+  return requestedTargets.some((target) => approvedTargets.has(target))
 }
 
 function toolRequestDescription(tool: NativeCliToolRequest, workspaceRoot: string) {
@@ -204,45 +285,66 @@ async function createPermissionAction(job: RuntimeJob, tool: NativeCliToolReques
   return actionId
 }
 
-async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = '', error?: string): Promise<void> {
+async function markActionTerminal(
+  job: RuntimeJob,
+  terminal: Terminal,
+  output = '',
+  error?: string,
+  options: {
+    actionTerminal?: Terminal
+    actionError?: string | null
+    planNodeStatus?: PlanNodeTerminalStatus
+    attemptStatus?: AttemptStatus
+    attemptError?: string | null
+  } = {},
+): Promise<void> {
   const db = await createClient()
   const now = new Date().toISOString()
-  const status = terminal === 'completed' ? 'completed' : 'failed'
+  const actionTerminal = options.actionTerminal ?? terminal
+  const actionStatus = actionTerminal === 'completed' ? 'completed' : 'failed'
+  const resultError = options.actionError === null ? undefined : options.actionError ?? error
   const result = {
     ...(job.actionResult ?? {}),
-    terminal,
+    terminal: actionTerminal,
     runtimeSessionId: job.runtimeSessionId,
     output: output.slice(-20_000),
-    error,
+    error: resultError,
     at: now,
   }
-  const mailboxStatus = terminalToMailboxStatus(terminal)
+  const mailboxStatus = options.attemptStatus ?? terminalToMailboxStatus(terminal)
+  const attemptError = options.attemptError === null ? null : options.attemptError ?? error ?? null
   if (job.attemptId) {
     await db.from('plan_node_attempts').update({
       status: mailboxStatus,
       runtime_session_id: job.runtimeSessionId,
-      error: error ?? null,
+      error: attemptError,
       updated_at: now,
     }).eq('id', job.attemptId)
   }
   if (job.mailboxItemId) {
     await db.from('agent_mailbox_items').update({
       status: mailboxStatus,
-      error: error ?? null,
+      error: attemptError,
       updated_at: now,
     }).eq('id', job.mailboxItemId)
   }
   if (job.actionId) {
-    await db.from('actions').update({ status, result }).eq('id', job.actionId)
+    await db.from('actions').update({ status: actionStatus, result }).eq('id', job.actionId)
   }
   if (job.planNodeId) {
-    await db.from('plan_nodes').update({
-      status: status === 'completed' ? 'completed' : 'failed',
-      completed_at: now,
+    const planNodeStatus = options.planNodeStatus ?? (terminal === 'completed' ? 'completed' : 'failed')
+    const planNodePatch: Record<string, unknown> = {
+      status: planNodeStatus,
       result,
-    }).eq('id', job.planNodeId)
+    }
+    if (planNodeStatus === 'waiting') {
+      planNodePatch.completed_at = null
+    } else {
+      planNodePatch.completed_at = now
+    }
+    await db.from('plan_nodes').update(planNodePatch).eq('id', job.planNodeId)
   }
-  await settleParentPlan(db, job.planNodeId)
+  await settleParentPlan(db, job)
 }
 
 // Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.
@@ -265,6 +367,8 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     await setHeartbeat(id, HEARTBEAT_TTL_SEC)
     await emit({ type: 'runtime_status', status: 'running', endpointId: job.endpointId })
   }
+  let suppressedApprovedToolRequest = false
+  const deadlineAt = Date.now() + runtimeJobTimeoutMs()
 
   await setStatus(id, 'running')
   await markActionRunning(job)
@@ -280,7 +384,11 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     // Prepend the role's system prompt (when present) so the executor runs with the role persona.
     // Absent systemPrompt keeps the prompt unchanged — no behaviour change for existing jobs.
     const prompt = job.systemPrompt ? `${job.systemPrompt}\n\n${job.prompt}` : job.prompt
-    for await (const chunk of executor.execute({ prompt, fail: job.fail, nativeSessionId: job.nativeSessionId })) {
+    const iterator = executor.execute({ prompt, fail: job.fail, nativeSessionId: job.nativeSessionId })[Symbol.asyncIterator]()
+    while (true) {
+      const next = await nextRuntimeChunk(iterator, deadlineAt)
+      if (next.done) break
+      const chunk = next.value
       if (await isCancelled(id)) {
         clearInterval(heartbeatInterval)
         await setStatus(id, 'cancelled', true)
@@ -299,6 +407,17 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         throw new Error('Runtime 等待用户补充确认，未继续执行。')
       }
       if (chunk.toolRequest) {
+        if (!suppressedApprovedToolRequest && sameApprovedNativeToolRequest(job, chunk.toolRequest)) {
+          suppressedApprovedToolRequest = true
+          await emit({
+            type: 'approved_tool_result_consumed',
+            endpointId: job.endpointId,
+            toolName: chunk.toolRequest.toolName,
+            toolCallId: chunk.toolRequest.id,
+            actionKind: chunk.toolRequest.actionKind,
+          })
+          continue
+        }
         const toolCall = toolCallFromRequest(job, chunk.toolRequest)
         if (!toolCall || !job.workspaceRoot || !job.workspaceId) {
           throw new Error('Runtime 权限请求缺少 workspace 上下文，已阻止执行。')
@@ -341,7 +460,17 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     const error = err instanceof Error ? err.message : String(err)
     await setStatus(id, 'failed', true)
     await clearHeartbeat(id)
-    await markActionTerminal(job, 'failed', output, error)
+    const actionCompletedAtBoundary = shouldCompleteApprovedActionAtBoundary(job, error, output)
+    const isWaitingBoundary = isApprovalBoundaryError(error) || (isQuestionBoundaryError(error) && actionCompletedAtBoundary)
+    const boundaryOptions = isWaitingBoundary
+      ? {
+          ...(actionCompletedAtBoundary ? { actionTerminal: 'completed' as const, actionError: null } : {}),
+          planNodeStatus: 'waiting' as const,
+          attemptStatus: 'waiting' as const,
+          attemptError: error,
+        }
+      : {}
+    await markActionTerminal(job, 'failed', output, error, boundaryOptions)
     await emit({ type: 'runtime_failed', endpointId: job.endpointId, error })
     return 'failed'
   }
@@ -368,18 +497,44 @@ export async function reclaimDeadSession(runtimeSessionId: string, endpointId?: 
   return true
 }
 
+export function startWorkerPresenceHeartbeat(options: { intervalMs?: number; ttlSec?: number } = {}): () => void {
+  const ttlSec = options.ttlSec ?? WORKER_PRESENCE_TTL_SEC
+  const intervalMs = options.intervalMs ?? WORKER_PRESENCE_INTERVAL_MS
+  let inFlight = false
+  let stopped = false
+  const refresh = async () => {
+    if (stopped || inFlight) return
+    inFlight = true
+    try {
+      await setWorkerAlive(ttlSec)
+    } catch (err) {
+      console.error('[runtime-worker] worker presence heartbeat error', err)
+    } finally {
+      inFlight = false
+    }
+  }
+  void refresh()
+  const timer = setInterval(() => {
+    void refresh()
+  }, intervalMs)
+  timer.unref?.()
+  return () => {
+    stopped = true
+    clearInterval(timer)
+  }
+}
+
 async function main(): Promise<void> {
   console.log('[runtime-worker] started, consuming queue...')
+  const stopWorkerPresenceHeartbeat = startWorkerPresenceHeartbeat()
   const shutdown = async () => {
+    stopWorkerPresenceHeartbeat()
     await clearWorkerAlive().catch(() => {})
     process.exit(0)
   }
   process.on('SIGTERM', shutdown)
   process.on('SIGINT', shutdown)
   while (true) {
-    // Refresh the global presence key each loop (interval 5s < TTL 15s) so the gateway can tell a
-    // live worker from none before enqueueing.
-    await setWorkerAlive()
     const job = await dequeue(5)
     if (!job) continue
     try {

@@ -6,6 +6,7 @@ const published: Array<{ id: string; event: Record<string, unknown> }> = []
 const dbUpdates: Array<Record<string, unknown>> = []
 const dbInserts: Array<Record<string, unknown>> = []
 const heartbeats = new Set<string>()
+const workerPresenceRefreshes: number[] = []
 
 vi.mock('../../lib/runtime/redis-client', () => ({
   publishEvent: async (id: string, event: Record<string, unknown>) => { published.push({ id, event }) },
@@ -14,6 +15,8 @@ vi.mock('../../lib/runtime/redis-client', () => ({
   setHeartbeat: async (id: string) => { heartbeats.add(id) },
   clearHeartbeat: async (id: string) => { heartbeats.delete(id) },
   isAlive: async (id: string) => heartbeats.has(id),
+  setWorkerAlive: async (ttlSec?: number) => { workerPresenceRefreshes.push(ttlSec ?? 0) },
+  clearWorkerAlive: async () => {},
 }))
 
 vi.mock('../../lib/app-db-client', () => ({
@@ -26,7 +29,7 @@ vi.mock('../../lib/app-db-client', () => ({
 }))
 
 import { FakeExecutor } from '../../lib/runtime/executor'
-import { processJob, reclaimDeadSession } from '../../server/runtime-worker'
+import { processJob, reclaimDeadSession, startWorkerPresenceHeartbeat } from '../../server/runtime-worker'
 import type { RuntimeJob } from '../../lib/runtime/redis-client'
 
 beforeEach(() => {
@@ -34,6 +37,8 @@ beforeEach(() => {
   dbUpdates.length = 0
   dbInserts.length = 0
   heartbeats.clear()
+  workerPresenceRefreshes.length = 0
+  vi.useRealTimers()
 })
 
 describe('worker liveness — heartbeat during running', () => {
@@ -43,6 +48,17 @@ describe('worker liveness — heartbeat during running', () => {
     const result = await processJob(job, new FakeExecutor())
     expect(result).toBe('completed')
     expect(heartbeats.has('hb1')).toBe(false) // cleared on completed
+  })
+
+  it('refreshes worker presence on an interval independent of queue polling', async () => {
+    vi.useFakeTimers()
+    const stop = startWorkerPresenceHeartbeat({ intervalMs: 1_000, ttlSec: 5 })
+
+    await vi.advanceTimersByTimeAsync(3_100)
+    stop()
+
+    expect(workerPresenceRefreshes).toEqual([5, 5, 5, 5])
+    vi.useRealTimers()
   })
 })
 

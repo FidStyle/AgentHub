@@ -1,11 +1,64 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock, workspaceRoot } = vi.hoisted(() => ({
+const {
+  resolveEndpointMock,
+  createSessionMock,
+  isWorkerAliveMock,
+  enqueueMock,
+  workspaceRoot,
+  fileStore,
+  readFileMock,
+  readdirMock,
+  writeFileMock,
+  mkdirMock,
+} = vi.hoisted(() => {
+  const files = new Map<string, string>()
+  const makeDirent = (name: string, type: 'file' | 'directory') => ({
+    name,
+    isDirectory: () => type === 'directory',
+    isFile: () => type === 'file',
+  })
+  return {
   workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
   resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
   createSessionMock: vi.fn(async (input: { cwd?: string | null }) => ({ id: 'runtime-001', nativeSessionId: 'native-001', cwd: input.cwd })),
   isWorkerAliveMock: vi.fn(async () => true),
   enqueueMock: vi.fn(async (_input: unknown) => undefined),
+  fileStore: files,
+  readFileMock: vi.fn(async (filePath: string) => {
+    const content = files.get(String(filePath))
+    if (content === undefined) throw new Error(`ENOENT: no such file, open '${String(filePath)}'`)
+    return content
+  }),
+  readdirMock: vi.fn(async (dirPath: string) => {
+    const dir = String(dirPath).replace(/\/$/, '')
+    const childNames = new Map<string, 'file' | 'directory'>()
+    for (const filePath of files.keys()) {
+      if (!filePath.startsWith(`${dir}/`)) continue
+      const rest = filePath.slice(dir.length + 1)
+      const [name, ...tail] = rest.split('/')
+      if (!name) continue
+      childNames.set(name, tail.length > 0 ? 'directory' : 'file')
+    }
+    return [...childNames.entries()].map(([name, type]) => makeDirent(name, type))
+  }),
+  writeFileMock: vi.fn(async (filePath: string, content: string) => {
+    files.set(String(filePath), String(content))
+  }),
+  mkdirMock: vi.fn(async () => undefined),
+}})
+
+vi.mock('node:fs/promises', () => ({
+  default: {
+    readFile: readFileMock,
+    readdir: readdirMock,
+    writeFile: writeFileMock,
+    mkdir: mkdirMock,
+  },
+  readFile: readFileMock,
+  readdir: readdirMock,
+  writeFile: writeFileMock,
+  mkdir: mkdirMock,
 }))
 
 vi.mock('@/lib/runtime/gateway', () => ({
@@ -110,6 +163,15 @@ describe('dispatchApprovedAction', () => {
     createSessionMock.mockClear()
     isWorkerAliveMock.mockClear()
     enqueueMock.mockClear()
+    readFileMock.mockClear()
+    readdirMock.mockClear()
+    writeFileMock.mockClear()
+    mkdirMock.mockClear()
+    fileStore.clear()
+    fileStore.set(`${workspaceRoot}/package.json`, '{"name":"sample"}')
+    fileStore.set(`${workspaceRoot}/public/index.html`, '<!doctype html>')
+    fileStore.set(`${workspaceRoot}/public/app.js`, 'console.log("app")')
+    fileStore.set(`${workspaceRoot}/server.js`, 'const express = require("express")')
     process.env.REDIS_URL = 'redis://localhost:6379'
   })
 
@@ -217,6 +279,18 @@ describe('dispatchApprovedAction', () => {
     const queuedJob = enqueueMock.mock.calls[0]?.[0] as { prompt?: string }
     expect(queuedJob.prompt).toContain('Tool: Read')
     expect(queuedJob.prompt).toContain(`Target paths: ${workspaceRoot}/package.json`)
+    expect(queuedJob.prompt).toContain('AgentHub has already executed this exact approved native tool request')
+    expect(queuedJob.prompt).toContain('Read /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json')
+    expect(queuedJob.prompt).toContain('Node.js + Express + better-sqlite3 + plain HTML/CSS/JS')
+    expect(queuedJob.prompt).toContain('continue implementation without AskUserQuestion')
+    expect(queuedJob).toEqual(expect.objectContaining({
+      approvedNativeTool: expect.objectContaining({
+        toolName: 'Read',
+        actionKind: 'read_file',
+        executed: true,
+        targetPaths: [`${workspaceRoot}/package.json`],
+      }),
+    }))
     expect(queuedJob.prompt).not.toContain(`Command: shell_command: ${workspaceRoot}`)
     expect(writes).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -229,10 +303,101 @@ describe('dispatchApprovedAction', () => {
             toolName: 'Read',
             dispatch: 'queued',
             runtimeSessionId: 'runtime-001',
+            approvedNativeTool: expect.objectContaining({
+              toolName: 'Read',
+              executed: true,
+            }),
           }),
         }),
       }),
     ]))
+  })
+
+  it('executes brokered Claude Write approvals in the workspace before continuation', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-write-approval',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'write_file',
+      command: `Write: ${workspaceRoot}/server.js`,
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        originalRuntimeSessionId: 'runtime-original',
+        toolCallId: 'tool-write-1',
+        toolName: 'Write',
+        actionKind: 'write_file',
+        runtimeType: 'claude_code',
+        roleAgentId: 'agent-fe',
+        nativeSessionId: 'claude-native-001',
+        targetPaths: [`${workspaceRoot}/server.js`],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { file_path: `${workspaceRoot}/server.js`, content: 'console.log("ok")\n' },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(mkdirMock).toHaveBeenCalled()
+    expect(writeFileMock).toHaveBeenCalledWith(`${workspaceRoot}/server.js`, 'console.log("ok")\n', 'utf8')
+    expect(fileStore.get(`${workspaceRoot}/server.js`)).toBe('console.log("ok")\n')
+    const queuedJob = enqueueMock.mock.calls[0]?.[0] as { prompt?: string; approvedNativeTool?: unknown }
+    expect(queuedJob.prompt).toContain(`Wrote 18 bytes to ${workspaceRoot}/server.js`)
+    expect(queuedJob.approvedNativeTool).toEqual(expect.objectContaining({
+      toolCallId: 'tool-write-1',
+      toolName: 'Write',
+      actionKind: 'write_file',
+      executed: true,
+      output: `Wrote 18 bytes to ${workspaceRoot}/server.js`,
+    }))
+  })
+
+  it('executes brokered Claude Glob approvals as workspace-bound read enumeration', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-glob-approval',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'shell_command',
+      command: 'Glob (shell_command)',
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        originalRuntimeSessionId: 'runtime-original',
+        toolCallId: 'tool-glob-1',
+        toolName: 'Glob',
+        actionKind: 'shell_command',
+        runtimeType: 'claude_code',
+        roleAgentId: 'agent-fe',
+        nativeSessionId: 'claude-native-001',
+        targetPaths: [],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { pattern: 'public/**/*' },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(readdirMock).toHaveBeenCalled()
+    expect(readFileMock).not.toHaveBeenCalled()
+    const queuedJob = enqueueMock.mock.calls[0]?.[0] as { prompt?: string; approvedNativeTool?: unknown }
+    expect(queuedJob.prompt).toContain('Tool: Glob')
+    expect(queuedJob.prompt).toContain('Glob public/**/*')
+    expect(queuedJob.prompt).toContain('public/app.js')
+    expect(queuedJob.prompt).toContain('public/index.html')
+    expect(queuedJob.approvedNativeTool).toEqual(expect.objectContaining({
+      toolCallId: 'tool-glob-1',
+      toolName: 'Glob',
+      actionKind: 'shell_command',
+      executed: true,
+    }))
   })
 
   it('blocks brokered native tool approvals when result targetPaths point outside the selected workspace root', async () => {

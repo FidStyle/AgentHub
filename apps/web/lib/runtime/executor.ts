@@ -124,12 +124,22 @@ export function detectCliRuntimeCapabilities(): CliRuntimeCapability[] {
   ]
 }
 
-export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null) {
+export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null, cwd?: string) {
   if (runtimeType === 'codex') {
     if (nativeSessionId) {
       return ['exec', 'resume', '--json', '--skip-git-repo-check', nativeSessionId, prompt]
     }
-    return ['exec', '--json', '-s', 'read-only', '--skip-git-repo-check', '--color', 'never', prompt]
+    return [
+      'exec',
+      '--json',
+      '-s',
+      'workspace-write',
+      '--skip-git-repo-check',
+      '--color',
+      'never',
+      ...(cwd ? ['-C', cwd] : []),
+      prompt,
+    ]
   }
   if (nativeSessionId) {
     return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', '--resume', nativeSessionId, prompt]
@@ -204,7 +214,7 @@ function actionKindForTool(toolName: string, input: Record<string, unknown> | nu
   if (name.includes('fetch') || name.includes('web') || name.includes('http')) {
     return NativeCliToolActionKind.NetworkRequest
   }
-  if (name.includes('read') || name.includes('view') || name.includes('open')) {
+  if (name.includes('read') || name.includes('view') || name.includes('open') || name === 'glob' || name === 'grep' || name === 'ls' || name === 'list') {
     return NativeCliToolActionKind.ReadFile
   }
   if (pathsFromInput(input).length > 0) return NativeCliToolActionKind.ReadFile
@@ -217,6 +227,11 @@ function isToolCallBlock(block: Record<string, unknown>): boolean {
 
 function isAskUserQuestionToolName(toolName: string): boolean {
   return toolName.replace(/[^a-z0-9]/gi, '').toLowerCase() === 'askuserquestion'
+}
+
+function isNonExecutableRuntimeToolName(toolName: string): boolean {
+  const normalized = toolName.replace(/[^a-z0-9]/gi, '').toLowerCase()
+  return normalized === 'taskcreate' || normalized === 'taskupdate' || normalized === 'todowrite' || normalized === 'agent'
 }
 
 function inputForToolBlock(block: Record<string, unknown>): unknown {
@@ -234,6 +249,7 @@ function toolRequestFromBlock(block: Record<string, unknown>): NativeCliToolRequ
   const input = asRecord(block.input) ?? asRecord(block.arguments) ?? asRecord(block.args)
   const toolName = toolNameForBlock(block)
   if (isAskUserQuestionToolName(toolName)) return null
+  if (isNonExecutableRuntimeToolName(toolName)) return null
   const commandPreview = stringValue(input, ['command', 'cmd', 'shell_command', 'shellCommand'])
   return {
     id: stringValue(block, ['id', 'toolCallId', 'tool_call_id', 'callId']),
@@ -576,7 +592,7 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
 
   async *execute(job: ExecutorJob): AsyncIterable<ExecutorChunk> {
     const binary = CLI_BINARY[this.options.runtimeType]
-    const child = spawn(binary, cliArgs(this.options.runtimeType, job.prompt, job.nativeSessionId), {
+    const child = spawn(binary, cliArgs(this.options.runtimeType, job.prompt, job.nativeSessionId, this.options.cwd), {
       cwd: this.options.cwd,
       env: { ...process.env, ...this.options.env },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -614,11 +630,18 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
       wake()
     })
 
-    while (true) {
-      if (spawnError) throw spawnError
-      while (queue.length > 0) yield queue.shift()!
-      if (done) break
-      await new Promise<void>((resolve) => { notify = resolve })
+    try {
+      while (true) {
+        if (spawnError) throw spawnError
+        while (queue.length > 0) yield queue.shift()!
+        if (done) break
+        await new Promise<void>((resolve) => { notify = resolve })
+      }
+    } finally {
+      if (!done && !child.killed) {
+        child.kill('SIGTERM')
+      }
+      rl.close()
     }
     if (spawnError) throw spawnError
     if (exitError) throw exitError

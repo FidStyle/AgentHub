@@ -29,9 +29,19 @@ export interface RuntimeJob {
   fail?: boolean
   actionId?: string
   actionResult?: Record<string, unknown> | null
+  approvedNativeTool?: {
+    toolCallId?: string | null
+    toolName: string
+    actionKind: string
+    targetPaths?: string[]
+    executed: boolean
+    output?: string
+    error?: string
+  } | null
   planNodeId?: string
   attemptId?: string
   mailboxItemId?: string | null
+  suppressPlanProgress?: boolean
 }
 
 let client: RedisClientType | null = null

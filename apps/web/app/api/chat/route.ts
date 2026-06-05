@@ -44,6 +44,8 @@ type RuntimeAttemptEvidence = {
   mailboxItemId: string | null
 }
 
+type TargetRunResult = 'completed' | 'waiting' | 'failed'
+
 type RuntimeDispatchRole = {
   id: string
   name: string
@@ -199,7 +201,7 @@ async function finishRuntimeAttemptEvidence(input: {
   db: Awaited<ReturnType<typeof createClient>>
   evidence: RuntimeAttemptEvidence | null
   runtimeSessionId?: string | null
-  status: 'completed' | 'failed'
+  status: 'completed' | 'failed' | 'waiting'
   error?: string
 }) {
   if (!input.evidence) return
@@ -217,6 +219,12 @@ async function finishRuntimeAttemptEvidence(input: {
       updated_at: patch.updated_at,
     }).eq('id', input.evidence.mailboxItemId)
   }
+}
+
+function isRuntimeWaitingBoundary(error: string | null, runtimeParts: RuntimeMessagePart[]) {
+  if (runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')) return true
+  return error === 'Runtime 工具已进入权限审批，未执行该操作。'
+    || error === 'Runtime 等待用户补充确认，未继续执行。'
 }
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
@@ -447,6 +455,15 @@ export async function POST(req: NextRequest) {
       '请基于以上交接上下文继续推进，不要重复上游角色已经完成的工作；如有冲突，请明确指出并给出你的角色判断。',
     ].join('\n\n')
   }
+  const defaultExecutionDecisionPrompt = [
+    'AgentHub 执行决策规则：',
+    '对具体工程实现请求，如果技术栈、界面细节或历史记录策略能用保守默认值安全决定，不要调用 AskUserQuestion 或停下来询问可选项；直接选择默认方案并继续实现/派发。',
+    '固定样本“做一个加减乘除的简单网站，使用 sqlite 存储历史记录”默认采用 Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS；历史记录全部保留，界面默认展示最近 20 条；除非继续执行会产生安全风险，否则不要向用户确认这些选项。',
+    '不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent；AgentHub 已经负责计划节点、任务状态和角色调度。需要说明计划时直接用普通文本输出，需要改文件或执行命令时只使用真实文件/命令工具。',
+    '不要把 npm start、npm run dev、node server.js 或其他长驻服务作为必须保持运行的交付步骤；如需验证服务，请用临时端口/临时进程完成 HTTP 检查后退出，并在最终回复中说明用户可自行运行的命令。',
+    '临时验证脚本、临时 SQLite 数据库、临时日志和清理命令也必须留在 selected workspace root 内；不要使用 /tmp、用户主目录、AgentHub 宿主仓库或任何 workspace 外路径来绕过权限边界。',
+    '只有当缺少的信息会导致越权、破坏性操作、真实安全风险或无法用合理默认值推进时，才允许请求用户补充。',
+  ].join('\n')
   const systemPromptForRole = (role: (typeof selectedRoleAgents)[number] | null, handoffs: RoleHandoffPackage[]) => {
     if (!roleContextPrompt) return undefined
     if (!role) return roleContextPrompt
@@ -454,6 +471,7 @@ export async function POST(req: NextRequest) {
       roleContextPrompt,
       runtimeContextConstraintPrompt(role),
       handoffContextPrompt(handoffs),
+      defaultExecutionDecisionPrompt,
       `当前回复角色：@${role.name}。请只从该角色职责出发回答，不要冒充其他被选中的角色。`,
     ].filter(Boolean).join('\n\n')
   }
@@ -640,7 +658,7 @@ export async function POST(req: NextRequest) {
               result: { error: reason },
             }).eq('id', target.nodeId)))
         }
-        const runTarget = async (target: ExecutionTarget, downstreamTargets: ExecutionTarget[]) => {
+        const runTarget = async (target: ExecutionTarget, downstreamTargets: ExecutionTarget[]): Promise<TargetRunResult> => {
           const role = target.role
           const currentRoleAgentId = role?.id ?? null
           const currentRoleName = role?.name ?? '默认 Agent'
@@ -704,6 +722,7 @@ export async function POST(req: NextRequest) {
                 mailboxItemId: evidence.mailboxItemId,
                 mailboxContextPackage: receivedHandoffs,
                 dispatchRuntimeJob: async (job: RuntimeJob, runtimeSessionId: string) => {
+                  job.suppressPlanProgress = true
                   runtimeEvents.current = subscribeEvents(runtimeSessionId, async () => {
                     const { enqueue } = await import('@/lib/runtime/redis-client')
                     await enqueue(job)
@@ -795,8 +814,9 @@ export async function POST(req: NextRequest) {
                 })
               }
             }
-            return true
+            return 'completed'
           }
+          const waitingBoundary = isRuntimeWaitingBoundary(terminalError, runtimeParts)
           if (hasQuestionPart) {
             completedReplies.push({
               nodeId: target.nodeId,
@@ -809,20 +829,27 @@ export async function POST(req: NextRequest) {
             })
           }
           if (target.nodeId) {
-            await db.from('plan_nodes').update({
-              status: 'failed',
-              completed_at: new Date().toISOString(),
+            const patch: Record<string, unknown> = {
+              status: waitingBoundary ? 'waiting' : 'failed',
               result: { error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过', runtimeParts },
+            }
+            if (waitingBoundary) {
+              patch.completed_at = null
+            } else {
+              patch.completed_at = new Date().toISOString()
+            }
+            await db.from('plan_nodes').update({
+              ...patch,
             }).eq('id', target.nodeId)
           }
           await finishRuntimeAttemptEvidence({
             db,
             evidence,
             runtimeSessionId: latestRuntimeSession?.id,
-            status: 'failed',
+            status: waitingBoundary ? 'waiting' : 'failed',
             error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过',
           })
-          return false
+          return waitingBoundary ? 'waiting' : 'failed'
         }
 
         if (useOrchestratedRun) {
@@ -831,7 +858,8 @@ export async function POST(req: NextRequest) {
           const failedTargets: ExecutionTarget[] = []
           const pending = new Map(targetById)
 
-          while (pending.size > 0 && failedTargets.length === 0) {
+          let waitingForUser = false
+          while (pending.size > 0 && failedTargets.length === 0 && !waitingForUser) {
             const readyWave = Array.from(pending.values()).filter((target) => target.dependsOn.every((id) => completedNodeIds.has(id)))
             if (readyWave.length === 0) {
               failedTargets.push(...Array.from(pending.values()))
@@ -839,7 +867,7 @@ export async function POST(req: NextRequest) {
               break
             }
 
-            const waveResults: boolean[] = []
+            const waveResults: TargetRunResult[] = []
             for (const target of readyWave) {
               const downstreamTargets = executionTargets.filter((candidate) => (
                 candidate.nodeId && target.nodeId && candidate.dependsOn.includes(target.nodeId)
@@ -848,8 +876,10 @@ export async function POST(req: NextRequest) {
             }
 
             readyWave.forEach((target, index) => {
-              if (waveResults[index]) {
+              if (waveResults[index] === 'completed') {
                 completedNodeIds.add(target.nodeId as string)
+              } else if (waveResults[index] === 'waiting') {
+                waitingForUser = true
               } else {
                 failedTargets.push(target)
               }
@@ -857,12 +887,23 @@ export async function POST(req: NextRequest) {
             })
           }
 
-          if (failedTargets.length > 0 && pending.size > 0) {
+          if (waitingForUser && pending.size > 0) {
+            await Promise.all(Array.from(pending.values())
+              .filter((target) => target.nodeId)
+              .map((target) => db.from('plan_nodes').update({
+                status: 'waiting',
+                completed_at: null,
+                result: { scheduler: 'waiting', reason: '上游角色等待用户确认，节点未运行', at: new Date().toISOString() },
+              }).eq('id', target.nodeId)))
+          } else if (failedTargets.length > 0 && pending.size > 0) {
             await failUnrunTargets(Array.from(pending.values()), '上游角色执行失败，节点未运行')
           }
           if (planId) {
             const planCompleted = failedTargets.length === 0 && pending.size === 0
-            await db.from('plans').update({ status: planCompleted ? 'completed' : 'failed', updated_at: new Date().toISOString() }).eq('id', planId)
+            await db.from('plans').update({
+              status: planCompleted ? 'completed' : waitingForUser ? 'running' : 'failed',
+              updated_at: new Date().toISOString(),
+            }).eq('id', planId)
           }
         } else {
           for (let index = 0; index < executionTargets.length; index += 1) {

@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type { ExecutionDomain } from '@agenthub/shared'
 import type { CliRuntimeType } from '@agenthub/shared'
 import type { AgentMailboxItem } from '@agenthub/shared'
@@ -56,6 +58,16 @@ type RuntimePermissionBrokerResult = {
   workspaceRoot?: unknown
 }
 
+type ApprovedNativeToolExecution = {
+  toolCallId?: string | null
+  toolName: string
+  actionKind: string
+  targetPaths: string[]
+  executed: boolean
+  output: string
+  error?: string
+}
+
 function objectValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
@@ -80,7 +92,11 @@ function dispatchResult(action: ActionRecordForDispatch, values: Record<string, 
   }
 }
 
-function buildApprovedNativeToolPrompt(action: ActionRecordForDispatch, broker: RuntimePermissionBrokerResult): string | null {
+function buildApprovedNativeToolPrompt(
+  action: ActionRecordForDispatch,
+  broker: RuntimePermissionBrokerResult,
+  execution?: ApprovedNativeToolExecution | null,
+): string | null {
   const toolName = stringValue(broker.toolName)
   const actionKind = stringValue(broker.actionKind) ?? action.action_type
   const commandPreview = stringValue(broker.commandPreview)
@@ -100,9 +116,221 @@ function buildApprovedNativeToolPrompt(action: ActionRecordForDispatch, broker: 
     targetPaths.length > 0 ? `Target paths: ${targetPaths.join(', ')}` : null,
     `Working directory: ${action.cwd ?? stringValue(broker.cwd) ?? ''}`,
     '',
-    'The user approved this exact native tool request. Continue from the existing workspace context and perform only this approved operation, then continue the original task if the CLI can resume it.',
+    execution?.executed
+      ? [
+          'AgentHub has already executed this exact approved native tool request inside the selected workspace boundary.',
+          'Do not call the same native tool again for the same target. Treat the tool result below as the result of the approved tool call, then continue with the next step of the original task.',
+          'Do not stop to ask the user about optional implementation choices that are already implied by the original request; choose sensible defaults and continue. Only ask the user if execution cannot proceed safely without new information.',
+          'For the fixed sample "做一个加减乘除的简单网站，使用 sqlite 存储历史记录", use Node.js + Express + better-sqlite3 + plain HTML/CSS/JS by default, keep all history in SQLite, show the latest 20 records in the UI, and continue implementation without AskUserQuestion unless a real safety blocker appears.',
+          '',
+          `Approved tool execution result:\n${execution.output}`,
+        ].join('\n')
+      : 'The user approved this exact native tool request. Continue from the existing workspace context and perform only this approved operation, then continue the original task if the CLI can resume it.',
     input === null ? null : `Original tool input JSON:\n${JSON.stringify(input, null, 2)}`,
   ].filter(Boolean).join('\n')
+}
+
+function brokerInputRecord(broker: RuntimePermissionBrokerResult): Record<string, unknown> | null {
+  return objectValue(broker.input)
+}
+
+function inputString(input: Record<string, unknown> | null, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = input?.[key]
+    if (typeof value === 'string') return value
+  }
+  return null
+}
+
+function targetPathForBroker(broker: RuntimePermissionBrokerResult): string | null {
+  const input = brokerInputRecord(broker)
+  return stringArrayValue(broker.targetPaths)[0]
+    ?? inputString(input, ['file_path', 'filepath', 'path', 'target_path', 'targetPath'])
+}
+
+function normalizedToolName(toolName: string): string {
+  return toolName.replace(/[^a-z0-9]/gi, '').toLowerCase()
+}
+
+function isReadEnumerationTool(toolName: string): boolean {
+  const name = normalizedToolName(toolName)
+  return name === 'glob' || name === 'grep' || name === 'ls' || name === 'list'
+}
+
+function globPatternForBroker(broker: RuntimePermissionBrokerResult): string | null {
+  const input = brokerInputRecord(broker)
+  return inputString(input, ['pattern', 'glob', 'path']) ?? '*'
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&')
+}
+
+function globPatternToRegex(pattern: string): RegExp {
+  let source = ''
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index]
+    const next = pattern[index + 1]
+    if (char === '*' && next === '*') {
+      const after = pattern[index + 2]
+      if (after === '/') {
+        source += '(?:.*\\/)?'
+        index += 2
+      } else {
+        source += '.*'
+        index += 1
+      }
+      continue
+    }
+    if (char === '*') {
+      source += '[^/]*'
+      continue
+    }
+    if (char === '?') {
+      source += '[^/]'
+      continue
+    }
+    source += escapeRegex(char)
+  }
+  return new RegExp(`^${source}$`)
+}
+
+async function walkFiles(root: string, current = root): Promise<string[]> {
+  const entries = await fs.readdir(current, { withFileTypes: true })
+  const files: string[] = []
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.git') continue
+    const entryPath = path.join(current, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...await walkFiles(root, entryPath))
+    } else if (entry.isFile()) {
+      files.push(entryPath)
+    }
+  }
+  return files
+}
+
+async function executeReadEnumerationTool(
+  broker: RuntimePermissionBrokerResult,
+  workspaceRoot: string,
+  toolName: string,
+): Promise<ApprovedNativeToolExecution | null> {
+  const pattern = globPatternForBroker(broker)
+  if (!pattern) return null
+  const cwd = stringValue(broker.cwd) ?? workspaceRoot
+  if (!isPathInsideRoot(workspaceRoot, cwd)) {
+    throw new Error('该操作试图使用 workspace 外工作目录，已阻止。')
+  }
+  const normalizedPattern = pattern.replace(/\\/g, '/').replace(/^\.\//, '')
+  if (normalizedPattern.split('/').includes('..')) {
+    throw new Error(`该操作试图访问 workspace 外路径 ${pattern}，已阻止。`)
+  }
+  if (path.isAbsolute(normalizedPattern) && !isPathInsideRoot(workspaceRoot, normalizedPattern)) {
+    throw new Error(`该操作试图访问 workspace 外路径 ${pattern}，已阻止。`)
+  }
+  const relativePattern = path.isAbsolute(normalizedPattern)
+    ? path.relative(workspaceRoot, normalizedPattern).replace(/\\/g, '/')
+    : path.relative(workspaceRoot, path.join(cwd, normalizedPattern)).replace(/\\/g, '/')
+  if (relativePattern.split('/').includes('..')) {
+    throw new Error(`该操作试图访问 workspace 外路径 ${pattern}，已阻止。`)
+  }
+
+  const matcher = globPatternToRegex(relativePattern)
+  const matches = (await walkFiles(workspaceRoot))
+    .map((filePath) => path.relative(workspaceRoot, filePath).replace(/\\/g, '/'))
+    .filter((relativePath) => matcher.test(relativePath))
+    .sort()
+  return {
+    toolCallId: stringValue(broker.toolCallId),
+    toolName,
+    actionKind: stringValue(broker.actionKind) ?? 'read_file',
+    targetPaths: [],
+    executed: true,
+    output: clipToolOutput(`${toolName} ${pattern}\n\n${matches.length > 0 ? matches.join('\n') : '(no matches)'}`),
+  }
+}
+
+function clipToolOutput(value: string, limit = 30_000): string {
+  if (value.length <= limit) return value
+  return `${value.slice(0, limit)}\n\n[AgentHub clipped ${value.length - limit} trailing characters from the approved native tool result.]`
+}
+
+async function executeApprovedNativeTool(
+  broker: RuntimePermissionBrokerResult,
+  workspaceRoot: string,
+): Promise<ApprovedNativeToolExecution | null> {
+  const toolName = stringValue(broker.toolName)
+  const actionKind = stringValue(broker.actionKind)
+  const input = brokerInputRecord(broker)
+  if (toolName && isReadEnumerationTool(toolName)) {
+    return executeReadEnumerationTool(broker, workspaceRoot, toolName)
+  }
+  const targetPath = targetPathForBroker(broker)
+  if (!toolName || !actionKind || !targetPath) return null
+  if (!isPathInsideRoot(workspaceRoot, targetPath)) {
+    throw new Error(`该操作试图访问 workspace 外路径 ${targetPath}，已阻止。`)
+  }
+
+  const base = {
+    toolCallId: stringValue(broker.toolCallId),
+    toolName,
+    actionKind,
+    targetPaths: stringArrayValue(broker.targetPaths).length > 0 ? stringArrayValue(broker.targetPaths) : [targetPath],
+  }
+  if (actionKind === 'read_file') {
+    const content = await fs.readFile(targetPath, 'utf8')
+    return {
+      ...base,
+      executed: true,
+      output: clipToolOutput(`Read ${targetPath}\n\n${content}`),
+    }
+  }
+  if (toolName.toLowerCase() === 'edit') {
+    const oldString = inputString(input, ['old_string', 'oldString'])
+    const newString = inputString(input, ['new_string', 'newString'])
+    if (oldString === null || newString === null) return null
+    const current = await fs.readFile(targetPath, 'utf8')
+    const replaceAll = input?.replace_all === true || input?.replaceAll === true
+    if (!current.includes(oldString)) throw new Error('Edit 工具 old_string 未在目标文件中找到，已阻止执行。')
+    const next = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString)
+    await fs.writeFile(targetPath, next, 'utf8')
+    return {
+      ...base,
+      executed: true,
+      output: `Edited ${targetPath}`,
+    }
+  }
+  if (toolName.toLowerCase() === 'multiedit') {
+    const edits = Array.isArray(input?.edits) ? input.edits.map(objectValue).filter((item): item is Record<string, unknown> => Boolean(item)) : []
+    if (edits.length === 0) return null
+    let current = await fs.readFile(targetPath, 'utf8')
+    for (const edit of edits) {
+      const oldString = inputString(edit, ['old_string', 'oldString'])
+      const newString = inputString(edit, ['new_string', 'newString'])
+      if (oldString === null || newString === null) throw new Error('MultiEdit 工具缺少 old_string/new_string，已阻止执行。')
+      if (!current.includes(oldString)) throw new Error('MultiEdit 工具 old_string 未在目标文件中找到，已阻止执行。')
+      const replaceAll = edit.replace_all === true || edit.replaceAll === true
+      current = replaceAll ? current.split(oldString).join(newString) : current.replace(oldString, newString)
+    }
+    await fs.writeFile(targetPath, current, 'utf8')
+    return {
+      ...base,
+      executed: true,
+      output: `Applied ${edits.length} edits to ${targetPath}`,
+    }
+  }
+  if (actionKind === 'write_file') {
+    const content = inputString(input, ['content', 'text'])
+    if (content === null) throw new Error('Write 工具缺少 content，已阻止执行。')
+    await fs.mkdir(path.dirname(targetPath), { recursive: true })
+    await fs.writeFile(targetPath, content, 'utf8')
+    return {
+      ...base,
+      executed: true,
+      output: `Wrote ${Buffer.byteLength(content, 'utf8')} bytes to ${targetPath}`,
+    }
+  }
+  return null
 }
 
 async function recordDispatchFailure(
@@ -195,6 +423,16 @@ export async function dispatchApprovedAction(
   if (broker && !nativeToolPrompt) {
     return recordDispatchFailure(db, action, 'unavailable', 'Runtime 原生工具审批缺少可执行元数据，已阻止。')
   }
+  let approvedNativeTool: ApprovedNativeToolExecution | null = null
+  if (broker) {
+    try {
+      approvedNativeTool = await executeApprovedNativeTool(broker, workspaceRoot)
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      return recordDispatchFailure(db, action, 'unavailable', `Runtime 原生工具执行失败：${error}`)
+    }
+  }
+  const approvedNativeToolPrompt = broker ? buildApprovedNativeToolPrompt(action, broker, approvedNativeTool) : null
 
   const runtimeSession = await createSession({
     sessionId: action.session_id,
@@ -204,7 +442,12 @@ export async function dispatchApprovedAction(
     cwd: action.cwd ?? workspaceRoot,
   })
   const now = new Date().toISOString()
-  const queuedActionResult = dispatchResult(action, { dispatch: 'queued', runtimeSessionId: runtimeSession.id, at: now })
+  const queuedActionResult = dispatchResult(action, {
+    dispatch: 'queued',
+    runtimeSessionId: runtimeSession.id,
+    approvedNativeTool: approvedNativeTool ?? undefined,
+    at: now,
+  })
   await db.from('actions').update({
     status: 'running',
     executed_at: now,
@@ -229,9 +472,10 @@ export async function dispatchApprovedAction(
     roleAgentId,
     nativeSessionId: stringValue(broker?.nativeSessionId) ?? runtimeSession.nativeSessionId ?? null,
     cwd: runtimeSession.cwd,
-    prompt: nativeToolPrompt ?? buildActionPrompt(action),
+    prompt: approvedNativeToolPrompt ?? nativeToolPrompt ?? buildActionPrompt(action),
     actionId: action.id,
     actionResult: queuedActionResult,
+    approvedNativeTool,
     planNodeId: action.plan_node_id ?? undefined,
   })
 
