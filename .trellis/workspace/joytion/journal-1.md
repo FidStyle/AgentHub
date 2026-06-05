@@ -651,3 +651,37 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Bytedance 固定样本 Product Gate
+
+**Date**: 2026-06-05
+**Task**: Bytedance 固定样本 Product Gate
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+完成固定 prompt 的 Bytedance product gate：修复 plan-node/mailbox 终态收口，完成 Web/Mobile OpenCLI 与 Desktop Electron fallback UAT，更新报告、tracker 和顺序队列。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7754605` | (see git log) |
+| `cd446c2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
