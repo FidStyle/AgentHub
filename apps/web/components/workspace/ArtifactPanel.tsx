@@ -1504,7 +1504,8 @@ function artifactPreviewKind(type: ArtifactDbType): FilePreview['previewKind'] {
 
 function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChanged: () => void }) {
   const downloadUrl = `/api/artifacts/${artifact.id}/download`
-  const typeLabel = artifactTypeLabel(artifact.artifact_type)
+  const isDeploymentArtifact = artifact.metadata?.kind === 'deployment'
+  const typeLabel = isDeploymentArtifact ? '部署结果' : artifactTypeLabel(artifact.artifact_type)
   const previewLabel = artifactPreviewLabel(artifact)
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(artifact.title)
@@ -1579,7 +1580,7 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            {artifact.artifact_type === 'presentation' ? <Presentation className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
+            {isDeploymentArtifact ? <PackagePlus className="h-4 w-4 text-muted-foreground" /> : artifact.artifact_type === 'presentation' ? <Presentation className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
             <span className="truncate text-sm font-medium">{artifact.title}</span>
           </div>
           <div className="mt-1 space-y-1 text-xs text-muted-foreground">

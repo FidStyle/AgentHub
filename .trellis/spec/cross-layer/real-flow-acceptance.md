@@ -142,6 +142,86 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
 - Artifact 面板刷新后仍能展示同一 artifact title/content/ref。
 - 后续自动部署需要消费 artifact 时，必须有稳定 ID 或 contentRef。
 
+## Scenario: Chat Deployment Local Manifest Closure
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 `/api/chat`、action approval/dispatch、deployment action、artifact panel、Mobile/PWA action readback 或 workspace file preview，使用户能在聊天中发起“部署当前网站”。
+- Applies to: `actions`, `messages`, `artifacts`, workspace root 文件系统、Web chat permission card、Artifact panel、Mobile/PWA `/m/sessions/:sessionId`。
+
+### 2. Signatures
+
+- `POST /api/chat`
+  - 用户消息包含部署意图，例如 `部署当前网站`、`发布当前项目`。
+  - Response SSE 必须发出 `approval_requested`，不能直接返回部署成功。
+- `actions`
+  - `action_type = "deploy"`
+  - `requires_approval = true`
+  - `risk_level = "high"`
+  - `status = pending | rejected | approved | completed | failed`
+  - `result.source = "chat_deploy_request"`
+- `dispatchApprovedAction(db, action)`
+  - 对 `deploy` action 生成 workspace-local manifest。
+- `artifacts`
+  - `metadata.kind = "deployment"`
+  - `metadata.actionId`
+  - `metadata.previewPath`
+  - `metadata.manifestPath`
+  - `metadata.entryPath`
+  - `metadata.fileCount`
+
+### 3. Contracts
+
+- 部署意图必须进入产品审批链路；拒绝前不得执行部署，不得创建 deployment artifact。
+- 允许后必须只在 selected workspace root 内写入 `.agenthub/deployments/<actionId>/manifest.json`。
+- 本地 manifest 闭环允许作为 P1 部署结果，但必须是真实文件 + DB artifact/message/action 三方可读回。
+- `previewPath` 必须是可解释的稳定引用，例如 `workspace-file:<workspaceId>:public/index.html`；没有 HTML 时可 fallback 到 manifest 或 README，但不得返回空成功。
+- 部署 result card message 必须持久化，刷新后 Web chat 可以读回。
+- Mobile/PWA durable action readback 必须显示 deploy action 的 `previewPath`、`manifestPath`、`artifactId`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 必须结果 | 禁止结果 |
+| --- | --- | --- |
+| 聊天内容命中部署意图 | 创建 pending `deploy` action + approval message | 直接生成成功文案 |
+| 用户拒绝 deploy action | `actions.status=rejected`，不写 manifest，不创建 deployment artifact | 拒绝后仍出现部署 artifact |
+| 用户允许 deploy action | 校验 workspace root，写 manifest，创建 artifact/result message，action completed | 写到 AgentHub 宿主 repo 或只改 React state |
+| workspace root 缺失 | action failed，中文错误 | 猜测 `process.cwd()` |
+| 入口文件不存在 | manifest 使用安全 fallback 并记录 entry/preview | `previewPath` 为空仍标 completed |
+| Mobile/PWA 刷新 | durable action 显示 preview/manifest/artifact | 只显示 pending message runtimeParts |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 用户发送“请部署当前网站” -> pending deploy action -> 拒绝后 artifact count 仍为 0；再次发送 -> 允许 -> `.agenthub/deployments/<actionId>/manifest.json` 存在，artifact `metadata.kind=deployment`，Mobile 显示预览和 Manifest。
+- Base: workspace 没有 `public/index.html`，但有 `README.md`；manifest preview fallback 到可读文件并记录实际 entry。
+- Bad: `/api/chat` 收到部署意图后直接插入“部署完成”助手消息，没有 action、approval、manifest 或 artifact。
+
+### 6. Tests Required
+
+- Unit/API: `/api/chat` 部署意图创建 pending deploy action、approval message，且不调用 runtime、不创建 artifact。
+- Unit/API: rejected deploy action 不产生 manifest/artifact。
+- Unit/API: approved deploy action 写 manifest、创建 deployment artifact、result card message，并更新 action completed。
+- UI/OpenCLI: Web 走拒绝和允许两段；Artifact panel 刷新读回 deployment artifact。
+- UI/OpenCLI: Mobile/PWA `/m/sessions/:sessionId` 读回 deploy completed/rejected、previewPath、manifestPath、artifactId。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+if (content.includes('部署')) {
+  await db.from('messages').insert({ content: '部署完成' })
+}
+```
+
+#### Correct
+
+```typescript
+const action = await createDeployApproval({ workspaceId, sessionId, workspaceRoot })
+// SSE: approval_requested
+// After approval: dispatchApprovedAction writes manifest, artifact, result message, and completed action.
+```
+
 ## Scenario: Rich Document And Presentation Artifacts
 
 ### 1. Scope / Trigger

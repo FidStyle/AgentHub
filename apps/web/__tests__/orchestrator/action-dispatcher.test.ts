@@ -165,6 +165,22 @@ function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Rec
             }),
           }
         }
+        if (table === 'artifacts') {
+          return {
+            insert: (values: Record<string, unknown>) => {
+              writes.push({ table, values })
+              return { select: () => ({ single: () => ({ data: { id: 'artifact-deploy-001', ...values }, error: null }) }) }
+            },
+          }
+        }
+        if (table === 'messages') {
+          return {
+            insert: (values: Record<string, unknown>) => {
+              writes.push({ table, values })
+              return { data: null, error: null }
+            },
+          }
+        }
         return { select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }) }
       }),
     },
@@ -292,6 +308,92 @@ describe('dispatchApprovedAction', () => {
       cwd: workspaceRoot,
     }))
     expect(enqueueMock).toHaveBeenCalled()
+  })
+
+  it('completes approved deploy actions with a durable manifest, artifact, and result message', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-deploy-approval',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'deploy',
+      command: 'AgentHub 本地静态部署当前工作区',
+      cwd: workspaceRoot,
+      result: {
+        source: 'chat_deploy_request',
+        actionKind: 'deploy',
+        workspaceRoot,
+        cwd: workspaceRoot,
+        targetPaths: [workspaceRoot],
+      },
+    })
+
+    expect(result).toEqual({ status: 'completed' })
+    expect(resolveEndpointMock).not.toHaveBeenCalled()
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(mkdirMock).toHaveBeenCalledWith(`${workspaceRoot}/.agenthub/deployments/action-deploy-approval`, { recursive: true })
+    expect(writeFileMock).toHaveBeenCalledWith(
+      `${workspaceRoot}/.agenthub/deployments/action-deploy-approval/manifest.json`,
+      expect.stringContaining('"status": "completed"'),
+      'utf8',
+    )
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'artifacts',
+        values: expect.objectContaining({
+          artifact_type: 'markdown',
+          title: '部署结果',
+          content_ref: 'workspace-file:ws-001:public/index.html',
+          source_path: '.agenthub/deployments/action-deploy-approval/manifest.json',
+          metadata: expect.objectContaining({
+            kind: 'deployment',
+            actionId: 'action-deploy-approval',
+            status: 'completed',
+            previewPath: 'workspace-file:ws-001:public/index.html',
+            manifestPath: '.agenthub/deployments/action-deploy-approval/manifest.json',
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'messages',
+        values: expect.objectContaining({
+          message_type: 'result_card',
+          metadata: expect.objectContaining({
+            deployment: expect.objectContaining({
+              actionId: 'action-deploy-approval',
+              artifactId: 'artifact-deploy-001',
+              status: 'completed',
+            }),
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-deploy-approval',
+        values: expect.objectContaining({
+          status: 'completed',
+          result: expect.objectContaining({
+            source: 'chat_deploy_request',
+            actionKind: 'deploy',
+            dispatch: 'completed',
+            artifactId: 'artifact-deploy-001',
+            previewPath: 'workspace-file:ws-001:public/index.html',
+            manifestPath: '.agenthub/deployments/action-deploy-approval/manifest.json',
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'notifications',
+        values: expect.objectContaining({
+          type: 'deployment_completed',
+          ref_type: 'action',
+          ref_id: 'action-deploy-approval',
+        }),
+      }),
+    ]))
   })
 
   it('allows /dev/null as a network command output sink while preserving workspace path checks', async () => {

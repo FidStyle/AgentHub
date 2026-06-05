@@ -512,6 +512,21 @@
 
 ## P1 任务
 
+### REMAINING-P1-FEATURES-2026-06-05: 剩余 P1 功能收口
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-AGENT-001, FR-ORCH-001, FR-CTX-001, FR-ARTIFACT-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-05-remaining-p1-features` |
+| **合同路径** | `research/contracts/REMAINING-P1-FEATURES-2026-06-05.md` |
+| **当前状态** | verified（2026-06-05）：剩余 P1 第 7/8/9 项已完成实现和三端验收。Web OpenCLI 覆盖自建 Agent 创建/编辑读回、聊天式部署拒绝/允许闭环、deployment artifact、富文档创建/编辑/二次编辑请求/下载、文件树和文件预览；Mobile/PWA OpenCLI 读回 deploy completed/rejected、Manifest、预览路径和 artifactId；Desktop 无 OpenCLI AgentHub app adapter，按合同 Playwright Electron fallback 21/21 PASS。最终 Demo 包和 3 分钟素材仍按用户要求排除，未开始纯 P2 未启动。 |
+| **目标** | 把 Bytedance 原始材料中的 IM 联系人式 Agent、聊天式产物/部署、基础 workbench 体验补齐到真实 DB/API/session/权限/三端验收闭环。 |
+| **验收方式** | Web OpenCLI + Mobile/PWA OpenCLI + Desktop/Electron fallback；真实 `role_agents`、messages、actions、artifacts 或等价 durable deployment 记录；focused tests、type-check、lint、治理门禁。 |
+| **测试证据** | Report: `research/execution-reports/remaining-p1-features-2026-06-05.md`；Artifacts: `e2e/artifacts/opencli-uat/remaining-p1-features-2026-06-05/`；Workspace `58a63e3f-5ca7-457b-af02-2824d02ab9fa`；Session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe`；自建 Agent `ec25dcf7-ff39-4515-aba0-34cbfa5f341d` 已编辑读回；deploy action rejected `848e1389-db7c-46a6-8c7b-dc95c211e6a3` 且拒绝后 deployment artifact 为 0；deploy action completed `06905123-81e1-4c32-bf20-4c85b488d919`，artifact `07dacb62-0a52-4724-8271-2d043882882c`，manifest `.agenthub/deployments/06905123-81e1-4c32-bf20-4c85b488d919/manifest.json`；富文档 artifact `d85af1ff-7d5f-4b51-87b6-f773fc665699` 保存标题/正文并持久化 editRequests，浏览器 DOCX 下载成功；Mobile screenshot `mobile-session-deploy-readback.png`；Desktop build/test PASS，Electron fallback 21/21 PASS；`pnpm --filter @agenthub/web test` PASS（30 files / 294 tests）；Web/shared type-check PASS；Web lint PASS。 |
+| **阻塞问题** | 无。 |
+| **下一步动作** | 运行治理门禁、提交并归档 Trellis task；Demo 包和 3 分钟素材保持 excluded。 |
+
 ### COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02: 完整多 Agent 编排与交接
 
 | 字段 | 内容 |

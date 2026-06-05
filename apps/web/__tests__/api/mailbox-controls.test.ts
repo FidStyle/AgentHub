@@ -115,17 +115,21 @@ function mailboxControlChain(options: {
   const readyItems = options.readyItems ?? []
   const nodes = options.nodes ?? [
     { id: 'node-001', plan_id: 'plan-001', label: '后端工程师执行', agent_id: 'agent-be', status: 'completed', depends_on: [], action_type: 'runtime_invoke', action_payload: { userMessage: '实现 API', phase: 'worker' } },
-    { id: 'node-arch', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke', action_payload: { userMessage: '汇总任务', phase: 'summarizing' } },
+    { id: 'node-arch', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke', action_payload: { userMessage: '汇总任务', phase: 'summarizing' }, result: { scheduler: 'waiting', reason: 'dependencies waiting' } },
   ]
 
   const chainFactory = vi.fn(() => ({
     from: vi.fn((table: string) => {
       if (table === 'agent_mailbox_items') {
+        const mailboxQuery = (rows: Record<string, unknown>[]) => ({
+          eq: (field: string, value: unknown) => mailboxQuery(rows.filter((row) => row[field] === value)),
+          order: () => ({ data: rows, error: null }),
+        })
         return {
           select: () => ({
             eq: (field: string, value: string) => {
               if (field === 'id') return { single: () => ({ data: item, error: item ? null : { message: 'Not found' } }) }
-              if (field === 'session_id') return { order: () => ({ data: readyItems, error: null }) }
+              if (field === 'session_id') return mailboxQuery(readyItems.filter((row) => row.session_id === value))
               return { single: () => ({ data: null, error: { message: `Unexpected ${field}=${value}` } }) }
             },
           }),
@@ -334,7 +338,7 @@ describe('mailbox reply, dead-letter, and ready APIs', () => {
     const { chainFactory, writes } = mailboxControlChain({
       nodes: [
         { id: 'node-001', plan_id: 'plan-001', label: '后端工程师执行', agent_id: 'agent-be', status: 'failed', depends_on: [], action_type: 'runtime_invoke', action_payload: { userMessage: '实现 API', phase: 'worker' } },
-        { id: 'node-arch', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke', action_payload: { userMessage: '汇总任务', phase: 'summarizing' } },
+        { id: 'node-arch', plan_id: 'plan-001', label: '架构师汇总', agent_id: 'agent-arch', status: 'waiting', depends_on: ['node-001'], action_type: 'runtime_invoke', action_payload: { userMessage: '汇总任务', phase: 'summarizing' }, result: { scheduler: 'waiting', reason: 'dependencies waiting' } },
       ],
     })
     setupMockClient(chainFactory)

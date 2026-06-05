@@ -43,11 +43,13 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
   useEffect(() => setMounted(true), [])
 
   useEffect(() => {
+    let cancelled = false
     fetch('/api/workspaces').then(r => r.json()).then(d => {
+      if (cancelled) return
       if (Array.isArray(d)) {
         setWorkspaces(d)
         const fromUrl = workspaceId && d.some((w: Workspace) => w.id === workspaceId) ? workspaceId : null
-        // URL 指定的 workspace 优先且权威（含 deep-link 间切换）；否则仅在无选中时回退第一个
+        // URL 指定的 workspace 优先且权威（含 deep-link 间切换）；否则仅在无选中时回退第一个。
         const target = fromUrl ?? (activeWorkspaceId ? null : (d.length > 0 ? d[0].id : null))
         if (target && target !== activeWorkspaceId) {
           setActiveWorkspace(target)
@@ -55,7 +57,10 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
         }
       }
     })
-  }, [workspaceId])
+    return () => {
+      cancelled = true
+    }
+  }, [activeWorkspaceId, fetchSessions, setActiveWorkspace, workspaceId])
 
   useLayoutEffect(() => {
     if (!wsOpen || !triggerRef.current) return

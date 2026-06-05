@@ -67,6 +67,9 @@ export function mobileActionDetailRows(action: MobilePermissionAction): Array<[s
     ['Workspace', stringValue(result?.workspaceRoot)],
     ['路径', targetPaths.length > 0 ? targetPaths.join('\n') : null],
     ['工具', stringValue(result?.toolName)],
+    ['预览', stringValue(result?.previewPath)],
+    ['Manifest', stringValue(result?.manifestPath)],
+    ['产物', stringValue(result?.artifactId)],
   ].filter((row): row is [string, string] => Boolean(row[1]))
 }
 

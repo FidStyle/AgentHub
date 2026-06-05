@@ -6,6 +6,7 @@ import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
 import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
 import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
+import { classifyRisk } from '@/lib/orchestrator/permission-engine'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
@@ -225,6 +226,67 @@ function isRuntimeWaitingBoundary(error: string | null, runtimeParts: RuntimeMes
   if (runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')) return true
   return error === 'Runtime 工具已进入权限审批，未执行该操作。'
     || error === 'Runtime 等待用户补充确认，未继续执行。'
+}
+
+function isDeploymentIntent(content: string) {
+  const normalized = content.trim().toLowerCase()
+  if (!normalized) return false
+  if (/(不要|别|不用|暂不|无需)\s*(部署|发布|上线|deploy|publish)/i.test(normalized)) return false
+  if (/\b(deploy|publish)\b/.test(normalized)) return true
+  return /(部署|发布|上线).{0,16}(当前|这个|网站|网页|应用|项目|产物|工作区|预览|静态)/.test(normalized)
+    || /(当前|这个|网站|网页|应用|项目|产物|工作区|预览|静态).{0,16}(部署|发布|上线)/.test(normalized)
+}
+
+async function createDeployApproval(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  userId: string
+  sessionId: string
+  workspaceRoot: string
+  command: string
+  userMessageId?: string | null
+}) {
+  const riskLevel = classifyRisk('deploy', input.command)
+  const result = {
+    source: 'chat_deploy_request',
+    actionKind: 'deploy',
+    workspaceRoot: input.workspaceRoot,
+    cwd: input.workspaceRoot,
+    targetPaths: [input.workspaceRoot],
+    commandPreview: input.command,
+    requestedMessageId: input.userMessageId ?? null,
+    requestedAt: new Date().toISOString(),
+  }
+  const { data: action, error } = await input.db
+    .from('actions')
+    .insert({
+      session_id: input.sessionId,
+      plan_node_id: null,
+      owner_id: input.userId,
+      action_type: 'deploy',
+      command: input.command,
+      cwd: input.workspaceRoot,
+      risk_level: riskLevel,
+      status: 'pending',
+      requires_approval: true,
+      result,
+    })
+    .select()
+    .single()
+  if (error || !action?.id) throw new Error(error?.message ?? '创建部署审批失败')
+
+  await input.db.from('notifications').insert({
+    user_id: input.userId,
+    type: 'approval_required',
+    title: '部署需要授权',
+    body: `部署将读取当前工作区并生成本地预览 manifest，风险等级: ${riskLevel}`,
+    ref_type: 'action',
+    ref_id: action.id,
+  })
+  return {
+    id: String(action.id),
+    riskLevel,
+    result,
+  }
 }
 
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
@@ -592,6 +654,59 @@ export async function POST(req: NextRequest) {
       return [...parts, { id: partId('artifact', evt), type: 'artifact', status: 'created', artifactId: evt.artifactId, artifactType: evt.artifactType, title: evt.title, sourcePath: evt.sourcePath, contentRef: evt.contentRef }]
     }
     return parts
+  }
+
+  if (isDeploymentIntent(content)) {
+    if (!runtimeWorkspaceRoot) {
+      return Response.json({ error: '部署需要可写的云端工作区目录' }, { status: 409 })
+    }
+    const command = 'AgentHub 本地静态部署当前工作区'
+    const deployAction = await createDeployApproval({
+      db,
+      userId: user.id,
+      sessionId,
+      workspaceRoot: runtimeWorkspaceRoot,
+      command,
+      userMessageId: userMessageRow?.id ?? null,
+    })
+    const approvalEvent: RuntimeGatewayEvent = {
+      type: 'approval_requested',
+      actionId: deployAction.id,
+      title: '部署当前工作区需要授权',
+      description: '允许后，AgentHub 会在当前 workspace 内生成部署 manifest，并创建可刷新读回的部署结果产物；拒绝则不会执行部署。',
+      riskLevel: deployAction.riskLevel,
+      actionKind: 'deploy',
+      workspaceRoot: runtimeWorkspaceRoot,
+      cwd: runtimeWorkspaceRoot,
+      targetPaths: [runtimeWorkspaceRoot],
+      commandPreview: command,
+    }
+    const runtimeParts = reduceRuntimeParts([], approvalEvent)
+    await db.from('messages').insert({
+      session_id: sessionId,
+      content: '检测到部署请求，已创建部署审批。请先确认是否允许本次部署。',
+      sender_type: 'agent',
+      role_agent_id: primaryRoleAgentId,
+      message_type: 'approval',
+      metadata: {
+        runtimeParts,
+        deployment: {
+          actionId: deployAction.id,
+          status: 'pending_approval',
+          workspaceRoot: runtimeWorkspaceRoot,
+        },
+      },
+    })
+    const deployStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encode(approvalEvent))
+        controller.enqueue(encode({ type: 'done' }))
+        controller.close()
+      },
+    })
+    return new Response(deployStream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    })
   }
 
   // Direct and local_desktop chats route through the Cloud Runtime Gateway via the adapter.

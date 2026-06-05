@@ -1,0 +1,9 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "research/contracts/REMAINING-P1-FEATURES-2026-06-05.md", "reason": "剩余 P1 共享合同"}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "真实主链路和三端验收规范"}
+{"file": ".trellis/spec/cross-layer/runtime-gateway-contract.md", "reason": "runtime/action/deploy 事件语义"}
+{"file": ".trellis/spec/cross-layer/prd-backtrace-audit.md", "reason": "Bytedance 反查和假入口禁止规则"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "workspace root、权限 broker 和 runtime cwd 合同"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "工作台组件实现规范"}
+{"file": ".trellis/spec/frontend/ui-style-guidelines.md", "reason": "三端 UI 和视觉验收规范"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量和测试规范"}

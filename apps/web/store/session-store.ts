@@ -143,7 +143,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     get().fetchMessages(id)
   },
 
-  setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
+  setActiveWorkspace: (id) => {
+    const { activeWorkspaceId } = get()
+    if (activeWorkspaceId === id) return
+    set({
+      activeWorkspaceId: id,
+      sessions: [],
+      activeSessionId: null,
+      messages: [],
+      error: null,
+    })
+  },
 
   setSessionStatusFilter: async (status) => {
     set({ sessionStatusFilter: status })

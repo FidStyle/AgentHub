@@ -10,7 +10,7 @@ import { enqueue, isWorkerAlive, type RuntimeJob } from '@/lib/runtime/redis-cli
 
 type AppDb = Awaited<ReturnType<typeof createClient>>
 
-export type ActionDispatchStatus = 'queued' | 'unavailable' | 'unsupported'
+export type ActionDispatchStatus = 'queued' | 'completed' | 'unavailable' | 'unsupported'
 
 export interface ActionDispatchResult {
   status: ActionDispatchStatus
@@ -455,6 +455,157 @@ async function recordDispatchFailure(
   return { status, error }
 }
 
+function deploymentEntryPath(files: string[], workspaceRoot: string): string | null {
+  const relativeFiles = files
+    .map((filePath) => path.relative(workspaceRoot, filePath).replace(/\\/g, '/'))
+    .filter((relativePath) => relativePath && !relativePath.split('/').includes('..'))
+  const candidates = [
+    'dist/index.html',
+    'build/index.html',
+    'public/index.html',
+    'index.html',
+  ]
+  return candidates.find((candidate) => relativeFiles.includes(candidate))
+    ?? relativeFiles.find((relativePath) => relativePath.endsWith('/index.html'))
+    ?? relativeFiles.find((relativePath) => relativePath.endsWith('.html'))
+    ?? relativeFiles.find((relativePath) => relativePath === 'README.md')
+    ?? relativeFiles[0]
+    ?? null
+}
+
+async function dispatchDeployAction(
+  db: AppDb,
+  action: ActionRecordForDispatch,
+  workspaceId: string,
+  workspaceRoot: string,
+): Promise<ActionDispatchResult> {
+  const now = new Date().toISOString()
+  const files = await walkFiles(workspaceRoot)
+  const entryPath = deploymentEntryPath(files, workspaceRoot)
+  const manifestRelativePath = `.agenthub/deployments/${action.id}/manifest.json`
+  const manifestFullPath = path.join(workspaceRoot, manifestRelativePath)
+  const previewPath = entryPath ? `workspace-file:${workspaceId}:${entryPath}` : null
+  const manifest = {
+    version: 1,
+    actionId: action.id,
+    workspaceId,
+    sessionId: action.session_id,
+    status: 'completed',
+    mode: 'local_static_preview',
+    entryPath,
+    previewPath,
+    manifestPath: manifestRelativePath,
+    sourceRoot: workspaceRoot,
+    fileCount: files.length,
+    createdAt: now,
+  }
+  await fs.mkdir(path.dirname(manifestFullPath), { recursive: true })
+  await fs.writeFile(manifestFullPath, JSON.stringify(manifest, null, 2), 'utf8')
+
+  const content = [
+    '# 部署结果',
+    '',
+    '| 字段 | 内容 |',
+    '| --- | --- |',
+    '| 状态 | 已完成 |',
+    '| 模式 | 本地静态预览 manifest |',
+    `| 预览路径 | ${previewPath ?? '未发现可预览入口文件'} |`,
+    `| 入口文件 | ${entryPath ?? '未发现'} |`,
+    `| Manifest | ${manifestRelativePath} |`,
+    `| 文件数 | ${files.length} |`,
+    `| 创建时间 | ${now} |`,
+    '',
+    '该部署结果由聊天部署审批生成，可在产物面板和移动预览中刷新读回。它不会发布到外网。',
+  ].join('\n')
+
+  const { data: artifact, error: artifactError } = await db
+    .from('artifacts')
+    .insert({
+      workspace_id: workspaceId,
+      session_id: action.session_id,
+      source_message_id: null,
+      source_run_id: null,
+      source_path: manifestRelativePath,
+      artifact_type: 'markdown',
+      title: '部署结果',
+      content,
+      content_ref: previewPath ?? `workspace-file:${workspaceId}:${manifestRelativePath}`,
+      metadata: {
+        kind: 'deployment',
+        actionId: action.id,
+        status: 'completed',
+        mode: 'local_static_preview',
+        previewPath,
+        manifestPath: manifestRelativePath,
+        entryPath,
+        fileCount: files.length,
+        workspaceRoot,
+      },
+      created_by: action.owner_id,
+    })
+    .select()
+    .single()
+  const artifactId = typeof artifact?.id === 'string' ? artifact.id : null
+  if (artifactError || !artifactId) {
+    return recordDispatchFailure(db, action, 'unavailable', artifactError?.message ?? '部署结果产物写入失败。')
+  }
+
+  await db.from('messages').insert({
+    session_id: action.session_id,
+    content: [
+      '部署已完成，已生成本地静态预览 manifest 和部署结果产物。',
+      previewPath ? `预览路径：${previewPath}` : '未发现可预览入口文件，请在产物中查看 manifest。',
+      `Manifest：${manifestRelativePath}`,
+    ].join('\n'),
+    sender_type: 'agent',
+    role_agent_id: action.role_agent_id ?? null,
+    message_type: 'result_card',
+    metadata: {
+      deployment: {
+        actionId: action.id,
+        artifactId,
+        status: 'completed',
+        previewPath,
+        manifestPath: manifestRelativePath,
+        entryPath,
+      },
+      runtimeParts: [{
+        id: `deployment-${action.id}`,
+        type: 'artifact',
+        status: 'created',
+        artifactId,
+        artifactType: 'markdown',
+        title: '部署结果',
+        sourcePath: manifestRelativePath,
+        contentRef: previewPath ?? `workspace-file:${workspaceId}:${manifestRelativePath}`,
+      }],
+    },
+  })
+
+  const result = dispatchResult(action, {
+    dispatch: 'completed',
+    deployment: manifest,
+    artifactId,
+    previewPath,
+    manifestPath: manifestRelativePath,
+    at: now,
+  })
+  await db.from('actions').update({
+    status: 'completed',
+    executed_at: now,
+    result,
+  }).eq('id', action.id)
+  await db.from('notifications').insert({
+    user_id: action.owner_id,
+    type: 'deployment_completed',
+    title: '部署已完成',
+    body: previewPath ? `预览路径：${previewPath}` : `Manifest：${manifestRelativePath}`,
+    ref_type: 'action',
+    ref_id: action.id,
+  })
+  return { status: 'completed' }
+}
+
 export async function dispatchApprovedAction(
   db: AppDb,
   action: ActionRecordForDispatch,
@@ -499,6 +650,9 @@ export async function dispatchApprovedAction(
   const violation = actionWorkspaceViolation(action, workspaceRoot)
   if (violation) {
     return recordDispatchFailure(db, action, 'unavailable', violation)
+  }
+  if (action.action_type === 'deploy') {
+    return dispatchDeployAction(db, action, workspace.id, workspaceRoot)
   }
 
   const endpoint = await resolveEndpoint({

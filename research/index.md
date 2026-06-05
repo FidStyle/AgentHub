@@ -25,6 +25,7 @@
 | [contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md](./contracts/COMPLETE-MULTI-AGENT-ORCHESTRATION-2026-06-02.md) | P1 完整多 Agent 编排与交接合同：中文角色 runtime 配置、Orchestrator DAG、mailbox/handoff、plan retry/resume、Claude+Codex 真实 UAT |
 | [contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md](./contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md) | P0 Orchestrator IM、Markdown 渲染、结构化权限确认与 Git Changes/Get Diff 合同：自定义角色确认、同工作区串行执行、AionUi Markdown 复用和 stage/unstage/discard/revert 安全闭环 |
 | [contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md](./contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md) | P0 角色 Runtime workspace 隔离与权限 Broker 回归合同：cwd/context 隔离、架构师派发和 native CLI 工具权限确认 |
+| [contracts/REMAINING-P1-FEATURES-2026-06-05.md](./contracts/REMAINING-P1-FEATURES-2026-06-05.md) | P1 剩余功能收口合同：IM/联系人/自建 Agent、聊天式部署、Artifact workbench；排除最终 Demo 包和 3 分钟素材 |
 | [contracts/RICH-DOC-PPT-ARTIFACTS-2026-06-03.md](./contracts/RICH-DOC-PPT-ARTIFACTS-2026-06-03.md) | P2 富文档与演示稿 artifact 合同：生成、预览、基础编辑、二次交互编辑请求和导出，不做协同编辑 |
 
 ## 技术设计

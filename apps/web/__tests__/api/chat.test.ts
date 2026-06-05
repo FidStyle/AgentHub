@@ -32,6 +32,9 @@ const insertedPlans: Record<string, unknown>[] = []
 const insertedPlanNodes: Record<string, unknown>[] = []
 const insertedAttempts: Record<string, unknown>[] = []
 const insertedMailboxItems: Record<string, unknown>[] = []
+const insertedActions: Record<string, unknown>[] = []
+const insertedNotifications: Record<string, unknown>[] = []
+const insertedArtifacts: Record<string, unknown>[] = []
 
 // Events the mocked runtime adapter emits; per-test override via setAdapterEvents.
 let adapterEvents: Record<string, unknown>[] = [{ type: 'runtime_output', delta: 'ok' }]
@@ -102,6 +105,52 @@ function chainCapturingInsertsWithRoles(roleAgents?: unknown[], messages?: unkno
   })
 }
 
+function chainCapturingDeployApproval(roleAgents?: unknown[]) {
+  const base = createPostgresChain(undefined, undefined, undefined, undefined, roleAgents)
+  return vi.fn(() => {
+    const client = base()
+    const origFrom = client.from
+    client.from = vi.fn((table: string) => {
+      const t = origFrom(table)
+      if (table === 'messages') {
+        const origInsert = t.insert
+        t.insert = (vals: Record<string, unknown>) => {
+          insertedMessages.push(vals)
+          return origInsert(vals)
+        }
+      }
+      if (table === 'actions') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: 'action-deploy-001', ...vals }
+            insertedActions.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+        }
+      }
+      if (table === 'notifications') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: 'notification-deploy-001', ...vals }
+            insertedNotifications.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+        }
+      }
+      if (table === 'artifacts') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            insertedArtifacts.push(vals)
+            return { select: () => ({ single: () => ({ data: { id: 'artifact-unexpected', ...vals }, error: null }) }) }
+          },
+        }
+      }
+      return t
+    })
+    return client
+  })
+}
+
 describe('POST /api/chat — role-chat-core', () => {
   beforeEach(() => {
     resetMockAuth()
@@ -112,6 +161,9 @@ describe('POST /api/chat — role-chat-core', () => {
     insertedPlanNodes.length = 0
     insertedAttempts.length = 0
     insertedMailboxItems.length = 0
+    insertedActions.length = 0
+    insertedNotifications.length = 0
+    insertedArtifacts.length = 0
     resolveEndpointMock.mockClear()
     createSessionMock.mockClear()
     isWorkerAliveMock.mockClear()
@@ -264,6 +316,82 @@ describe('POST /api/chat — role-chat-core', () => {
         { id: 'agent-002', name: 'Backend Engineer', roleType: 'backend', runtimeType: 'codex', isOrchestrator: false },
       ],
     })
+  })
+
+  it('creates a pending deploy approval from chat without executing or creating deployment artifacts first', async () => {
+    setupMockClient(chainCapturingDeployApproval([
+      {
+        id: 'agent-orch',
+        workspace_id: 'ws-001',
+        name: '架构师',
+        role_type: 'orchestrator',
+        system_prompt: '负责协调',
+        capabilities: ['规划'],
+        runtime_type: 'claude_code',
+        is_orchestrator: true,
+      },
+    ]))
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: '请部署当前网站',
+    })
+
+    expect(status).toBe(200)
+    expect(invokeSpy).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(insertedActions).toEqual([
+      expect.objectContaining({
+        id: 'action-deploy-001',
+        action_type: 'deploy',
+        command: 'AgentHub 本地静态部署当前工作区',
+        cwd: mockWorkspaceRoot,
+        risk_level: 'high',
+        status: 'pending',
+        requires_approval: true,
+        result: expect.objectContaining({
+          source: 'chat_deploy_request',
+          actionKind: 'deploy',
+          workspaceRoot: mockWorkspaceRoot,
+          targetPaths: [mockWorkspaceRoot],
+        }),
+      }),
+    ])
+    expect(insertedNotifications).toEqual([
+      expect.objectContaining({
+        type: 'approval_required',
+        title: '部署需要授权',
+        ref_type: 'action',
+        ref_id: 'action-deploy-001',
+      }),
+    ])
+    expect(insertedArtifacts).toHaveLength(0)
+    const approvalMessage = insertedMessages.find((message) => message.message_type === 'approval')
+    expect(approvalMessage).toMatchObject({
+      sender_type: 'agent',
+      role_agent_id: 'agent-orch',
+      metadata: {
+        deployment: expect.objectContaining({
+          actionId: 'action-deploy-001',
+          status: 'pending_approval',
+          workspaceRoot: mockWorkspaceRoot,
+        }),
+        runtimeParts: [
+          expect.objectContaining({
+            type: 'permission',
+            status: 'pending',
+            actionId: 'action-deploy-001',
+            actionKind: 'deploy',
+            workspaceRoot: mockWorkspaceRoot,
+            commandPreview: 'AgentHub 本地静态部署当前工作区',
+          }),
+        ],
+      },
+    })
+    expect(text).toContain('"type":"approval_requested"')
+    expect(text).toContain('"actionId":"action-deploy-001"')
+    expect(text).not.toContain('"type":"runtime_output"')
+    expect(text).not.toContain('"type":"runtime_completed"')
   })
 
   it('AT-002b [critical]: orchestrator plus workers creates a durable plan and runs planner/workers/summarizer', async () => {
