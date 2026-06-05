@@ -5,6 +5,8 @@ const {
   createSessionMock,
   isWorkerAliveMock,
   enqueueMock,
+  execFileMock,
+  spawnMock,
   workspaceRoot,
   fileStore,
   readFileMock,
@@ -24,6 +26,13 @@ const {
   createSessionMock: vi.fn(async (input: { cwd?: string | null }) => ({ id: 'runtime-001', nativeSessionId: 'native-001', cwd: input.cwd })),
   isWorkerAliveMock: vi.fn(async () => true),
   enqueueMock: vi.fn(async (_input: unknown) => undefined),
+  execFileMock: vi.fn((_command: string, _args: string[], _options: Record<string, unknown>, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
+    callback(null, 'verification passed\n', '')
+  }),
+  spawnMock: vi.fn(() => ({
+    pid: 4321,
+    unref: vi.fn(),
+  })),
   fileStore: files,
   readFileMock: vi.fn(async (filePath: string) => {
     const content = files.get(String(filePath))
@@ -47,6 +56,11 @@ const {
   }),
   mkdirMock: vi.fn(async () => undefined),
 }})
+
+vi.mock('node:child_process', () => ({
+  execFile: execFileMock,
+  spawn: spawnMock,
+}))
 
 vi.mock('node:fs/promises', () => ({
   default: {
@@ -163,6 +177,8 @@ describe('dispatchApprovedAction', () => {
     createSessionMock.mockClear()
     isWorkerAliveMock.mockClear()
     enqueueMock.mockClear()
+    execFileMock.mockClear()
+    spawnMock.mockClear()
     readFileMock.mockClear()
     readdirMock.mockClear()
     writeFileMock.mockClear()
@@ -200,6 +216,7 @@ describe('dispatchApprovedAction', () => {
         table: 'actions',
         id: 'action-outside-cwd',
         values: expect.objectContaining({
+          status: 'failed',
           result: expect.objectContaining({
             dispatch: 'unavailable',
             error: '该操作试图使用 workspace 外工作目录，已阻止。',
@@ -218,12 +235,13 @@ describe('dispatchApprovedAction', () => {
 
   it('blocks an approved action when command targets an absolute path outside the workspace root', async () => {
     const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
-    const { db } = dispatchDb()
+    const { db, writes } = dispatchDb()
 
     const result = await dispatchApprovedAction(db as never, {
       id: 'action-outside-target',
       session_id: 'session-001',
       owner_id: 'user-001',
+      plan_node_id: 'node-front-end',
       action_type: 'shell',
       command: 'cat /Users/joytion/Documents/code/AgentHub_new_claude_test/package.json',
       cwd: workspaceRoot,
@@ -234,6 +252,65 @@ describe('dispatchApprovedAction', () => {
     expect(result.error).toContain('该操作试图访问 workspace 外路径')
     expect(createSessionMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-outside-target',
+        values: expect.objectContaining({
+          status: 'failed',
+          result: expect.objectContaining({ dispatch: 'unavailable' }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        id: 'node-front-end',
+        values: expect.objectContaining({
+          status: 'failed',
+          result: expect.objectContaining({ dispatch: 'unavailable' }),
+        }),
+      }),
+    ]))
+  })
+
+  it('does not treat URL paths in approved network commands as filesystem absolute paths', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+    const command = 'curl -s -X POST http://127.0.0.1:3100/api/calculate -H "content-type: application/json" -d \'{"leftOperand":12,"operator":"/","rightOperand":3}\''
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-local-network',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'network_request',
+      command,
+      cwd: workspaceRoot,
+      runtime_type: 'claude_code',
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: workspaceRoot,
+    }))
+    expect(enqueueMock).toHaveBeenCalled()
+  })
+
+  it('allows /dev/null as a network command output sink while preserving workspace path checks', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+    const command = 'curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3100/api/calculate -X POST -H "content-type: application/json" -d \'{"leftOperand":1,"operator":"/","rightOperand":0}\''
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-local-network-dev-null',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'network_request',
+      command,
+      cwd: workspaceRoot,
+      runtime_type: 'claude_code',
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(enqueueMock).toHaveBeenCalled()
   })
 
   it('queues brokered Claude Read approvals with native tool metadata instead of a malformed shell command prompt', async () => {
@@ -397,6 +474,131 @@ describe('dispatchApprovedAction', () => {
       toolName: 'Glob',
       actionKind: 'shell_command',
       executed: true,
+    }))
+  })
+
+  it('executes brokered Bash approvals inside the workspace before continuation', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb()
+    const command = 'DB_PATH="$(pwd)/calc-plan-verify.db" node verify.mjs; rm -f calc-plan-verify.db'
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-bash-approval',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'destructive_command',
+      command,
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        originalRuntimeSessionId: 'runtime-original',
+        toolCallId: 'tool-bash-1',
+        toolName: 'Bash',
+        actionKind: 'destructive_command',
+        runtimeType: 'claude_code',
+        roleAgentId: 'agent-architect',
+        nativeSessionId: 'claude-native-001',
+        commandPreview: command,
+        targetPaths: [],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { command, description: 'Run verification against a workspace temp DB' },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(execFileMock).toHaveBeenCalledWith('/bin/sh', ['-lc', command], expect.objectContaining({
+      cwd: workspaceRoot,
+      timeout: 120_000,
+    }), expect.any(Function))
+    const queuedJob = enqueueMock.mock.calls[0]?.[0] as { prompt?: string; approvedNativeTool?: unknown }
+    expect(queuedJob.prompt).toContain('AgentHub has already executed this exact approved native tool request')
+    expect(queuedJob.prompt).toContain('verification passed')
+    expect(queuedJob.prompt).toContain('Do not use /tmp')
+    expect(queuedJob.approvedNativeTool).toEqual(expect.objectContaining({
+      toolCallId: 'tool-bash-1',
+      toolName: 'Bash',
+      actionKind: 'destructive_command',
+      commandPreview: command,
+      executed: true,
+      output: expect.stringContaining('verification passed'),
+    }))
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-bash-approval',
+        values: expect.objectContaining({
+          result: expect.objectContaining({
+            source: 'runtime_permission_broker',
+            dispatch: 'queued',
+            approvedNativeTool: expect.objectContaining({
+              toolName: 'Bash',
+              commandPreview: command,
+              executed: true,
+            }),
+          }),
+        }),
+      }),
+    ]))
+  })
+
+  it('starts long-running brokered Bash approvals in the workspace background before continuation', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+    const command = 'PORT=3100 DB_PATH="$PWD/data/verify.sqlite" node src/server.js'
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-background-server',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'shell_command',
+      command,
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        originalRuntimeSessionId: 'runtime-original',
+        toolCallId: 'tool-bash-server',
+        toolName: 'Bash',
+        actionKind: 'shell_command',
+        runtimeType: 'claude_code',
+        roleAgentId: 'agent-fe',
+        nativeSessionId: 'claude-native-001',
+        commandPreview: command,
+        targetPaths: [],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { command, description: 'Start server for browser verification' },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(execFileMock).not.toHaveBeenCalled()
+    expect(spawnMock).toHaveBeenCalledWith('/bin/sh', [
+      '-lc',
+      expect.stringContaining(command),
+    ], expect.objectContaining({
+      cwd: workspaceRoot,
+      detached: true,
+      stdio: 'ignore',
+    }))
+    expect(mkdirMock).toHaveBeenCalledWith(`${workspaceRoot}/.agenthub`, { recursive: true })
+    expect(writeFileMock).toHaveBeenCalledWith(
+      `${workspaceRoot}/.agenthub/last-background-service.json`,
+      expect.stringContaining('"pid": 4321'),
+      'utf8',
+    )
+    const queuedJob = enqueueMock.mock.calls[0]?.[0] as { prompt?: string; approvedNativeTool?: unknown }
+    expect(queuedJob.prompt).toContain('Started long-running command in the background')
+    expect(queuedJob.prompt).toContain(`${workspaceRoot}/.agenthub/last-background-service.log`)
+    expect(queuedJob.approvedNativeTool).toEqual(expect.objectContaining({
+      toolCallId: 'tool-bash-server',
+      toolName: 'Bash',
+      actionKind: 'shell_command',
+      commandPreview: command,
+      executed: true,
+      output: expect.stringContaining('Started long-running command in the background'),
     }))
   })
 

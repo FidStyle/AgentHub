@@ -1,0 +1,5 @@
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Verify fixed-sample product gate and three-surface evidence"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Verify runtime gateway/worker behavior"}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Verify workspace isolation and permission broker behavior"}
+{"file":"research/project-tracker.md","reason":"Verify tracker is updated with exact status"}
+{"file":"research/sequential-execution-progress.md","reason":"Verify sequential queue does not skip P0 fixed-sample gate"}

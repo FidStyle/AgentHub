@@ -20,7 +20,17 @@ vi.mock('../../lib/runtime/redis-client', () => ({
 vi.mock('../../lib/app-db-client', () => ({
   createClient: async () => ({
     from: (table: string) => ({
-      update: (patch: Record<string, unknown>) => { dbUpdates.push(patch); return { eq: () => ({ eq: () => {} }) } },
+      update: (patch: Record<string, unknown>) => {
+        const update = { table, where: [] as Array<[string, unknown]>, ...patch }
+        dbUpdates.push(update)
+        const chain = {
+          eq: (field: string, value: unknown) => {
+            update.where.push([field, value])
+            return chain
+          },
+        }
+        return chain
+      },
       insert: (row: Record<string, unknown>) => {
         dbInserts.push({ table, row })
         if (table === 'actions') {
@@ -913,6 +923,33 @@ describe('processJob — FakeExecutor regression', () => {
     ]))
   })
 
+  it('closes stale waiting mailbox blockers when an approved action completes its plan node', async () => {
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved-completes-node',
+      prompt: 'approved continuation finished',
+      actionId: 'action-approved-node',
+      planNodeId: 'node-approved',
+    }
+
+    const result = await processJob(job, new FakeExecutor())
+
+    expect(result).toBe('completed')
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        status: 'completed',
+        error: null,
+        where: [['plan_node_id', 'node-approved'], ['status', 'waiting']],
+      }),
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        status: 'completed',
+        error: null,
+        where: [['plan_node_id', 'node-approved'], ['status', 'waiting']],
+      }),
+    ]))
+  })
+
   it('preserves runtime permission broker metadata when an approved action runs and completes', async () => {
     const actionResult = {
       source: 'runtime_permission_broker',
@@ -1035,6 +1072,146 @@ describe('processJob — FakeExecutor regression', () => {
           toolName: 'Write',
           terminal: 'completed',
           runtimeSessionId: 'runtime-approved-repeat',
+        }),
+      }),
+    ]))
+  })
+
+  it('consumes one repeated approved Bash request by matching commandPreview', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const command = 'DB_PATH="$(pwd)/calc-plan-verify.db" node verify.mjs; rm -f calc-plan-verify.db'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          toolRequest: {
+            id: 'tool-bash-repeat-new-id',
+            toolName: 'Bash',
+            actionKind: 'destructive_command',
+            cwd: workspaceRoot,
+            commandPreview: command,
+            input: { command },
+          },
+        }
+        yield { delta: 'continued after approved verification' }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved-bash-repeat',
+      prompt: 'approved bash continuation',
+      actionId: 'action-bash-approved',
+      planNodeId: 'node-bash-approved',
+      attemptId: 'attempt-bash-approved',
+      mailboxItemId: 'mailbox-bash-approved',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      actionResult: {
+        source: 'runtime_permission_broker',
+        toolCallId: 'tool-bash-approved',
+        toolName: 'Bash',
+        actionKind: 'destructive_command',
+        commandPreview: command,
+        dispatch: 'queued',
+      },
+      approvedNativeTool: {
+        toolCallId: 'tool-bash-approved',
+        toolName: 'Bash',
+        actionKind: 'destructive_command',
+        commandPreview: command,
+        targetPaths: [],
+        executed: true,
+        output: 'verification passed',
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('completed')
+    expect(dbInserts.some((insert) => insert.table === 'actions')).toBe(false)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'approved_tool_result_consumed',
+          toolName: 'Bash',
+          toolCallId: 'tool-bash-repeat-new-id',
+          actionKind: 'destructive_command',
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_output',
+          delta: 'continued after approved verification',
+        }),
+      }),
+    ]))
+  })
+
+  it('does not consume a different Bash command after an approved Bash request', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const approvedCommand = 'node verify.mjs'
+    const differentCommand = 'npm install better-sqlite3'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          toolRequest: {
+            id: 'tool-bash-different',
+            toolName: 'Bash',
+            actionKind: 'install_dependency',
+            cwd: workspaceRoot,
+            commandPreview: differentCommand,
+            input: { command: differentCommand },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved-bash-different',
+      prompt: 'approved bash then different command',
+      actionId: 'action-bash-approved',
+      planNodeId: 'node-bash-approved',
+      attemptId: 'attempt-bash-approved',
+      mailboxItemId: 'mailbox-bash-approved',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      actionResult: {
+        source: 'runtime_permission_broker',
+        toolCallId: 'tool-bash-approved',
+        toolName: 'Bash',
+        actionKind: 'destructive_command',
+        commandPreview: approvedCommand,
+        dispatch: 'queued',
+      },
+      approvedNativeTool: {
+        toolCallId: 'tool-bash-approved',
+        toolName: 'Bash',
+        actionKind: 'destructive_command',
+        commandPreview: approvedCommand,
+        targetPaths: [],
+        executed: true,
+        output: 'verification passed',
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        row: expect.objectContaining({
+          action_type: 'install_dependency',
+          command: differentCommand,
+          status: 'pending',
+          result: expect.objectContaining({
+            toolCallId: 'tool-bash-different',
+            toolName: 'Bash',
+            commandPreview: differentCommand,
+          }),
         }),
       }),
     ]))

@@ -1,0 +1,6 @@
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Fixed-sample Bytedance product gate and real-flow acceptance rules"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime gateway/worker and real executor acceptance contract"}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Workspace cwd, permission broker, and native tool continuation constraints"}
+{"file":"research/project-tracker.md","reason":"Public P0/P1/P2 status and blocker baseline"}
+{"file":"research/sequential-execution-progress.md","reason":"Current single-branch execution queue and next-step constraints"}
+{"file":"research/execution-reports/approved-native-tool-execution-result-uat-2026-06-05.md","reason":"Baseline evidence from prior fixed-sample partial run"}

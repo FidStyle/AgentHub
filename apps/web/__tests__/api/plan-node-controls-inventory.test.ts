@@ -62,7 +62,7 @@ async function callInventory(workspaceId?: string) {
 }
 
 function controlChain() {
-  const writes: Array<{ table: string; values: Record<string, unknown>; id?: string }> = []
+  const writes: Array<{ table: string; values: Record<string, unknown>; id?: string; where?: Array<[string, unknown]> }> = []
   const node = {
     id: 'node-001',
     plan_id: 'plan-001',
@@ -129,9 +129,16 @@ function controlChain() {
             return { select: () => ({ single: () => ({ data: { id: 'attempt-002', ...values }, error: null }) }) }
           },
           update: (values: Record<string, unknown>) => ({
-            eq: (_field: string, id: string) => {
-              writes.push({ table, values, id })
-              return { data: null, error: null }
+            eq: (field: string, id: string) => {
+              const write = { table, values, id, where: [[field, id]] as Array<[string, unknown]> }
+              writes.push(write)
+              const chain = {
+                eq: (nextField: string, nextValue: unknown) => {
+                  write.where?.push([nextField, nextValue])
+                  return chain
+                },
+              }
+              return chain
             },
           }),
         }
@@ -142,6 +149,19 @@ function controlChain() {
             writes.push({ table, values })
             return { select: () => ({ single: () => ({ data: { id: 'mailbox-001', ...values }, error: null }) }) }
           },
+          update: (values: Record<string, unknown>) => ({
+            eq: (field: string, id: string) => {
+              const write = { table, values, id, where: [[field, id]] as Array<[string, unknown]> }
+              writes.push(write)
+              const chain = {
+                eq: (nextField: string, nextValue: unknown) => {
+                  write.where?.push([nextField, nextValue])
+                  return chain
+                },
+              }
+              return chain
+            },
+          }),
         }
       }
       return { select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }) }
@@ -224,6 +244,16 @@ describe('plan node controls, timeline, and runtime inventory APIs', () => {
       expect.objectContaining({
         table: 'plan_node_attempts',
         values: expect.objectContaining({ control: 'retry', attempt_number: 2, previous_attempt_id: 'attempt-001', status: 'queued' }),
+      }),
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        values: expect.objectContaining({ status: 'cancelled', error: expect.stringContaining('重试') }),
+        where: [['plan_node_id', 'node-001'], ['status', 'waiting']],
+      }),
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        values: expect.objectContaining({ status: 'cancelled', error: expect.stringContaining('重试') }),
+        where: [['plan_node_id', 'node-001'], ['status', 'waiting']],
       }),
       expect.objectContaining({
         table: 'agent_mailbox_items',

@@ -65,6 +65,66 @@
 - 多角色顺序执行时，下游角色必须收到结构化 handoff context，且 `messages.metadata.handoffsReceived` 或等价字段刷新后可读回。
 - 被 `@` 的自定义角色必须产生一条简短确认消息，表达它理解了任务和准备怎么执行；禁止把确认固定成只有“收到”两个字，也禁止只更新隐藏状态而不在 IM 流里显示角色反馈。
 
+## Scenario: Plan Node Terminal Queue Consistency
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 plan node control、mailbox dispatch、runtime worker terminal update、plan progress auto-advance、retry/resume/requeue/cancel API。
+- Applies to: `plan_nodes`, `plan_node_attempts`, `agent_mailbox_items`, `/api/plan-nodes/:id/{retry,resume,requeue,cancel}`, `/api/mailbox/dispatch-ready`, and runtime worker terminal state.
+
+### 2. Signatures
+
+- `plan_nodes.status`: terminal values include `completed`, `failed`, `cancelled`, `skipped`, `blocked`.
+- `plan_node_attempts.status`: queue-active values are `queued`, `running`, `waiting`; terminal values include `completed`, `failed`, `cancelled`, `dead_letter`.
+- `agent_mailbox_items.status`: queue-active values are `queued`, `running`, `waiting`; terminal values include `completed`, `failed`, `cancelled`, `dead_letter`.
+- `POST /api/plan-nodes/:id/resume|retry|requeue` must supersede same-node `queued` and `waiting` attempts/mailbox items before creating the new queued attempt/mailbox.
+- `POST /api/mailbox/dispatch-ready` must not dispatch a mailbox whose plan node is already terminal.
+
+### 3. Contracts
+
+- A completed plan node must not leave same-node `queued` or `waiting` attempts/mailbox items that can still block the target role queue or be dispatched later.
+- Runtime terminal completion for an approved action or runtime node must close stale same-node `queued`/`waiting` attempts and mailbox items after setting `plan_nodes.status='completed'`.
+- Retry/resume/requeue is a superseding control action. It must mark old same-node `queued`/`waiting` attempts/mailbox items `cancelled` with an explanatory error before inserting the replacement attempt/mailbox.
+- Dispatch-ready must reconcile terminal plan nodes before selecting ready mailbox items. If the mailbox's plan node is terminal, update mailbox and linked attempt to the equivalent terminal status instead of dispatching it.
+- UI and Mobile/PWA plan supervision must be internally consistent: a row may not show `plan completed` while the latest visible same-node attempt/mailbox remains `queued` or `waiting`.
+
+### 4. Validation & Error Matrix
+
+| 条件 | 必须结果 | 禁止结果 |
+| --- | --- | --- |
+| Plan node is `completed`, old mailbox is `queued` | Dispatch-ready marks mailbox/attempt `completed` and dispatches nothing | Runtime starts old queued work |
+| Plan node is `completed`, old mailbox is `waiting` | Dispatch-ready marks mailbox/attempt `completed` | Same role queue remains blocked forever |
+| User calls `resume` on a waiting node | Old queued/waiting attempts/mailbox become `cancelled`; new attempt/mailbox is `queued` | Old waiting mailbox continues to block selector |
+| Approved action completes a plan node | Runtime worker marks node `completed` and closes stale queued/waiting queue rows | UI shows 4/4 completed with latest attempt `queued` |
+| Action rejected by approval API | Action stays `rejected`; plan node can be resumed/retried through plan-node control | Direct DB mutation to bypass rejection |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Final architect node completes; `plan_nodes.status=completed`; all same-node attempts/mailbox are `completed` or `cancelled`; Web and Mobile show 4/4 completed without queued leftovers.
+- Base: A permission boundary leaves a node `waiting`; user approves and continuation completes; runtime worker closes the original waiting attempt/mailbox.
+- Bad: Final node completes through an older attempt while a newer resume attempt remains `queued`; UI says plan completed but dispatch-ready later runs the stale queued item.
+
+### 6. Tests Required
+
+- Runtime worker test: an approved action with `planNodeId` completing must update stale same-node `queued` and `waiting` attempts/mailbox rows.
+- Plan-node control test: `retry` and `resume` must cancel old same-node `queued`/`waiting` work before inserting a new attempt/mailbox.
+- Mailbox dispatch test/API UAT: dispatch-ready must reconcile terminal plan-node leftovers and return `dispatched: []` when no real queued work remains.
+- OpenCLI UAT: Web changes/orchestrator panel and Mobile/PWA plan supervision must both show terminal consistency after refresh.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Plan shows completed, but latest attempt line still says "attempt queued · mailbox queued"; dispatch-ready can later run the stale mailbox.
+```
+
+#### Correct
+
+```text
+Plan shows completed; stale queued/waiting attempts and mailbox items for terminal nodes are completed/cancelled before UI readback and before dispatch-ready selection.
+```
+
 ### 附件
 
 通过标准：

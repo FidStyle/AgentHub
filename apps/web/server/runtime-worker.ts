@@ -183,6 +183,9 @@ function sameApprovedNativeToolRequest(job: RuntimeJob, tool: NativeCliToolReque
   if (!approved?.executed) return false
   if (approved.toolCallId && tool.id && approved.toolCallId === tool.id) return true
   if (approved.toolName !== tool.toolName || approved.actionKind !== tool.actionKind) return false
+  if (approved.commandPreview || tool.commandPreview) {
+    return Boolean(approved.commandPreview && tool.commandPreview && approved.commandPreview.trim() === tool.commandPreview.trim())
+  }
   const approvedTargets = new Set((approved.targetPaths ?? []).filter(Boolean))
   const requestedTargets = (tool.targetPaths ?? []).filter(Boolean)
   if (approvedTargets.size === 0 && requestedTargets.length === 0) return true
@@ -343,8 +346,43 @@ async function markActionTerminal(
       planNodePatch.completed_at = now
     }
     await db.from('plan_nodes').update(planNodePatch).eq('id', job.planNodeId)
+    if (planNodeStatus === 'completed' && job.actionId) {
+      await closeCompletedPlanNodeWaitingQueue(db, job.planNodeId, now)
+    }
   }
   await settleParentPlan(db, job)
+}
+
+async function closeCompletedPlanNodeWaitingQueue(
+  db: Awaited<ReturnType<typeof createClient>>,
+  planNodeId: string,
+  now: string,
+): Promise<void> {
+  const patch = {
+    status: 'completed',
+    error: null,
+    updated_at: now,
+  }
+  await db
+    .from('plan_node_attempts')
+    .update(patch)
+    .eq('plan_node_id', planNodeId)
+    .eq('status', 'waiting')
+  await db
+    .from('plan_node_attempts')
+    .update(patch)
+    .eq('plan_node_id', planNodeId)
+    .eq('status', 'queued')
+  await db
+    .from('agent_mailbox_items')
+    .update(patch)
+    .eq('plan_node_id', planNodeId)
+    .eq('status', 'waiting')
+  await db
+    .from('agent_mailbox_items')
+    .update(patch)
+    .eq('plan_node_id', planNodeId)
+    .eq('status', 'queued')
 }
 
 // Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.

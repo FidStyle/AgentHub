@@ -112,6 +112,36 @@ async function loadRole(db: AppDbClient, roleId?: string | null) {
   return data as unknown as RoleRow | null
 }
 
+async function supersedeWaitingNodeWork(db: AppDbClient, nodeId: string, control: Control) {
+  if (control === 'cancel') return
+  const now = new Date().toISOString()
+  const patch = {
+    status: 'cancelled',
+    error: `用户已发起${controlTitle(control)}，旧的等待任务已被替代。`,
+    updated_at: now,
+  }
+  await db
+    .from('plan_node_attempts')
+    .update(patch)
+    .eq('plan_node_id', nodeId)
+    .eq('status', 'waiting')
+  await db
+    .from('plan_node_attempts')
+    .update(patch)
+    .eq('plan_node_id', nodeId)
+    .eq('status', 'queued')
+  await db
+    .from('agent_mailbox_items')
+    .update(patch)
+    .eq('plan_node_id', nodeId)
+    .eq('status', 'waiting')
+  await db
+    .from('agent_mailbox_items')
+    .update(patch)
+    .eq('plan_node_id', nodeId)
+    .eq('status', 'queued')
+}
+
 export async function controlPlanNode(input: {
   db: AppDbClient
   nodeId: string
@@ -122,6 +152,7 @@ export async function controlPlanNode(input: {
   if (!context.ok) return context
 
   const latestAttempt = await loadLatestAttempt(input.db, input.nodeId)
+  await supersedeWaitingNodeWork(input.db, input.nodeId, input.control)
   const nextAttemptNumber = (latestAttempt?.attempt_number ?? 0) + 1
   const attemptStatus = controlToAttemptStatus(input.control)
   const { data: attempt, error: attemptError } = await input.db

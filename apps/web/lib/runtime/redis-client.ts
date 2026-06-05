@@ -34,6 +34,7 @@ export interface RuntimeJob {
     toolName: string
     actionKind: string
     targetPaths?: string[]
+    commandPreview?: string | null
     executed: boolean
     output?: string
     error?: string

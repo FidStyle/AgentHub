@@ -1,5 +1,5 @@
 import { selectReadyMailboxItems, type AgentMailboxItem } from '@agenthub/shared'
-import type { CliRuntimeType } from '@agenthub/shared'
+import type { CliRuntimeType, MailboxStatus } from '@agenthub/shared'
 import type { AppDbClient } from '@/lib/postgres-query-client'
 import { dispatchMailboxRuntimeInvokeItem } from '@/lib/orchestrator/action-dispatcher'
 import { advancePlanProgress } from '@/lib/orchestrator/plan-progress'
@@ -31,6 +31,18 @@ type PlanNodeRow = {
   agent_id?: string | null
   action_type?: string | null
   action_payload?: Record<string, unknown> | null
+  status?: string | null
+}
+
+type WaitingMailboxBlockerRow = {
+  id: string
+  plan_node_id?: string | null
+  attempt_id?: string | null
+}
+
+type TerminalPlanNodeRow = {
+  id: string
+  status?: string | null
 }
 
 async function assertWorkspaceOwner(db: AppDbClient, workspaceId: string, userId: string) {
@@ -83,6 +95,43 @@ async function loadRole(db: AppDbClient, roleId: string, workspaceId: string) {
 
   if (error || !role) return null
   return role as unknown as RoleRow
+}
+
+function terminalNodeMailboxStatus(status?: string | null): MailboxStatus | null {
+  if (status === 'completed') return 'completed'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'failed' || status === 'skipped' || status === 'blocked') return 'failed'
+  return null
+}
+
+async function reconcileTerminalPlanNodeMailboxBlockers(db: AppDbClient, sessionId: string) {
+  const rows: WaitingMailboxBlockerRow[] = []
+  for (const itemStatus of ['waiting', 'queued'] as const) {
+    const { data: blockers } = await db
+      .from('agent_mailbox_items')
+      .select('id, plan_node_id, attempt_id')
+      .eq('session_id', sessionId)
+      .eq('direction', 'inbound')
+      .eq('status', itemStatus)
+    if (Array.isArray(blockers)) rows.push(...blockers as unknown as WaitingMailboxBlockerRow[])
+  }
+
+  for (const row of rows) {
+    if (!row.plan_node_id) continue
+    const { data: node } = await db
+      .from('plan_nodes')
+      .select('id, status')
+      .eq('id', row.plan_node_id)
+      .single()
+    const status = terminalNodeMailboxStatus((node as unknown as TerminalPlanNodeRow | null)?.status)
+    if (!status) continue
+
+    const patch = { status, error: null, updated_at: new Date().toISOString() }
+    await db.from('agent_mailbox_items').update(patch).eq('id', row.id)
+    if (row.attempt_id) {
+      await db.from('plan_node_attempts').update(patch).eq('id', row.attempt_id)
+    }
+  }
 }
 
 function textBody(value: unknown, fallback: string) {
@@ -262,6 +311,7 @@ export async function getReadyMailboxItems(input: {
 }) {
   const loaded = await loadSessionForOwner(input.db, input.sessionId, input.userId)
   if (!loaded.ok) return loaded
+  await reconcileTerminalPlanNodeMailboxBlockers(input.db, input.sessionId)
 
   const { data: items, error } = await input.db
     .from('agent_mailbox_items')

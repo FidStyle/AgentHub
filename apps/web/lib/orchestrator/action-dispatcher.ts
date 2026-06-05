@@ -1,3 +1,4 @@
+import { execFile, spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { ExecutionDomain } from '@agenthub/shared'
@@ -63,6 +64,7 @@ type ApprovedNativeToolExecution = {
   toolName: string
   actionKind: string
   targetPaths: string[]
+  commandPreview?: string | null
   executed: boolean
   output: string
   error?: string
@@ -122,6 +124,7 @@ function buildApprovedNativeToolPrompt(
           'Do not call the same native tool again for the same target. Treat the tool result below as the result of the approved tool call, then continue with the next step of the original task.',
           'Do not stop to ask the user about optional implementation choices that are already implied by the original request; choose sensible defaults and continue. Only ask the user if execution cannot proceed safely without new information.',
           'For the fixed sample "做一个加减乘除的简单网站，使用 sqlite 存储历史记录", use Node.js + Express + better-sqlite3 + plain HTML/CSS/JS by default, keep all history in SQLite, show the latest 20 records in the UI, and continue implementation without AskUserQuestion unless a real safety blocker appears.',
+          'Keep temporary verification scripts, temporary SQLite databases, temporary logs, and cleanup targets inside the selected workspace root. Do not use /tmp, the user home directory, the AgentHub host repository, or any path outside the workspace boundary.',
           '',
           `Approved tool execution result:\n${execution.output}`,
         ].join('\n')
@@ -255,6 +258,55 @@ function clipToolOutput(value: string, limit = 30_000): string {
   return `${value.slice(0, limit)}\n\n[AgentHub clipped ${value.length - limit} trailing characters from the approved native tool result.]`
 }
 
+function execShell(command: string, cwd: string): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile('/bin/sh', ['-lc', command], {
+      cwd,
+      timeout: 120_000,
+      maxBuffer: 2 * 1024 * 1024,
+    }, (err, stdout, stderr) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      resolve({ stdout: String(stdout ?? ''), stderr: String(stderr ?? '') })
+    })
+  })
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function isLikelyLongRunningShellCommand(command: string): boolean {
+  const normalized = command.replace(/\s+/g, ' ').trim()
+  return /\b(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:dev|start)\b/.test(normalized)
+    || /\bnext\s+dev\b/.test(normalized)
+    || /\bvite(?:\s|$)/.test(normalized)
+    || /\bnode\s+(?:\.\/)?(?:src\/)?server\.(?:js|mjs|cjs)\b/.test(normalized)
+}
+
+async function startBackgroundShell(command: string, cwd: string): Promise<{ pid: number | null; logPath: string; statePath: string }> {
+  const stateDir = path.join(cwd, '.agenthub')
+  await fs.mkdir(stateDir, { recursive: true })
+  const logPath = path.join(stateDir, 'last-background-service.log')
+  const statePath = path.join(stateDir, 'last-background-service.json')
+  const child = spawn('/bin/sh', ['-lc', `exec > ${shellQuote(logPath)} 2>&1\n${command}`], {
+    cwd,
+    detached: true,
+    stdio: 'ignore',
+  })
+  child.unref()
+  await fs.writeFile(statePath, JSON.stringify({
+    pid: child.pid ?? null,
+    command,
+    cwd,
+    logPath,
+    startedAt: new Date().toISOString(),
+  }, null, 2), 'utf8')
+  return { pid: child.pid ?? null, logPath, statePath }
+}
+
 async function executeApprovedNativeTool(
   broker: RuntimePermissionBrokerResult,
   workspaceRoot: string,
@@ -275,6 +327,7 @@ async function executeApprovedNativeTool(
     toolCallId: stringValue(broker.toolCallId),
     toolName,
     actionKind,
+    commandPreview: stringValue(broker.commandPreview),
     targetPaths: stringArrayValue(broker.targetPaths).length > 0 ? stringArrayValue(broker.targetPaths) : [targetPath],
   }
   if (actionKind === 'read_file') {
@@ -333,6 +386,53 @@ async function executeApprovedNativeTool(
   return null
 }
 
+async function executeApprovedShellTool(
+  broker: RuntimePermissionBrokerResult,
+  workspaceRoot: string,
+): Promise<ApprovedNativeToolExecution | null> {
+  const toolName = stringValue(broker.toolName)
+  const actionKind = stringValue(broker.actionKind)
+  const commandPreview = stringValue(broker.commandPreview)
+  if (!toolName || !actionKind || !commandPreview) return null
+  const cwd = stringValue(broker.cwd) ?? workspaceRoot
+  if (!isPathInsideRoot(workspaceRoot, cwd)) {
+    throw new Error('该操作试图使用 workspace 外工作目录，已阻止。')
+  }
+  if (isLikelyLongRunningShellCommand(commandPreview)) {
+    const started = await startBackgroundShell(commandPreview, cwd)
+    return {
+      toolCallId: stringValue(broker.toolCallId),
+      toolName,
+      actionKind,
+      commandPreview,
+      targetPaths: stringArrayValue(broker.targetPaths),
+      executed: true,
+      output: clipToolOutput([
+        `$ ${commandPreview}`,
+        'Started long-running command in the background inside the selected workspace boundary.',
+        `pid: ${started.pid ?? 'unknown'}`,
+        `log: ${started.logPath}`,
+        `state: ${started.statePath}`,
+      ].join('\n')),
+    }
+  }
+  const { stdout, stderr } = await execShell(commandPreview, cwd)
+  const parts = [
+    `$ ${commandPreview}`,
+    stdout ? `stdout:\n${stdout}` : null,
+    stderr ? `stderr:\n${stderr}` : null,
+  ].filter(Boolean)
+  return {
+    toolCallId: stringValue(broker.toolCallId),
+    toolName,
+    actionKind,
+    commandPreview,
+    targetPaths: stringArrayValue(broker.targetPaths),
+    executed: true,
+    output: clipToolOutput(parts.join('\n\n')),
+  }
+}
+
 async function recordDispatchFailure(
   db: AppDb,
   action: ActionRecordForDispatch,
@@ -340,9 +440,9 @@ async function recordDispatchFailure(
   error: string,
 ): Promise<ActionDispatchResult> {
   const result = dispatchResult(action, { dispatch: status, error, at: new Date().toISOString() })
-  await db.from('actions').update({ result }).eq('id', action.id)
+  await db.from('actions').update({ status: 'failed', result }).eq('id', action.id)
   if (action.plan_node_id) {
-    await db.from('plan_nodes').update({ result }).eq('id', action.plan_node_id)
+    await db.from('plan_nodes').update({ status: 'failed', result }).eq('id', action.plan_node_id)
   }
   await db.from('notifications').insert({
     user_id: action.owner_id,
@@ -427,6 +527,7 @@ export async function dispatchApprovedAction(
   if (broker) {
     try {
       approvedNativeTool = await executeApprovedNativeTool(broker, workspaceRoot)
+        ?? await executeApprovedShellTool(broker, workspaceRoot)
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err)
       return recordDispatchFailure(db, action, 'unavailable', `Runtime 原生工具执行失败：${error}`)
@@ -589,9 +690,17 @@ function isPathInsideRoot(root: string, candidate: string): boolean {
 }
 
 function absolutePathTokens(command: string): string[] {
-  const matches = command.match(/(?:^|[\s"'=])\/[^\s"'`;$|&<>)]*/g) ?? []
+  const withoutUrls = command.replace(/\b[a-zA-Z][a-zA-Z\d+.-]*:\/\/[^\s"'`;$|&<>)]*/g, ' ')
+  const matches = [...withoutUrls.matchAll(/(^|[\s"'=])\/[^\s"'`;$|&<>)]*/g)]
+    .filter((match) => {
+      if (match[1] !== '"') return true
+      const quoteIndex = match.index ?? 0
+      return withoutUrls[quoteIndex - 1] !== ':'
+    })
+    .map((match) => match[0])
   return matches
     .map((match) => match.trim().replace(/^["'=]*/, '').replace(/^[^/]*/, '').replace(/[,.]$/, ''))
+    .filter((token) => token !== '/dev/null')
     .filter((token) => token.startsWith('/'))
 }
 
