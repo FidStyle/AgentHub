@@ -1,0 +1,5 @@
+{"file": "bytedance_init_prd.md", "reason": "最高产品事实源：单 prompt、多 Agent、权限、三端和产物交付语义"}
+{"file": "bytedance_init_video_txt.txt", "reason": "辅助事实源：三端职责和用户体验状态语义"}
+{"file": "research/sequential-execution-progress.md", "reason": "单分支顺序执行、三端验收和 OpenCLI 优先规则"}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "需要更新的真实主链路验收 code-spec"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "完整权限、permission continuation 和 runtime 状态源契约"}

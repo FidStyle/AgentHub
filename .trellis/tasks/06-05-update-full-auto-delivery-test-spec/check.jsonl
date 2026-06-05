@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "检查新增全自动前端产物交付验收场景是否满足 7-section code-spec"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "检查权限模式和 runtime 状态语义是否一致"}
+{"file": "research/sequential-execution-progress.md", "reason": "检查三端验收和 OpenCLI 优先规则是否一致"}

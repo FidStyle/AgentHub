@@ -142,6 +142,136 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
 - Artifact 面板刷新后仍能展示同一 artifact title/content/ref。
 - 后续自动部署需要消费 artifact 时，必须有稳定 ID 或 contentRef。
 
+## Scenario: Full-Auto Frontend Product Delivery Gate
+
+### 1. Scope / Trigger
+
+- Trigger: any task, report, product gate, or regression fix that claims a user can send one prompt and receive a completed frontend-visible product under full/automatic permission control.
+- Applies to: fixed-sample product delivery, frontend engineer delivery nodes, generated web app previews, artifact/workbench/file-tree readback, permission modes, runtime progress display, Web/Mobile/Desktop acceptance evidence, and any equivalent feature that turns a natural-language request into a delivered UI artifact.
+- This scenario is mandatory even when backend/API/runtime unit tests already pass. Backend correctness is necessary but not sufficient for product delivery.
+
+### 2. Signatures
+
+- User prompt example:
+  - `做一个加减乘除的简单网站，使用sqlite存储历史记录`
+- Chat request fields:
+  - `POST /api/chat`
+  - `workspaceId`
+  - `sessionId`
+  - `content`
+  - `roleAgentId?`
+  - `permissionMode = "auto" | "full_control" | equivalent full-control mode`
+- Durable state sources:
+  - `plans.status`
+  - `plan_nodes.status`
+  - `plan_node_attempts.status`
+  - `agent_mailbox_items.status`
+  - `actions.status`
+  - `runtime_sessions.status`
+  - `runtime_logs.event_type`
+  - `messages.metadata.runtimeParts`
+  - `artifacts` rows or workspace file references
+  - workspace file tree and Git/changes API
+- User-visible status labels:
+  - thinking/planning/reading/tool-running -> `思考中` or `执行中`
+  - waiting for permission -> `等待授权`
+  - rejected permission -> `已拒绝，等待下一次输入`
+  - runtime interrupted/failed -> `执行失败` or `已中断`
+  - product generated, tested, summarized -> `已完成`
+
+### 3. Contracts
+
+- A single prompt in full-control permission mode must continue automatically until one of two terminal outcomes:
+  - `completed`: final user-visible product is generated, test evidence passes, final summary/architect validation is durable, and Web/Mobile/Desktop readback agrees.
+  - `failed/interrupted`: a real failure is durable and visible with an actionable reason. It must not be presented as completed.
+- Completion must be derived from durable plan/action/runtime/artifact state, not from assistant text alone.
+- The frontend delivery line is required:
+  - Orchestrator/architect first response creates a readable plan.
+  - A frontend engineer node is created, dispatched, and reaches `completed`.
+  - The generated UI appears in the file tree, preview, artifact panel, or equivalent workbench surface.
+  - The generated UI is exercised from a browser-like surface, not only inspected as files.
+  - Core product behavior is asserted from the UI. For the calculator sample this includes add/subtract/multiply/divide and history persistence backed by SQLite or an equivalent SQLite-backed API.
+  - Git/changes/code-reference or workspace file evidence must show the produced files and no hidden host-repo writes.
+- The user must be able to understand progress without seeing private chain-of-thought:
+  - show audited execution states such as reading README, planning, creating backend API, creating frontend UI, initializing SQLite, running tests, generating preview, and finalizing;
+  - do not expose raw model chain-of-thought;
+  - do not show `已完成` until durable terminal completion criteria pass.
+- The same testing method applies to comparable features:
+  - full-auto mode;
+  - manual allow mode;
+  - reject mode;
+  - failed/interrupted mode;
+  - frontend artifact readback;
+  - three-surface state consistency.
+- If backend passes but frontend line is missing, waiting, unverified, or not visible to the user, the result is `partial` or `failed`, never `completed`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Full-control prompt starts | plan created, progress visible as `思考中`/`执行中` | assistant text appears with no durable plan/progress |
+| Backend node completed, frontend node waiting | overall state remains `执行中`/`partial`, not completed | mark product `已完成` because backend passed |
+| Native tool permission appears in full-control mode and policy allows it | auto approve, dispatch continuation, keep progressing | stop forever on pending permission |
+| User manually rejects a permission in manual mode | action `rejected`, no side effect, plan waits for next input | continue execution or mark completed |
+| Frontend files generated | file tree/preview/workbench shows files after refresh | only runtime stdout mentions files |
+| Product UI opens | browser-level test exercises UI behavior | only API/unit test passes |
+| SQLite/history required | history persists through API/UI and reload or DB query evidence | local JS array only while claiming SQLite |
+| Runtime fails or is interrupted | durable failure state and visible reason | assistant final text says done |
+| Web passes but Mobile/Desktop readback missing | mark that surface `not-run`/`blocked`; do not count as three-surface pass | count Web screenshot as all surfaces |
+
+### 5. Good/Base/Bad Cases
+
+- Good: In full-control mode, the fixed sample creates a 4-node plan; architect, backend engineer, frontend engineer, and final validation all complete; Web preview can calculate `8 * 9 = 72`; history persists in SQLite; Mobile/PWA shows the same plan and authorization records; Desktop/Electron fallback passes supervision/readback.
+- Base: Backend API and SQLite pass, but frontend preview has not been generated yet. The plan remains `执行中` or `partial`, and the report says frontend delivery is incomplete.
+- Base: Full-control mode is configured but a safety policy blocks an outside-workspace path. The run fails closed with a visible reason and does not mark completed.
+- Bad: The assistant says "我已经完成网站" while the frontend engineer node is still `waiting`.
+- Bad: The generated site works only by opening a local file manually, while AgentHub Web file tree/artifact/preview cannot read it back.
+- Bad: The report claims three-surface pass without Mobile/PWA or Desktop/Electron evidence.
+
+### 6. Tests Required
+
+- Web OpenCLI UAT must start from the real chat/workspace entry, send the prompt once, and record:
+  - plan exists and progress states are visible;
+  - frontend engineer node reaches `completed`;
+  - permission actions auto-complete in full-control mode or are clearly rejected/failed;
+  - generated files appear in file tree or workbench;
+  - generated UI is exercised in browser/preview and core behavior works;
+  - final state is `已完成` only after durable plan/artifact/test evidence passes.
+- Mobile/PWA OpenCLI UAT must open the same session and verify:
+  - plan/action/runtime status readback;
+  - authorization records;
+  - final completed/failed state matches Web.
+- Desktop/Electron UAT must use an OpenCLI app adapter when available; otherwise Playwright Electron fallback is acceptable only when documented with command and pass count.
+- DB/API evidence must include durable state checks for `plans`, `plan_nodes`, `actions`, `runtime_sessions`, `messages`, and artifacts/files.
+- Generated product tests must cover both backend and frontend behavior. For the calculator sample:
+  - add, subtract, multiply, divide;
+  - divide-by-zero and invalid input/operator;
+  - SQLite-backed history persistence;
+  - browser/UI calculation and history readback.
+- Reports must classify each surface and line explicitly: `pass`, `partial`, `failed`, `blocked`, or `not-run`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+The backend node completed and the assistant said the website is done, so mark the task completed.
+```
+
+```text
+Only show a final assistant paragraph. Do not show whether the run is thinking, executing, waiting for permission, failed, or completed.
+```
+
+#### Correct
+
+```text
+Completion = durable plan terminal state + frontend engineer completed + generated UI visible/exercised + SQLite/history behavior verified + Web/Mobile/Desktop readback consistent.
+```
+
+```text
+Expose audited progress states: planning -> executing backend -> executing frontend -> testing -> final validation -> completed. If any required line is waiting/failed/not-run, the product gate is not completed.
+```
+
 ## Scenario: Chat Deployment Local Manifest Closure
 
 ### 1. Scope / Trigger
