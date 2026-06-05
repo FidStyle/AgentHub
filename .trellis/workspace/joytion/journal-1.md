@@ -718,3 +718,38 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: 单 prompt 权限续跑回归修复
+
+**Date**: 2026-06-05
+**Task**: 单 prompt 权限续跑回归修复
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+修复权限模式透传、允许后 continuation dispatch、拒绝停住等待、inline permission 状态同步；补 Web/Mobile OpenCLI 与 Desktop fallback 证据、治理台账和 runtime spec。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1f84ca0` | (see git log) |
+| `6a0a284` | (see git log) |
+| `b2cc35e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
