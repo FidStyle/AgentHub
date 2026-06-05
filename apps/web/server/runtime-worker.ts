@@ -84,7 +84,7 @@ async function markActionRunning(job: RuntimeJob): Promise<void> {
     await db.from('actions').update({
       status: 'running',
       executed_at: now,
-      result: { dispatch: 'running', runtimeSessionId: job.runtimeSessionId, at: now },
+      result: { ...(job.actionResult ?? {}), dispatch: 'running', runtimeSessionId: job.runtimeSessionId, at: now },
     }).eq('id', job.actionId)
   }
   if (job.planNodeId) {
@@ -119,6 +119,13 @@ function toolRequestDescription(tool: NativeCliToolRequest, workspaceRoot: strin
   ].filter(Boolean).join('\n')
 }
 
+function nativeToolCommandLabel(tool: NativeCliToolRequest, toolCall: NativeCliToolCall): string {
+  if (toolCall.commandPreview) return toolCall.commandPreview
+  const targets = toolCall.targetPaths?.filter((target) => target.trim()) ?? []
+  if (targets.length > 0) return `${tool.toolName}: ${targets.join(', ')}`
+  return `${tool.toolName} (${toolCall.actionKind})`
+}
+
 function toolCallFromRequest(job: RuntimeJob, tool: NativeCliToolRequest): NativeCliToolCall | null {
   if (!job.workspaceId || !job.sessionId || !job.workspaceRoot || !job.cwd) return null
   return {
@@ -134,12 +141,12 @@ function toolCallFromRequest(job: RuntimeJob, tool: NativeCliToolRequest): Nativ
   }
 }
 
-async function createPermissionAction(job: RuntimeJob, toolCall: NativeCliToolCall, riskLevel: string) {
+async function createPermissionAction(job: RuntimeJob, tool: NativeCliToolRequest, toolCall: NativeCliToolCall, riskLevel: string, nativeSessionId?: string | null) {
   if (!job.ownerId) {
     throw new Error('Runtime 权限请求缺少用户归属，已阻止执行。')
   }
   const db = await createClient()
-  const command = toolCall.commandPreview ?? `${toolCall.actionKind}: ${toolCall.targetPaths?.join(', ') || toolCall.cwd}`
+  const command = nativeToolCommandLabel(tool, toolCall)
   const { data: action, error } = await db
     .from('actions')
     .insert({
@@ -155,8 +162,18 @@ async function createPermissionAction(job: RuntimeJob, toolCall: NativeCliToolCa
       result: {
         source: 'runtime_permission_broker',
         runtimeSessionId: job.runtimeSessionId,
+        originalRuntimeSessionId: job.runtimeSessionId,
         toolCallId: toolCall.id,
+        toolName: tool.toolName,
+        actionKind: toolCall.actionKind,
+        commandPreview: toolCall.commandPreview ?? null,
+        input: tool.input ?? null,
+        nativeSessionId: nativeSessionId ?? job.nativeSessionId ?? null,
+        runtimeType: job.runtimeType ?? null,
+        roleAgentId: job.roleAgentId ?? null,
         targetPaths: toolCall.targetPaths ?? [],
+        cwd: toolCall.cwd,
+        workspaceRoot: job.workspaceRoot,
       },
     })
     .select('id')
@@ -181,6 +198,7 @@ async function markActionTerminal(job: RuntimeJob, terminal: Terminal, output = 
   const now = new Date().toISOString()
   const status = terminal === 'completed' ? 'completed' : 'failed'
   const result = {
+    ...(job.actionResult ?? {}),
     terminal,
     runtimeSessionId: job.runtimeSessionId,
     output: output.slice(-20_000),
@@ -281,7 +299,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
           throw new Error('Runtime 权限请求无法进入审批队列，已阻止执行。')
         }
         const riskLevel = permission.approval.riskLevel
-        const actionId = await createPermissionAction(job, toolCall, riskLevel)
+        const actionId = await createPermissionAction(job, chunk.toolRequest, toolCall, riskLevel, lastNativeSessionId)
         await emit({
           type: 'approval_requested',
           actionId,

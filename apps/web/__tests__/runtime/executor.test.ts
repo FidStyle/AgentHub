@@ -131,6 +131,66 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
     ])
   })
 
+  it('extracts Claude Read tool_use blocks as read_file requests without falling back to shell_command', () => {
+    const chunks = outputChunks('claude_code', JSON.stringify({
+      type: 'content_block_start',
+      content_block: {
+        type: 'tool_use',
+        id: 'toolu-read-1',
+        name: 'Read',
+        input: { file_path: '/workspace/package.json' },
+      },
+    }))
+
+    expect(chunks).toEqual([
+      {
+        toolRequest: expect.objectContaining({
+          id: 'toolu-read-1',
+          toolName: 'Read',
+          actionKind: 'read_file',
+          targetPaths: ['/workspace/package.json'],
+        }),
+      },
+    ])
+  })
+
+  it('buffers Claude streamed tool input JSON before emitting a Read approval request', () => {
+    const parser = new CliOutputParser('claude_code')
+    const lines = [
+      {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'toolu-read-streamed',
+          name: 'Read',
+          input: {},
+        },
+      },
+      {
+        type: 'content_block_delta',
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"file_path":"/workspace/package.json"}',
+        },
+      },
+      { type: 'content_block_stop' },
+    ]
+
+    const chunks = lines.flatMap((line) => parser.parseLine(JSON.stringify(line)))
+
+    expect(chunks).toEqual([
+      {
+        toolRequest: expect.objectContaining({
+          id: 'toolu-read-streamed',
+          toolName: 'Read',
+          actionKind: 'read_file',
+          input: { file_path: '/workspace/package.json' },
+          targetPaths: ['/workspace/package.json'],
+        }),
+      },
+    ])
+  })
+
   it('extracts Codex exec_command items as dependency install permission requests', () => {
     const chunks = outputChunks('codex', JSON.stringify({
       type: 'item.started',
@@ -429,6 +489,120 @@ describe('processJob — FakeExecutor regression', () => {
     expect(published.some((p) => p.event.type === 'runtime_output')).toBe(false)
   })
 
+  it('persists Claude Read approvals with native tool metadata instead of shell_command cwd fallback', async () => {
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          toolRequest: {
+            id: 'tool-read-1',
+            toolName: 'Read',
+            actionKind: 'read_file',
+            cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+            targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json'],
+            input: { file_path: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json' },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-read-approval',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      runtimeType: 'claude_code',
+      nativeSessionId: 'claude-native-001',
+      workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      prompt: 'read package',
+      planNodeId: 'node-runtime-001',
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        row: expect.objectContaining({
+          action_type: 'read_file',
+          command: 'Read: /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json',
+          cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+          result: expect.objectContaining({
+            source: 'runtime_permission_broker',
+            runtimeSessionId: 'runtime-read-approval',
+            originalRuntimeSessionId: 'runtime-read-approval',
+            toolCallId: 'tool-read-1',
+            toolName: 'Read',
+            actionKind: 'read_file',
+            runtimeType: 'claude_code',
+            nativeSessionId: 'claude-native-001',
+            targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json'],
+            input: { file_path: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json' },
+          }),
+        }),
+      }),
+    ]))
+    expect(dbInserts.find((insert) => insert.table === 'actions')?.row).not.toEqual(expect.objectContaining({
+      command: 'shell_command: /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+    }))
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'approval_requested',
+          actionKind: 'read_file',
+          targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json'],
+        }),
+      }),
+    ]))
+  })
+
+  it('persists discovered native session and role metadata for native tool approvals', async () => {
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield { nativeSessionId: 'claude-native-discovered' }
+        yield {
+          toolRequest: {
+            id: 'tool-read-discovered',
+            toolName: 'Read',
+            actionKind: 'read_file',
+            cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+            targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md'],
+            input: { file_path: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md' },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-read-discovered',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      roleAgentId: 'agent-architect',
+      runtimeType: 'claude_code',
+      workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      prompt: 'read README',
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        row: expect.objectContaining({
+          result: expect.objectContaining({
+            source: 'runtime_permission_broker',
+            toolCallId: 'tool-read-discovered',
+            nativeSessionId: 'claude-native-discovered',
+            roleAgentId: 'agent-architect',
+            runtimeType: 'claude_code',
+          }),
+        }),
+      }),
+    ]))
+  })
+
   it('updates linked action and plan node when a queued action completes', async () => {
     const job: RuntimeJob = {
       runtimeSessionId: 's-action',
@@ -457,6 +631,53 @@ describe('processJob — FakeExecutor regression', () => {
         result: expect.objectContaining({
           terminal: 'completed',
           runtimeSessionId: 's-action',
+        }),
+      }),
+    ]))
+  })
+
+  it('preserves runtime permission broker metadata when an approved action runs and completes', async () => {
+    const actionResult = {
+      source: 'runtime_permission_broker',
+      originalRuntimeSessionId: 'runtime-original',
+      toolCallId: 'tool-read-1',
+      toolName: 'Read',
+      actionKind: 'read_file',
+      targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md'],
+      nativeSessionId: 'claude-native-001',
+      roleAgentId: 'agent-architect',
+      dispatch: 'queued',
+      runtimeSessionId: 'runtime-approved',
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-approved',
+      prompt: 'approved native continuation',
+      actionId: 'action-read-approved',
+      actionResult,
+    }
+
+    const result = await processJob(job, new FakeExecutor())
+
+    expect(result).toBe('completed')
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        status: 'running',
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          toolName: 'Read',
+          targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md'],
+          dispatch: 'running',
+          runtimeSessionId: 'runtime-approved',
+        }),
+      }),
+      expect.objectContaining({
+        status: 'completed',
+        result: expect.objectContaining({
+          source: 'runtime_permission_broker',
+          toolName: 'Read',
+          targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md'],
+          terminal: 'completed',
+          runtimeSessionId: 'runtime-approved',
         }),
       }),
     ]))

@@ -47,6 +47,11 @@ type RuntimeMessagePart = {
     title?: string;
     description: string;
     riskLevel?: string;
+    actionKind?: string;
+    workspaceRoot?: string;
+    cwd?: string;
+    targetPaths?: string[];
+    commandPreview?: string;
 } | {
     id: string;
     type: 'question';
@@ -521,6 +526,11 @@ type RuntimeGatewayEvent = {
     description: string;
     riskLevel?: string;
     endpointId?: string;
+    actionKind?: string;
+    workspaceRoot?: string;
+    cwd?: string;
+    targetPaths?: string[];
+    commandPreview?: string;
 } | {
     type: 'question';
     questionId?: string;

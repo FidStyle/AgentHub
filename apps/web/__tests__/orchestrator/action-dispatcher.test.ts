@@ -173,6 +173,97 @@ describe('dispatchApprovedAction', () => {
     expect(createSessionMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
   })
+
+  it('queues brokered Claude Read approvals with native tool metadata instead of a malformed shell command prompt', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-read-approval',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'read_file',
+      command: 'Read: /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/package.json',
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        originalRuntimeSessionId: 'runtime-original',
+        toolCallId: 'tool-read-1',
+        toolName: 'Read',
+        actionKind: 'read_file',
+        runtimeType: 'claude_code',
+        roleAgentId: 'agent-fe',
+        nativeSessionId: 'claude-native-001',
+        targetPaths: [`${workspaceRoot}/package.json`],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { file_path: `${workspaceRoot}/package.json` },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      roleAgentId: 'agent-fe',
+      runtimeType: 'claude_code',
+      cwd: workspaceRoot,
+    }))
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeType: 'claude_code',
+      nativeSessionId: 'claude-native-001',
+      cwd: workspaceRoot,
+      prompt: expect.stringContaining('AgentHub approved native CLI tool continuation.'),
+    }))
+    const queuedJob = enqueueMock.mock.calls[0]?.[0] as { prompt?: string }
+    expect(queuedJob.prompt).toContain('Tool: Read')
+    expect(queuedJob.prompt).toContain(`Target paths: ${workspaceRoot}/package.json`)
+    expect(queuedJob.prompt).not.toContain(`Command: shell_command: ${workspaceRoot}`)
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-read-approval',
+        values: expect.objectContaining({
+          result: expect.objectContaining({
+            source: 'runtime_permission_broker',
+            originalRuntimeSessionId: 'runtime-original',
+            toolName: 'Read',
+            dispatch: 'queued',
+            runtimeSessionId: 'runtime-001',
+          }),
+        }),
+      }),
+    ]))
+  })
+
+  it('blocks brokered native tool approvals when result targetPaths point outside the selected workspace root', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-read-outside-target',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'read_file',
+      command: 'Read: package.json',
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        toolCallId: 'tool-read-1',
+        toolName: 'Read',
+        actionKind: 'read_file',
+        targetPaths: ['/Users/joytion/Documents/code/AgentHub_new_claude_test/package.json'],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { file_path: '/Users/joytion/Documents/code/AgentHub_new_claude_test/package.json' },
+      },
+    })
+
+    expect(result.status).toBe('unavailable')
+    expect(result.error).toContain('该操作试图访问 workspace 外路径')
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('dispatchRuntimeInvokeNode', () => {

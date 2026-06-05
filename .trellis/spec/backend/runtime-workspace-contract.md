@@ -98,3 +98,134 @@ spawn("codex", args, { cwd: runtimeInput.cwd });
 ```
 
 The correct path derives every execution cwd from the selected workspace root and filters context before runtime invocation.
+
+## Scenario: Approved Native Tool Continuation Metadata
+
+### 1. Scope / Trigger
+
+- Trigger: any runtime executor, runtime worker, Redis job, action approval, or action dispatcher change that handles native CLI tool permission requests.
+- This is a cross-layer contract spanning streamed CLI JSON parsing, pending action creation, action `result` metadata, approval dispatch, worker queued/running/terminal updates, and runtime session/native session continuity.
+
+### 2. Signatures
+
+- `CliOutputParser.parseLine(line): CliOutputChunk[]`
+- `RuntimeJob.actionResult?: Record<string, unknown> | null`
+- `RuntimeJob.roleAgentId?: string | null`
+- `processJob(job, executor)`
+- `dispatchApprovedAction(db, action)`
+- `enqueueRuntimeJob(job)`
+
+Concrete sources:
+
+- `apps/web/lib/runtime/executor.ts`
+- `apps/web/server/runtime-worker.ts`
+- `apps/web/lib/orchestrator/action-dispatcher.ts`
+- `apps/web/lib/runtime/redis-client.ts`
+
+### 3. Contracts
+
+- Claude streamed `tool_use` input can arrive as `content_block_start` with empty `input`, followed by `input_json_delta.partial_json`. The executor parser must buffer the tool request until `content_block_stop` before emitting the permission request.
+- Native tool names `Read`, `View`, and `Open` must classify as `read_file` even if path extraction has not completed yet.
+- Pending actions created by the runtime permission broker must store broker metadata in `actions.result`:
+  - `source = "runtime_permission_broker"`
+  - `toolCallId`
+  - `toolName`
+  - `actionKind`
+  - `input`
+  - `targetPaths`
+  - `cwd`
+  - `workspaceRoot`
+  - `runtimeType`
+  - `roleAgentId`
+  - `nativeSessionId`
+  - `runtimeSessionId`
+  - `originalRuntimeSessionId`
+- Permission action command labels must describe the approved native tool, for example `Read: <path>`. They must not fall back to `shell_command: <workspaceRoot>` when the request is not a shell command.
+- `dispatchApprovedAction` must detect `actions.result.source === "runtime_permission_broker"` and enqueue a native tool continuation prompt that includes the original tool id/name/input/target paths/cwd. It must use broker `runtimeType`, `roleAgentId`, and `nativeSessionId` when available.
+- Worker running/completed/failed updates for an approved action must merge existing `job.actionResult` into terminal `actions.result`; terminal output/error fields must not erase broker metadata.
+
+### 4. Validation & Error Matrix
+
+| Condition | Error / Event |
+| --- | --- |
+| Claude streamed tool input not complete yet | no `approval_requested` action until `content_block_stop` |
+| native `Read`/`View`/`Open` has path input | `action_type = read_file`, `command = Read: <path>` or equivalent tool label |
+| native permission broker result missing executable metadata | `action_dispatch_failed`, `Runtime 原生工具审批缺少可执行元数据，已阻止。` |
+| broker `cwd` outside selected workspace root | `action_dispatch_failed`, `该操作试图使用 workspace 外工作目录，已阻止。` |
+| broker `workspaceRoot` differs from selected workspace root | `action_dispatch_failed`, `该操作绑定的 workspace root 与当前工作区不一致，已阻止。` |
+| broker `targetPaths` contains outside-root absolute path | `action_dispatch_failed`, `该操作试图访问 workspace 外路径 ...，已阻止。` |
+| worker terminal update receives `job.actionResult` | merge broker metadata with `terminal`, `output`, `error`, and final `runtimeSessionId` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Claude emits `Read` with streamed input for `/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md`; worker creates `read_file`, stores `targetPaths`, `roleAgentId`, and `nativeSessionId`; approval queues a continuation in the same workspace/native session; terminal result still contains broker metadata.
+- Base: a shell-like native tool has a real command preview; approval can still use normal command dispatch after cwd/path validation.
+- Bad: `content_block_start` with `input: {}` immediately creates `Read (read_file)` with empty `targetPaths`; delay until final streamed input is parsed.
+- Bad: approval of `Read` creates `command = shell_command: <workspaceRoot>` and a prompt asking the CLI to run a directory path.
+- Bad: worker marks the approved action failed/completed with `{ output, terminal, runtimeSessionId }` only, erasing `toolName`, `targetPaths`, `nativeSessionId`, or `originalRuntimeSessionId`.
+
+### 6. Tests Required
+
+- Unit test `CliOutputParser` buffers Claude `input_json_delta` and emits one `Read` request at `content_block_stop`.
+- Unit test native `Read`/`View`/`Open` classification never falls back to `shell_command` when target paths are available.
+- Unit test runtime worker creates pending `read_file` action with broker metadata and no `shell_command: <workspaceRoot>` fallback.
+- Unit test runtime worker records discovered native session id and role agent id in pending broker metadata.
+- Unit test approved action dispatch builds a native tool continuation prompt and preserves broker metadata in queued action result.
+- Unit test approved action dispatch blocks broker `targetPaths` outside the selected workspace root.
+- Unit test worker running/terminal updates preserve `job.actionResult` broker metadata.
+- UAT must approve at least one real Claude `Read` permission on the fixed sample and inspect DB rows before approval, during running, and after terminal update.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+const command = `${request.actionKind}: ${job.cwd}`;
+await db.from('actions').insert({
+  action_type: request.actionKind,
+  command,
+  result: { source: 'runtime_permission_broker', targetPaths: [] },
+});
+
+await enqueueRuntimeJob({
+  prompt: `Command: ${command}`,
+  cwd: job.cwd,
+});
+```
+
+#### Correct
+
+```typescript
+const result = {
+  source: 'runtime_permission_broker',
+  toolCallId: request.id,
+  toolName: request.toolName,
+  actionKind: request.actionKind,
+  input: request.input,
+  targetPaths: request.targetPaths,
+  cwd: job.cwd,
+  workspaceRoot: job.workspaceRoot,
+  runtimeType: job.runtimeType,
+  roleAgentId: job.roleAgentId,
+  nativeSessionId,
+  runtimeSessionId: job.runtimeSessionId,
+  originalRuntimeSessionId: job.runtimeSessionId,
+};
+
+await db.from('actions').insert({
+  action_type: request.actionKind,
+  command: `Read: ${request.targetPaths[0]}`,
+  cwd: job.cwd,
+  result,
+});
+
+await enqueueRuntimeJob({
+  prompt: buildApprovedNativeToolContinuationPrompt(result),
+  cwd: job.cwd,
+  nativeSessionId: result.nativeSessionId,
+  roleAgentId: result.roleAgentId,
+  actionResult: result,
+});
+```
+
+The correct path treats approval as continuation of a specific native tool request, not as a synthetic shell command.

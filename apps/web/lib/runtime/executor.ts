@@ -194,6 +194,9 @@ function actionKindForTool(toolName: string, input: Record<string, unknown> | nu
   if (name.includes('fetch') || name.includes('web') || name.includes('http')) {
     return NativeCliToolActionKind.NetworkRequest
   }
+  if (name.includes('read') || name.includes('view') || name.includes('open')) {
+    return NativeCliToolActionKind.ReadFile
+  }
   if (pathsFromInput(input).length > 0) return NativeCliToolActionKind.ReadFile
   return NativeCliToolActionKind.ShellCommand
 }
@@ -229,6 +232,33 @@ function toolRequestsFromRecord(record: Record<string, unknown>): NativeCliToolR
     candidates.push(...asRecordArray(source))
   }
   return candidates.map(toolRequestFromBlock).filter((item): item is NativeCliToolRequest => Boolean(item))
+}
+
+function recordType(record: Record<string, unknown>): string | null {
+  return typeof record.type === 'string' ? record.type : null
+}
+
+function claudeStreamEvent(record: Record<string, unknown>): Record<string, unknown> {
+  return asRecord(record.event) ?? record
+}
+
+function claudeStartedToolBlock(record: Record<string, unknown>): Record<string, unknown> | null {
+  const event = claudeStreamEvent(record)
+  if (recordType(event) !== 'content_block_start') return null
+  return asRecord(event.content_block)
+}
+
+function claudeInputJsonDelta(record: Record<string, unknown>): string | null {
+  const event = claudeStreamEvent(record)
+  if (recordType(event) !== 'content_block_delta') return null
+  const delta = asRecord(event.delta)
+  return delta?.type === 'input_json_delta' && typeof delta.partial_json === 'string'
+    ? delta.partial_json
+    : null
+}
+
+function isClaudeContentBlockStop(record: Record<string, unknown>): boolean {
+  return recordType(claudeStreamEvent(record)) === 'content_block_stop'
 }
 
 function textFromClaudeDelta(record: Record<string, unknown>) {
@@ -285,6 +315,7 @@ function textFromCodexFinal(record: Record<string, unknown>) {
 
 export class CliOutputParser {
   private sawDelta = false
+  private pendingClaudeTool: { block: Record<string, unknown>; inputJson: string } | null = null
 
   constructor(private readonly runtimeType: CliRuntimeType) {}
 
@@ -299,6 +330,45 @@ export class CliOutputParser {
     try {
       const record = JSON.parse(line) as Record<string, unknown>
       const nativeSessionId = nativeSessionIdFromRecord(record)
+      const startedTool = claudeStartedToolBlock(record)
+      if (startedTool) {
+        const request = toolRequestFromBlock(startedTool)
+        const input = asRecord(request?.input)
+        if (request && input && Object.keys(input).length > 0) {
+          return [
+            ...(nativeSessionId ? [{ nativeSessionId }] : []),
+            { toolRequest: request },
+          ]
+        }
+        this.pendingClaudeTool = { block: startedTool, inputJson: '' }
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+        ]
+      }
+      const inputDelta = claudeInputJsonDelta(record)
+      if (inputDelta !== null && this.pendingClaudeTool) {
+        this.pendingClaudeTool.inputJson += inputDelta
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+        ]
+      }
+      if (isClaudeContentBlockStop(record) && this.pendingClaudeTool) {
+        const pending = this.pendingClaudeTool
+        this.pendingClaudeTool = null
+        let input: unknown = pending.block.input
+        if (pending.inputJson.trim()) {
+          try {
+            input = JSON.parse(pending.inputJson)
+          } catch {
+            input = pending.inputJson
+          }
+        }
+        const request = toolRequestFromBlock({ ...pending.block, input })
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          ...(request ? [{ toolRequest: request }] : []),
+        ]
+      }
       const toolRequests = toolRequestsFromRecord(record)
       if (toolRequests.length > 0) {
         return [

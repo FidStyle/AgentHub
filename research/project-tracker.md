@@ -94,6 +94,21 @@
 | **阻塞问题** | 无当前代码阻塞。OpenCLI Web/Mobile/PWA/Desktop-Electron UAT 仍为 `not-run by scope`，按顺序队列留给 `06-05-opencli-role-runtime-uat`。 |
 | **下一步动作** | clean 后进入 `06-05-opencli-role-runtime-uat`，跑固定样本三端真实 UI UAT。 |
 
+### APPROVED-NATIVE-TOOL-CONTINUATION-2026-06-05: 批准 native tool 后续接原工具请求
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WS-001 |
+| **对应计划** | `.trellis/tasks/06-05-fix-approved-native-tool-continuation` |
+| **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`；`.trellis/spec/backend/runtime-workspace-contract.md` |
+| **当前状态** | verified（2026-06-05）：已修复批准 Claude native `Read` 后被转成 malformed `shell_command: <workspaceRoot>` 的 blocker。Claude streamed `input_json_delta` 会缓冲到 `content_block_stop`；`Read`/`View`/`Open` 归类为 `read_file`；runtime worker 在 pending action 中保留 broker metadata；批准后 action dispatcher 生成 native tool continuation prompt，并复用 broker `runtimeType`、`roleAgentId`、`nativeSessionId`；worker running/terminal 更新保留 broker metadata。 |
+| **目标** | 批准原生 CLI 工具请求后，系统必须忠实续接/执行被批准的原工具请求，不能合成新的 malformed shell command；审批前后都必须重新校验 selected workspace root、cwd 和 target paths。 |
+| **验收方式** | Web runtime parser/worker/action-dispatcher regression tests + real acceptance stack OpenCLI Web rerun + Mobile/PWA readback + Electron fallback smoke。 |
+| **测试证据** | Report: `research/execution-reports/approved-native-tool-continuation-uat-2026-06-05.md`；Screenshots: `e2e/artifacts/opencli-uat/approved-native-tool-continuation-2026-06-05/`；fresh `pnpm dev:acceptance` restart + `pnpm env:acceptance:smoke` PASS；Web OpenCLI fixed sample PASS for original blocker：fresh action `d23a4396-a3e0-4521-a91c-644bc3291911` stayed `read_file`, command `Read: .../README.md`, `result.source=runtime_permission_broker`, `targetPaths`/`roleAgentId`/`nativeSessionId` populated before approval and preserved through terminal worker update; continuation runtime session `ebda99b8-a6bc-4b3c-a376-1a07b7c926e7` kept same workspace cwd/native session/role. Electron fallback PASS：`pnpm --filter @agenthub/desktop build` + Playwright Electron 3/3. Final quality gate PASS：focused Web tests 42 passed；Web type-check PASS；Web lint PASS；Shared type-check PASS；Shared `runtime-workspace.test.ts` 15 passed；Trellis task validate PASS；`git diff --check` PASS。 |
+| **阻塞问题** | 原 blocker 已解除。残留 follow-up：REG-20260605-001 (`AskUserQuestion` 被归类为 `shell_command`)；REG-20260605-002（Mobile/PWA 不显示 durable permission detail）。 |
+| **下一步动作** | 跑最终 quality gate、提交并关闭当前 Trellis task；后续按 regression ledger 拆修残留问题。 |
+
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
 | 字段 | 内容 |

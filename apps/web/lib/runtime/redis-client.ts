@@ -21,12 +21,14 @@ export interface RuntimeJob {
   workspaceRoot?: string | null
   endpointId?: string
   runtimeType?: 'claude_code' | 'codex'
+  roleAgentId?: string | null
   nativeSessionId?: string | null
   cwd?: string | null
   prompt: string
   systemPrompt?: string
   fail?: boolean
   actionId?: string
+  actionResult?: Record<string, unknown> | null
   planNodeId?: string
   attemptId?: string
   mailboxItemId?: string | null

@@ -25,6 +25,7 @@ export interface ActionRecordForDispatch {
   cwd?: string | null
   runtime_type?: CliRuntimeType | null
   role_agent_id?: string | null
+  result?: unknown
 }
 
 function buildActionPrompt(action: ActionRecordForDispatch): string {
@@ -38,13 +39,79 @@ function buildActionPrompt(action: ActionRecordForDispatch): string {
   ].join('\n')
 }
 
+type RuntimePermissionBrokerResult = {
+  source?: string
+  runtimeSessionId?: unknown
+  originalRuntimeSessionId?: unknown
+  toolCallId?: unknown
+  toolName?: unknown
+  actionKind?: unknown
+  commandPreview?: unknown
+  input?: unknown
+  nativeSessionId?: unknown
+  runtimeType?: unknown
+  roleAgentId?: unknown
+  targetPaths?: unknown
+  cwd?: unknown
+  workspaceRoot?: unknown
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
+}
+
+function runtimePermissionBrokerResult(action: ActionRecordForDispatch): RuntimePermissionBrokerResult | null {
+  const result = objectValue(action.result)
+  return result?.source === 'runtime_permission_broker' ? result as RuntimePermissionBrokerResult : null
+}
+
+function dispatchResult(action: ActionRecordForDispatch, values: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...(objectValue(action.result) ?? {}),
+    ...values,
+  }
+}
+
+function buildApprovedNativeToolPrompt(action: ActionRecordForDispatch, broker: RuntimePermissionBrokerResult): string | null {
+  const toolName = stringValue(broker.toolName)
+  const actionKind = stringValue(broker.actionKind) ?? action.action_type
+  const commandPreview = stringValue(broker.commandPreview)
+  const targetPaths = stringArrayValue(broker.targetPaths)
+  const input = broker.input === undefined ? null : broker.input
+  if (!toolName) return null
+  if (!commandPreview && targetPaths.length === 0 && input === null) return null
+
+  return [
+    'AgentHub approved native CLI tool continuation.',
+    `Approved action id: ${action.id}`,
+    `Original runtime session id: ${stringValue(broker.originalRuntimeSessionId) ?? stringValue(broker.runtimeSessionId) ?? 'unknown'}`,
+    `Original tool call id: ${stringValue(broker.toolCallId) ?? 'unknown'}`,
+    `Tool: ${toolName}`,
+    `Action kind: ${actionKind}`,
+    commandPreview ? `Command preview: ${commandPreview}` : null,
+    targetPaths.length > 0 ? `Target paths: ${targetPaths.join(', ')}` : null,
+    `Working directory: ${action.cwd ?? stringValue(broker.cwd) ?? ''}`,
+    '',
+    'The user approved this exact native tool request. Continue from the existing workspace context and perform only this approved operation, then continue the original task if the CLI can resume it.',
+    input === null ? null : `Original tool input JSON:\n${JSON.stringify(input, null, 2)}`,
+  ].filter(Boolean).join('\n')
+}
+
 async function recordDispatchFailure(
   db: AppDb,
   action: ActionRecordForDispatch,
   status: ActionDispatchStatus,
   error: string,
 ): Promise<ActionDispatchResult> {
-  const result = { dispatch: status, error, at: new Date().toISOString() }
+  const result = dispatchResult(action, { dispatch: status, error, at: new Date().toISOString() })
   await db.from('actions').update({ result }).eq('id', action.id)
   if (action.plan_node_id) {
     await db.from('plan_nodes').update({ result }).eq('id', action.plan_node_id)
@@ -67,7 +134,7 @@ export async function dispatchApprovedAction(
   if (action.action_type.startsWith('git_')) {
     const now = new Date().toISOString()
     await db.from('actions').update({
-      result: { dispatch: 'approved_waiting_git_api', at: now },
+      result: dispatchResult(action, { dispatch: 'approved_waiting_git_api', at: now }),
     }).eq('id', action.id)
     return { status: 'unsupported', error: 'Git 动作已授权，等待 Git API 执行。' }
   }
@@ -118,18 +185,30 @@ export async function dispatchApprovedAction(
     return recordDispatchFailure(db, action, 'unavailable', 'Runtime 执行器未就绪，动作已授权但未投递执行。')
   }
 
+  const broker = runtimePermissionBrokerResult(action)
+  const brokerRuntimeType = stringValue(broker?.runtimeType)
+  const runtimeType = (brokerRuntimeType === 'codex' || brokerRuntimeType === 'claude_code')
+    ? brokerRuntimeType
+    : action.runtime_type ?? 'claude_code'
+  const roleAgentId = stringValue(broker?.roleAgentId) ?? action.role_agent_id ?? undefined
+  const nativeToolPrompt = broker ? buildApprovedNativeToolPrompt(action, broker) : null
+  if (broker && !nativeToolPrompt) {
+    return recordDispatchFailure(db, action, 'unavailable', 'Runtime 原生工具审批缺少可执行元数据，已阻止。')
+  }
+
   const runtimeSession = await createSession({
     sessionId: action.session_id,
     endpoint,
-    roleAgentId: action.role_agent_id ?? undefined,
-    runtimeType: action.runtime_type ?? 'claude_code',
+    roleAgentId,
+    runtimeType,
     cwd: action.cwd ?? workspaceRoot,
   })
   const now = new Date().toISOString()
+  const queuedActionResult = dispatchResult(action, { dispatch: 'queued', runtimeSessionId: runtimeSession.id, at: now })
   await db.from('actions').update({
     status: 'running',
     executed_at: now,
-    result: { dispatch: 'queued', runtimeSessionId: runtimeSession.id, at: now },
+    result: queuedActionResult,
   }).eq('id', action.id)
   if (action.plan_node_id) {
     await db.from('plan_nodes').update({
@@ -146,11 +225,13 @@ export async function dispatchApprovedAction(
     ownerId: action.owner_id,
     workspaceRoot,
     endpointId: endpoint.id ?? undefined,
-    runtimeType: action.runtime_type ?? 'claude_code',
-    nativeSessionId: runtimeSession.nativeSessionId ?? null,
+    runtimeType,
+    roleAgentId,
+    nativeSessionId: stringValue(broker?.nativeSessionId) ?? runtimeSession.nativeSessionId ?? null,
     cwd: runtimeSession.cwd,
-    prompt: buildActionPrompt(action),
+    prompt: nativeToolPrompt ?? buildActionPrompt(action),
     actionId: action.id,
+    actionResult: queuedActionResult,
     planNodeId: action.plan_node_id ?? undefined,
   })
 
@@ -279,6 +360,22 @@ function actionWorkspaceViolation(action: ActionRecordForDispatch, workspaceRoot
   if (outsideTarget) {
     return `该操作试图访问 workspace 外路径 ${outsideTarget}，已阻止。`
   }
+  const broker = runtimePermissionBrokerResult(action)
+  const brokerCwd = stringValue(broker?.cwd)
+  if (brokerCwd && !isPathInsideRoot(workspaceRoot, brokerCwd)) {
+    return '该操作试图使用 workspace 外工作目录，已阻止。'
+  }
+  const brokerWorkspaceRoot = stringValue(broker?.workspaceRoot)
+  if (brokerWorkspaceRoot && normalizeAbsolutePath(brokerWorkspaceRoot) !== normalizeAbsolutePath(workspaceRoot)) {
+    return '该操作绑定的 workspace root 与当前工作区不一致，已阻止。'
+  }
+  const outsideBrokerTarget = stringArrayValue(broker?.targetPaths).find((target) => {
+    const normalized = normalizeAbsolutePath(target)
+    return normalized !== null && !isPathInsideRoot(workspaceRoot, normalized)
+  })
+  if (outsideBrokerTarget) {
+    return `该操作试图访问 workspace 外路径 ${outsideBrokerTarget}，已阻止。`
+  }
   return null
 }
 
@@ -370,6 +467,7 @@ export async function dispatchPreparedRuntimeInvokeNode(
     workspaceRoot: payloadString(payload, 'workspaceRoot') ?? cwd,
     endpointId: endpoint.id ?? undefined,
     runtimeType: input.runtimeType,
+    roleAgentId: input.role?.id ?? null,
     nativeSessionId: runtimeSession.nativeSessionId ?? null,
     cwd: runtimeSession.cwd,
     prompt: buildRuntimeInvokePrompt({

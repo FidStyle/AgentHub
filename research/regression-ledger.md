@@ -30,6 +30,36 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260605-001 — `AskUserQuestion` native tool 被归类为 shell_command，阻塞固定样本继续完成
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / runtime-permission-classification |
+| **优先级** | P0（阻塞固定样本完整产出 calculator + SQLite artifact，但不回滚已修复的 `Read` approval blocker） |
+| **状态** | `open` |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001 |
+| **关联任务/合同** | 发现于 `06-05-fix-approved-native-tool-continuation` UAT；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
+| **影响功能面** | Claude native tool permission broker、用户问题/选择题型 runtime tool、固定样本多角色继续执行 |
+| **发现方式** | 2026-06-05 Web OpenCLI fixed-sample rerun：批准 `Read` 后 continuation 正常进入同 workspace/native session，但 Claude 后续发出 `AskUserQuestion` native tool。 |
+| **证据** | Follow-on action `d8eee57c-9783-4e86-b432-c0df5a30a05e`：`action_type = shell_command`、`command = AskUserQuestion (shell_command)`、`result.toolName = AskUserQuestion`、`result.source = runtime_permission_broker`、`cwd = /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2`。报告：`research/execution-reports/approved-native-tool-continuation-uat-2026-06-05.md`。 |
+| **关闭条件** | 为 non-shell native user-question/choice tools 建立明确 action kind、UI 展示与审批/回答语义；不得伪装为 shell command；补 parser/worker/action-dispatcher tests 和固定样本 OpenCLI rerun。 |
+| **下一步** | 按顺序队列新拆 P0 修复任务；不得把本缺陷混入 `Read` approval blocker 的通过结论。 |
+
+### REG-20260605-002 — Mobile/PWA session readback 不显示 durable permission detail
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / mobile-readback-gap |
+| **优先级** | P0（影响 Mobile 远程监督/审批读回一致性） |
+| **状态** | `open` |
+| **关联 FR/PRD** | FR-MOB-001, FR-PERM-001, FR-ACTION-001, FR-CHAT-001 |
+| **关联任务/合同** | 发现于 `06-05-fix-approved-native-tool-continuation` UAT；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
+| **影响功能面** | Mobile/PWA `/m/sessions/:sessionId` 权限卡/审批状态刷新读回 |
+| **发现方式** | 2026-06-05 OpenCLI mobile route readback after Web approved the `Read` action. |
+| **证据** | `/m/sessions/b7cb9b2d-227a-4188-8c41-95319936acc3` loads plan supervision and message text, but does not show the approved `read_file` permission detail/card visible on Web and stored in DB action `d23a4396-a3e0-4521-a91c-644bc3291911`. Screenshot: `e2e/artifacts/opencli-uat/approved-native-tool-continuation-2026-06-05/13-mobile-rerun-approved-readback.png`。 |
+| **关闭条件** | Mobile/PWA can read durable action/permission metadata for the same session after reload, including decided state (`已允许本次执行`/rejected), action kind, tool name, workspace/cwd, and relevant target path; OpenCLI mobile screenshot and DOM state must prove it. |
+| **下一步** | 按顺序队列新拆 P0 mobile permission readback task；不得用 Web DB evidence 代替 Mobile surface evidence。 |
+
 ### REG-20260603-001 — IM Markdown 分点文本被压平且消息内权限请求缺少确认按钮
 
 | 字段 | 内容 |
