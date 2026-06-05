@@ -1,6 +1,7 @@
 # 单 prompt 权限续跑回归 UAT 报告
 
 日期：2026-06-05  
+TASK-ID：SINGLE-PROMPT-PERMISSION-CONTINUATION-2026-06-05  
 任务：`.trellis/tasks/06-05-fix-single-prompt-permission-continuation`  
 回归：`REG-20260605-003`  
 事实源：`bytedance_init_prd.md`、`bytedance_init_video_txt.txt`
