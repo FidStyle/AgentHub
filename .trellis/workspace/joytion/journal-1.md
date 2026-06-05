@@ -753,3 +753,36 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: 更新全自动交付验收规范
+
+**Date**: 2026-06-05
+**Task**: 更新全自动交付验收规范
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+把完整权限下单 prompt 到前端产物交付的统一测试方法写入 real-flow-acceptance，要求前端节点完成、UI 可用、SQLite/history 真实验证、三端同法读回和状态可审计。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8897f3f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
