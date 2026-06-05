@@ -229,3 +229,108 @@ await enqueueRuntimeJob({
 ```
 
 The correct path treats approval as continuation of a specific native tool request, not as a synthetic shell command.
+
+## Scenario: Native User Question Tool Requests
+
+### 1. Scope / Trigger
+
+- Trigger: any runtime executor, runtime worker, gateway event, `/api/chat` persistence, Web message, or Mobile/PWA session page change that handles Claude `AskUserQuestion` or another native CLI user-question/choice tool.
+- This is a cross-layer contract spanning CLI JSON parsing, runtime worker fail-closed behavior, runtime logs, `/api/chat` `RuntimeMessagePart` persistence, and Web/Mobile readback.
+
+### 2. Signatures
+
+- `CliOutputParser.parseLine(line): ExecutorChunk[]`
+- `ExecutorChunk.question?: NativeCliQuestionRequest`
+- `NativeCliQuestionRequest`
+  - `id?: string`
+  - `toolName: string`
+  - `questionId?: string`
+  - `title?: string`
+  - `content: string`
+  - `input?: unknown`
+- `RuntimeGatewayEvent`
+  - `{ type: "question"; questionId?: string; title?: string; content: string; endpointId?: string }`
+- `RuntimeMessagePart`
+  - `{ id: string; type: "question"; status: "pending"; questionId?: string; title?: string; content: string }`
+
+Concrete sources:
+
+- `apps/web/lib/runtime/executor.ts`
+- `apps/web/server/runtime-worker.ts`
+- `apps/web/app/api/chat/route.ts`
+- `packages/shared/src/runtime/gateway.ts`
+- `packages/shared/src/domain/message.ts`
+
+### 3. Contracts
+
+- Claude `AskUserQuestion` must be detected before generic native tool permission classification.
+- `AskUserQuestion` must emit `ExecutorChunk.question`, not `ExecutorChunk.toolRequest`.
+- `AskUserQuestion` must not create an `actions` row, approval notification, or `approval_requested` event.
+- `AskUserQuestion` must never fall through to `NativeCliToolActionKind.ShellCommand`; no action may be created with `command = "AskUserQuestion (shell_command)"`.
+- The worker must publish a runtime `question` event with `questionId`, `title`, and readable `content`, then stop the current job with an explicit runtime failure such as `Runtime 等待用户补充确认，未继续执行。`.
+- `/api/chat` must persist a question `RuntimeMessagePart` even though the runtime job failed closed to wait for user input. This is the only allowed failed-terminal persistence path for empty/partial replies; generic partial runtime output without `runtime_completed` must still not persist a fake success agent message.
+- Web and Mobile/PWA must render the same persisted `runtimeParts.question` after reload.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| Claude emits `AskUserQuestion` with full `input` in `content_block_start` | Parser emits one `question` chunk and no `toolRequest` |
+| Claude streams `AskUserQuestion` input via `input_json_delta` | Parser buffers until `content_block_stop`, then emits one `question` chunk |
+| Worker receives a `question` chunk | Publish `question`, no `actions` insert, no notification insert, no `approval_requested` |
+| Worker stops after `question` | `runtime_failed` with explicit waiting-for-user error |
+| `/api/chat` receives `question` then `runtime_failed` | Persist agent message with `metadata.runtimeParts.question`; do not require `runtime_completed` |
+| `/api/chat` receives only partial `runtime_output` without terminal success and no question | Do not persist an agent message |
+| Web reloads the session | `message-question-card` visible |
+| Mobile/PWA reloads `/m/sessions/:sessionId` | `mobile-question-card` visible |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Claude emits `AskUserQuestion` asking whether history should use SQLite or LocalStorage; runtime logs contain `event_type = question`, messages contain `metadata.runtimeParts[0].type = "question"`, Web/Mobile read it back, and the session has zero `AskUserQuestion (shell_command)` actions.
+- Base: Claude asks a user question after some explanatory runtime text; the text and question part can be persisted together as the pending agent turn, but execution still stops until an answer path is implemented.
+- Bad: `AskUserQuestion` creates a pending action with `action_type = shell_command`, `command = AskUserQuestion (shell_command)`, or a notification asking the user to approve a fake command.
+- Bad: Web shows the streamed question live, but refresh or Mobile/PWA readback loses it because `/api/chat` only persisted completed runs.
+
+### 6. Tests Required
+
+- Parser unit test: direct Claude `AskUserQuestion` block emits a `question` chunk and no `toolRequest`.
+- Parser unit test: streamed Claude `AskUserQuestion` `input_json_delta` buffers until stop and emits one `question`.
+- Worker unit test: a `question` chunk publishes `question`, emits runtime failed waiting state, and inserts no `actions` or notifications.
+- API route test: `/api/chat` persists a question part after `question` + `runtime_failed`, while no-terminal partial output still does not persist an agent reply.
+- UAT: real CLI/OpenCLI run must prove no `AskUserQuestion (shell_command)` action exists, DB/runtime logs contain a durable question, Web renders `message-question-card`, and Mobile/PWA renders `mobile-question-card`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+const actionKind = actionKindForTool(toolName, input);
+await createPermissionAction({
+  action_type: actionKind,
+  command: `${toolName} (${actionKind})`,
+});
+```
+
+#### Correct
+
+```typescript
+const question = questionRequestFromBlock(block);
+if (question) {
+  yield { question };
+  return;
+}
+```
+
+```typescript
+if (chunk.question) {
+  await emit({
+    type: 'question',
+    questionId: chunk.question.questionId,
+    title: chunk.question.title,
+    content: chunk.question.content,
+  });
+  throw new Error('Runtime 等待用户补充确认，未继续执行。');
+}
+```
+
+The correct path treats user questions as pending conversation state, not executable native CLI actions.

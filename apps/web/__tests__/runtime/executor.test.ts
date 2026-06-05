@@ -154,6 +154,43 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
     ])
   })
 
+  it('extracts Claude AskUserQuestion as a runtime question instead of a shell command request', () => {
+    const chunks = outputChunks('claude_code', JSON.stringify({
+      type: 'content_block_start',
+      content_block: {
+        type: 'tool_use',
+        id: 'toolu-question-1',
+        name: 'AskUserQuestion',
+        input: {
+          questions: [
+            {
+              header: '实现范围',
+              question: '请选择历史记录保存方式',
+              options: [
+                { label: 'SQLite', description: '使用本地 SQLite 数据库' },
+                { label: '内存', description: '仅用于临时预览' },
+              ],
+            },
+          ],
+        },
+      },
+    }))
+
+    expect(chunks).toEqual([
+      {
+        question: expect.objectContaining({
+          id: 'toolu-question-1',
+          toolName: 'AskUserQuestion',
+          questionId: 'toolu-question-1',
+          title: '实现范围',
+          content: expect.stringContaining('实现范围：请选择历史记录保存方式'),
+        }),
+      },
+    ])
+    expect(chunks[0]).not.toHaveProperty('toolRequest')
+    expect(chunks[0].question?.content).toContain('SQLite：使用本地 SQLite 数据库')
+  })
+
   it('buffers Claude streamed tool input JSON before emitting a Read approval request', () => {
     const parser = new CliOutputParser('claude_code')
     const lines = [
@@ -189,6 +226,43 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
         }),
       },
     ])
+  })
+
+  it('buffers Claude streamed AskUserQuestion input JSON before emitting a question event', () => {
+    const parser = new CliOutputParser('claude_code')
+    const lines = [
+      {
+        type: 'content_block_start',
+        content_block: {
+          type: 'tool_use',
+          id: 'toolu-question-streamed',
+          name: 'AskUserQuestion',
+          input: {},
+        },
+      },
+      {
+        type: 'content_block_delta',
+        delta: {
+          type: 'input_json_delta',
+          partial_json: '{"questions":[{"header":"确认","question":"是否继续使用 SQLite？","options":[{"label":"继续"}]}]}',
+        },
+      },
+      { type: 'content_block_stop' },
+    ]
+
+    const chunks = lines.flatMap((line) => parser.parseLine(JSON.stringify(line)))
+
+    expect(chunks).toEqual([
+      {
+        question: expect.objectContaining({
+          id: 'toolu-question-streamed',
+          questionId: 'toolu-question-streamed',
+          title: '确认',
+          content: expect.stringContaining('确认：是否继续使用 SQLite？'),
+        }),
+      },
+    ])
+    expect(chunks[0]).not.toHaveProperty('toolRequest')
   })
 
   it('extracts Codex exec_command items as dependency install permission requests', () => {
@@ -601,6 +675,58 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
     ]))
+  })
+
+  it('publishes AskUserQuestion as a durable question event without creating a shell action', async () => {
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          question: {
+            id: 'toolu-question-runtime',
+            toolName: 'AskUserQuestion',
+            questionId: 'toolu-question-runtime',
+            title: '实现范围',
+            content: '实现范围：请选择历史记录保存方式\n- SQLite：使用本地 SQLite 数据库',
+            input: { questions: [{ header: '实现范围', question: '请选择历史记录保存方式' }] },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-question',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      runtimeType: 'claude_code',
+      nativeSessionId: 'claude-native-001',
+      workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      prompt: 'ask user',
+      planNodeId: 'node-runtime-001',
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('failed')
+    expect(dbInserts.some((insert) => insert.table === 'actions')).toBe(false)
+    expect(dbInserts.some((insert) => insert.table === 'notifications')).toBe(false)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'question',
+          questionId: 'toolu-question-runtime',
+          title: '实现范围',
+          content: expect.stringContaining('SQLite'),
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_failed',
+          error: 'Runtime 等待用户补充确认，未继续执行。',
+        }),
+      }),
+    ]))
+    expect(published.some((p) => p.event.type === 'approval_requested')).toBe(false)
   })
 
   it('updates linked action and plan node when a queued action completes', async () => {

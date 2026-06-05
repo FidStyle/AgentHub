@@ -5,6 +5,7 @@ import {
   FakeExecutor,
   ScriptedRealExecutor,
   type CliRuntimeType,
+  type NativeCliQuestionRequest,
   type NativeCliToolRequest,
   type RuntimeExecutor,
 } from '../lib/runtime/executor'
@@ -124,6 +125,16 @@ function nativeToolCommandLabel(tool: NativeCliToolRequest, toolCall: NativeCliT
   const targets = toolCall.targetPaths?.filter((target) => target.trim()) ?? []
   if (targets.length > 0) return `${tool.toolName}: ${targets.join(', ')}`
   return `${tool.toolName} (${toolCall.actionKind})`
+}
+
+function questionEventFromRequest(job: RuntimeJob, question: NativeCliQuestionRequest) {
+  return {
+    type: 'question',
+    questionId: question.questionId ?? question.id ?? `question-${job.runtimeSessionId}`,
+    title: question.title ?? '需要用户确认',
+    content: question.content,
+    endpointId: job.endpointId,
+  }
 }
 
 function toolCallFromRequest(job: RuntimeJob, tool: NativeCliToolRequest): NativeCliToolCall | null {
@@ -282,6 +293,10 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         lastNativeSessionId = chunk.nativeSessionId
         await setNativeSessionId(id, chunk.nativeSessionId)
         await emit({ type: 'native_session', nativeSessionId: chunk.nativeSessionId, endpointId: job.endpointId })
+      }
+      if (chunk.question) {
+        await emit(questionEventFromRequest(job, chunk.question))
+        throw new Error('Runtime 等待用户补充确认，未继续执行。')
       }
       if (chunk.toolRequest) {
         const toolCall = toolCallFromRequest(job, chunk.toolRequest)

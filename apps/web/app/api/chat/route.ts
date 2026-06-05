@@ -648,6 +648,7 @@ export async function POST(req: NextRequest) {
           const replyAccumulator = createRuntimeOutputAccumulator()
           let runtimeParts: RuntimeMessagePart[] = []
           let completed = false
+          let terminalError: string | null = null
           const receivedHandoffs = handoffs
             .filter((handoff) => handoff.toRoleAgentId === currentRoleAgentId)
             .map((handoff) => ({ ...handoff }))
@@ -743,6 +744,7 @@ export async function POST(req: NextRequest) {
             if (evt.type === 'runtime_output' && evt.delta) reply = replyAccumulator.append(evt)
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
             if (evt.type === 'runtime_completed') completed = true
+            if (evt.type === 'runtime_failed') terminalError = evt.error
             controller.enqueue(encode(evt))
           }
           const latestRuntimeSession = await latestRuntimeSessionForTarget({
@@ -751,6 +753,7 @@ export async function POST(req: NextRequest) {
             roleAgentId: currentRoleAgentId,
             runtimeType: runtimeTypeForRole(role),
           })
+          const hasQuestionPart = runtimeParts.some((part) => part.type === 'question')
           if (completed && (reply || runtimeParts.length > 0)) {
             await finishRuntimeAttemptEvidence({
               db,
@@ -793,11 +796,23 @@ export async function POST(req: NextRequest) {
               }
             }
             return true
-          } else if (target.nodeId) {
+          }
+          if (hasQuestionPart) {
+            completedReplies.push({
+              nodeId: target.nodeId,
+              phase: target.phase,
+              roleAgentId: currentRoleAgentId,
+              roleName: currentRoleName,
+              reply,
+              runtimeParts,
+              receivedHandoffs,
+            })
+          }
+          if (target.nodeId) {
             await db.from('plan_nodes').update({
               status: 'failed',
               completed_at: new Date().toISOString(),
-              result: { error: 'Runtime 未完成或没有产出，节点未通过' },
+              result: { error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过', runtimeParts },
             }).eq('id', target.nodeId)
           }
           await finishRuntimeAttemptEvidence({
@@ -805,7 +820,7 @@ export async function POST(req: NextRequest) {
             evidence,
             runtimeSessionId: latestRuntimeSession?.id,
             status: 'failed',
-            error: 'Runtime 未完成或没有产出，节点未通过',
+            error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过',
           })
           return false
         }

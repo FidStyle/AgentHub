@@ -12,10 +12,20 @@ export interface NativeCliToolRequest {
   input?: unknown
 }
 
+export interface NativeCliQuestionRequest {
+  id?: string
+  toolName: string
+  questionId?: string
+  title?: string
+  content: string
+  input?: unknown
+}
+
 export interface ExecutorChunk {
   delta?: string
   nativeSessionId?: string
   toolRequest?: NativeCliToolRequest
+  question?: NativeCliQuestionRequest
 }
 
 export interface ExecutorJob {
@@ -201,12 +211,29 @@ function actionKindForTool(toolName: string, input: Record<string, unknown> | nu
   return NativeCliToolActionKind.ShellCommand
 }
 
-function toolRequestFromBlock(block: Record<string, unknown>): NativeCliToolRequest | null {
-  if (block.type !== 'tool_use' && block.type !== 'tool_call' && block.type !== 'function_call' && block.type !== 'exec_command') return null
-  const input = asRecord(block.input) ?? asRecord(block.arguments) ?? asRecord(block.args)
-  const toolName = stringValue(block, ['name', 'toolName', 'tool_name', 'functionName', 'function_name'])
+function isToolCallBlock(block: Record<string, unknown>): boolean {
+  return block.type === 'tool_use' || block.type === 'tool_call' || block.type === 'function_call' || block.type === 'exec_command'
+}
+
+function isAskUserQuestionToolName(toolName: string): boolean {
+  return toolName.replace(/[^a-z0-9]/gi, '').toLowerCase() === 'askuserquestion'
+}
+
+function inputForToolBlock(block: Record<string, unknown>): unknown {
+  return asRecord(block.input) ?? asRecord(block.arguments) ?? asRecord(block.args) ?? block.input ?? block.arguments
+}
+
+function toolNameForBlock(block: Record<string, unknown>): string {
+  return stringValue(block, ['name', 'toolName', 'tool_name', 'functionName', 'function_name'])
     ?? stringValue(asRecord(block.function), ['name'])
     ?? (block.type === 'exec_command' ? 'exec_command' : 'tool')
+}
+
+function toolRequestFromBlock(block: Record<string, unknown>): NativeCliToolRequest | null {
+  if (!isToolCallBlock(block)) return null
+  const input = asRecord(block.input) ?? asRecord(block.arguments) ?? asRecord(block.args)
+  const toolName = toolNameForBlock(block)
+  if (isAskUserQuestionToolName(toolName)) return null
   const commandPreview = stringValue(input, ['command', 'cmd', 'shell_command', 'shellCommand'])
   return {
     id: stringValue(block, ['id', 'toolCallId', 'tool_call_id', 'callId']),
@@ -216,6 +243,67 @@ function toolRequestFromBlock(block: Record<string, unknown>): NativeCliToolRequ
     cwd: stringValue(input, ['cwd', 'working_directory', 'workingDirectory']),
     targetPaths: pathsFromInput(input),
     commandPreview,
+  }
+}
+
+function questionLineFromRecord(record: Record<string, unknown>, index: number): string {
+  const header = stringValue(record, ['header', 'title', 'label'])
+  const question = stringValue(record, ['question', 'content', 'message', 'text', 'prompt'])
+  const multiSelect = record.multiSelect === true || record.multi_select === true ? '（可多选）' : ''
+  const headline = [header, question].filter(Boolean).join(header && question ? '：' : '')
+  const prefix = index > 0 ? `${index + 1}. ` : ''
+  const lines = [`${prefix}${headline || '请补充确认信息'}${multiSelect}`]
+  const options = asRecordArray(record.options)
+  for (const option of options) {
+    const optionLabel = stringValue(option, ['label', 'value', 'text', 'title'])
+    const optionDescription = stringValue(option, ['description', 'detail', 'content'])
+    if (optionLabel) {
+      lines.push(`- ${optionLabel}${optionDescription ? `：${optionDescription}` : ''}`)
+    }
+  }
+  return lines.join('\n')
+}
+
+function questionContentFromInput(input: unknown): string {
+  const record = asRecord(input)
+  if (!record) {
+    return typeof input === 'string' && input.trim() ? input.trim() : 'Runtime 请求用户补充确认。'
+  }
+  const questions = asRecordArray(record.questions)
+  if (questions.length > 0) {
+    return questions.map(questionLineFromRecord).join('\n\n')
+  }
+  const direct = stringValue(record, ['question', 'content', 'message', 'text', 'prompt'])
+  if (direct) return direct
+  try {
+    return JSON.stringify(record)
+  } catch {
+    return 'Runtime 请求用户补充确认。'
+  }
+}
+
+function questionTitleFromInput(input: unknown): string | undefined {
+  const record = asRecord(input)
+  if (!record) return undefined
+  const direct = stringValue(record, ['title', 'header'])
+  if (direct) return direct
+  const firstQuestion = asRecordArray(record.questions)[0]
+  return stringValue(firstQuestion, ['header', 'title'])
+}
+
+function questionRequestFromBlock(block: Record<string, unknown>): NativeCliQuestionRequest | null {
+  if (!isToolCallBlock(block)) return null
+  const toolName = toolNameForBlock(block)
+  if (!isAskUserQuestionToolName(toolName)) return null
+  const input = inputForToolBlock(block)
+  const id = stringValue(block, ['id', 'toolCallId', 'tool_call_id', 'callId'])
+  return {
+    id,
+    toolName,
+    questionId: id,
+    title: questionTitleFromInput(input) ?? '需要用户确认',
+    content: questionContentFromInput(input),
+    input,
   }
 }
 
@@ -232,6 +320,21 @@ function toolRequestsFromRecord(record: Record<string, unknown>): NativeCliToolR
     candidates.push(...asRecordArray(source))
   }
   return candidates.map(toolRequestFromBlock).filter((item): item is NativeCliToolRequest => Boolean(item))
+}
+
+function questionRequestsFromRecord(record: Record<string, unknown>): NativeCliQuestionRequest[] {
+  const candidates: Record<string, unknown>[] = []
+  const nestedEvent = asRecord(record.event)
+  const params = asRecord(record.params)
+  const payload = asRecord(record.payload)
+  candidates.push(
+    ...[record, nestedEvent, params, payload, asRecord(record.item), asRecord(params?.item), asRecord(payload?.item), asRecord(record.content_block), asRecord(nestedEvent?.content_block)]
+      .filter((item): item is Record<string, unknown> => Boolean(item)),
+  )
+  for (const source of [record.content, asRecord(record.message)?.content, payload?.content]) {
+    candidates.push(...asRecordArray(source))
+  }
+  return candidates.map(questionRequestFromBlock).filter((item): item is NativeCliQuestionRequest => Boolean(item))
 }
 
 function recordType(record: Record<string, unknown>): string | null {
@@ -332,6 +435,13 @@ export class CliOutputParser {
       const nativeSessionId = nativeSessionIdFromRecord(record)
       const startedTool = claudeStartedToolBlock(record)
       if (startedTool) {
+        const question = questionRequestFromBlock(startedTool)
+        if (question && question.input && asRecord(question.input) && Object.keys(asRecord(question.input) ?? {}).length > 0) {
+          return [
+            ...(nativeSessionId ? [{ nativeSessionId }] : []),
+            { question },
+          ]
+        }
         const request = toolRequestFromBlock(startedTool)
         const input = asRecord(request?.input)
         if (request && input && Object.keys(input).length > 0) {
@@ -364,9 +474,18 @@ export class CliOutputParser {
           }
         }
         const request = toolRequestFromBlock({ ...pending.block, input })
+        const question = questionRequestFromBlock({ ...pending.block, input })
         return [
           ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          ...(question ? [{ question }] : []),
           ...(request ? [{ toolRequest: request }] : []),
+        ]
+      }
+      const questions = questionRequestsFromRecord(record)
+      if (questions.length > 0) {
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          ...questions.map((question) => ({ question })),
         ]
       }
       const toolRequests = toolRequestsFromRecord(record)
@@ -406,6 +525,13 @@ export class CliOutputParser {
       const item = asRecord(record.item) ?? asRecord(asRecord(record.params)?.item)
       const nativeSessionId = nativeSessionIdFromRecord(record)
         ?? (item ? nativeSessionIdFromRecord(item) : null)
+      const questions = questionRequestsFromRecord(record)
+      if (questions.length > 0) {
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          ...questions.map((question) => ({ question })),
+        ]
+      }
       const toolRequests = toolRequestsFromRecord(record)
       if (toolRequests.length > 0) {
         return [

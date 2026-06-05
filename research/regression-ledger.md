@@ -36,14 +36,14 @@
 | --- | --- |
 | **类型** | bug / runtime-permission-classification |
 | **优先级** | P0（阻塞固定样本完整产出 calculator + SQLite artifact，但不回滚已修复的 `Read` approval blocker） |
-| **状态** | `open` |
+| **状态** | `closed`（2026-06-05，`06-05-fix-ask-user-question-native-tool` 修复并通过 Web/Mobile OpenCLI + Electron fallback 验证） |
 | **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001 |
 | **关联任务/合同** | 发现于 `06-05-fix-approved-native-tool-continuation` UAT；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
 | **影响功能面** | Claude native tool permission broker、用户问题/选择题型 runtime tool、固定样本多角色继续执行 |
 | **发现方式** | 2026-06-05 Web OpenCLI fixed-sample rerun：批准 `Read` 后 continuation 正常进入同 workspace/native session，但 Claude 后续发出 `AskUserQuestion` native tool。 |
-| **证据** | Follow-on action `d8eee57c-9783-4e86-b432-c0df5a30a05e`：`action_type = shell_command`、`command = AskUserQuestion (shell_command)`、`result.toolName = AskUserQuestion`、`result.source = runtime_permission_broker`、`cwd = /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2`。报告：`research/execution-reports/approved-native-tool-continuation-uat-2026-06-05.md`。 |
+| **证据** | 原始失败证据：Follow-on action `d8eee57c-9783-4e86-b432-c0df5a30a05e`：`action_type = shell_command`、`command = AskUserQuestion (shell_command)`、`result.toolName = AskUserQuestion`、`result.source = runtime_permission_broker`、`cwd = /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2`。修复证据：real-user UAT session `02ebaf71-fcef-4b5f-bec6-e334bad137db` 的 SSE `hasQuestion=true`、`hasApproval=false`、`questionId=tooluse_EEqwBGTYilRNQOUUIw706G`；Web OpenCLI `questionCards=1`；Mobile/PWA OpenCLI `questionCards=1`；DB/API 无 `AskUserQuestion` action，agent message `metadata.runtimeParts[0].type=question`；报告：`research/execution-reports/ask-user-question-native-tool-uat-2026-06-05.md`。 |
 | **关闭条件** | 为 non-shell native user-question/choice tools 建立明确 action kind、UI 展示与审批/回答语义；不得伪装为 shell command；补 parser/worker/action-dispatcher tests 和固定样本 OpenCLI rerun。 |
-| **下一步** | 按顺序队列新拆 P0 修复任务；不得把本缺陷混入 `Read` approval blocker 的通过结论。 |
+| **下一步** | 已关闭。继续修复独立残留 P0：`REG-20260605-002` Mobile/PWA durable permission detail readback；不得把 question readback 通过误记为 permission detail readback 通过。 |
 
 ### REG-20260605-002 — Mobile/PWA session readback 不显示 durable permission detail
 

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend runtime worker and permission broker rules for real API/DB execution."}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "Runtime workspace cwd/session/action contracts relevant to native tool handling."}
+{"file": ".trellis/spec/cross-layer/index.md", "reason": "Cross-layer expectations for Web/Mobile/Desktop consistency."}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "No fake runtime success; OpenCLI and real-flow acceptance requirements."}
+{"file": ".trellis/spec/cross-layer/runtime-gateway-contract.md", "reason": "Runtime gateway event/message contract for durable question events."}
+{"file": "research/regression-ledger.md", "reason": "REG-20260605-001 source regression and close conditions."}
+{"file": "research/sequential-execution-progress.md", "reason": "Single-branch execution queue and verification policy."}
+{"file": "research/execution-reports/approved-native-tool-continuation-uat-2026-06-05.md", "reason": "Prior UAT evidence that exposed AskUserQuestion misclassification."}

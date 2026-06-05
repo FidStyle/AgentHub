@@ -731,6 +731,30 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(insertedMessages.some((m) => m.sender_type === 'agent')).toBe(false)
   })
 
+  it('persists a runtime question part even when execution stops to wait for user input', async () => {
+    setAdapterEvents([
+      { type: 'question', questionId: 'toolu-question-1', title: '实现范围', content: '实现范围：请选择历史记录保存方式' },
+      { type: 'runtime_failed', error: 'Runtime 等待用户补充确认，未继续执行。' },
+    ])
+    setupMockClient(chainCapturingInserts())
+    const { status, text } = await callChat({ sessionId: 'session-001', content: 'hi', roleAgentId: 'agent-001' })
+    expect(status).toBe(200)
+    expect(text).toContain('question')
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    expect(agentMsg).toBeDefined()
+    expect(agentMsg?.content).toBe('')
+    expect(agentMsg?.role_agent_id).toBe('agent-001')
+    const parts = ((agentMsg!.metadata as { runtimeParts?: unknown[] }).runtimeParts ?? [])
+    expect(parts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'question',
+        questionId: 'toolu-question-1',
+        title: '实现范围',
+        content: '实现范围：请选择历史记录保存方式',
+      }),
+    ]))
+  })
+
   it('AT-007 [high]: runtime tool/permission/diff/artifact events persist as message parts', async () => {
     setAdapterEvents([
       { type: 'tool_started', toolCallId: 'tool-1', toolName: 'shell', input: { command: 'pnpm test' } },

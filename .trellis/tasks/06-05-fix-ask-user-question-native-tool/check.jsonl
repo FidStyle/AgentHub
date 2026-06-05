@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Check backend runtime and permission broker compliance."}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "Check runtime workspace/action/session behavior against contract."}
+{"file": ".trellis/spec/cross-layer/index.md", "reason": "Check cross-surface consistency."}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "Check real-flow/OpenCLI acceptance and no fake success."}
+{"file": ".trellis/spec/cross-layer/runtime-gateway-contract.md", "reason": "Check question event persistence against gateway contract."}
+{"file": "research/regression-ledger.md", "reason": "Verify REG-20260605-001 closure evidence."}
+{"file": "research/sequential-execution-progress.md", "reason": "Verify queue/status bookkeeping."}
