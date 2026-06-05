@@ -10,6 +10,10 @@
 
 剩余 P1 第 7、8、9 项已完成并通过 Web OpenCLI、Mobile/PWA OpenCLI、Desktop/Electron fallback 和自动化质量门禁。OpenCLI 当前无 AgentHub Desktop app adapter，因此 Desktop 按合同使用 Playwright Electron fallback。
 
+## 2026-06-05 更正
+
+本报告的 P1 deploy/action 结论只覆盖聊天式部署 action 的 allow/reject 闭环，不覆盖 runtime native tool permission 在固定样本多角色执行中的“允许后继续原始 plan/mailbox/runtime 链路”。用户后续发现“点击允许单次执行后没有继续往下运行”，已登记为 `REG-20260605-003` 并由 `.trellis/tasks/06-05-fix-single-prompt-permission-continuation` 单独修复。P1 结论不得替代该回归的验收证据。
+
 ## 实现摘要
 
 - `/api/chat` 增加聊天式部署意图识别，部署请求进入 `actions` 审批链路，拒绝不执行，允许后才生成 durable 部署结果。

@@ -60,6 +60,21 @@
 | **关闭条件** | Mobile/PWA can read durable action/permission metadata for the same session after reload, including decided state (`已允许本次执行`/rejected), action kind, tool name, workspace/cwd, and relevant target path; OpenCLI mobile screenshot and DOM state must prove it. |
 | **下一步** | 已关闭。回到 `06-05-opencli-role-runtime-uat` 固定样本三端 UAT，验证前序 P0 blocker 全部解除后是否能继续产出 calculator + SQLite artifact。 |
 
+### REG-20260605-003 — 点击“允许单次执行”后未继续原始任务链路，拒绝后状态不可读回
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / permission-continuation-regression |
+| **优先级** | P0（影响 Bytedance 固定样本“单次输入后自动跑完整链路”的核心体验；`{"error":"角色不存在或无权限"}` 或审批后停住均不算通过） |
+| **状态** | `closed`（2026-06-05，`06-05-fix-single-prompt-permission-continuation` 修复并通过 Web/Mobile OpenCLI + Desktop/Electron fallback + 自动化门禁） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001 |
+| **关联任务/合同** | `.trellis/tasks/06-05-fix-single-prompt-permission-continuation`；`bytedance_init_prd.md`；`bytedance_init_video_txt.txt`；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
+| **影响功能面** | Web 消息内权限卡、runtime worker native tool permission broker、action approval API、plan node/mailbox continuation、Mobile/PWA 授权读回、Desktop runtime 监督读回 |
+| **发现方式** | 用户真实验收反馈：点击“允许单次执行”后没有继续往下运行；用户明确期望单 prompt 后自动完成整条链路，手动允许则继续，拒绝则停下等待下一次输入。 |
+| **证据** | 原问题：approval endpoint 只更新 `actions`，没有把 `permissionMode` 传入 runtime job，也没有同步原始 `messages.metadata.runtimeParts.permission.status`；用户看到的历史权限卡仍停在 `pending`，部分 continuation 只完成孤立 action，未推进原 plan/mailbox/runtime。修复证据：Web OpenCLI session `e104da72-2989-4a81-a68d-9cc8661c3aed` 点击“允许单次执行”后原卡从 `待确认` 变 `执行中`，action/plan node 进入 `running`，实际写入 `agenthub-permission-status-sync.txt`；reject session `d49c3272-8240-4908-ae8d-5e0ddea2caf8` 显示 `已拒绝，未执行该操作。`，action `rejected` 且无 `executed_at`，plan node 保持 `waiting`，插入等待下一次输入的 durable system event；Mobile/PWA 可读回同 session 拒绝状态；Desktop/Electron fallback 21/21 PASS；报告 `research/execution-reports/single-prompt-permission-continuation-uat-2026-06-05.md`；截图 `e2e/artifacts/opencli-uat/permission-continuation-web-reject-2026-06-05.png`、`e2e/artifacts/opencli-uat/permission-continuation-mobile-reject-2026-06-05.png`。 |
+| **关闭条件** | 自动权限模式必须自动 approve/dispatch 并继续原始 runtime/plan 链路；手动允许必须 dispatch continuation 且同步原始 inline permission card 为 running/completed/failed；拒绝必须不执行副作用、保持 plan/node 等待、写入 durable 拒绝事件并同步 Web/Mobile readback；补 API/worker/dispatcher tests、OpenCLI Web/Mobile UAT 和 Desktop fallback。 |
+| **下一步** | 已关闭。不得把未来权限模式回归只按 action row 状态判定通过，必须同时检查原始 message permission card、plan/mailbox/runtime continuation 和三端读回。 |
+
 ### REG-20260603-001 — IM Markdown 分点文本被压平且消息内权限请求缺少确认按钮
 
 | 字段 | 内容 |

@@ -169,6 +169,21 @@
 | **阻塞问题** | 无。旧 `06-05-opencli-role-runtime-uat` blocked 尝试已标记为 `superseded-by-final-product-gate`，其原阻塞由 6.1-6.5 修复并由本固定样本最终验收覆盖；OpenCLI 当前无 AgentHub Electron app adapter，因此 Desktop 按允许的 Playwright Electron fallback 记录。 |
 | **下一步动作** | clean 后可进入 P1 队列，未开始的 P2 仍不启动。 |
 
+### SINGLE-PROMPT-PERMISSION-CONTINUATION-2026-06-05: 单 prompt 权限续跑回归修复
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001 |
+| **对应计划** | `.trellis/tasks/06-05-fix-single-prompt-permission-continuation` |
+| **合同路径** | `bytedance_init_prd.md`；`bytedance_init_video_txt.txt`；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`；`.trellis/spec/backend/runtime-workspace-contract.md` |
+| **当前状态** | ✅ 完成（2026-06-05）：已修复 `permissionMode` 透传、自动权限续跑、手动允许 dispatch continuation、拒绝停住等待、原始 inline permission card 状态同步和 action continuation terminal message。Web/Mobile OpenCLI 已验证允许后执行实际写文件、拒绝后不执行且可读回；Desktop/Electron fallback 与自动化质量门禁通过。 |
+| **目标** | 用户只发送一次固定 prompt 后，系统能按权限模式自动或经一次手动允许继续原始 plan/mailbox/runtime 链路；拒绝时停止对应动作并等待用户下一次输入。 |
+| **验收方式** | Web OpenCLI 覆盖 `允许单次执行` 与 `拒绝`；Mobile/PWA OpenCLI 读回同 session 的 plan/action/permission 状态；Desktop/Electron 无 OpenCLI adapter 时使用 Playwright Electron fallback；API/worker/dispatcher regression tests；type-check/lint/smoke。 |
+| **测试证据** | Report: `research/execution-reports/single-prompt-permission-continuation-uat-2026-06-05.md`；approve session `e104da72-2989-4a81-a68d-9cc8661c3aed`、action `60f886f1-2684-49c8-9085-4ad465c4568b`，点击“允许单次执行”后原 permission part 为 `running`，action/plan node running，并实际写入 workspace 文件 `agenthub-permission-status-sync.txt`；reject session `d49c3272-8240-4908-ae8d-5e0ddea2caf8`、action `3312a56a-082c-4e45-b9fc-fe1ae1adb04c`，action `rejected` 且 `executed_at` 为空，plan node `waiting`，原卡和 Mobile/PWA readback 显示拒绝；截图 `permission-continuation-web-reject-2026-06-05.png`、`permission-continuation-mobile-reject-2026-06-05.png`。自动化：Web/shared type-check PASS；Web focused regression suite PASS（5 files / 103 tests）；Web lint PASS（仅既有 Next lint/config warning，0 ESLint errors）；`pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 12/12）；Desktop build PASS；Desktop Vitest PASS（6 files / 29 tests）；Electron fallback PASS（21/21）。 |
+| **阻塞问题** | 无。完整 Bytedance fixed-sample product gate 不在本回归任务内重跑，旧结论仍以 `BYTEDANCE-FIXED-SAMPLE-PRODUCT-GATE-2026-06-05` 为准。 |
+| **下一步动作** | 已关闭；提交并归档 Trellis task。 |
+
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
 | 字段 | 内容 |
