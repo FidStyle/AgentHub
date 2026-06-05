@@ -244,6 +244,47 @@ function approveActionChain() {
           }),
         }
       }
+      if (table === 'messages') {
+        return {
+          select: () => ({
+            eq: () => ({
+              data: [{
+                id: 'message-approval-001',
+                metadata: {
+                  runtimeParts: [{
+                    id: 'action-001',
+                    type: 'permission',
+                    status: 'pending',
+                    actionId: 'action-001',
+                    description: '需要授权',
+                  }],
+                },
+              }],
+              error: null,
+            }),
+          }),
+          update: (values: Record<string, unknown>) => ({
+            eq: (field: string, id: string) => {
+              writes.push({ table, values, id: field === 'id' ? id : undefined })
+              return { data: null, error: null }
+            },
+          }),
+          insert: (values: Record<string, unknown>) => {
+            writes.push({ table, values })
+            return { data: null, error: null }
+          },
+        }
+      }
+      if (table === 'plan_nodes') {
+        return {
+          update: (values: Record<string, unknown>) => ({
+            eq: (field: string, id: string) => {
+              writes.push({ table, values, id: field === 'id' ? id : undefined })
+              return { data: null, error: null }
+            },
+          }),
+        }
+      }
       return {
         select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }),
       }
@@ -404,17 +445,77 @@ describe('plans/actions API session ownership', () => {
       status: 'approved',
       dispatch: { status: 'queued', runtimeSessionId: 'runtime-001' },
     })
-    expect(writes).toEqual([
+    expect(writes).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
         values: expect.objectContaining({ status: 'approved', approved_at: expect.any(String) }),
         id: 'action-001',
       }),
-    ])
+      expect.objectContaining({
+        table: 'messages',
+        values: expect.objectContaining({
+          metadata: expect.objectContaining({
+            runtimeParts: [expect.objectContaining({ status: 'running', actionId: 'action-001' })],
+          }),
+        }),
+        id: 'message-approval-001',
+      }),
+    ]))
     expect(dispatchApprovedActionMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       id: action.id,
       status: 'pending',
     }))
+  })
+
+  it('rejecting a pending action persists a stopped permission state and does not dispatch', async () => {
+    const { chainFactory, writes } = approveActionChain()
+    setupMockClient(chainFactory)
+
+    const result = await callApproveAction('action-001', false)
+
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual({ status: 'rejected' })
+    expect(dispatchApprovedActionMock).not.toHaveBeenCalled()
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        values: expect.objectContaining({
+          status: 'rejected',
+          approved_at: null,
+          result: expect.objectContaining({ approvalDecision: 'rejected' }),
+        }),
+        id: 'action-001',
+      }),
+      expect.objectContaining({
+        table: 'messages',
+        values: expect.objectContaining({
+          metadata: expect.objectContaining({
+            runtimeParts: [expect.objectContaining({ status: 'rejected', actionId: 'action-001' })],
+          }),
+        }),
+        id: 'message-approval-001',
+      }),
+      expect.objectContaining({
+        table: 'messages',
+        values: expect.objectContaining({
+          session_id: 'session-001',
+          message_type: 'system_event',
+          content: expect.stringContaining('等待你的下一次输入'),
+          metadata: expect.objectContaining({
+            runtimeParts: [expect.objectContaining({ status: 'rejected', actionId: 'action-001' })],
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        values: expect.objectContaining({
+          status: 'waiting',
+          completed_at: null,
+          result: expect.objectContaining({ approvalDecision: 'rejected' }),
+        }),
+        id: 'node-001',
+      }),
+    ]))
   })
 
   it('reruns an approved action through the dispatcher after a previous unavailable dispatch', async () => {

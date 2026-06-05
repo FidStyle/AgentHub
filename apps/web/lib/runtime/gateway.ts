@@ -284,10 +284,12 @@ async function resolveLocalRuntimeInvoke(endpointId: string | null, prompt: stri
 
 export async function* invoke(input: {
   userId: string
+  workspaceId?: string
   runtimeSession: RuntimeSessionRecord
   userMessage?: string
   systemPrompt?: string
   runtimeType?: RuntimeType
+  permissionMode?: string | null
   planNodeId?: string
   attemptId?: string
   mailboxItemId?: string | null
@@ -336,11 +338,13 @@ export async function* invoke(input: {
     let failed = false
     for await (const raw of subscribeEvents(input.runtimeSession.id, () => enqueue({
       runtimeSessionId: input.runtimeSession.id,
+      workspaceId: input.workspaceId,
       sessionId: input.runtimeSession.sessionId,
       ownerId: input.userId,
       workspaceRoot: input.runtimeSession.cwd,
       endpointId: endpoint.id ?? undefined,
       runtimeType: input.runtimeType === 'codex' ? 'codex' : input.runtimeType === 'claude_code' ? 'claude_code' : undefined,
+      permissionMode: input.permissionMode ?? null,
       nativeSessionId: input.runtimeSession.nativeSessionId ?? null,
       cwd: input.runtimeSession.cwd,
       prompt: input.userMessage ?? '',

@@ -230,6 +230,123 @@ await enqueueRuntimeJob({
 
 The correct path treats approval as continuation of a specific native tool request, not as a synthetic shell command.
 
+## Scenario: Single-Prompt Permission Continuation and Inline Status Sync
+
+### 1. Scope / Trigger
+
+- Trigger: any `/api/chat`, runtime gateway, Redis runtime job, runtime worker, action approval API, message renderer, or action dispatcher change that can pause execution on a native tool permission boundary.
+- This is a cross-layer contract spanning permission mode propagation, pending/auto-approved actions, approved continuation dispatch, rejected stop behavior, original message `runtimeParts` status sync, plan node state, and Web/Mobile readback.
+
+### 2. Signatures
+
+- `POST /api/chat`
+  - Request field: `permissionMode?: "ask" | "auto" | "full_control" | "dangerous_bypass" | string | null`
+- `HostedRuntimeAdapter.invoke({ workspaceId, permissionMode, ... })`
+- `gateway.invoke({ workspaceId, permissionMode, ... })`
+- `RuntimeJob.permissionMode?: string | null`
+- `POST /api/actions/:actionId/approve`
+  - Body: `{ approved: boolean }`
+  - Response: `{ status: "approved" | "rejected", dispatch?: DispatchResult }`
+- `RuntimeMessagePart.permission.status`
+  - `"pending" | "approved" | "rejected" | "running" | "completed" | "failed"`
+
+Concrete sources:
+
+- `apps/web/app/api/chat/route.ts`
+- `apps/web/lib/runtime/hosted-adapter.ts`
+- `apps/web/lib/runtime/gateway.ts`
+- `apps/web/lib/runtime/redis-client.ts`
+- `apps/web/server/runtime-worker.ts`
+- `apps/web/app/api/actions/[actionId]/approve/route.ts`
+- `apps/web/components/workspace/MessageContent.tsx`
+- `packages/shared/src/domain/message.ts`
+
+### 3. Contracts
+
+- `permissionMode` must be copied from `/api/chat` into DAG node payloads, runtime adapter input, runtime gateway input, Redis `RuntimeJob`, and approved continuation jobs.
+- Automatic modes are `auto`, `full_control`, and `dangerous_bypass`. When a native tool request is allowed by workspace permission evaluation in one of these modes, the worker must create an approved action and immediately dispatch continuation through `dispatchApprovedAction`.
+- Manual mode must persist a pending action and a durable assistant message with `metadata.runtimeParts[0].type = "permission"` and `status = "pending"`.
+- Approving a pending action must:
+  - update `actions.status = "approved"` and store `result.approvalDecision = "approved"`;
+  - call `dispatchApprovedAction`;
+  - update the original message's matching `runtimeParts.permission.status` to `running` for queued dispatch, `completed` for immediate completion, or `failed` for unavailable dispatch.
+- Rejecting a pending action must:
+  - update `actions.status = "rejected"` and store `result.approvalDecision = "rejected"`;
+  - not call `dispatchApprovedAction`;
+  - update the original message's matching permission part to `rejected`;
+  - insert a durable system event explaining that execution stopped and is waiting for the next user input;
+  - keep the linked plan node in `waiting`, with no side-effect execution.
+- Worker running and terminal updates for approved continuations must sync the original inline permission card to `running`, `completed`, or `failed`. It is not enough to update the `actions` row.
+- Web message cards must refresh the current session immediately after approve/reject and poll for continuation updates for several minutes so a single prompt can continue without another user message.
+- Mobile/PWA readback must show the same decided durable permission state through `/api/actions?session_id=...` and persisted message runtime parts.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| `permissionMode = auto` and workspace permission evaluator allows the tool | action `approved`, continuation job queued, `approval_auto_approved` emitted, no user click required |
+| Manual permission request created | action `pending`, message runtime part `permission.pending`, notification inserted |
+| User clicks `允许单次执行` | action `approved`, `dispatchApprovedAction` called, original permission part `running/completed/failed` |
+| Approved continuation starts | action `running`, original permission part `running` |
+| Approved continuation completes | action `completed`, original permission part `completed`, durable continuation result message inserted |
+| Approved continuation fails | action `failed`, original permission part `failed`, durable failure system event inserted |
+| User clicks `拒绝` | action `rejected`, original permission part `rejected`, no dispatch, plan node `waiting`, durable stop event inserted |
+| User reloads Web or opens Mobile/PWA | no stale `pending` card for decided actions; decided status is visible |
+
+### 5. Good/Base/Bad Cases
+
+- Good: a single fixed-sample prompt reaches a native `Write` permission; user clicks `允许单次执行`; the original card changes to `执行中`; the file is written in the selected workspace; continuation results are appended to the same session.
+- Good: user clicks `拒绝`; no file is written, action has no `executed_at`, plan node remains `waiting`, and Web/Mobile show rejected state after reload.
+- Base: `dispatchApprovedAction` returns `unavailable`; the action is marked failed and the original permission card shows `执行失败`.
+- Bad: approve updates only `actions.status`, leaving the original message permission card at `pending`.
+- Bad: reject updates only `actions.status`, but dispatches anyway or marks the plan node `completed`.
+- Bad: automatic mode still emits a pending manual card and waits indefinitely for user approval.
+
+### 6. Tests Required
+
+- API test: approving a pending action calls `dispatchApprovedAction` and updates the original message `runtimeParts.permission.status`.
+- API test: rejecting a pending action does not dispatch, writes a durable stop event, leaves the plan node waiting, and updates the original permission part to `rejected`.
+- Dispatcher test: approved continuation jobs preserve `permissionMode`.
+- Worker test: manual permission boundary persists a durable permission message.
+- Worker test: automatic mode creates an approved action and dispatches continuation.
+- Worker test: running/completed/failed terminal updates sync original inline permission card status.
+- UAT: Web OpenCLI click `允许单次执行` and prove a real workspace side effect plus non-pending card state.
+- UAT: Web OpenCLI click `拒绝` and prove no execution, durable rejected state, and waiting plan node.
+- UAT: Mobile/PWA readback must show the same approved/rejected states; Desktop must use OpenCLI app adapter or Playwright Electron fallback.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await db.from('actions').update({ status: 'approved' }).eq('id', actionId);
+return { status: 'approved' };
+```
+
+This updates the action row but leaves the runtime job, plan node, mailbox item, and original permission card stuck.
+
+#### Correct
+
+```typescript
+const dispatch = await dispatchApprovedAction(db, action);
+await updateInlinePermissionParts(db, {
+  sessionId: action.session_id,
+  actionId: action.id,
+  status: dispatch.status === 'queued' ? 'running' : 'failed',
+});
+```
+
+```typescript
+await db.from('actions').update({
+  status: 'rejected',
+  result: { ...action.result, approvalDecision: 'rejected' },
+}).eq('id', action.id);
+await updateInlinePermissionParts(db, { sessionId: action.session_id, actionId: action.id, status: 'rejected' });
+await db.from('plan_nodes').update({ status: 'waiting', completed_at: null }).eq('id', action.plan_node_id);
+```
+
+The correct path treats approval/rejection as a continuation-state transition across storage, UI, and runtime scheduling.
+
 ## Scenario: Mobile Durable Permission Readback
 
 ### 1. Scope / Trigger

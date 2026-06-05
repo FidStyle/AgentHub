@@ -42,7 +42,7 @@ type RuntimeMessagePart = {
 } | {
     id: string;
     type: 'permission';
-    status: 'pending';
+    status: 'pending' | 'approved' | 'rejected' | 'running' | 'completed' | 'failed';
     actionId?: string;
     title?: string;
     description: string;

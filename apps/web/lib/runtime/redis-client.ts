@@ -21,6 +21,7 @@ export interface RuntimeJob {
   workspaceRoot?: string | null
   endpointId?: string
   runtimeType?: 'claude_code' | 'codex'
+  permissionMode?: string | null
   roleAgentId?: string | null
   nativeSessionId?: string | null
   cwd?: string | null

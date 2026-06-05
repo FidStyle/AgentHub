@@ -1,0 +1,5 @@
+{"file": "research/workflow/ai-workflow-control.md", "reason": "检查真实链路、治理账本和不把 status.json/截图当完成的规则"}
+{"file": "research/regression-ledger.md", "reason": "检查本回归登记、关闭条件和证据是否同步"}
+{"file": "research/project-tracker.md", "reason": "检查公开项目状态是否同步"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "检查 permission continuation、inline status sync、reject stop 契约"}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "检查 Web/Mobile/Desktop 或 fallback 验收口径"}

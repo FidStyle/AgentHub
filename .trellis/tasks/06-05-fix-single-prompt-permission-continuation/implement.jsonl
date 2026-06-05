@@ -1,0 +1,6 @@
+{"file": "bytedance_init_prd.md", "reason": "最高产品事实源：单 prompt 到多角色编排、权限和三端读回的验收口径"}
+{"file": "bytedance_init_video_txt.txt", "reason": "辅助事实源：三端职责、IM/Agent/Artifact/权限语义"}
+{"file": "research/workflow/ai-workflow-control.md", "reason": "已完成功能优先修复、真实链路验真和治理规则"}
+{"file": "research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md", "reason": "角色 runtime、workspace 隔离和 permission broker 合同"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "runtime workspace、native tool approval continuation 和 durable permission readback 实现契约"}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "Bytedance 固定样本和三端真实验收门禁"}

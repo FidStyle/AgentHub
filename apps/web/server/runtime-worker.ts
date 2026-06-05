@@ -1,6 +1,7 @@
 import { createClient } from '../lib/app-db-client'
 import { advancePlanProgress } from '../lib/orchestrator/plan-progress'
 import { dispatchReadyMailboxItems } from '../lib/orchestrator/mailbox-control'
+import { dispatchApprovedAction, type ActionRecordForDispatch } from '../lib/orchestrator/action-dispatcher'
 import {
   CliRuntimeExecutor,
   type ExecutorChunk,
@@ -94,6 +95,7 @@ async function markActionRunning(job: RuntimeJob): Promise<void> {
       executed_at: now,
       result: { ...(job.actionResult ?? {}), dispatch: 'running', runtimeSessionId: job.runtimeSessionId, at: now },
     }).eq('id', job.actionId)
+    await updateInlinePermissionParts(db, job, 'running')
   }
   if (job.planNodeId) {
     await db.from('plan_nodes').update({
@@ -101,6 +103,41 @@ async function markActionRunning(job: RuntimeJob): Promise<void> {
       started_at: now,
       result: { dispatch: 'running', runtimeSessionId: job.runtimeSessionId },
     }).eq('id', job.planNodeId)
+  }
+}
+
+async function updateInlinePermissionParts(
+  db: Awaited<ReturnType<typeof createClient>>,
+  job: RuntimeJob,
+  status: 'running' | 'completed' | 'failed',
+): Promise<void> {
+  if (!job.sessionId || !job.actionId) return
+  const { data: messages } = await db
+    .from('messages')
+    .select('id, metadata')
+    .eq('session_id', job.sessionId)
+
+  for (const message of (Array.isArray(messages) ? messages : []) as Array<{ id?: string; metadata?: unknown }>) {
+    const metadata = message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata)
+      ? message.metadata as Record<string, unknown>
+      : null
+    const parts = Array.isArray(metadata?.runtimeParts) ? metadata.runtimeParts : null
+    if (!message.id || !metadata || !parts) continue
+
+    let changed = false
+    const nextParts = parts.map((part) => {
+      if (!part || typeof part !== 'object' || Array.isArray(part)) return part
+      const record = part as { type?: unknown; actionId?: unknown }
+      if (record.type !== 'permission' || record.actionId !== job.actionId) return part
+      changed = true
+      return { ...(part as Record<string, unknown>), status }
+    })
+    if (!changed) continue
+
+    await db
+      .from('messages')
+      .update({ metadata: { ...metadata, runtimeParts: nextParts } })
+      .eq('id', message.id)
   }
 }
 
@@ -130,6 +167,10 @@ function isApprovalBoundaryError(error: string): boolean {
 
 function isQuestionBoundaryError(error: string): boolean {
   return error === 'Runtime 等待用户补充确认，未继续执行。'
+}
+
+function isAutoContinuationBoundaryError(error: string): boolean {
+  return error === 'Runtime 工具已按当前权限模式自动进入续跑。'
 }
 
 function isRuntimePermissionBrokerAction(job: RuntimeJob): boolean {
@@ -204,6 +245,58 @@ function toolRequestDescription(tool: NativeCliToolRequest, workspaceRoot: strin
   ].filter(Boolean).join('\n')
 }
 
+function isAutomaticPermissionMode(mode?: string | null): boolean {
+  return mode === 'auto' || mode === 'full_control' || mode === 'dangerous_bypass'
+}
+
+function permissionPartFromToolRequest(input: {
+  actionId: string
+  tool: NativeCliToolRequest
+  workspaceRoot: string
+  cwd?: string | null
+  riskLevel: string
+}) {
+  return {
+    id: input.actionId,
+    type: 'permission',
+    status: 'pending',
+    actionId: input.actionId,
+    title: 'Runtime 工具需要授权',
+    description: toolRequestDescription(input.tool, input.workspaceRoot),
+    riskLevel: input.riskLevel,
+    actionKind: input.tool.actionKind,
+    workspaceRoot: input.workspaceRoot,
+    cwd: input.cwd ?? input.tool.cwd ?? null,
+    targetPaths: input.tool.targetPaths ?? [],
+    commandPreview: input.tool.commandPreview,
+  }
+}
+
+async function persistRuntimeMessage(job: RuntimeJob, input: {
+  content: string
+  messageType?: string
+  runtimeParts?: unknown[]
+  metadata?: Record<string, unknown>
+}): Promise<void> {
+  if (!job.sessionId) return
+  if (job.suppressPlanProgress) return
+  const db = await createClient()
+  await db.from('messages').insert({
+    session_id: job.sessionId,
+    content: input.content,
+    sender_type: 'agent',
+    role_agent_id: job.roleAgentId ?? null,
+    message_type: input.messageType ?? 'system_event',
+    metadata: {
+      ...(input.metadata ?? {}),
+      ...(input.runtimeParts ? { runtimeParts: input.runtimeParts } : {}),
+      runtimeSessionId: job.runtimeSessionId,
+      actionId: job.actionId ?? null,
+      planNodeId: job.planNodeId ?? null,
+    },
+  })
+}
+
 function nativeToolCommandLabel(tool: NativeCliToolRequest, toolCall: NativeCliToolCall): string {
   if (toolCall.commandPreview) return toolCall.commandPreview
   const targets = toolCall.targetPaths?.filter((target) => target.trim()) ?? []
@@ -236,12 +329,20 @@ function toolCallFromRequest(job: RuntimeJob, tool: NativeCliToolRequest): Nativ
   }
 }
 
-async function createPermissionAction(job: RuntimeJob, tool: NativeCliToolRequest, toolCall: NativeCliToolCall, riskLevel: string, nativeSessionId?: string | null) {
+async function createPermissionAction(
+  job: RuntimeJob,
+  tool: NativeCliToolRequest,
+  toolCall: NativeCliToolCall,
+  riskLevel: string,
+  nativeSessionId?: string | null,
+  options: { autoApproved?: boolean } = {},
+) {
   if (!job.ownerId) {
     throw new Error('Runtime 权限请求缺少用户归属，已阻止执行。')
   }
   const db = await createClient()
   const command = nativeToolCommandLabel(tool, toolCall)
+  const now = new Date().toISOString()
   const { data: action, error } = await db
     .from('actions')
     .insert({
@@ -252,8 +353,9 @@ async function createPermissionAction(job: RuntimeJob, tool: NativeCliToolReques
       command,
       cwd: toolCall.cwd,
       risk_level: riskLevel,
-      status: 'pending',
+      status: options.autoApproved ? 'approved' : 'pending',
       requires_approval: true,
+      approved_at: options.autoApproved ? now : null,
       result: {
         source: 'runtime_permission_broker',
         runtimeSessionId: job.runtimeSessionId,
@@ -266,26 +368,49 @@ async function createPermissionAction(job: RuntimeJob, tool: NativeCliToolReques
         nativeSessionId: nativeSessionId ?? job.nativeSessionId ?? null,
         runtimeType: job.runtimeType ?? null,
         roleAgentId: job.roleAgentId ?? null,
+        permissionMode: job.permissionMode ?? null,
+        autoApproved: options.autoApproved === true,
         targetPaths: toolCall.targetPaths ?? [],
         cwd: toolCall.cwd,
         workspaceRoot: job.workspaceRoot,
       },
     })
-    .select('id')
+    .select('*')
     .single()
   if (error || !action) {
     throw new Error(error?.message ?? '创建权限动作失败。')
   }
-  const actionId = (action as { id: string }).id
-  await db.from('notifications').insert({
-    user_id: job.ownerId,
-    type: 'approval_required',
-    title: `Runtime 工具需要授权: ${command.slice(0, 50)}`,
-    body: `风险等级: ${riskLevel}`,
-    ref_type: 'action',
-    ref_id: actionId,
-  })
-  return actionId
+  const actionRow = action as unknown as ActionRecordForDispatch
+  const actionId = actionRow.id
+  if (!options.autoApproved) {
+    await db.from('notifications').insert({
+      user_id: job.ownerId,
+      type: 'approval_required',
+      title: `Runtime 工具需要授权: ${command.slice(0, 50)}`,
+      body: `风险等级: ${riskLevel}`,
+      ref_type: 'action',
+      ref_id: actionId,
+    })
+    await persistRuntimeMessage(job, {
+      content: 'Runtime 请求执行需要授权的工具，已暂停当前任务并等待确认。',
+      messageType: 'approval',
+      runtimeParts: [permissionPartFromToolRequest({
+        actionId,
+        tool,
+        workspaceRoot: job.workspaceRoot ?? toolCall.cwd,
+        cwd: toolCall.cwd,
+        riskLevel,
+      })],
+      metadata: {
+        approval: {
+          actionId,
+          status: 'pending',
+          source: 'runtime_permission_broker',
+        },
+      },
+    })
+  }
+  return { actionId, action: actionRow }
 }
 
 async function markActionTerminal(
@@ -333,6 +458,7 @@ async function markActionTerminal(
   }
   if (job.actionId) {
     await db.from('actions').update({ status: actionStatus, result }).eq('id', job.actionId)
+    await updateInlinePermissionParts(db, job, actionStatus)
   }
   if (job.planNodeId) {
     const planNodeStatus = options.planNodeStatus ?? (terminal === 'completed' ? 'completed' : 'failed')
@@ -351,6 +477,67 @@ async function markActionTerminal(
     }
   }
   await settleParentPlan(db, job)
+}
+
+async function persistActionContinuationTerminal(job: RuntimeJob, input: {
+  terminal: Terminal
+  output: string
+  error?: string
+  actionStatus?: 'completed' | 'failed'
+  planNodeStatus?: PlanNodeTerminalStatus
+}): Promise<void> {
+  if (!job.actionId) return
+  const title = input.actionStatus === 'completed' || input.terminal === 'completed'
+    ? '授权动作已继续执行'
+    : input.planNodeStatus === 'waiting'
+      ? '授权动作已执行，任务等待下一次确认'
+      : '授权动作执行失败'
+  const content = [
+    title,
+    input.output.trim() ? `\n${input.output.trim().slice(-4000)}` : null,
+    input.error ? `\n错误：${input.error}` : null,
+  ].filter(Boolean).join('\n')
+  await persistRuntimeMessage(job, {
+    content,
+    messageType: input.actionStatus === 'completed' || input.terminal === 'completed' ? 'result_card' : 'system_event',
+    metadata: {
+      actionContinuation: {
+        actionId: job.actionId,
+        status: input.actionStatus ?? (input.terminal === 'completed' ? 'completed' : 'failed'),
+        terminal: input.terminal,
+        planNodeStatus: input.planNodeStatus ?? null,
+      },
+    },
+  })
+}
+
+async function markAutoContinuationBoundary(job: RuntimeJob, error: string): Promise<void> {
+  const db = await createClient()
+  const now = new Date().toISOString()
+  const patch = {
+    status: 'waiting',
+    error,
+    updated_at: now,
+  }
+  if (job.attemptId) {
+    await db.from('plan_node_attempts').update({
+      ...patch,
+      runtime_session_id: job.runtimeSessionId,
+    }).eq('id', job.attemptId)
+  }
+  if (job.mailboxItemId) {
+    await db.from('agent_mailbox_items').update(patch).eq('id', job.mailboxItemId)
+  }
+  await persistRuntimeMessage(job, {
+    content: '当前权限模式已自动允许该工具请求，AgentHub 已投递续跑任务。后续结果会继续写回本会话。',
+    messageType: 'system_event',
+    metadata: {
+      autoPermissionContinuation: {
+        runtimeSessionId: job.runtimeSessionId,
+        planNodeId: job.planNodeId ?? null,
+      },
+    },
+  })
 }
 
 async function closeCompletedPlanNodeWaitingQueue(
@@ -471,7 +658,21 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
           throw new Error('Runtime 权限请求无法进入审批队列，已阻止执行。')
         }
         const riskLevel = permission.approval.riskLevel
-        const actionId = await createPermissionAction(job, chunk.toolRequest, toolCall, riskLevel, lastNativeSessionId)
+        const autoApproved = isAutomaticPermissionMode(job.permissionMode)
+        const { actionId, action } = await createPermissionAction(job, chunk.toolRequest, toolCall, riskLevel, lastNativeSessionId, { autoApproved })
+        if (autoApproved) {
+          const dispatch = await dispatchApprovedAction(await createClient(), action)
+          await emit({
+            type: 'approval_auto_approved',
+            actionId,
+            title: 'Runtime 工具已按当前权限模式自动执行',
+            riskLevel,
+            endpointId: job.endpointId,
+            actionKind: toolCall.actionKind,
+            dispatch,
+          })
+          throw new Error('Runtime 工具已按当前权限模式自动进入续跑。')
+        }
         await emit({
           type: 'approval_requested',
           actionId,
@@ -498,9 +699,22 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     const error = err instanceof Error ? err.message : String(err)
     await setStatus(id, 'failed', true)
     await clearHeartbeat(id)
+    if (isAutoContinuationBoundaryError(error)) {
+      await markAutoContinuationBoundary(job, error)
+      await emit({ type: 'runtime_failed', endpointId: job.endpointId, error })
+      return 'failed'
+    }
     const actionCompletedAtBoundary = shouldCompleteApprovedActionAtBoundary(job, error, output)
-    const isWaitingBoundary = isApprovalBoundaryError(error) || (isQuestionBoundaryError(error) && actionCompletedAtBoundary)
-    const boundaryOptions = isWaitingBoundary
+    const isWaitingBoundary = isApprovalBoundaryError(error)
+      || isAutoContinuationBoundaryError(error)
+      || (isQuestionBoundaryError(error) && actionCompletedAtBoundary)
+    const boundaryOptions: {
+      actionTerminal?: Terminal
+      actionError?: string | null
+      planNodeStatus?: PlanNodeTerminalStatus
+      attemptStatus?: AttemptStatus
+      attemptError?: string | null
+    } = isWaitingBoundary
       ? {
           ...(actionCompletedAtBoundary ? { actionTerminal: 'completed' as const, actionError: null } : {}),
           planNodeStatus: 'waiting' as const,
@@ -509,6 +723,13 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         }
       : {}
     await markActionTerminal(job, 'failed', output, error, boundaryOptions)
+    await persistActionContinuationTerminal(job, {
+      terminal: 'failed',
+      output,
+      error,
+      actionStatus: actionCompletedAtBoundary ? 'completed' : 'failed',
+      planNodeStatus: boundaryOptions.planNodeStatus,
+    })
     await emit({ type: 'runtime_failed', endpointId: job.endpointId, error })
     return 'failed'
   }
@@ -517,6 +738,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
   await setStatus(id, 'completed', true)
   await clearHeartbeat(id)
   await markActionTerminal(job, 'completed', output)
+  await persistActionContinuationTerminal(job, { terminal: 'completed', output, actionStatus: 'completed' })
   await emit({ type: 'runtime_completed', endpointId: job.endpointId, summary: 'done' })
   return 'completed'
 }

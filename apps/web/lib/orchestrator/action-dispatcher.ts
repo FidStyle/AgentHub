@@ -54,6 +54,7 @@ type RuntimePermissionBrokerResult = {
   nativeSessionId?: unknown
   runtimeType?: unknown
   roleAgentId?: unknown
+  permissionMode?: unknown
   targetPaths?: unknown
   cwd?: unknown
   workspaceRoot?: unknown
@@ -724,6 +725,7 @@ export async function dispatchApprovedAction(
     workspaceRoot,
     endpointId: endpoint.id ?? undefined,
     runtimeType,
+    permissionMode: stringValue(broker?.permissionMode),
     roleAgentId,
     nativeSessionId: stringValue(broker?.nativeSessionId) ?? runtimeSession.nativeSessionId ?? null,
     cwd: runtimeSession.cwd,
@@ -921,6 +923,7 @@ export async function dispatchPreparedRuntimeInvokeNode(
     executionDomain: ExecutionDomain
     role: RoleDispatchRow | null
     runtimeType: CliRuntimeType
+    permissionMode?: string | null
     attemptId: string
     mailboxItemId: string | null
     mailboxContextPackage?: unknown
@@ -974,6 +977,7 @@ export async function dispatchPreparedRuntimeInvokeNode(
     workspaceRoot: payloadString(payload, 'workspaceRoot') ?? cwd,
     endpointId: endpoint.id ?? undefined,
     runtimeType: input.runtimeType,
+    permissionMode: input.permissionMode ?? payloadString(payload, 'permissionMode') ?? null,
     roleAgentId: input.role?.id ?? null,
     nativeSessionId: runtimeSession.nativeSessionId ?? null,
     cwd: runtimeSession.cwd,

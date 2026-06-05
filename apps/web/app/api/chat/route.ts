@@ -225,6 +225,7 @@ async function finishRuntimeAttemptEvidence(input: {
 function isRuntimeWaitingBoundary(error: string | null, runtimeParts: RuntimeMessagePart[]) {
   if (runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')) return true
   return error === 'Runtime 工具已进入权限审批，未执行该操作。'
+    || error === 'Runtime 工具已按当前权限模式自动进入续跑。'
     || error === 'Runtime 等待用户补充确认，未继续执行。'
 }
 
@@ -750,13 +751,14 @@ export async function POST(req: NextRequest) {
                   : `${target.role?.name ?? '角色'}执行`,
               agent_id: target.role?.id ?? null,
               action_type: 'runtime_invoke',
-              action_payload: {
-                phase: target.phase,
-                runtimeType: target.role?.runtime_type ?? null,
-                userMessage,
-                cwd: runtimeWorkspaceRoot,
-                workspaceRoot: runtimeWorkspaceRoot,
-              },
+                  action_payload: {
+                    phase: target.phase,
+                    runtimeType: target.role?.runtime_type ?? null,
+                    userMessage,
+                    permissionMode: permissionMode ?? null,
+                    cwd: runtimeWorkspaceRoot,
+                    workspaceRoot: runtimeWorkspaceRoot,
+                  },
               depends_on: `{${target.dependsOn.map((id) => `"${id}"`).join(',')}}`,
               status: target.dependsOn.length === 0 ? 'ready' : 'pending',
             })))
@@ -782,6 +784,7 @@ export async function POST(req: NextRequest) {
           let runtimeParts: RuntimeMessagePart[] = []
           let completed = false
           let terminalError: string | null = null
+          let autoContinuationDispatched = false
           const receivedHandoffs = handoffs
             .filter((handoff) => handoff.toRoleAgentId === currentRoleAgentId)
             .map((handoff) => ({ ...handoff }))
@@ -823,6 +826,7 @@ export async function POST(req: NextRequest) {
                     phase: target.phase,
                     userMessage,
                     handoffs: receivedHandoffs,
+                    permissionMode: permissionMode ?? null,
                     cwd: runtimeWorkspaceRoot,
                     workspaceRoot: runtimeWorkspaceRoot,
                   },
@@ -833,6 +837,7 @@ export async function POST(req: NextRequest) {
                   ? { ...dispatchRole, system_prompt: systemPromptForRole(role, receivedHandoffs) }
                   : null,
                 runtimeType: role.runtime_type,
+                permissionMode: permissionMode ?? null,
                 attemptId: evidence.attemptId,
                 mailboxItemId: evidence.mailboxItemId,
                 mailboxContextPackage: receivedHandoffs,
@@ -867,6 +872,7 @@ export async function POST(req: NextRequest) {
               systemPrompt: systemPromptForRole(role, receivedHandoffs),
               roleAgentId: currentRoleAgentId ?? undefined,
               runtimeType: runtimeTypeForRole(role),
+              permissionMode: permissionMode ?? null,
               cwd: runtimeWorkspaceRoot,
               planNodeId: target.nodeId ?? undefined,
               attemptId: evidence?.attemptId,
@@ -877,6 +883,7 @@ export async function POST(req: NextRequest) {
           for await (const evt of eventStream()) {
             if (evt.type === 'runtime_output' && evt.delta) reply = replyAccumulator.append(evt)
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
+            if ((evt as unknown as { type?: string }).type === 'approval_auto_approved') autoContinuationDispatched = true
             if (evt.type === 'runtime_completed') completed = true
             if (evt.type === 'runtime_failed') terminalError = evt.error
             controller.enqueue(encode(evt))
@@ -887,7 +894,7 @@ export async function POST(req: NextRequest) {
             roleAgentId: currentRoleAgentId,
             runtimeType: runtimeTypeForRole(role),
           })
-          const hasQuestionPart = runtimeParts.some((part) => part.type === 'question')
+          const hasWaitingPart = runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')
           if (completed && (reply || runtimeParts.length > 0)) {
             await finishRuntimeAttemptEvidence({
               db,
@@ -932,7 +939,7 @@ export async function POST(req: NextRequest) {
             return 'completed'
           }
           const waitingBoundary = isRuntimeWaitingBoundary(terminalError, runtimeParts)
-          if (hasQuestionPart) {
+          if (hasWaitingPart) {
             completedReplies.push({
               nodeId: target.nodeId,
               phase: target.phase,
@@ -944,26 +951,30 @@ export async function POST(req: NextRequest) {
             })
           }
           if (target.nodeId) {
-            const patch: Record<string, unknown> = {
-              status: waitingBoundary ? 'waiting' : 'failed',
-              result: { error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过', runtimeParts },
+            if (!autoContinuationDispatched) {
+              const patch: Record<string, unknown> = {
+                status: waitingBoundary ? 'waiting' : 'failed',
+                result: { error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过', runtimeParts },
+              }
+              if (waitingBoundary) {
+                patch.completed_at = null
+              } else {
+                patch.completed_at = new Date().toISOString()
+              }
+              await db.from('plan_nodes').update({
+                ...patch,
+              }).eq('id', target.nodeId)
             }
-            if (waitingBoundary) {
-              patch.completed_at = null
-            } else {
-              patch.completed_at = new Date().toISOString()
-            }
-            await db.from('plan_nodes').update({
-              ...patch,
-            }).eq('id', target.nodeId)
           }
-          await finishRuntimeAttemptEvidence({
-            db,
-            evidence,
-            runtimeSessionId: latestRuntimeSession?.id,
-            status: waitingBoundary ? 'waiting' : 'failed',
-            error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过',
-          })
+          if (!autoContinuationDispatched) {
+            await finishRuntimeAttemptEvidence({
+              db,
+              evidence,
+              runtimeSessionId: latestRuntimeSession?.id,
+              status: waitingBoundary ? 'waiting' : 'failed',
+              error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过',
+            })
+          }
           return waitingBoundary ? 'waiting' : 'failed'
         }
 

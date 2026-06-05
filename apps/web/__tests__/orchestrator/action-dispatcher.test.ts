@@ -535,6 +535,46 @@ describe('dispatchApprovedAction', () => {
     }))
   })
 
+  it('preserves automatic permission mode when enqueueing approved continuation jobs', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-auto-write',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'write_file',
+      command: `Write: ${workspaceRoot}/server.js`,
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        originalRuntimeSessionId: 'runtime-original',
+        toolCallId: 'tool-auto-write',
+        toolName: 'Write',
+        actionKind: 'write_file',
+        runtimeType: 'claude_code',
+        roleAgentId: 'agent-fe',
+        nativeSessionId: 'claude-native-001',
+        permissionMode: 'auto',
+        targetPaths: [`${workspaceRoot}/server.js`],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { file_path: `${workspaceRoot}/server.js`, content: 'console.log("auto")\n' },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      permissionMode: 'auto',
+      actionId: 'action-auto-write',
+      approvedNativeTool: expect.objectContaining({
+        toolCallId: 'tool-auto-write',
+        executed: true,
+      }),
+    }))
+  })
+
   it('executes brokered Claude Glob approvals as workspace-bound read enumeration', async () => {
     const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
     const { db } = dispatchDb()

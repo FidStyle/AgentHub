@@ -1,11 +1,12 @@
 'use client'
 
 import React from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge, Button } from '@agenthub/ui'
 import { AlertTriangle } from 'lucide-react'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 import { MessageMarkdown } from './MessageMarkdown'
+import { useSessionStore } from '@/store/session-store'
 
 const STREAM_TICK_MS = 28
 const STREAM_MIN_STEP = 1
@@ -70,7 +71,28 @@ function PartPreview({ value }: { value: unknown }) {
 
 function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type: 'permission' }> }) {
   const [decision, setDecision] = useState<'idle' | 'approving' | 'rejecting' | 'approved' | 'rejected' | 'error'>('idle')
+  const refreshTimersRef = useRef<number[]>([])
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const fetchMessages = useSessionStore((state) => state.fetchMessages)
   const canDecide = part.status === 'pending' && Boolean(part.actionId) && decision === 'idle'
+  useEffect(() => () => {
+    refreshTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    refreshTimersRef.current = []
+  }, [])
+
+  const refreshSessionAfterDecision = () => {
+    if (!activeSessionId) return
+    refreshTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    refreshTimersRef.current = []
+    void fetchMessages(activeSessionId)
+    for (const delay of [2000, 5000, 10000, 20000, 45000, 90000, 180000, 300000]) {
+      const timer = window.setTimeout(() => {
+        void fetchMessages(activeSessionId)
+      }, delay)
+      refreshTimersRef.current.push(timer)
+    }
+  }
+
   const decide = async (approved: boolean) => {
     if (!part.actionId) return
     setDecision(approved ? 'approving' : 'rejecting')
@@ -85,11 +107,18 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
         throw new Error((body as { error?: string }).error || '授权请求处理失败')
       }
       setDecision(approved ? 'approved' : 'rejected')
+      refreshSessionAfterDecision()
     } catch {
       setDecision('error')
     }
   }
-  const statusText = {
+  const statusText = part.status !== 'pending' ? {
+    approved: '已允许本次执行',
+    rejected: '已拒绝，未执行该操作。',
+    running: '执行中',
+    completed: '已完成',
+    failed: '执行失败',
+  }[part.status] ?? '已处理' : {
     idle: '待确认',
     approving: '授权中',
     rejecting: '拒绝中',

@@ -16,6 +16,7 @@ export class HostedRuntimeAdapter {
     systemPrompt?: string
     roleAgentId?: string
     runtimeType?: RuntimeType
+    permissionMode?: string | null
     cwd?: string | null
     planNodeId?: string | null
     attemptId?: string | null
@@ -52,10 +53,12 @@ export class HostedRuntimeAdapter {
     let seq = 0
     for await (const event of invoke({
       userId: input.userId,
+      workspaceId: input.workspaceId,
       runtimeSession,
       userMessage: input.userMessage,
       systemPrompt: input.systemPrompt,
       runtimeType,
+      permissionMode: input.permissionMode ?? null,
       planNodeId: input.planNodeId ?? undefined,
       attemptId: input.attemptId ?? undefined,
       mailboxItemId: input.mailboxItemId ?? undefined,
