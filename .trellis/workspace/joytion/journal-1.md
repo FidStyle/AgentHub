@@ -853,3 +853,36 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: 前端工作台用户可见闭环
+
+**Date**: 2026-06-06
+**Task**: 前端工作台用户可见闭环
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+完成并验证 Web 工作台对话过程、权限状态、文件/Git/产物启动脚本等用户可见闭环；归档 Trellis 任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c0c0aa1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
