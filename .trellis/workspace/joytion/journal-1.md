@@ -531,3 +531,36 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: 修复 approved native tool continuation
+
+**Date**: 2026-06-05
+**Task**: 修复 approved native tool continuation
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+修复 Claude native Read 审批后被转成 malformed shell_command 的 P0 blocker，补 Web/Mobile/Electron UAT 报告、回归测试和 runtime workspace spec，并归档当前 Trellis task。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5280a7c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
