@@ -819,3 +819,37 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: 修正统一回归假阳性
+
+**Date**: 2026-06-05
+**Task**: 修正统一回归假阳性
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+撤销统一全功能回归的错误 pass 结论；补强统一验证脚本，使旧样本在缺 fresh run、消息级开发过程、权限卡状态迁移和产物确认语义时失败；同步 report、tracker、sequential ledger、regression ledger 和 real-flow/spec guide。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4086a4e` | (see git log) |
+| `3eb8fb0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
