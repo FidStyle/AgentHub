@@ -3,7 +3,7 @@
   "name": "opencli-role-runtime-uat",
   "title": "固定样本 OpenCLI 三端 UAT",
   "description": "",
-  "status": "blocked",
+  "status": "superseded-by-final-product-gate",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -21,6 +21,10 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Blocked by fixed-sample UAT: approving native CLI permission dispatches malformed command `shell_command: <workspaceRoot>` instead of faithfully continuing the approved tool request. See research/execution-reports/opencli-role-runtime-uat-2026-06-05.md.",
-  "meta": {}
+  "notes": "Original fixed-sample UAT attempt was blocked by malformed approved native CLI continuation. The blocker was fixed through follow-up tasks 06-05-fix-approved-native-tool-continuation, 06-05-fix-ask-user-question-native-tool, 06-05-fix-mobile-permission-readback, 06-05-fix-approved-native-tool-execution-result, and the final accepted task 06-05-bytedance-fixed-sample-product-gate. Keep original failure report for audit: research/execution-reports/opencli-role-runtime-uat-2026-06-05.md.",
+  "meta": {
+    "previous_status": "blocked",
+    "superseded_by": "06-05-bytedance-fixed-sample-product-gate",
+    "final_report": "research/execution-reports/bytedance-fixed-sample-product-gate-2026-06-05.md"
+  }
 }
