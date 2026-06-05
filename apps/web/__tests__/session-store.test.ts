@@ -58,7 +58,7 @@ describe('session store message pinning', () => {
     ])
   })
 
-  it('filters historical role acknowledgement rows out of the chat message list', async () => {
+  it('keeps historical role acknowledgement rows in the chat message list', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([
       {
         id: 'ack-001',
@@ -86,7 +86,13 @@ describe('session store message pinning', () => {
 
     await useSessionStore.getState().fetchMessages('session-001')
 
-    expect(useSessionStore.getState().messages.map((message) => message.id)).toEqual(['msg-001'])
+    expect(useSessionStore.getState().messages.map((message) => message.id)).toEqual(['ack-001', 'msg-001'])
+    expect(useSessionStore.getState().messages[0]).toMatchObject({
+      role: 'agent',
+      content: '收到，我是 @架构师。',
+      messageType: 'role_acknowledgement',
+      roleAgentId: 'agent-001',
+    })
   })
 
   it('PATCHes message pin state and rolls back on failure', async () => {
@@ -176,7 +182,7 @@ describe('session store streaming replies', () => {
     })
   })
 
-  it('ignores streamed role acknowledgement events as control events, not chat messages', async () => {
+  it('renders streamed role acknowledgement events as visible process messages', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
       { type: 'role_acknowledgement', roleAgentId: 'agent-001', content: '收到，我是 @架构师。' },
       { type: 'runtime_output', delta: '真正回复' },
@@ -189,8 +195,13 @@ describe('session store streaming replies', () => {
 
     await useSessionStore.getState().sendMessage({ content: '开始', roleAgentIds: ['agent-001'] })
 
-    expect(useSessionStore.getState().messages.map((message) => message.content)).toEqual(['开始', '真正回复'])
-    expect(useSessionStore.getState().messages.some((message) => message.messageType === 'role_acknowledgement')).toBe(false)
+    expect(useSessionStore.getState().messages.map((message) => message.content)).toEqual(['开始', '收到，我是 @架构师。', '真正回复'])
+    const acknowledgement = useSessionStore.getState().messages.find((message) => message.content === '收到，我是 @架构师。')
+    expect(acknowledgement).toMatchObject({
+      role: 'agent',
+      roleAgentId: 'agent-001',
+      streaming: false,
+    })
   })
 })
 

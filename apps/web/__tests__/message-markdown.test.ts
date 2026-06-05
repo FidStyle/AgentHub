@@ -160,6 +160,7 @@ describe('MessageMarkdown', () => {
     expect(html.match(/type="checkbox"/g)).toHaveLength(2)
     expect(html).toContain('<code')
     expect(html).toContain('<div data-streamdown="code-block"')
+    expect(html).toContain('aria-label="引用代码"')
     expect(html).toContain('aria-label="复制代码"')
     expect(html).not.toContain('md:group-hover/code-block')
     expect(html).toContain('<pre data-streamdown="code-block-body"><code class="language-ts">const value = 1\nconsole.log(value)</code></pre>')
@@ -284,6 +285,54 @@ describe('MessageContent', () => {
     expect(html).toContain('install_dependency')
     expect(html).toContain('pnpm install')
     expect(html).toContain('/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2')
+  })
+
+  it('uses approval wording for permission cards instead of execution progress wording', () => {
+    const base = {
+      id: 'permission-1',
+      type: 'permission' as const,
+      actionId: 'action-1',
+      title: '需要执行命令',
+      description: '该动作需要授权后继续。',
+      riskLevel: 'medium',
+      commandPreview: 'pnpm install',
+    }
+
+    const runningHtml = renderToStaticMarkup(createElement(MessageContent, {
+      content: '',
+      parts: [{ ...base, status: 'running' }],
+      streaming: false,
+    }))
+    const completedHtml = renderToStaticMarkup(createElement(MessageContent, {
+      content: '',
+      parts: [{ ...base, status: 'completed' }],
+      streaming: false,
+    }))
+
+    expect(runningHtml).toContain('审批状态：已允许')
+    expect(runningHtml).not.toContain('审批状态：执行中')
+    expect(completedHtml).toContain('审批状态：已执行')
+  })
+})
+
+describe('ArtifactPanel frontend contract', () => {
+  it('keeps the right workbench split into orchestration, files, Git and launchable artifacts', () => {
+    const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
+
+    expect(source).toContain("const TABS = ['角色', '编排', '文件', 'Git', '产物'] as const")
+    expect(source).toContain('data-testid="artifact-orchestration"')
+    expect(source).toContain('data-testid="artifact-git"')
+    expect(source).toContain('data-testid="git-change-row"')
+    expect(source).toContain('data-testid="git-change-file"')
+    expect(source).toContain('data-testid="artifact-launch-panel"')
+    expect(source).toContain('data-testid="artifact-generate-launch-script"')
+    expect(source).toContain('data-testid="artifact-start-command"')
+    expect(source).toContain('引用选区')
+    expect(source).toContain('确认丢弃')
+    expect(source).not.toContain("activeTab === '变更'")
+    expect(source).not.toContain('data-testid="artifact-changes"')
+    expect(source).not.toContain('运行记录')
+    expect(source).not.toContain('允许单次执行')
   })
 })
 

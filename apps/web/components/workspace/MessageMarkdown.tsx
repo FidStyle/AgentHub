@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useMemo } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, Quote } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
@@ -44,6 +44,11 @@ function CopyButton({ text, label, className }: { text: string; label: string; c
       className={className}
     />
   )
+}
+
+function quoteToComposer(input: { author: string; preview: string; text: string }) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('agenthub:quote-to-composer', { detail: input }))
 }
 
 function textFromChildren(children: React.ReactNode): string {
@@ -95,11 +100,25 @@ function MarkdownPre({
     <div data-streamdown="code-block" className="group/code-block">
       <div data-streamdown="code-block-header">
         <span data-language={language || 'text'}>{language || 'text'}</span>
-        <CopyButton
-          text={code}
-          label="复制代码"
-          className="opacity-100 shadow-none"
-        />
+        <span className="flex items-center gap-1">
+          <IconButton
+            icon={Quote}
+            label="引用代码"
+            size="sm"
+            disabled={!code.trim()}
+            onClick={() => quoteToComposer({
+              author: language ? `${language} 代码块` : '代码块',
+              preview: code.replace(/\s+/g, ' ').trim().slice(0, 120),
+              text: code,
+            })}
+            className="opacity-100 shadow-none"
+          />
+          <CopyButton
+            text={code}
+            label="复制代码"
+            className="opacity-100 shadow-none"
+          />
+        </span>
       </div>
       <pre {...preProps} data-streamdown="code-block-body">
         <code className={className}>{code}</code>

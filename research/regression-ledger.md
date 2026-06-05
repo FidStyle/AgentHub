@@ -30,6 +30,22 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260606-001 — Web 工作台前端没有完整呈现开发过程、Git、代码引用和可启动产物
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / frontend-user-flow-gap / acceptance-coverage-gap |
+| **优先级** | P0（影响 Bytedance 主工作台用户验收和“前端一条线交付”结论） |
+| **状态** | `closed`（2026-06-06，`06-06-frontend-workbench-user-flow-closure` 修复并通过 OpenCLI Web UAT） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-PERM-001, FR-WEB-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-UI-001 |
+| **关联任务/合同** | `.trellis/tasks/06-06-frontend-workbench-user-flow-closure`；`.trellis/spec/frontend/component-guidelines.md` Scenario `用户可见工作台闭环`；Bytedance 原始 PRD 和视频转写 |
+| **影响功能面** | Web 聊天 transcript、消息内权限卡、右侧工作台、Git 变更、文件选区/代码引用、artifact 启动入口、前端验收门禁 |
+| **发现方式** | 用户复核已通过的后端/strict gate 后指出：对话记录只剩开头和“允许执行”；权限允许状态被显示成执行状态；右侧变更混合权限、Git 和运行记录；Git 缺少渐进式 diff；产物缺持久启动方式；后端支持代码选区但前端没有明显入口。 |
+| **证据** | 原问题：`ArtifactPanel` 的旧 `变更` tab 混放 `OrchestratorPanel`、Git 变更、diff history 和消息运行记录；消息 store 过滤 `role_acknowledgement`；权限卡 `running` 显示 `执行中`；产物只有预览/下载/编辑，缺启动脚本；文件预览只有选区 patch，缺引用入口。 |
+| **关闭条件** | 聊天保留历史/流式 role acknowledgement；权限卡 pending 后显示审批状态 `已允许/已执行` 而不是用 `执行中` 表达审批；右栏拆为 `角色/编排/文件/Git/产物`；Git 只显示文件列表并点击后展开 diff；文件面板可见 `引用选区`；代码块可 `引用代码`；runnable artifact 可生成 workspace-relative start script/command；补单测、type-check、OpenCLI 前端路径证据、report/tracker/commit。 |
+| **关闭证据** | `pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/session-store.test.ts` PASS（3 files / 38 tests）；`pnpm --filter @agenthub/web type-check` PASS；`git diff --check` PASS；`task.py validate` PASS；OpenCLI Web 真实页面进入 workspace `58a63e3f-5ca7-457b-af02-2824d02ab9fa`，验证 tab 为 `角色/编排/文件/Git/产物`、Git `11` 个文件先列表后点击 manifest 才出现 `git-diff-preview`、文件 README 打开后显示 `选区编辑草案 / 引用选区 / 生成 diff`、产物 UI 先显示 `生成启动脚本`，点击后读回 `bash .agenthub/run-artifact-7f65e4b8-8b4.sh`。截图目录：`e2e/artifacts/opencli-uat/frontend-workbench-user-flow-closure-2026-06-06/`；报告：`research/execution-reports/frontend-workbench-user-flow-closure-2026-06-06.md`。 |
+| **下一步** | 已关闭。`pnpm env:acceptance:smoke` 当前 cloud chat 终态检查仍有 `10 passed / 1 failed`，作为 runtime/chat gate 独立残留，不纳入本前端闭环通过证据。 |
+
 ### REG-20260605-003 — 统一全功能回归把历史静态证据误判为真实一键交付通过
 
 | 字段 | 内容 |

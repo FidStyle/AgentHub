@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Check that UI implements transcript, permission, Git, file, artifact, and code-reference contracts."}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"Check visual semantics, single responsibility tabs, accessibility, and responsive behavior."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Check no backend-only or mock-only acceptance is claimed."}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"Check acceptance criteria cover frontend user paths and real API state."}
+{"file":"research/product/ui-design-system.md","reason":"Check workbench UI remains aligned with the AgentHub design system."}

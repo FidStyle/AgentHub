@@ -5,12 +5,12 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, CheckCircle2, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, Presentation, RotateCcw, Save, SendHorizontal, ShieldCheck, Trash2, Upload, WandSparkles, X } from 'lucide-react'
+import { Bot, Boxes, CheckCircle2, Clock, Copy, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, Presentation, RotateCcw, Save, SendHorizontal, ShieldCheck, Terminal, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
 
-const TABS = ['角色', '文件', '变更', '产物'] as const
+const TABS = ['角色', '编排', '文件', 'Git', '产物'] as const
 
 const ROLE_TYPE_LABELS: Record<string, string> = {
   orchestrator: '编排者',
@@ -41,13 +41,6 @@ type RoleAgentRow = {
   capabilities: string[] | null
   runtime_type: 'claude_code' | 'codex'
   is_orchestrator: boolean
-}
-type MessageRow = {
-  id: string
-  content: string
-  message_type: string
-  is_pinned: boolean
-  metadata: Record<string, unknown> | null
 }
 type FileTreeNode = {
   name: string
@@ -104,10 +97,6 @@ type GitCommitRow = {
   message: string
 }
 
-function truncate(text: string, max = 160) {
-  return text.length > max ? `${text.slice(0, max)}...` : text
-}
-
 export function formatPanelTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '暂无时间'
@@ -136,6 +125,11 @@ function roleTypeLabel(agent: Pick<RoleAgentRow, 'role_type' | 'is_orchestrator'
 function toPreview(value: unknown) {
   if (typeof value === 'string') return value
   return JSON.stringify(value, null, 2)
+}
+
+function quoteToComposer(input: { id?: string; author: string; preview: string; text: string }) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('agenthub:quote-to-composer', { detail: input }))
 }
 
 function artifactTypeForPreview(preview: FilePreview) {
@@ -253,11 +247,6 @@ function PresentationPreview({ deck }: { deck: PresentationDeck }) {
       </div>
     </div>
   )
-}
-
-function metadataValue(metadata: MessageRow['metadata'], keys: string[]) {
-  if (!metadata) return undefined
-  return keys.find((key) => key in metadata)
 }
 
 function PanelSection({
@@ -571,34 +560,16 @@ function AgentsTab() {
   )
 }
 
-function useSessionMessages() {
-  const { activeSessionId } = useSessionStore()
-  const [messages, setMessages] = useState<MessageRow[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => {
-    if (!activeSessionId) return
-    const load = () => {
-      setLoaded(false)
-      fetch(`/api/messages?session_id=${activeSessionId}`)
-        .then((r) => { if (!r.ok) throw new Error('加载消息失败'); return r.json() })
-        .then((d: MessageRow[]) => setMessages(d))
-        .catch((e) => setError(e instanceof Error ? e.message : '加载消息失败'))
-        .finally(() => setLoaded(true))
-    }
-    load()
-    const onChanged = (event: Event) => {
-      const detail = (event as CustomEvent<{ sessionId?: string }>).detail
-      if (!detail?.sessionId || detail.sessionId === activeSessionId) load()
-    }
-    window.addEventListener('messages:changed', onChanged)
-    return () => window.removeEventListener('messages:changed', onChanged)
-  }, [activeSessionId])
-  return { activeSessionId, messages, error, loaded }
-}
-
 function RolesTab() {
   return <AgentsTab />
+}
+
+function OrchestrationTab() {
+  return (
+    <div data-testid="artifact-orchestration" className="space-y-3">
+      <OrchestratorPanel />
+    </div>
+  )
 }
 
 function FileTreeNodeView({
@@ -743,6 +714,22 @@ function FileTreeTab() {
     setReplacementText(text)
     setPatchDraft(null)
     setPatchStatus(text ? `已选择 ${text.length} 个字符` : '当前选区为空，将作为插入点')
+  }
+
+  function quoteSelection() {
+    if (!preview || !selectionRange) return
+    const text = selectionRange.text || ''
+    if (!text.trim()) {
+      setPatchStatus('当前选区为空，无法引用')
+      return
+    }
+    quoteToComposer({
+      id: `${preview.path}:${selectionRange.start}-${selectionRange.end}`,
+      author: `文件选区：${preview.path}`,
+      preview: text.replace(/\s+/g, ' ').trim().slice(0, 120),
+      text,
+    })
+    setPatchStatus('已引用选区到输入框')
   }
 
   async function generatePatchDraft() {
@@ -1041,6 +1028,10 @@ function FileTreeTab() {
               </label>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={quoteSelection} disabled={!selectionRange?.text}>
+                <Copy className="mr-1 h-3.5 w-3.5" />
+                引用选区
+              </Button>
               <Button size="sm" onClick={() => void generatePatchDraft()} disabled={!selectionRange}>
                 <WandSparkles className="mr-1 h-3.5 w-3.5" />
                 生成 diff
@@ -1070,19 +1061,6 @@ function FileTreeTab() {
       </div>
     </div>
   )
-}
-
-function hasChangeMetadata(metadata: MessageRow['metadata']) {
-  if (!metadata) return false
-  return ['diff', 'git_diff', 'patch', 'changes', 'files', 'changed_files'].some((key) => key in metadata)
-}
-
-function metadataPreview(metadata: MessageRow['metadata']) {
-  if (!metadata) return null
-  const keys = ['diff', 'git_diff', 'patch', 'changes', 'files', 'changed_files'].filter((key) => key in metadata)
-  if (keys.length === 0) return null
-  const preview = Object.fromEntries(keys.map((key) => [key, metadata[key]]))
-  return JSON.stringify(preview, null, 2)
 }
 
 function DiffPreview({ value }: { value: unknown }) {
@@ -1124,46 +1102,8 @@ function DiffPreview({ value }: { value: unknown }) {
   )
 }
 
-function ChangeRecordCard({ message }: { message: MessageRow }) {
-  const diffKey = metadataValue(message.metadata, ['diff', 'git_diff', 'patch'])
-  const filesKey = metadataValue(message.metadata, ['files', 'changed_files'])
-  const preview = metadataPreview(message.metadata)
-  return (
-    <div className="rounded-lg border border-border bg-background p-3 text-sm">
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <FileCode2 className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{message.message_type === 'approval' ? '授权动作' : '运行变更'}</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">关联消息：{message.id}</p>
-        </div>
-        <Badge variant={message.message_type === 'approval' ? 'warning' : 'secondary'}>
-          {message.message_type}
-        </Badge>
-      </div>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed">{truncate(message.content, 220)}</p>
-      {filesKey && message.metadata && (
-        <div className="mt-2 rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">文件：</span>{toPreview(message.metadata[filesKey])}
-        </div>
-      )}
-      {diffKey && message.metadata ? (
-        <div className="mt-2">
-          <DiffPreview value={message.metadata[diffKey]} />
-        </div>
-      ) : preview ? (
-        <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-2 text-xs">
-          {preview}
-        </pre>
-      ) : null}
-    </div>
-  )
-}
-
-function ChangesTab() {
+function GitTab() {
   const { activeWorkspaceId, activeSessionId } = useSessionStore()
-  const { messages, error, loaded } = useSessionMessages()
   const [gitChanges, setGitChanges] = useState<GitChangeRow[]>([])
   const [gitCommits, setGitCommits] = useState<GitCommitRow[]>([])
   const [gitLoaded, setGitLoaded] = useState(false)
@@ -1177,9 +1117,6 @@ function ChangesTab() {
   const [actionStatus, setActionStatus] = useState<string | null>(null)
   const [pendingDiscardPath, setPendingDiscardPath] = useState<string | null>(null)
   const [pendingDiscardActionId, setPendingDiscardActionId] = useState<string | null>(null)
-  const messageChanges = messages.filter(
-    (m) => m.message_type === 'result_card' || m.message_type === 'approval' || hasChangeMetadata(m.metadata),
-  )
 
   const loadGitChanges = async () => {
     if (!activeWorkspaceId) return
@@ -1337,18 +1274,22 @@ function ChangesTab() {
     }
   }
 
-  if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其 Git 变更和运行记录将在此展示" />
-  if (error) return <p data-testid="artifact-changes-error" className="text-sm text-destructive">{error}</p>
+  if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其 Git 变更将在此展示" />
   const stagedChanges = gitChanges.filter((change) => change.staged)
   const unstagedChanges = gitChanges.filter((change) => change.unstaged || change.untracked || !change.staged)
   const renderChange = (change: GitChangeRow, group: 'staged' | 'unstaged') => (
-    <div key={`${group}-${change.status}-${change.path}`} className="rounded-lg border border-border bg-background p-3 text-sm">
+    <div key={`${group}-${change.status}-${change.path}`} data-testid="git-change-row" className="rounded-lg border border-border bg-background p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="git-change-file"
+            className="flex max-w-full min-w-0 items-center gap-2 text-left hover:text-primary"
+            onClick={() => void openDiff(change.path, group === 'staged')}
+          >
             <FileCode2 className="h-4 w-4 text-muted-foreground" />
             <span className="truncate font-medium">{change.path}</span>
-          </div>
+          </button>
           <p className="mt-1 text-xs text-muted-foreground">
             {change.untracked ? '未跟踪文件' : group === 'staged' ? '已暂存变更' : '工作区变更'}
           </p>
@@ -1379,12 +1320,11 @@ function ChangesTab() {
     </div>
   )
   return (
-    <div data-testid="artifact-changes" className="space-y-4">
-      <OrchestratorPanel />
+    <div data-testid="artifact-git" className="space-y-4">
       <PanelSection
         icon={GitBranch}
         title="Git 变更"
-        description="读取当前云端项目目录的真实 Git 状态，可查看 diff 并保存为产物"
+        description="读取当前云端项目目录的真实 Git 状态；先选文件，再查看 diff"
         action={<Badge variant="secondary">{gitChanges.length} 项</Badge>}
       >
         {gitError && <p className="text-sm text-destructive">{gitError}</p>}
@@ -1397,10 +1337,10 @@ function ChangesTab() {
             </p>
             <div className="mt-3 flex gap-2">
               <Button size="sm" onClick={() => void approveDiscard(true)}>
-                允许单次执行
+                确认丢弃
               </Button>
               <Button size="sm" variant="outline" onClick={() => void approveDiscard(false)}>
-                拒绝
+                取消
               </Button>
             </div>
           </div>
@@ -1471,20 +1411,6 @@ function ChangesTab() {
           </div>
         )}
       </PanelSection>
-      <PanelSection
-        icon={FileCode2}
-        title="运行记录"
-        description="会话消息中的运行结果、授权动作和结构化变更记录"
-        action={<Badge variant="secondary">{messageChanges.length} 条</Badge>}
-      >
-        {!activeSessionId ? (
-          <StateCard variant="empty" title="未选择会话" description="选择会话后，其运行和授权记录将在此展示" />
-        ) : loaded && messageChanges.length === 0 ? (
-          <StateCard variant="empty" title="暂无运行记录" description="当前会话还没有运行结果、授权动作或结构化变更" />
-        ) : (
-          messageChanges.map((m) => <ChangeRecordCard key={m.id} message={m} />)
-        )}
-      </PanelSection>
     </div>
   )
 }
@@ -1513,6 +1439,9 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
   const [instruction, setInstruction] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const editable = ['document', 'presentation', 'markdown', 'html', 'code'].includes(artifact.artifact_type)
+  const startCommand = typeof artifact.metadata?.startCommand === 'string' ? artifact.metadata.startCommand : null
+  const startScriptPath = typeof artifact.metadata?.startScriptPath === 'string' ? artifact.metadata.startScriptPath : null
+  const runnable = ['html', 'folder', 'generic_file', 'code'].includes(artifact.artifact_type) && Boolean(artifact.source_path)
 
   useEffect(() => {
     setTitle(artifact.title)
@@ -1575,6 +1504,41 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
     }
   }
 
+  async function generateLaunchScript() {
+    setStatus('正在生成启动脚本...')
+    try {
+      const res = await fetch(`/api/artifacts/${artifact.id}/launch-script`, { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `生成启动脚本失败（${res.status}）`)
+      setStatus('启动脚本已生成')
+      onChanged()
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : '生成启动脚本失败')
+    }
+  }
+
+  async function copyStartCommand() {
+    if (!startCommand || typeof window === 'undefined') return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(startCommand)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = startCommand
+        textarea.setAttribute('readonly', '')
+        textarea.style.position = 'absolute'
+        textarea.style.left = '-9999px'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        textarea.remove()
+      }
+      setStatus('启动命令已复制')
+    } catch {
+      setStatus('复制失败，请手动复制启动命令')
+    }
+  }
+
   return (
     <div data-testid="artifact-card" className="space-y-3 rounded-lg border border-border bg-background p-3">
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -1634,6 +1598,34 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
       ) : (
         <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
       )}
+      <div data-testid="artifact-launch-panel" className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
+        <div className="flex items-center gap-2 text-xs font-medium">
+          <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
+          启动产物
+        </div>
+        {startCommand ? (
+          <div className="space-y-2">
+            {startScriptPath && <p className="break-all text-xs text-muted-foreground">脚本：{startScriptPath}</p>}
+            <code data-testid="artifact-start-command" className="block overflow-x-auto rounded-md border border-border bg-background p-2 text-xs">
+              {startCommand}
+            </code>
+            <Button size="sm" variant="outline" onClick={() => void copyStartCommand()}>
+              <Copy className="mr-1 h-3.5 w-3.5" />
+              复制启动命令
+            </Button>
+          </div>
+        ) : runnable ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => void generateLaunchScript()} data-testid="artifact-generate-launch-script">
+              <Terminal className="mr-1 h-3.5 w-3.5" />
+              生成启动脚本
+            </Button>
+            <span className="text-xs text-muted-foreground">将在工作区写入持久脚本，离开当前页面后仍可通过终端启动。</span>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">该产物不可启动，可下载或继续编辑。</p>
+        )}
+      </div>
       <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
         <label htmlFor={`artifact-edit-request-${artifact.id}`} className="text-xs font-medium">二次交互编辑</label>
         <textarea
@@ -1776,7 +1768,7 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
               <Boxes className="h-4 w-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold">会话工作台</h2>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">角色、文件、变更和产物按当前工作区关联</p>
+            <p className="mt-1 text-xs text-muted-foreground">角色、编排、文件、Git 和产物按职责拆分</p>
           </div>
           <Button variant="ghost" size="sm" data-testid="artifact-close-btn" onClick={onClose} aria-label="关闭右侧面板">
             <X className="h-4 w-4" />
@@ -1790,10 +1782,12 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
               size="sm"
               className="flex-1"
               onClick={() => setActiveTab(tab)}
+              data-testid={`artifact-tab-${tab}`}
             >
               {tab === '角色' && <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
+              {tab === '编排' && <Bot className="mr-1 h-3.5 w-3.5" />}
               {tab === '文件' && <FolderTree className="mr-1 h-3.5 w-3.5" />}
-              {tab === '变更' && <GitBranch className="mr-1 h-3.5 w-3.5" />}
+              {tab === 'Git' && <GitBranch className="mr-1 h-3.5 w-3.5" />}
               {tab === '产物' && <FileText className="mr-1 h-3.5 w-3.5" />}
               {tab}
             </Button>
@@ -1802,8 +1796,9 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {activeTab === '角色' && <RolesTab />}
+        {activeTab === '编排' && <OrchestrationTab />}
         {activeTab === '文件' && <FileTreeTab />}
-        {activeTab === '变更' && <ChangesTab />}
+        {activeTab === 'Git' && <GitTab />}
         {activeTab === '产物' && <ArtifactsTab />}
       </div>
     </aside>

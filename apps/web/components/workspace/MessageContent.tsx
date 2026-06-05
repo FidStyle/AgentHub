@@ -113,17 +113,17 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
     }
   }
   const statusText = part.status !== 'pending' ? {
-    approved: '已允许本次执行',
-    rejected: '已拒绝，未执行该操作。',
-    running: '执行中',
-    completed: '已完成',
+    approved: '已允许',
+    rejected: '已拒绝',
+    running: '已允许',
+    completed: '已执行',
     failed: '执行失败',
   }[part.status] ?? '已处理' : {
     idle: '待确认',
-    approving: '授权中',
+    approving: '审批中',
     rejecting: '拒绝中',
-    approved: '已允许本次执行',
-    rejected: '已拒绝，未执行该操作。',
+    approved: '已允许',
+    rejected: '已拒绝',
     error: '处理失败',
   }[decision]
   const detailRows = [
@@ -155,16 +155,18 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
         </dl>
       )}
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">{statusText}</span>
-        {part.actionId ? (
+        <span className="text-muted-foreground">审批状态：{statusText}</span>
+        {part.actionId && canDecide ? (
           <div className="flex gap-2">
             <Button size="sm" disabled={!canDecide} onClick={() => void decide(true)}>
-              允许单次执行
+              允许本次操作
             </Button>
             <Button size="sm" variant="outline" disabled={!canDecide} onClick={() => void decide(false)}>
               拒绝
             </Button>
           </div>
+        ) : part.actionId ? (
+          <Badge variant={statusText === '已拒绝' || statusText === '执行失败' ? 'destructive' : 'success'}>{statusText}</Badge>
         ) : (
           <span className="text-muted-foreground">缺少动作编号，无法在此处授权</span>
         )}

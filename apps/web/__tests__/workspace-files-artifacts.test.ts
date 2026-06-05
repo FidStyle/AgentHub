@@ -8,6 +8,7 @@ import {
   applyWorkspaceSelectionPatch,
   cloudWorkspaceDir,
   cloudWorkspaceRoot,
+  createWorkspaceArtifactLaunchScript,
   createWorkspaceSelectionPatchDraft,
   deleteWorkspaceEntry,
   discardWorkspaceGitPath,
@@ -103,6 +104,31 @@ describe('workspace file preview and artifact bundle helpers', () => {
     expect(zip.subarray(0, 4).toString('hex')).toBe('504b0304')
     expect(zip.includes(Buffer.from('dist/index.html'))).toBe(true)
     expect(zip.includes(Buffer.from('dist/app.js'))).toBe(true)
+  })
+
+  it('creates a persistent launch script for runnable workspace artifacts', async () => {
+    const root = await makeWorkspace()
+    await mkdir(path.join(root, 'public'), { recursive: true })
+    await writeFile(path.join(root, 'public/index.html'), '<h1>launchable</h1>')
+
+    const launch = await createWorkspaceArtifactLaunchScript(root, 'artifact-001-long-id', 'public/index.html')
+    const scriptPreview = await readCloudWorkspacePreview(root, launch.scriptPath)
+
+    expect(launch).toEqual({
+      scriptPath: '.agenthub/run-artifact-artifact-001.sh',
+      command: 'bash .agenthub/run-artifact-artifact-001.sh',
+      sourcePath: 'public/index.html',
+    })
+    expect(scriptPreview.content).toContain('npx --yes http-server')
+    expect(scriptPreview.content).toContain("SOURCE_PATH='public/index.html'")
+    expect(scriptPreview.content).toContain('cd "$(dirname "$0")/.."')
+  })
+
+  it('rejects launch scripts for source paths outside the workspace', async () => {
+    const root = await makeWorkspace()
+
+    await expect(createWorkspaceArtifactLaunchScript(root, 'artifact-001', '../outside/index.html'))
+      .rejects.toThrow('路径超出工作区范围')
   })
 
   it('writes, renames, deletes and reports git changes inside the workspace', async () => {

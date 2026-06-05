@@ -22,6 +22,13 @@ type QuotedMessage = {
   preview: string
 }
 
+type ComposerQuoteEvent = {
+  id?: string
+  author?: string
+  preview?: string
+  text?: string
+}
+
 interface UploadedAttachment {
   id: string
   name: string
@@ -649,6 +656,23 @@ export function ChatPanel({
   const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null)
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const roleAgents = useRoleAgents(activeWorkspaceId)
+
+  useEffect(() => {
+    const onQuote = (event: Event) => {
+      const detail = (event as CustomEvent<ComposerQuoteEvent>).detail
+      const text = typeof detail?.text === 'string' ? detail.text : ''
+      const preview = typeof detail?.preview === 'string' && detail.preview.trim()
+        ? detail.preview.trim()
+        : messagePreview(text)
+      setQuotedMessage({
+        id: typeof detail?.id === 'string' ? detail.id : `external-${Date.now()}`,
+        author: typeof detail?.author === 'string' && detail.author.trim() ? detail.author.trim() : '引用内容',
+        preview,
+      })
+    }
+    window.addEventListener('agenthub:quote-to-composer', onQuote)
+    return () => window.removeEventListener('agenthub:quote-to-composer', onQuote)
+  }, [])
 
   return (
     <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border">

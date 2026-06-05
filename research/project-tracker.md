@@ -20,6 +20,20 @@
 
 ## P0 任务
 
+### FRONTEND-WORKBENCH-USER-FLOW-CLOSURE-2026-06-06: 前端用户可见工作台闭环修复
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-PERM-001, FR-WEB-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-06-frontend-workbench-user-flow-closure` |
+| **当前状态** | ✅ completed / 验证通过（2026-06-06）：已修复用户复核暴露的 Web 前端工作台缺口。消息流保留 role acknowledgement 与过程消息；权限卡审批状态不再用 `执行中`；右栏拆为 `角色 / 编排 / 文件 / Git / 产物`；Git 面板只显示 Git 文件和按点击展开的 diff；文件面板暴露 `引用选区`、diff 草案和应用入口；产物卡支持可启动 artifact 的持久启动脚本/命令。 |
+| **目标** | 后端链路已能交付时，Web 用户也必须从前端看见并操作完整过程：开发过程、审批状态、Git 变更、代码引用、文件选区和可启动产物，而不是只看到 prompt、权限卡和最终“已发布”。 |
+| **验收方式** | Frontend component/static contract tests + workspace filesystem helper tests + Web type-check + OpenCLI 真实浏览器 UAT。OpenCLI 使用 acceptance 登录态进入真实固定样本 workspace `58a63e3f-5ca7-457b-af02-2824d02ab9fa` / session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe`，验证右栏 tab、Git 文件列表到 diff、文件选区编辑控件、产物启动脚本生成和页面无横向溢出。 |
+| **测试证据** | Report: `research/execution-reports/frontend-workbench-user-flow-closure-2026-06-06.md`；OpenCLI screenshots: `e2e/artifacts/opencli-uat/frontend-workbench-user-flow-closure-2026-06-06/`；runnable artifact `7f65e4b8-8b42-4770-aa8e-c8b5e8d6f097` 通过真实 `/api/artifacts` 创建，UI 生成 `bash .agenthub/run-artifact-7f65e4b8-8b4.sh`；`pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/workspace-files-artifacts.test.ts __tests__/session-store.test.ts` PASS（3 files / 38 tests）；`pnpm --filter @agenthub/web type-check` PASS；`git diff --check` PASS；`python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-frontend-workbench-user-flow-closure` PASS。 |
+| **阻塞问题** | 本任务范围内无阻塞。验收环境 smoke 另有非本任务失败：`pnpm env:acceptance:smoke` 的 CRUD 与 cloud SSE 连接通过，但 `verify-acceptance-chat-api.ts` 判定缺少明确 runtime 终态，最终 `10 passed / 1 failed`；本轮不把该 smoke 计入通过证据，需后续 runtime/chat gate 单独处理。 |
+| **下一步动作** | 已完成并进入回归门禁；后续凡声称“前端一条线交付”必须覆盖同类可见工作台路径。最终 Demo 包和 3 分钟素材仍按用户要求不处理，未开始纯 P2 不启动。 |
+
 ### UNIFIED-PRODUCT-LINE-REGRESSION-2026-06-05: 统一全功能主链路回归测试
 
 | 字段 | 内容 |

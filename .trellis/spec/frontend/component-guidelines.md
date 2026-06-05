@@ -162,6 +162,128 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 
 ---
 
+## Scenario: 用户可见工作台闭环
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 Web 工作台的消息流、权限卡、右侧工作台、Git/文件/产物面板、代码块引用、文件选区编辑、artifact 启动入口，或任何声称“用户一句话可交付产物”的前端验收。
+- Applies to: `ChatPanel`, `MessageContent`, `MessageMarkdown`, `ArtifactPanel`, `OrchestratorPanel`, `ActionCard`, `session-store`, workspace file/Git/artifact API consumers, and Web/Mobile readback tests.
+- This is a frontend acceptance contract. Backend/API/runtime tests are required but not sufficient; the user must see and operate the feature from the UI.
+
+### 2. Signatures
+
+- Message readback:
+  - `GET /api/messages?session_id=<id>`
+  - UI fields: `message_type`, `sender_type`, `role_agent_id`, `content`, `metadata.runtimeParts`.
+  - `role_acknowledgement` and visible process/status messages must render in the chat transcript.
+- Chat SSE:
+  - `role_acknowledgement`, `runtime_status`, `runtime_output`, `approval_requested`, `diff_created`, `artifact_created`, terminal events.
+  - UI must convert these into durable visible rows or runtime cards, not hidden control-only events when they describe user-facing work.
+- Permission decision:
+  - `POST /api/actions/:actionId/approve`
+  - Request: `{ approved: boolean }`
+  - Chat permission card states: `pending`, local `approving/rejecting`, durable `approved/rejected/running/completed/failed`.
+- Git workbench:
+  - `GET /api/workspaces/:id/git/status`
+  - `GET /api/workspaces/:id/git/diff?path=<path>&staged=<bool>`
+  - `POST /api/workspaces/:id/git/stage|unstage|discard`
+  - UI must first show file names/status, then reveal diff only after the user selects a file.
+- File/code reference:
+  - code block action emits `agenthub:quote-to-composer`.
+  - file preview selection uses `POST /api/workspaces/:id/files/patch` for draft/apply.
+  - UI must expose an obvious select/capture/quote path; backend capability alone does not count.
+- Launchable artifact:
+  - artifact metadata may include `startCommand`, `startScriptPath`, `sourcePath`, `workspaceRoot`, or generated manifest fields.
+  - UI must offer a durable launch script or command copy/download path for runnable web artifacts.
+
+### 3. Contracts
+
+- Chat transcript:
+  - Do not filter out role acknowledgements, planning/process messages, or final validation summaries when they are part of the user's workflow.
+  - The transcript must show more than the initial prompt plus permission cards for multi-agent delivery runs.
+  - Do not expose private chain-of-thought; show audited process states and role messages.
+- Permission card:
+  - The primary status text is approval state, not tool execution state.
+  - Pending buttons are `允许本次操作` and `拒绝`.
+  - After approval, replace buttons with `已允许` or `已审批`; after durable execution, `已执行` may be shown as the action result.
+  - Tool execution progress belongs in a tool/action/process card, not as the permission decision label.
+- Right workbench:
+  - `编排` shows plan nodes and authorization/action cards.
+  - `Git` shows only Git status, staged/unstaged groups, selected-file diff, stage/unstage/discard, and commit history.
+  - `文件` shows file tree, preview, selection capture, code/reference actions, and patch draft/apply.
+  - `产物` shows durable artifacts and launch/download/edit actions.
+  - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
+- Git progressive disclosure:
+  - First level: file path, status badge, staged/unstaged grouping.
+  - Second level after click: diff preview and file-specific actions.
+  - Large diffs must scroll inside their own container.
+- Artifact launch:
+  - A runnable artifact must not depend on only the current preview iframe.
+  - The user must be able to get a durable start script/command from the artifact card, e.g. `bash .agenthub/run-<id>.sh` or an equivalent workspace-relative script.
+  - Leaving the AgentHub page may stop a preview process, but the launch script/command must remain in the workspace or artifact metadata.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required UI result | Forbidden result |
+| --- | --- | --- |
+| SSE contains role acknowledgement | visible chat message with role badge/context | silently ignore it as control-only |
+| Permission pending | shows risk/details plus `允许本次操作` and `拒绝` | generic text with no actionable buttons |
+| Permission approved | buttons replaced by `已允许`/`已审批` badge | badge says `执行中` as approval status |
+| Tool still running after approval | separate tool/process card shows running/waiting | permission card alone claims execution status |
+| User opens Git tab | sees staged/unstaged file list first | starts with mixed approval/runtime/Git records |
+| User clicks a Git file | selected diff appears for that file | all diffs expanded by default |
+| File selection backend exists | UI exposes selection/capture/draft/apply or quote action | backend supports patching but user cannot find it |
+| Runnable artifact exists | artifact card exposes launch script/command | only a transient iframe preview exists |
+| Frontend path missing | task remains partial/failed | backend tests mark feature complete |
+
+### 5. Good/Base/Bad Cases
+
+- Good: A strict calculator delivery session shows architect acknowledgement, backend/frontend role process messages, permission decisions as `已允许`, a separate `Git` tab with file list then diff, a `文件` tab with visible selection editing, and a `产物` card with a launch command.
+- Base: Git API works but no file changes exist; the `Git` tab shows a clean empty state and no approval cards.
+- Base: Artifact is a static document; the card shows download/edit but no launch script.
+- Bad: The chat transcript only shows the user prompt, several permission cards, and a final `已发布`.
+- Bad: The right panel has one `变更` tab containing Orchestrator cards, permission approvals, Git diff, runtime logs, and message metadata together.
+- Bad: Code selection/patch APIs pass tests, but the UI has no visible control for selecting or referencing code.
+
+### 6. Tests Required
+
+- Unit/component tests:
+  - `session-store` keeps historical and streamed `role_acknowledgement` rows as visible messages.
+  - permission card maps approved/running/completed to approval/result wording without using `执行中` as the approval label.
+  - code block quote button emits `agenthub:quote-to-composer` and composer displays the quote.
+- Web E2E:
+  - send or seed a session with role acknowledgements/process messages and assert the transcript shows them after reload.
+  - open `编排` and assert plan/action cards are present without Git diff content.
+  - open `Git` and assert file names are visible before diff; click one file and assert diff appears.
+  - open `文件`, select code, generate a draft diff, and assert no file write happens before apply.
+  - open `产物` and assert runnable artifacts expose a launch script/command or clear non-runnable state.
+- Backend/API integration:
+  - keep workspace file/Git/artifact APIs workspace-root bound.
+  - artifact launch metadata must be workspace-relative and reject paths outside the selected workspace root.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+右栏「变更」
+- 编排计划
+- 授权卡
+- Git diff
+- 运行消息 metadata
+```
+
+#### Correct
+
+```text
+右栏「编排」: plan nodes + action approvals
+右栏「Git」: file list -> selected diff -> stage/unstage/discard
+右栏「文件」: tree -> preview -> selection quote/patch
+右栏「产物」: artifact preview/edit/download/launch command
+```
+
+---
+
 ## 常见错误
 
 ### 错误：本地 Runtime 组件里放 API Key 表单

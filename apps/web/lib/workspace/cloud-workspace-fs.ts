@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import os from 'node:os'
@@ -97,6 +97,12 @@ export type WorkspaceGitCommit = {
   author: string
   date: string
   message: string
+}
+
+export type WorkspaceArtifactLaunchScript = {
+  scriptPath: string
+  command: string
+  sourcePath: string
 }
 
 function slug(value: string, fallback: string) {
@@ -449,6 +455,61 @@ export async function writeWorkspaceFile(rootDir: string, relativePath: string, 
   await mkdir(path.dirname(fullPath), { recursive: true })
   await writeFile(fullPath, content)
   return rel
+}
+
+function shellSingleQuote(value: string) {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+export async function createWorkspaceArtifactLaunchScript(
+  rootDir: string,
+  artifactId: string,
+  sourcePath: string,
+): Promise<WorkspaceArtifactLaunchScript> {
+  const source = resolveWorkspacePath(rootDir, sourcePath)
+  const info = await stat(source.fullPath).catch(() => null)
+  if (!info) throw new Error('产物来源不存在')
+  const scriptId = slug(artifactId.slice(0, 12), 'artifact')
+  const scriptPath = `.agenthub/run-artifact-${scriptId}.sh`
+  const sourceDir = info.isDirectory() ? source.relativePath : path.posix.dirname(source.relativePath)
+  const servingPath = sourceDir === '.' ? source.relativePath : sourceDir
+  const script = [
+    '#!/usr/bin/env bash',
+    'set -euo pipefail',
+    'cd "$(dirname "$0")/.."',
+    '',
+    'PORT="${PORT:-3000}"',
+    'export PORT',
+    `SOURCE_PATH=${shellSingleQuote(source.relativePath)}`,
+    `SERVE_PATH=${shellSingleQuote(servingPath)}`,
+    '',
+    'if [ -f package.json ]; then',
+    '  if [ ! -d node_modules ]; then',
+    '    npm install',
+    '  fi',
+    '  if npm run | grep -qE "^  start$|^  dev$| start$| dev$"; then',
+    '    if npm run | grep -qE "^  start$| start$"; then',
+    '      npm run start -- --host 127.0.0.1 --port "$PORT"',
+    '    else',
+    '      npm run dev -- --host 127.0.0.1 --port "$PORT"',
+    '    fi',
+    '    exit 0',
+    '  fi',
+    'fi',
+    '',
+    'if [ -f "$SOURCE_PATH" ]; then',
+    '  SERVE_PATH="$(dirname "$SOURCE_PATH")"',
+    'fi',
+    'npx --yes http-server "$SERVE_PATH" -a 127.0.0.1 -p "$PORT"',
+    '',
+  ].join('\n')
+  const written = await writeWorkspaceFile(rootDir, scriptPath, script)
+  await chmod(resolveWorkspacePath(rootDir, written).fullPath, 0o755)
+  return {
+    scriptPath: written,
+    command: `bash ${written}`,
+    sourcePath: source.relativePath,
+  }
 }
 
 async function readEditableWorkspaceFile(rootDir: string, relativePath: string) {

@@ -1,0 +1,6 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend task must follow AgentHub Web UI conventions and FR-UI-001."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Defines the new user-visible workbench closure contract for transcript, permissions, Git, files, artifacts, and code references."}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"Right workbench layout, visual states, accessibility, and E2E requirements."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Prevents backend-only or fake product closure for chat/runtime/artifact flows."}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"Planning guide for avoiding fake product closure in user-facing flows."}
+{"file":"research/product/ui-design-system.md","reason":"Product design system for three-surface workbench and shared UI semantics."}

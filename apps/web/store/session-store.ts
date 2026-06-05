@@ -327,7 +327,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
       const data = await res.json()
       const messages: Message[] = data
-        .filter((m: Record<string, unknown>) => m.message_type !== 'role_acknowledgement')
         .map((m: Record<string, unknown>) => ({
           id: m.id,
           sessionId: m.session_id,
@@ -526,7 +525,28 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if (evt.type === 'runtime_status' && !replyCreated) {
             upsertReply()
           }
-          if (evt.type === 'role_acknowledgement') continue
+          if (evt.type === 'role_acknowledgement' && evt.content) {
+            if (replyCreated && (reply || runtimeParts.length > 0)) {
+              finishReply(replyId)
+              replySeq += 1
+              replyId = `reply-${Date.now()}-${replySeq}`
+              reply = ''
+              replyAccumulator = createRuntimeOutputAccumulator()
+              runtimeParts = []
+              replyCreated = false
+            }
+            respondingRoleAgentId = evt.roleAgentId ?? respondingRoleAgentId
+            reply = evt.content
+            upsertReply()
+            finishReply(replyId)
+            replySeq += 1
+            replyId = `reply-${Date.now()}-${replySeq}`
+            reply = ''
+            replyAccumulator = createRuntimeOutputAccumulator()
+            runtimeParts = []
+            replyCreated = false
+            continue
+          }
           const nextParts = reduceRuntimeParts(runtimeParts, evt)
           if (nextParts !== runtimeParts) {
             runtimeParts = nextParts
