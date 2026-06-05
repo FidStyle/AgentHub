@@ -2,6 +2,8 @@
 
 日期：2026-06-05
 
+TASK-ID：BYTEDANCE-FIXED-SAMPLE-PRODUCT-GATE-2026-06-05
+
 ## 结论
 
 固定样本 prompt：
