@@ -786,3 +786,36 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: 统一全功能主链路回归
+
+**Date**: 2026-06-05
+**Task**: 统一全功能主链路回归
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+按新规则将已完成 P0/P1 功能统一为 A-D 四条测试线回归；新增 verify-unified-product-lines.ts，更新报告、tracker、顺序总表和 real-flow acceptance spec；OpenCLI Web/Mobile 新截图，Desktop Electron fallback，A-D 全部通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `de540e0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

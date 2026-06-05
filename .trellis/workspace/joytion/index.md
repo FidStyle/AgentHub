@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
+- **Total Sessions**: 21
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~788 | Active |
+| `journal-1.md` | ~821 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-06-05 | 统一全功能主链路回归 | `de540e0` | `AgentHub_new_claude_test` |
 | 20 | 2026-06-05 | 更新全自动交付验收规范 | `8897f3f` | `AgentHub_new_claude_test` |
 | 19 | 2026-06-05 | 单 prompt 权限续跑回归修复 | `1f84ca0`, `6a0a284`, `b2cc35e` | `AgentHub_new_claude_test` |
 | 18 | 2026-06-05 | 剩余 P1 功能收口 | `a39b6d5` | `AgentHub_new_claude_test` |
