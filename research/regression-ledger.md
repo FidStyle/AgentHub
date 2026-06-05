@@ -36,14 +36,14 @@
 | --- | --- |
 | **类型** | bug / acceptance-false-positive / test-coverage-gap |
 | **优先级** | P0（影响 Bytedance 主链路完成结论） |
-| **状态** | `in_progress`（2026-06-05，`06-05-fix-unified-regression-false-positive` 正在修正验收口径） |
+| **状态** | `closed`（2026-06-05，`06-05-strict-single-prompt-product-delivery-gate` 已补严格 fresh gate 并通过） |
 | **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-ACTION-001 |
 | **关联任务/合同** | `UNIFIED-PRODUCT-LINE-REGRESSION-2026-06-05`；`.trellis/tasks/06-05-fix-unified-regression-false-positive`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
 | **影响功能面** | 单句 prompt 到最终产物交付、Orchestrator/前后端可见开发过程、权限模式 UX、artifact/产物确认、三端统一验收结论 |
 | **发现方式** | 用户复核指出旧统一回归没有真实开发过程、权限状态不正常、完全控制下仍出现手动权限语义、产物标记不能默认全部文件。 |
-| **证据** | 旧脚本 `apps/web/scripts/verify-unified-product-lines.ts` 只读取 fixed session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe`、plan `15ce3bf0-dc53-4537-a521-210bbc6aee07`、workspace 文件、artifact row、manifest、截图路径和生成 calculator API/SQLite；缺 fresh run id、消息级 Orchestrator/前后端过程、权限卡原状态迁移和产物推荐/确认语义。 |
+| **证据** | 原问题：旧脚本 `apps/web/scripts/verify-unified-product-lines.ts` 只读取 fixed session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe`、plan `15ce3bf0-dc53-4537-a521-210bbc6aee07`、workspace 文件、artifact row、manifest、截图路径和生成 calculator API/SQLite；缺 fresh run id、消息级 Orchestrator/前后端过程、权限卡原状态迁移和产物推荐/确认语义。关闭证据：新增 strict gate `apps/web/scripts/verify-strict-single-prompt-product-delivery.ts`，最终 fresh run `STRICT-SPD-1780671953946-0cedde` 通过 59/59 checks，workspace `0c57617a-8889-4776-b759-ff41269d5d13`，session `a42d3153-a86a-417f-911e-179cd3e13424`，plan `a5a2d130-1bce-4b98-afb4-cbe2d70f5e3f`，final artifact `3b4484f4-2b83-4614-a8ad-80d2dec123a5`，证据目录 `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-SPD-1780671953946-0cedde/`。 |
 | **关闭条件** | 统一脚本在旧样本上失败并列出缺口；report/tracker/sequential ledger 撤销旧 pass；spec/guide 写入防假阳性规则；后续真实 single-prompt full-control product delivery 任务必须补 fresh run、消息流、权限 UX 和 artifact confirmation 后才能重新标 pass。 |
-| **下一步** | 完成本修正任务并提交；另起 P0 修复真实一键交付链路。最终 Demo 包和 3 分钟素材仍按用户要求排除，未开始纯 P2 不启动。 |
+| **下一步** | 已关闭。后续不得用历史 fixed session/workspace/static screenshot 证明 single-prompt product delivery；必须运行 fresh strict gate 并要求 plan/action/runtime/artifact/Web/Mobile/Desktop evidence 全部通过。最终 Demo 包和 3 分钟素材仍按用户要求排除，未开始纯 P2 不启动。 |
 
 ### REG-20260605-001 — `AskUserQuestion` native tool 被归类为 shell_command，阻塞固定样本继续完成
 

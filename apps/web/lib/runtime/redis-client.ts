@@ -12,6 +12,7 @@ const workerAliveKey = 'agenthub:runtime:worker:alive'
 // makes the generator emit a runtime_failed sentinel and return cleanly.
 const SUB_IDLE_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_IDLE_TIMEOUT_MS ?? 60_000)
 const SUB_TOTAL_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS ?? 600_000)
+const SUB_PROGRESS_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS ?? 180_000)
 
 export interface RuntimeJob {
   runtimeSessionId: string
@@ -86,9 +87,12 @@ export async function* subscribeEvents(
   let resolve: (() => void) | null = null
   let done = false
   let timedOut = false
+  let progressTimedOut = false
+  let lastProgressAt = Date.now()
   const wake = () => { resolve?.(); resolve = null }
   await r.subscribe(eventChannel(runtimeSessionId), (msg) => {
     const e = JSON.parse(msg) as { type?: string }
+    if (isEffectiveRuntimeProgressEvent(e)) lastProgressAt = Date.now()
     queue.push(e)
     if (e.type === 'runtime_completed' || e.type === 'runtime_failed' || e.type === 'runtime_cancelled') done = true
     wake()
@@ -98,15 +102,23 @@ export async function* subscribeEvents(
   const totalDeadline = Date.now() + SUB_TOTAL_TIMEOUT_MS
   let idleTimer: ReturnType<typeof setTimeout> | null = null
   let totalTimer: ReturnType<typeof setTimeout> | null = null
+  let progressTimer: ReturnType<typeof setTimeout> | null = null
   const clearTimers = () => {
     if (idleTimer) clearTimeout(idleTimer)
     if (totalTimer) clearTimeout(totalTimer)
-    idleTimer = totalTimer = null
+    if (progressTimer) clearTimeout(progressTimer)
+    idleTimer = totalTimer = progressTimer = null
   }
   const trip = () => { timedOut = true; done = true; wake() }
+  const tripProgress = () => { progressTimedOut = true; done = true; wake() }
   const armIdle = () => {
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = setTimeout(trip, SUB_IDLE_TIMEOUT_MS)
+  }
+  const armProgress = () => {
+    if (progressTimer) clearTimeout(progressTimer)
+    const remainingMs = Math.max(0, SUB_PROGRESS_TIMEOUT_MS - (Date.now() - lastProgressAt))
+    progressTimer = setTimeout(tripProgress, remainingMs)
   }
   totalTimer = setTimeout(trip, Math.max(0, totalDeadline - Date.now()))
 
@@ -115,13 +127,20 @@ export async function* subscribeEvents(
       if (queue.length === 0) {
         if (done) break
         armIdle()
+        armProgress()
         await new Promise<void>((res) => { resolve = res })
       }
       while (queue.length > 0) {
         armIdle()
+        armProgress()
         yield queue.shift()
       }
       if (done && queue.length === 0) break
+    }
+    if (progressTimedOut) {
+      await r.set(cancelKey(runtimeSessionId), '1', { EX: 300 })
+      yield { type: 'runtime_failed', error: 'runtime progress timeout' }
+      return
     }
     if (timedOut) {
       yield { type: 'runtime_failed', error: 'subscription timeout' }
@@ -131,6 +150,14 @@ export async function* subscribeEvents(
     await r.unsubscribe(eventChannel(runtimeSessionId))
     await r.quit()
   }
+}
+
+function isEffectiveRuntimeProgressEvent(event: { type?: string; delta?: unknown }): boolean {
+  if (event.type === 'runtime_status' || event.type === 'gateway_connected' || event.type === 'public_runtime_available') {
+    return false
+  }
+  if (event.type === 'runtime_output') return typeof event.delta === 'string' && event.delta.length > 0
+  return Boolean(event.type)
 }
 
 export async function setCancel(runtimeSessionId: string): Promise<void> {

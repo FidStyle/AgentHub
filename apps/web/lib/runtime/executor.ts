@@ -21,17 +21,32 @@ export interface NativeCliQuestionRequest {
   input?: unknown
 }
 
+export interface NativeCliObservedAction {
+  id?: string
+  toolName: string
+  actionKind: NativeCliToolActionKindType
+  status: 'running' | 'completed' | 'failed'
+  cwd?: string
+  targetPaths?: string[]
+  commandPreview?: string
+  output?: string
+  exitCode?: number | null
+  input?: unknown
+}
+
 export interface ExecutorChunk {
   delta?: string
   nativeSessionId?: string
   toolRequest?: NativeCliToolRequest
   question?: NativeCliQuestionRequest
+  observedAction?: NativeCliObservedAction
 }
 
 export interface ExecutorJob {
   prompt: string
   fail?: boolean
   nativeSessionId?: string | null
+  permissionMode?: string | null
 }
 
 export interface RuntimeExecutor {
@@ -124,12 +139,27 @@ export function detectCliRuntimeCapabilities(): CliRuntimeCapability[] {
   ]
 }
 
-export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null, cwd?: string) {
+function codexApprovalArgs(permissionMode?: string | null) {
+  return permissionMode === 'auto' || permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
+    ? ['-a', 'never']
+    : []
+}
+
+function claudePermissionArgs(permissionMode?: string | null) {
+  if (permissionMode === 'full_control') return ['--permission-mode', 'bypassPermissions']
+  if (permissionMode === 'dangerous_bypass') return ['--dangerously-skip-permissions']
+  if (permissionMode === 'auto') return ['--permission-mode', 'auto']
+  return []
+}
+
+export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null, cwd?: string, permissionMode?: string | null) {
   if (runtimeType === 'codex') {
+    const approvalArgs = codexApprovalArgs(permissionMode)
     if (nativeSessionId) {
-      return ['exec', 'resume', '--json', '--skip-git-repo-check', nativeSessionId, prompt]
+      return [...approvalArgs, 'exec', 'resume', '--json', '--skip-git-repo-check', nativeSessionId, prompt]
     }
     return [
+      ...approvalArgs,
       'exec',
       '--json',
       '-s',
@@ -141,10 +171,11 @@ export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessi
       prompt,
     ]
   }
+  const permissionArgs = claudePermissionArgs(permissionMode)
   if (nativeSessionId) {
-    return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', '--resume', nativeSessionId, prompt]
+    return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', ...permissionArgs, '--resume', nativeSessionId, prompt]
   }
-  return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', prompt]
+  return ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages', ...permissionArgs, prompt]
 }
 
 function nativeSessionIdFromRecord(record: Record<string, unknown>) {
@@ -432,6 +463,46 @@ function textFromCodexFinal(record: Record<string, unknown>) {
   return typeof item.text === 'string' ? item.text : typeof item.message === 'string' ? item.message : null
 }
 
+function observedActionFromCodexRecord(record: Record<string, unknown>): NativeCliObservedAction | null {
+  if (record.type !== 'item.started' && record.type !== 'item.completed') return null
+  const item = asRecord(record.item) ?? asRecord(asRecord(record.params)?.item)
+  if (!item) return null
+  const id = stringValue(item, ['id'])
+  if (item.type === 'command_execution') {
+    const command = stringValue(item, ['command'])
+    if (!command) return null
+    const exitCode = typeof item.exit_code === 'number' ? item.exit_code : null
+    const status = record.type === 'item.completed'
+      ? (exitCode === 0 ? 'completed' : 'failed')
+      : 'running'
+    return {
+      id,
+      toolName: 'command_execution',
+      actionKind: shellActionKind(command),
+      status,
+      commandPreview: command,
+      output: stringValue(item, ['aggregated_output']),
+      exitCode,
+      input: item,
+    }
+  }
+  if (item.type === 'file_change') {
+    const changes = asRecordArray(item.changes)
+    const targetPaths = changes
+      .map((change) => stringValue(change, ['path']))
+      .filter((target): target is string => Boolean(target))
+    return {
+      id,
+      toolName: 'file_change',
+      actionKind: NativeCliToolActionKind.WriteFile,
+      status: record.type === 'item.completed' ? 'completed' : 'running',
+      targetPaths,
+      input: item,
+    }
+  }
+  return null
+}
+
 export class CliOutputParser {
   private sawDelta = false
   private pendingClaudeTool: { block: Record<string, unknown>; inputJson: string } | null = null
@@ -555,6 +626,13 @@ export class CliOutputParser {
           ...toolRequests.map((toolRequest) => ({ toolRequest })),
         ]
       }
+      const observedAction = observedActionFromCodexRecord(record)
+      if (observedAction) {
+        return [
+          ...(nativeSessionId ? [{ nativeSessionId }] : []),
+          { observedAction },
+        ]
+      }
       const delta = textFromCodexDelta(record)
       if (delta) {
         this.sawDelta = true
@@ -592,7 +670,7 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
 
   async *execute(job: ExecutorJob): AsyncIterable<ExecutorChunk> {
     const binary = CLI_BINARY[this.options.runtimeType]
-    const child = spawn(binary, cliArgs(this.options.runtimeType, job.prompt, job.nativeSessionId, this.options.cwd), {
+    const child = spawn(binary, cliArgs(this.options.runtimeType, job.prompt, job.nativeSessionId, this.options.cwd, job.permissionMode), {
       cwd: this.options.cwd,
       env: { ...process.env, ...this.options.env },
       stdio: ['ignore', 'pipe', 'pipe'],

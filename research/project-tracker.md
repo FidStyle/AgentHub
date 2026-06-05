@@ -27,12 +27,26 @@
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-ACTION-001 |
 | **对应计划** | `.trellis/tasks/06-05-unified-product-line-regression` |
-| **当前状态** | ❌ 已撤销 / failed（2026-06-05）：用户复核确认上一轮 `A-D pass` 是验收假阳性。旧脚本只重读历史 fixed session、workspace 文件、artifact row、截图路径和生成 calculator 行为，不能证明当前一次单句 prompt 触发真实 Orchestrator/架构师首响、前后端分配、逐步开发过程、权限 UX 状态迁移和产物确认。 |
+| **当前状态** | ✅ fresh strict pass（2026-06-05）：已新增严格 single-prompt product delivery gate，并用全新 workspace/session 从真实 `/api/chat` 一次触发 Orchestrator/架构师规划、后端工程师、前端工程师和最终汇总。最终 run `STRICT-SPD-1780671953946-0cedde` 通过 59/59 checks、0 failed、0 warning。 |
 | **目标** | 证明用户单句 prompt 到最终产物交付、权限生命周期、Workbench/Deploy/Artifact、Web/Mobile/Desktop 三端状态能作为完整 Bytedance 主链路闭环运行；若暴露问题则登记、修复并回归同一测试线。 |
-| **验收方式** | 纠正后统一脚本必须验证 fresh single-prompt run id、消息级开发过程、权限卡原状态迁移、full-control 无手动待批卡、产物推荐 + 用户确认/指定、Web/Mobile/Desktop 同 session 读回；旧静态坐标只能作为定位输入。 |
-| **测试证据** | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md` 已追加撤销结论；Script: `apps/web/scripts/verify-unified-product-lines.ts` 已补 anti-false-positive checks，当前样本预期失败。旧历史证据 `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe` / `15ce3bf0-dc53-4537-a521-210bbc6aee07` / workspace root 只能证明有历史终态，不能证明当前一键交付。 |
-| **阻塞问题** | 真实一键交付仍未通过：缺当前 fresh run 证据；缺足够可见开发过程；权限卡状态迁移和 full-control UX 仍需按 UI/DB 双路验真；产物确认语义未设计/落库。 |
-| **下一步动作** | 先关闭本次假阳性修正任务；后续另起 P0 修复真实 single-prompt full-control product delivery、permission UX 和 artifact confirmation contract。最终 Demo 包和 3 分钟素材按用户要求不处理，未开始纯 P2 不启动。 |
+| **验收方式** | `apps/web/scripts/verify-strict-single-prompt-product-delivery.ts` 创建 fresh workspace/session，发送一次固定 prompt + `permissionMode=full_control`，验证 durable plan/nodes/attempts/mailbox/runtime/actions/messages/artifact、full-control 无手动 pending 权限卡、生成项目安装与 `node --test`、HTTP API、SQLite 文件、Workbench 文件树/预览、Web/Mobile OpenCLI 和 Desktop/Electron fallback。旧静态坐标只能作为历史对照，不再作为通过来源。 |
+| **测试证据** | Report: `research/execution-reports/strict-single-prompt-product-delivery-gate-2026-06-05.md`；Script: `apps/web/scripts/verify-strict-single-prompt-product-delivery.ts`；PASS run `STRICT-SPD-1780671953946-0cedde`；workspace `0c57617a-8889-4776-b759-ff41269d5d13`；session `a42d3153-a86a-417f-911e-179cd3e13424`；plan `a5a2d130-1bce-4b98-afb4-cbe2d70f5e3f`；final artifact `3b4484f4-2b83-4614-a8ad-80d2dec123a5`；evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-SPD-1780671953946-0cedde/`；focused tests 85/85 pass；acceptance smoke 12/12 pass；type-check pass；`git diff --check` pass。 |
+| **阻塞问题** | 无当前 blocker。严格门禁仍保留失败即报错机制：如果未来缺 fresh run、开发过程、权限续跑、artifact 推荐/确认、三端读回或生成产品行为，脚本必须 exit 1。 |
+| **下一步动作** | 本 strict gate 关闭后继续顺序队列中已排定的 P1/P0 回归；最终 Demo 包和 3 分钟素材按用户要求不处理，未开始纯 P2 不启动。 |
+
+### strict-single-prompt-product-delivery-gate: 严格单 prompt 产品交付回归通过
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 验收门禁（Trellis task priority 记录为 P2，但本条按 Bytedance 主链路验收口径管理） |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-ACTION-001 |
+| **对应计划** | `.trellis/tasks/06-05-strict-single-prompt-product-delivery-gate` |
+| **当前状态** | ✅ completed / 验证通过（2026-06-05）：fresh strict single-prompt product delivery gate 已通过。 |
+| **目标** | 证明用户只发送一次固定 prompt，在 full-control 权限模式下，AgentHub 能通过真实 Orchestrator/后端/前端/汇总链路交付可运行的加减乘除网站，并用 SQLite 持久化历史记录。 |
+| **验收方式** | 新建 fresh workspace/session；真实 `POST /api/chat` 单 prompt；验证 durable plan/nodes/attempts/mailbox/runtime/action/message/artifact；验证 full-control 自动权限、可见开发过程、文件树/预览、生成项目安装与 `node --test`、HTTP API、SQLite、Web/Mobile OpenCLI 和 Desktop/Electron fallback。 |
+| **测试证据** | Report: `research/execution-reports/strict-single-prompt-product-delivery-gate-2026-06-05.md`；Script: `apps/web/scripts/verify-strict-single-prompt-product-delivery.ts`；PASS run `STRICT-SPD-1780671953946-0cedde`；workspace `0c57617a-8889-4776-b759-ff41269d5d13`；session `a42d3153-a86a-417f-911e-179cd3e13424`；plan `a5a2d130-1bce-4b98-afb4-cbe2d70f5e3f`；artifact `3b4484f4-2b83-4614-a8ad-80d2dec123a5`；summary `59 passed / 0 failed / 0 warned`；evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-SPD-1780671953946-0cedde/`。 |
+| **阻塞问题** | 无。 |
+| **下一步动作** | 已完成并纳入后续回归门禁；后续同类结论必须继续使用 fresh strict gate，不得回退到历史静态证据。 |
 
 ### SEQUENTIAL-EXECUTION-GOVERNANCE-RESET-2026-06-05: 单分支顺序执行治理重置
 

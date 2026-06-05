@@ -1,0 +1,9 @@
+{"file": "bytedance_init_prd.md", "reason": "原始 Bytedance 产品目标和一键产物交付语义"}
+{"file": "research/workflow/ai-workflow-control.md", "reason": "Codex/Trellis/Maestro 工作流和真实主链路完成口径"}
+{"file": "research/project-tracker.md", "reason": "当前 P0/P1 状态、已撤销统一回归结论和后续任务方向"}
+{"file": "research/regression-ledger.md", "reason": "REG-20260605-003 统一回归假阳性缺陷和关闭条件"}
+{"file": "research/execution-reports/unified-product-line-regression-2026-06-05.md", "reason": "旧 pass 撤销原因和 strict gate 失败点"}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "严格 fresh single-prompt、权限、artifact、三端验收规则"}
+{"file": ".trellis/spec/guides/end-to-end-contract-planning.md", "reason": "防止假完成计划和验收反模式"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "runtime cwd、permission broker、auto approval 和 native continuation 合同"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "真实浏览器/OpenCLI、三端 UI 和状态验收门禁"}

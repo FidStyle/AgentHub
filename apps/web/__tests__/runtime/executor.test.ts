@@ -69,6 +69,7 @@ beforeEach(() => {
   delete process.env.RUNTIME_CLI
   delete process.env.AGENTHUB_ALLOW_TEST_EXECUTOR
   delete process.env.RUNTIME_JOB_TIMEOUT_MS
+  delete process.env.RUNTIME_OUTPUT_IDLE_TIMEOUT_MS
 })
 
 describe('CliRuntimeExecutor — executor_unavailable', () => {
@@ -87,6 +88,28 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       '--output-format',
       'stream-json',
       '--include-partial-messages',
+      '--resume',
+      'session-123',
+      'hello again',
+    ])
+    expect(cliArgs('claude_code', 'hello', null, '/workspace', 'full_control')).toEqual([
+      '--print',
+      '--verbose',
+      '--output-format',
+      'stream-json',
+      '--include-partial-messages',
+      '--permission-mode',
+      'bypassPermissions',
+      'hello',
+    ])
+    expect(cliArgs('claude_code', 'hello again', 'session-123', undefined, 'auto')).toEqual([
+      '--print',
+      '--verbose',
+      '--output-format',
+      'stream-json',
+      '--include-partial-messages',
+      '--permission-mode',
+      'auto',
       '--resume',
       'session-123',
       'hello again',
@@ -124,11 +147,75 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       'thread-123',
       'hello again',
     ])
+    expect(cliArgs('codex', 'hello', null, '/workspace', 'full_control')).toEqual([
+      '-a',
+      'never',
+      'exec',
+      '--json',
+      '-s',
+      'workspace-write',
+      '--skip-git-repo-check',
+      '--color',
+      'never',
+      '-C',
+      '/workspace',
+      'hello',
+    ])
+    expect(cliArgs('codex', 'hello again', 'thread-123', undefined, 'full_control')).toEqual([
+      '-a',
+      'never',
+      'exec',
+      'resume',
+      '--json',
+      '--skip-git-repo-check',
+      'thread-123',
+      'hello again',
+    ])
   })
 
   it('extracts Codex thread_id as native session evidence', () => {
     const chunks = outputChunks('codex', JSON.stringify({ type: 'thread.started', thread_id: 'thread-native-001' }))
     expect(chunks).toEqual([{ nativeSessionId: 'thread-native-001' }])
+  })
+
+  it('extracts Codex command and file-change events as observed automatic actions', () => {
+    const command = outputChunks('codex', JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'cmd-1',
+        type: 'command_execution',
+        command: '/bin/zsh -lc "npm install"',
+        aggregated_output: 'ok',
+        exit_code: 0,
+      },
+    }))
+    expect(command).toEqual([{
+      observedAction: expect.objectContaining({
+        id: 'cmd-1',
+        toolName: 'command_execution',
+        actionKind: 'install_dependency',
+        status: 'completed',
+        commandPreview: '/bin/zsh -lc "npm install"',
+      }),
+    }])
+
+    const fileChange = outputChunks('codex', JSON.stringify({
+      type: 'item.completed',
+      item: {
+        id: 'file-1',
+        type: 'file_change',
+        changes: [{ path: '/workspace/public/index.html', kind: 'add' }],
+      },
+    }))
+    expect(fileChange).toEqual([{
+      observedAction: expect.objectContaining({
+        id: 'file-1',
+        toolName: 'file_change',
+        actionKind: 'write_file',
+        status: 'completed',
+        targetPaths: ['/workspace/public/index.html'],
+      }),
+    }])
   })
 
   it('extracts Claude tool_use blocks as native tool permission requests', () => {
@@ -641,6 +728,44 @@ describe('processJob — FakeExecutor regression', () => {
     vi.useRealTimers()
   })
 
+  it('fails and closes the executor when runtime output is idle too long', async () => {
+    vi.useFakeTimers()
+    process.env.RUNTIME_JOB_TIMEOUT_MS = '500'
+    process.env.RUNTIME_OUTPUT_IDLE_TIMEOUT_MS = '25'
+    let returned = false
+    const idle: RuntimeExecutor = {
+      execute() {
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next: () => new Promise<IteratorResult<never>>(() => {}),
+              return: async () => {
+                returned = true
+                return { done: true, value: undefined }
+              },
+            }
+          },
+        }
+      },
+    }
+    const run = processJob({ runtimeSessionId: 's-idle-timeout', prompt: 'hang after start' }, idle)
+
+    await vi.advanceTimersByTimeAsync(25)
+    const result = await run
+
+    expect(result).toBe('failed')
+    expect(returned).toBe(true)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_failed',
+          error: 'Runtime 输出空闲超时，已终止。',
+        }),
+      }),
+    ]))
+    vi.useRealTimers()
+  })
+
   it('turns native CLI tool requests into pending approval events and stops before execution', async () => {
     const executor: RuntimeExecutor = {
       async *execute() {
@@ -722,6 +847,111 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
     ]))
+  })
+
+  it('auto-approves native CLI tool requests inline in full-control mode and continues the same session', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield { nativeSessionId: 'claude-native-full-control' }
+        yield { delta: '开始检查工作区。' }
+        yield {
+          toolRequest: {
+            id: 'tool-read-full-control',
+            toolName: 'Read',
+            actionKind: 'read_file',
+            cwd: workspaceRoot,
+            targetPaths: [`${workspaceRoot}/package.json`],
+            input: { file_path: `${workspaceRoot}/package.json` },
+          },
+        }
+        yield { delta: '继续生成产物。' }
+        yield {
+          toolRequest: {
+            id: 'tool-write-full-control',
+            toolName: 'Write',
+            actionKind: 'write_file',
+            cwd: workspaceRoot,
+            targetPaths: [`${workspaceRoot}/public/index.html`],
+            input: { file_path: `${workspaceRoot}/public/index.html`, content: '<!doctype html>\n' },
+          },
+        }
+        yield { delta: '已完成。' }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-full-control-inline',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      roleAgentId: 'agent-frontend',
+      runtimeType: 'claude_code',
+      permissionMode: 'full_control',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      prompt: 'build product',
+      planNodeId: 'node-runtime-001',
+      attemptId: 'attempt-runtime-full-control',
+      mailboxItemId: 'mailbox-runtime-full-control',
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('completed')
+    const actionRows = dbInserts.filter((insert) => insert.table === 'actions').map((insert) => insert.row)
+    expect(actionRows).toEqual([
+      expect.objectContaining({
+        action_type: 'read_file',
+        command: `Read: ${workspaceRoot}/package.json`,
+        status: 'completed',
+        requires_approval: false,
+        approved_at: expect.any(String),
+        executed_at: expect.any(String),
+        result: expect.objectContaining({
+          source: 'runtime_auto_permission_broker',
+          toolCallId: 'tool-read-full-control',
+          nativeSessionId: 'claude-native-full-control',
+          permissionMode: 'full_control',
+          autoApproved: true,
+          continuedInline: true,
+        }),
+      }),
+      expect.objectContaining({
+        action_type: 'write_file',
+        command: `Write: ${workspaceRoot}/public/index.html`,
+        status: 'completed',
+        requires_approval: false,
+        result: expect.objectContaining({
+          source: 'runtime_auto_permission_broker',
+          toolCallId: 'tool-write-full-control',
+          roleAgentId: 'agent-frontend',
+          runtimeType: 'claude_code',
+          targetPaths: [`${workspaceRoot}/public/index.html`],
+        }),
+      }),
+    ])
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'approval_auto_approved',
+          actionKind: 'read_file',
+          inline: true,
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_output',
+          delta: '继续生成产物。',
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_completed',
+        }),
+      }),
+    ]))
+    expect(published.some((p) => p.event.type === 'approval_requested')).toBe(false)
+    expect(published.some((p) => p.event.error === 'Runtime 工具已按当前权限模式自动进入续跑。')).toBe(false)
   })
 
   it('persists Claude Read approvals with native tool metadata instead of shell_command cwd fallback', async () => {

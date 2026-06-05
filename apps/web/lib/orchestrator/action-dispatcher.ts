@@ -125,6 +125,7 @@ function buildApprovedNativeToolPrompt(
           'Do not call the same native tool again for the same target. Treat the tool result below as the result of the approved tool call, then continue with the next step of the original task.',
           'Do not stop to ask the user about optional implementation choices that are already implied by the original request; choose sensible defaults and continue. Only ask the user if execution cannot proceed safely without new information.',
           'For the fixed sample "做一个加减乘除的简单网站，使用 sqlite 存储历史记录", use Node.js + Express + better-sqlite3 + plain HTML/CSS/JS by default, keep all history in SQLite, show the latest 20 records in the UI, and continue implementation without AskUserQuestion unless a real safety blocker appears.',
+          'For that fixed sample, `node src/server.js` must directly start the HTTP server. If the file exports createApp/startServer for tests, keep a `require.main === module` startup guard or an equivalent direct entrypoint.',
           'Keep temporary verification scripts, temporary SQLite databases, temporary logs, and cleanup targets inside the selected workspace root. Do not use /tmp, the user home directory, the AgentHub host repository, or any path outside the workspace boundary.',
           '',
           `Approved tool execution result:\n${execution.output}`,
@@ -798,10 +799,27 @@ function buildRuntimeInvokePrompt(input: {
   handoffs?: unknown
 }) {
   const handoffText = input.handoffs ? `\n\nContext handoffs:\n${JSON.stringify(input.handoffs, null, 2)}` : ''
+  const phaseInstruction = input.phase === 'planning'
+    ? [
+        'Phase contract:',
+        'This is the Orchestrator planning node. Do not write files, edit files, install dependencies, start services, or run implementation commands in this node.',
+        'Reply with a concise plan, role assignments, acceptance checks, and explicit handoff instructions for backend/storage and frontend workers.',
+      ].join('\n')
+    : input.phase === 'summarizing'
+      ? [
+          'Phase contract:',
+          'This is the Orchestrator final validation node. Do not create or edit product files in this node.',
+          'Read/check available durable evidence if needed, summarize whether backend, frontend, permissions, and artifact delivery are complete, and point to concrete files.',
+        ].join('\n')
+      : [
+          'Phase contract:',
+          'This is a worker implementation node. Implement only the work assigned to this role, using the selected workspace root and respecting permission boundaries.',
+        ].join('\n')
   return [
     'AgentHub orchestrated runtime node.',
     `Node: ${input.label}`,
     input.phase ? `Phase: ${input.phase}` : null,
+    phaseInstruction,
     '',
     input.userMessage,
     handoffText,

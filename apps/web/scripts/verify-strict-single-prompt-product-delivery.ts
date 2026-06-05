@@ -1,0 +1,766 @@
+/**
+ * Strict fresh single-prompt product delivery gate.
+ *
+ * This verifier starts from the real HTTP API, creates a fresh workspace/session,
+ * sends one full-control prompt, and only passes when durable DB state, generated
+ * workspace files, artifact semantics, and tri-surface readback evidence agree.
+ */
+import { spawn, spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+import { once } from 'node:events'
+import net from 'node:net'
+import { Pool } from 'pg'
+
+export {}
+
+type SseEvent = { type: string; [key: string]: unknown }
+type CheckStatus = 'pass' | 'fail' | 'warn'
+type Check = { status: CheckStatus; label: string; detail?: string }
+type DbRow = Record<string, unknown>
+
+const REPO_ROOT = path.resolve(__dirname, '../../..')
+const ACCEPTANCE_ENV = path.join(REPO_ROOT, 'docker/.acceptance.env')
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const RUN_MARKER = process.env.STRICT_PRODUCT_RUN_ID || `STRICT-SPD-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+const ARTIFACT_DIR = path.join(REPO_ROOT, 'e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05', RUN_MARKER)
+const CHAT_TIMEOUT_MS = (() => {
+  const value = Number(process.env.STRICT_PRODUCT_CHAT_TIMEOUT_MS ?? 10 * 60_000)
+  return Number.isFinite(value) && value > 0 ? value : 10 * 60_000
+})()
+const PROMPT = [
+  '做一个加减乘除的简单网站，使用sqlite存储历史记录。全自动完成直到交付产物',
+  '',
+  `验收标记：${RUN_MARKER}`,
+].join('\n')
+
+let passed = 0
+let failed = 0
+let warned = 0
+
+function loadEnvFile(file: string) {
+  if (!fs.existsSync(file)) return
+  for (const rawLine of fs.readFileSync(file, 'utf8').split('\n')) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#')) continue
+    const index = line.indexOf('=')
+    if (index === -1) continue
+    const key = line.slice(0, index)
+    const value = line.slice(index + 1)
+    if (!process.env[key]) process.env[key] = value
+  }
+}
+
+function requireEnv(name: string): string {
+  const val = process.env[name]
+  if (!val) throw new Error(`缺少环境变量: ${name}`)
+  return val
+}
+
+function record(check: Check) {
+  if (check.status === 'pass') {
+    passed += 1
+    console.log(`  ✓ ${check.label}${check.detail ? ` :: ${check.detail}` : ''}`)
+  } else if (check.status === 'warn') {
+    warned += 1
+    console.warn(`  ! ${check.label}${check.detail ? ` :: ${check.detail}` : ''}`)
+  } else {
+    failed += 1
+    console.error(`  ✗ ${check.label}${check.detail ? ` :: ${check.detail}` : ''}`)
+  }
+}
+
+function ok(label: string, detail?: string): Check {
+  return { status: 'pass', label, detail }
+}
+
+function fail(label: string, detail?: string): Check {
+  return { status: 'fail', label, detail }
+}
+
+function warn(label: string, detail?: string): Check {
+  return { status: 'warn', label, detail }
+}
+
+function exists(filePath: string) {
+  return fs.existsSync(filePath)
+}
+
+function apiCookie() {
+  const cookie = requireEnv('TEST_AUTH_COOKIE')
+  return cookie.includes('=') ? cookie : `authjs.session-token=${cookie}`
+}
+
+async function apiFetch(pathname: string, options: RequestInit = {}) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Cookie: apiCookie(),
+    ...(options.headers as Record<string, string> || {}),
+  }
+  return fetch(`${BASE_URL}${pathname}`, { ...options, headers })
+}
+
+async function jsonOrThrow<T>(res: Response, label: string): Promise<T> {
+  const text = await res.text()
+  if (!res.ok) throw new Error(`${label} failed (${res.status}): ${text}`)
+  return JSON.parse(text) as T
+}
+
+async function readSseEvents(res: Response, timeoutMs: number): Promise<{ events: SseEvent[]; timedOut: boolean; rawText: string }> {
+  const reader = res.body?.getReader()
+  if (!reader) {
+    const text = await res.text()
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'chat-sse.raw.txt'), text)
+    return { events: parseSseEvents(text), timedOut: false, rawText: text }
+  }
+
+  const decoder = new TextDecoder()
+  let text = ''
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    void reader.cancel('strict-product-chat-timeout').catch(() => {})
+  }, timeoutMs)
+  try {
+    while (true) {
+      const next = await reader.read()
+      if (next.done) break
+      text += decoder.decode(next.value, { stream: true })
+    }
+    text += decoder.decode()
+  } catch (error) {
+    if (!timedOut) throw error
+  } finally {
+    clearTimeout(timer)
+  }
+  fs.writeFileSync(path.join(ARTIFACT_DIR, 'chat-sse.raw.txt'), text)
+  return { events: parseSseEvents(text), timedOut, rawText: text }
+}
+
+function parseSseEvents(text: string): SseEvent[] {
+  return text
+    .split('\n\n')
+    .filter((chunk) => chunk.startsWith('data: '))
+    .map((chunk) => {
+      try {
+        return JSON.parse(chunk.replace('data: ', '')) as SseEvent
+      } catch {
+        return { type: 'parse_error', raw: chunk }
+      }
+    })
+}
+
+async function many<T extends DbRow>(pool: Pool, sql: string, params: unknown[] = []) {
+  const result = await pool.query(sql, params)
+  return result.rows as T[]
+}
+
+async function one<T extends DbRow>(pool: Pool, sql: string, params: unknown[]) {
+  const rows = await many<T>(pool, sql, params)
+  return rows[0] ?? null
+}
+
+async function writeRunSnapshot(pool: Pool, input: {
+  workspaceId: string
+  sessionId: string
+  planId?: string | null
+  reason: string
+  fileName: string
+}) {
+  const snapshot: Record<string, unknown> = {
+    reason: input.reason,
+    baseUrl: BASE_URL,
+    chatPath: 'POST /api/chat',
+    workspacePath: input.workspaceId ? `${BASE_URL}/workspaces/${input.workspaceId}` : null,
+    mobilePath: input.sessionId ? `${BASE_URL}/m/sessions/${input.sessionId}` : null,
+    runMarker: RUN_MARKER,
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    planId: input.planId ?? null,
+    capturedAt: new Date().toISOString(),
+  }
+  if (input.workspaceId) {
+    snapshot.workspace = await one(pool, 'SELECT id::text, name, cloud_project_dir, execution_domain, created_at FROM public.workspaces WHERE id = $1', [input.workspaceId])
+  }
+  if (input.sessionId) {
+    snapshot.session = await one(pool, 'SELECT id::text, workspace_id::text, name, created_at, updated_at FROM public.sessions WHERE id = $1', [input.sessionId])
+    snapshot.plans = await many(pool, 'SELECT id::text, status, created_at, updated_at FROM public.plans WHERE session_id = $1 ORDER BY created_at DESC LIMIT 5', [input.sessionId])
+    snapshot.runtimeSessions = await many(pool, 'SELECT id::text, role_agent_id::text, runtime_type, status, native_session_id, created_at, started_at, completed_at FROM public.runtime_sessions WHERE session_id = $1 ORDER BY created_at DESC LIMIT 20', [input.sessionId])
+    snapshot.actions = await many(pool, 'SELECT id::text, action_type, command, status, risk_level, requires_approval, created_at, approved_at, executed_at, result FROM public.actions WHERE session_id = $1 ORDER BY created_at DESC LIMIT 30', [input.sessionId])
+    snapshot.messages = await many(pool, 'SELECT id::text, sender_type, message_type, left(content, 1000) AS content, role_agent_id::text, metadata, created_at FROM public.messages WHERE session_id = $1 ORDER BY created_at ASC LIMIT 80', [input.sessionId])
+    snapshot.artifacts = await many(pool, 'SELECT id::text, artifact_type, source_path, metadata, created_at FROM public.artifacts WHERE session_id = $1 ORDER BY created_at DESC LIMIT 20', [input.sessionId])
+  }
+  const effectivePlanId = input.planId
+    ?? ((Array.isArray(snapshot.plans) && snapshot.plans[0] && typeof snapshot.plans[0] === 'object')
+      ? String((snapshot.plans[0] as Record<string, unknown>).id ?? '')
+      : '')
+  if (effectivePlanId) {
+    snapshot.planNodes = await many(
+      pool,
+      `SELECT pn.id::text, pn.label, pn.status, ra.name AS role_name, pn.started_at, pn.completed_at, pn.result
+         FROM public.plan_nodes pn
+         LEFT JOIN public.role_agents ra ON ra.id = pn.agent_id
+        WHERE pn.plan_id = $1
+        ORDER BY pn.created_at ASC`,
+      [effectivePlanId],
+    )
+    snapshot.queue = await many(
+      pool,
+      `SELECT 'attempt' AS source, pna.id::text, pna.status, pna.error, pna.runtime_session_id::text, pna.created_at, pna.updated_at
+         FROM public.plan_node_attempts pna
+         JOIN public.plan_nodes pn ON pn.id = pna.plan_node_id
+        WHERE pn.plan_id = $1
+       UNION ALL
+       SELECT 'mailbox' AS source, ami.id::text, ami.status, ami.error, NULL::text AS runtime_session_id, ami.created_at, ami.updated_at
+         FROM public.agent_mailbox_items ami
+         JOIN public.plan_nodes pn ON pn.id = ami.plan_node_id
+        WHERE pn.plan_id = $1
+        ORDER BY created_at ASC`,
+      [effectivePlanId],
+    )
+  }
+  if (input.sessionId) {
+    snapshot.recentRuntimeLogs = await many(
+      pool,
+      `SELECT rs.id::text AS runtime_session_id, rl.seq, rl.event_type, rl.payload, rl.created_at
+         FROM public.runtime_sessions rs
+         JOIN public.runtime_logs rl ON rl.runtime_session_id = rs.id
+        WHERE rs.session_id = $1
+        ORDER BY rl.created_at DESC, rl.seq DESC
+        LIMIT 80`,
+      [input.sessionId],
+    )
+  }
+  fs.writeFileSync(path.join(ARTIFACT_DIR, input.fileName), JSON.stringify(snapshot, null, 2))
+}
+
+function includesAny(text: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text))
+}
+
+async function freePort() {
+  const server = net.createServer()
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  const port = typeof address === 'object' && address ? address.port : 0
+  server.close()
+  await once(server, 'close')
+  if (!port) throw new Error('无法分配临时端口')
+  return port
+}
+
+async function waitForHttp(url: string, timeoutMs = 20_000) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const response = await fetch(url)
+      if (response.ok || response.status < 500) return true
+    } catch {
+      // retry
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+  return false
+}
+
+function runCommand(command: string, args: string[], cwd: string, timeoutMs = 120_000): Check {
+  const result = spawnSync(command, args, { cwd, env: process.env, encoding: 'utf8', timeout: timeoutMs })
+  const output = `${result.stdout || ''}${result.stderr || ''}`.trim()
+  if (result.error) return fail(`${command} ${args.join(' ')}`, result.error.message)
+  if (result.status === 0) return ok(`${command} ${args.join(' ')}`, output.split('\n').slice(-8).join('\n'))
+  return fail(`${command} ${args.join(' ')}`, output.split('\n').slice(-16).join('\n'))
+}
+
+function runProductNpmInstall(root: string): Check {
+  if (!exists(path.join(root, 'package.json'))) return fail('npm install 生成项目依赖', 'package.json missing')
+  const result = spawnSync('npm', ['install', '--no-audit', '--no-fund'], {
+    cwd: root,
+    env: {
+      ...process.env,
+      npm_config_cache: path.join(root, '.npm-cache'),
+      npm_config_update_notifier: 'false',
+    },
+    encoding: 'utf8',
+    timeout: 180_000,
+  })
+  const output = `${result.stdout || ''}${result.stderr || ''}`.trim()
+  if (result.error) return fail('npm install 生成项目依赖', result.error.message)
+  if (result.status === 0) return ok('npm install 生成项目依赖', output.split('\n').slice(-8).join('\n'))
+  return fail('npm install 生成项目依赖', output.split('\n').slice(-16).join('\n'))
+}
+
+async function verifyCalculatorProduct(root: string) {
+  const required = [
+    'package.json',
+    'src/server.js',
+    'public/index.html',
+    'public/app.js',
+    'README.md',
+  ]
+  for (const file of required) {
+    const fullPath = path.join(root, file)
+    record(exists(fullPath) ? ok(`生成文件存在 ${file}`) : fail(`生成文件存在 ${file}`, fullPath))
+  }
+  record(
+    exists(path.join(root, 'public/styles.css')) || exists(path.join(root, 'public/style.css'))
+      ? ok('生成样式文件存在 public/styles.css 或 public/style.css')
+      : fail('生成样式文件存在 public/styles.css 或 public/style.css'),
+  )
+  if (!exists(path.join(root, 'src/server.js'))) return
+
+  record(runProductNpmInstall(root))
+  record(runCommand('node', ['--test'], root))
+
+  const dbPath = path.join(root, 'data/strict-product-gate.sqlite')
+  fs.rmSync(dbPath, { force: true })
+  const port = await freePort()
+  const productUrl = `http://127.0.0.1:${port}`
+  const server = spawn('node', ['src/server.js'], {
+    cwd: root,
+    env: { ...process.env, DB_FILE: dbPath, DB_PATH: dbPath, CALC_DB_PATH: dbPath, CALCULATOR_DB_PATH: dbPath, SQLITE_DB_PATH: dbPath, PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let stdout = ''
+  let stderr = ''
+  server.stdout?.on('data', (chunk) => { stdout += chunk.toString() })
+  server.stderr?.on('data', (chunk) => { stderr += chunk.toString() })
+  try {
+    const ready = await Promise.race([
+      waitForHttp(productUrl),
+      once(server, 'exit').then(() => false),
+    ])
+    if (!ready) {
+      record(fail('生成网站 HTTP ready', productUrl))
+      if (stderr || stdout) record(fail('生成服务提前退出或无响应', `${stdout}${stderr}`.trim()))
+      return
+    }
+    record(ok('生成网站 HTTP ready', productUrl))
+
+    const contracts = [
+      {
+        name: 'leftOperand/operator/rightOperand',
+        payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ leftOperand, operator, rightOperand }),
+        result: (body: Record<string, unknown>) => {
+          const calculation = body.calculation && typeof body.calculation === 'object' && !Array.isArray(body.calculation)
+            ? body.calculation as Record<string, unknown>
+            : null
+          return typeof calculation?.result === 'number' ? calculation.result : null
+        },
+        historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
+        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.calculations) ? body.calculations : [],
+      },
+      {
+        name: 'left/operator/right',
+        payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ left: leftOperand, operator, right: rightOperand }),
+        result: (body: Record<string, unknown>) => typeof body.result === 'number' ? body.result : null,
+        historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
+        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.history) ? body.history : [],
+      },
+      {
+        name: 'a/op/b',
+        payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ a: leftOperand, op: operator, b: rightOperand }),
+        result: (body: Record<string, unknown>) => typeof body.result === 'number' ? body.result : null,
+        historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : null,
+        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.items) ? body.items : [],
+      },
+      {
+        name: 'a/op/b symbolic names',
+        payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => {
+          const op = operator === '+' ? 'add' : operator === '-' ? 'sub' : operator === '*' ? 'mul' : operator === '/' ? 'div' : operator
+          return { a: leftOperand, op, b: rightOperand }
+        },
+        result: (body: Record<string, unknown>) => typeof body.result === 'number' ? body.result : null,
+        historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : null,
+        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.items) ? body.items : [],
+      },
+    ]
+    async function postCalculation(contract: typeof contracts[number], leftOperand: number | string, operator: string, rightOperand: number | string) {
+      const response = await fetch(`${productUrl}/api/calculate`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(contract.payload(leftOperand, operator, rightOperand)),
+      })
+      const body = await response.json() as Record<string, unknown>
+      return { response, body }
+    }
+    let activeContract: typeof contracts[number] | null = null
+    for (const contract of contracts) {
+      const probe = await postCalculation(contract, 1, '+', 2)
+      if ((probe.response.status === 200 || probe.response.status === 201) && contract.result(probe.body) === 3) {
+        activeContract = contract
+        record(ok('API 契约探测通过', contract.name))
+        break
+      }
+    }
+    if (!activeContract) {
+      record(fail('API 契约探测通过', '既不符合 leftOperand/operator/rightOperand，也不符合 a/op/b'))
+      return
+    }
+
+    const cases = [
+      [9, '+', 4, 13],
+      [9, '-', 4, 5],
+      [9, '*', 4, 36],
+      [12, '/', 4, 3],
+    ] as const
+    for (const [leftOperand, operator, rightOperand, expected] of cases) {
+      const { response, body } = await postCalculation(activeContract, leftOperand, operator, rightOperand)
+      const result = activeContract.result(body)
+      record(
+        (response.status === 200 || response.status === 201) && result === expected
+          ? ok(`API 计算 ${leftOperand} ${operator} ${rightOperand}`)
+          : fail(`API 计算 ${leftOperand} ${operator} ${rightOperand}`, JSON.stringify({ status: response.status, body })),
+      )
+    }
+
+    const bad = await Promise.all([
+      postCalculation(activeContract, 1, '/', 0).then((item) => item.response),
+      postCalculation(activeContract, 1, '%', 2).then((item) => item.response),
+      postCalculation(activeContract, 'abc', '+', 2).then((item) => item.response),
+    ])
+    record(bad.every((response) => response.status === 400)
+      ? ok('API 拒绝除零、非法操作符和非法数字')
+      : fail('API 拒绝除零、非法操作符和非法数字', bad.map((response) => response.status).join(',')))
+
+    const historyResponse = await fetch(`${productUrl}/api/history?limit=20`)
+    const history = await historyResponse.json() as Record<string, unknown>
+    const historyItems = activeContract.historyItems(history).filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+    record(
+      historyResponse.ok && historyItems.length >= 4
+        ? ok('SQLite-backed history API 读回', `${historyItems.length} rows`)
+        : fail('SQLite-backed history API 读回', JSON.stringify({ status: historyResponse.status, history })),
+    )
+
+    const sqliteTables = spawnSync('sqlite3', [dbPath, "select name from sqlite_master where type='table' order by name;"], { encoding: 'utf8' })
+    const sqliteHistoryCount = spawnSync('sqlite3', [dbPath, "select count(*) from history;"], { encoding: 'utf8' })
+    const sqliteCalculationsCount = spawnSync('sqlite3', [dbPath, "select count(*) from calculations;"], { encoding: 'utf8' })
+    const sqliteCalculationHistoryCount = spawnSync('sqlite3', [dbPath, "select count(*) from calculation_history;"], { encoding: 'utf8' })
+    const sqliteCount = Number(
+      sqliteHistoryCount.status === 0
+        ? sqliteHistoryCount.stdout.trim()
+        : sqliteCalculationsCount.status === 0
+          ? sqliteCalculationsCount.stdout.trim()
+          : sqliteCalculationHistoryCount.status === 0
+            ? sqliteCalculationHistoryCount.stdout.trim()
+            : '0',
+    )
+    record(
+      sqliteCount >= 4
+        ? ok('SQLite 文件真实持久化历史', `${sqliteCount} rows; tables=${sqliteTables.stdout.trim().replace(/\n/g, ',')}`)
+        : fail('SQLite 文件真实持久化历史', `${sqliteTables.stdout}${sqliteTables.stderr}${sqliteHistoryCount.stderr}${sqliteCalculationsCount.stderr}${sqliteCalculationHistoryCount.stderr}`.trim()),
+    )
+  } catch (error) {
+    record(fail('生成产物运行验证', error instanceof Error ? error.message : String(error)))
+  } finally {
+    server.kill('SIGTERM')
+    fs.rmSync(dbPath, { force: true })
+  }
+}
+
+function opencliAvailable() {
+  const result = spawnSync('opencli', ['doctor'], { encoding: 'utf8', timeout: 20_000 })
+  fs.writeFileSync(path.join(ARTIFACT_DIR, 'opencli-doctor.txt'), `${result.stdout}${result.stderr}`)
+  return result.status === 0
+}
+
+function runOpencli(args: string[], outputFile: string): Check {
+  const result = spawnSync('opencli', args, { encoding: 'utf8', timeout: 60_000 })
+  fs.writeFileSync(path.join(ARTIFACT_DIR, outputFile), `${result.stdout}${result.stderr}`)
+  if (result.error) return warn(`OpenCLI ${args.join(' ')}`, result.error.message)
+  if (result.status === 0) return ok(`OpenCLI ${args.join(' ')}`)
+  return warn(`OpenCLI ${args.join(' ')}`, `${result.stdout}${result.stderr}`.trim().split('\n').slice(-8).join('\n'))
+}
+
+async function verifyTriSurface(sessionId: string, workspaceId: string, artifactId: string | null) {
+  const webMessages = await jsonOrThrow<unknown[]>(await apiFetch(`/api/messages?session_id=${sessionId}`), 'GET /api/messages')
+  record(Array.isArray(webMessages) && webMessages.length >= 3
+    ? ok('Web API 同 session 消息读回', `${webMessages.length} messages`)
+    : fail('Web API 同 session 消息读回', JSON.stringify(webMessages)))
+
+  const mobilePage = await apiFetch(`/m/sessions/${sessionId}`, { headers: { Accept: 'text/html' } })
+  const mobileHtml = await mobilePage.text()
+  fs.writeFileSync(path.join(ARTIFACT_DIR, 'mobile-session.html'), mobileHtml)
+  record(mobilePage.ok && mobileHtml.includes('mobile-session')
+    ? ok('Mobile/PWA 同 session 页面读回', `/m/sessions/${sessionId}`)
+    : fail('Mobile/PWA 同 session 页面读回', `status=${mobilePage.status}`))
+
+  if (artifactId) {
+    const mobilePreview = await apiFetch(`/m/preview?artifactId=${artifactId}`, { headers: { Accept: 'text/html' } })
+    const previewHtml = await mobilePreview.text()
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'mobile-preview.html'), previewHtml)
+    record(mobilePreview.ok && previewHtml.includes('mobile-preview')
+      ? ok('Mobile/PWA 产物预览路由读回', `/m/preview?artifactId=${artifactId}`)
+      : fail('Mobile/PWA 产物预览路由读回', `status=${mobilePreview.status}`))
+  }
+
+  if (opencliAvailable()) {
+    record(runOpencli(['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspaces/${workspaceId}`], 'opencli-web-open.txt'))
+    record(runOpencli(['browser', 'agenthub-strict', 'screenshot', path.join(ARTIFACT_DIR, 'web-workspace.png')], 'opencli-web-screenshot.txt'))
+    record(runOpencli(['browser', 'agenthub-strict-mobile', 'open', `${BASE_URL}/m/sessions/${sessionId}`], 'opencli-mobile-open.txt'))
+    record(runOpencli(['browser', 'agenthub-strict-mobile', 'screenshot', path.join(ARTIFACT_DIR, 'mobile-session.png')], 'opencli-mobile-screenshot.txt'))
+  } else {
+    record(warn('OpenCLI doctor 不可用，已退化为 HTTP readback', '三端截图证据未采集，严格报告会标记该项 warning'))
+  }
+
+  const opencliList = spawnSync('opencli', ['list', '-f', 'json'], { encoding: 'utf8', timeout: 20_000 })
+  fs.writeFileSync(path.join(ARTIFACT_DIR, 'opencli-list.json'), `${opencliList.stdout}${opencliList.stderr}`)
+  if (opencliList.status === 0 && opencliList.stdout.toLowerCase().includes('agenthub') && opencliList.stdout.toLowerCase().includes('electron')) {
+    record(ok('Desktop/Electron OpenCLI adapter 可用'))
+  } else {
+    const desktopArtifacts = [
+      path.join(REPO_ROOT, 'e2e/artifacts/desktop-workspace-page-1200x800.png'),
+      path.join(REPO_ROOT, 'e2e/artifacts/desktop-settings-page-1200x800.png'),
+    ]
+    const found = desktopArtifacts.filter((artifact) => exists(artifact))
+    record(found.length > 0
+      ? ok('Desktop/Electron 使用 Playwright fallback 证据', found.map((item) => path.relative(REPO_ROOT, item)).join(', '))
+      : warn('Desktop/Electron OpenCLI adapter 缺失且 fallback 截图未找到', '不计入核心单 prompt 通过，但报告会记录为三端风险'))
+  }
+}
+
+async function main() {
+  loadEnvFile(ACCEPTANCE_ENV)
+  requireEnv('DATABASE_URL')
+  requireEnv('REDIS_URL')
+  requireEnv('TEST_AUTH_COOKIE')
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true })
+
+    console.log('\n=== Strict Single-Prompt Product Delivery Gate ===')
+    console.log(`BASE_URL=${BASE_URL}`)
+    console.log(`runMarker=${RUN_MARKER}`)
+    console.log(`evidenceDir=${ARTIFACT_DIR}`)
+    console.log(`chatTimeoutMs=${CHAT_TIMEOUT_MS}`)
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  let workspaceId = ''
+  let sessionId = ''
+  let planId: string | null = null
+  let workspaceRoot: string | null = null
+  let finalArtifactId: string | null = null
+
+  try {
+    const workspace = await jsonOrThrow<{ id: string; cloud_project_dir?: string | null }>(await apiFetch('/api/workspaces', {
+      method: 'POST',
+      body: JSON.stringify({ name: `strict-product-${RUN_MARKER}`, execution_domain: 'cloud' }),
+    }), 'POST /api/workspaces')
+    workspaceId = workspace.id
+    record(ok('fresh workspace created', workspaceId))
+
+    const roles = await jsonOrThrow<Array<{ id: string; name: string; runtime_type: string; is_orchestrator: boolean }>>(
+      await apiFetch(`/api/role-agents?workspace_id=${workspaceId}`),
+      'GET /api/role-agents',
+    )
+    const architect = roles.find((role) => role.is_orchestrator || role.name === '架构师')
+    record(architect ? ok('Orchestrator/架构师角色存在', `${architect.name}:${architect.id}`) : fail('Orchestrator/架构师角色存在'))
+    record(roles.some((role) => role.name === '前端工程师') ? ok('前端工程师角色存在') : fail('前端工程师角色存在'))
+    record(roles.some((role) => role.name === '后端工程师') ? ok('后端工程师角色存在') : fail('后端工程师角色存在'))
+
+    const session = await jsonOrThrow<{ id: string }>(await apiFetch('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ workspace_id: workspaceId, name: `strict product delivery ${RUN_MARKER}` }),
+    }), 'POST /api/sessions')
+    sessionId = session.id
+    record(ok('fresh session created', sessionId))
+
+    const chatResponse = await apiFetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        sessionId,
+        content: PROMPT,
+        permissionMode: 'full_control',
+        runMarker: RUN_MARKER,
+        unifiedRegressionRunId: RUN_MARKER,
+      }),
+    })
+    record(chatResponse.ok ? ok('/api/chat 单 prompt 返回 SSE', `status=${chatResponse.status}`) : fail('/api/chat 单 prompt 返回 SSE', `status=${chatResponse.status}`))
+    if (!chatResponse.ok) throw new Error(await chatResponse.text())
+    const sseRead = await readSseEvents(chatResponse, CHAT_TIMEOUT_MS)
+    if (sseRead.timedOut) {
+      record(fail('/api/chat SSE 在严格窗口内结束', `timeoutMs=${CHAT_TIMEOUT_MS}; workspaceId=${workspaceId}; sessionId=${sessionId}; path=POST /api/chat`))
+      await writeRunSnapshot(pool, {
+        workspaceId,
+        sessionId,
+        planId,
+        reason: `chat SSE timeout after ${CHAT_TIMEOUT_MS}ms`,
+        fileName: 'chat-timeout-db-snapshot.json',
+      })
+    } else {
+      record(ok('/api/chat SSE 在严格窗口内结束', `events=${sseRead.events.length}`))
+    }
+    const events = sseRead.events
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'chat-sse-events.json'), JSON.stringify(events, null, 2))
+    const eventTypes = events.map((event) => event.type)
+    record(eventTypes.includes('orchestrator_plan_started') ? ok('SSE 包含 orchestrator_plan_started') : fail('SSE 包含 orchestrator_plan_started', eventTypes.join(',')))
+    record(eventTypes.includes('role_selected') ? ok('SSE 包含 role_selected') : fail('SSE 包含 role_selected', eventTypes.join(',')))
+    record(eventTypes.includes('done') ? ok('SSE 包含 done') : fail('SSE 包含 done', eventTypes.join(',')))
+    record(!eventTypes.includes('approval_requested') ? ok('full-control SSE 不出现手动 approval_requested') : fail('full-control SSE 不出现手动 approval_requested', eventTypes.join(',')))
+
+    const wsRow = await one<{ cloud_project_dir: string | null }>(pool, 'SELECT cloud_project_dir FROM public.workspaces WHERE id = $1', [workspaceId])
+    workspaceRoot = wsRow?.cloud_project_dir ?? null
+    record(workspaceRoot && exists(workspaceRoot) ? ok('workspace root exists', workspaceRoot) : fail('workspace root exists', String(workspaceRoot)))
+
+    const userMarker = await one<{ count: string }>(
+      pool,
+      `SELECT count(*)::text
+         FROM public.messages
+        WHERE session_id = $1
+          AND sender_type = 'user'
+          AND (
+            content LIKE '%' || $2 || '%'
+            OR metadata->>'runMarker' = $2
+            OR metadata->>'unifiedRegressionRunId' = $2
+            OR metadata->>'uatRunId' = $2
+          )`,
+      [sessionId, RUN_MARKER],
+    )
+    record(Number(userMarker?.count ?? 0) === 1 ? ok('fresh run marker 持久化到唯一用户消息') : fail('fresh run marker 持久化到唯一用户消息', JSON.stringify(userMarker)))
+
+    const plan = await one<{ id: string; status: string }>(
+      pool,
+      'SELECT id, status FROM public.plans WHERE session_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [sessionId],
+    )
+    planId = plan?.id ?? null
+    record(planId ? ok('DB 创建 durable plan', planId) : fail('DB 创建 durable plan'))
+    record(plan?.status === 'completed' ? ok('plan.status completed') : fail('plan.status completed', JSON.stringify(plan)))
+
+    const nodes = await many<{ id: string; label: string; status: string; name: string | null; runtime_type: string | null }>(
+      pool,
+      `SELECT pn.id::text, pn.label, pn.status, ra.name, ra.runtime_type
+         FROM public.plan_nodes pn
+         LEFT JOIN public.role_agents ra ON ra.id = pn.agent_id
+        WHERE pn.plan_id = $1
+        ORDER BY pn.created_at ASC`,
+      [planId],
+    )
+    record(nodes.length >= 4 ? ok('plan 包含规划/后端/前端/验收节点', `${nodes.length} nodes`) : fail('plan 包含规划/后端/前端/验收节点', JSON.stringify(nodes)))
+    record(nodes.every((node) => node.status === 'completed') ? ok('所有 plan_nodes completed') : fail('所有 plan_nodes completed', JSON.stringify(nodes)))
+    record(nodes.some((node) => node.name === '前端工程师' && node.status === 'completed') ? ok('前端工程师节点 completed') : fail('前端工程师节点 completed', JSON.stringify(nodes)))
+    record(nodes.some((node) => node.name === '后端工程师' && node.status === 'completed') ? ok('后端/SQLite 节点 completed') : fail('后端/SQLite 节点 completed', JSON.stringify(nodes)))
+
+    const queueLeftovers = await many<{ source: string; id: string; status: string }>(
+      pool,
+      `SELECT 'attempt' AS source, pna.id::text, pna.status
+         FROM public.plan_node_attempts pna
+         JOIN public.plan_nodes pn ON pn.id = pna.plan_node_id
+        WHERE pn.plan_id = $1 AND pn.status = 'completed' AND pna.status IN ('queued','waiting')
+       UNION ALL
+       SELECT 'mailbox' AS source, ami.id::text, ami.status
+         FROM public.agent_mailbox_items ami
+         JOIN public.plan_nodes pn ON pn.id = ami.plan_node_id
+        WHERE pn.plan_id = $1 AND pn.status = 'completed' AND ami.status IN ('queued','waiting')`,
+      [planId],
+    )
+    record(queueLeftovers.length === 0 ? ok('completed plan 无 queued/waiting leftovers') : fail('completed plan 无 queued/waiting leftovers', JSON.stringify(queueLeftovers)))
+
+    const runtimeRows = await many<{ id: string; role_agent_id: string | null; runtime_type: string; status: string; native_session_id: string | null }>(
+      pool,
+      'SELECT id::text, role_agent_id::text, runtime_type, status, native_session_id FROM public.runtime_sessions WHERE session_id = $1 ORDER BY created_at ASC',
+      [sessionId],
+    )
+    record(runtimeRows.length >= 4 ? ok('runtime_sessions 持久化每节点执行', `${runtimeRows.length}`) : fail('runtime_sessions 持久化每节点执行', JSON.stringify(runtimeRows)))
+    record(runtimeRows.every((row) => row.status === 'completed') ? ok('所有 runtime_sessions completed') : fail('所有 runtime_sessions completed', JSON.stringify(runtimeRows)))
+
+    const actions = await many<{ status: string; count: string }>(
+      pool,
+      'SELECT status, count(*)::text FROM public.actions WHERE session_id = $1 GROUP BY status ORDER BY status',
+      [sessionId],
+    )
+    record(actions.every((row) => row.status !== 'pending' && row.status !== 'approved') ? ok('full-control 无 pending/approved 手动权限卡') : fail('full-control 无 pending/approved 手动权限卡', JSON.stringify(actions)))
+    record(actions.some((row) => row.status === 'completed' || row.status === 'running')
+      ? ok('full-control 产生自动授权/续跑 action 证据', JSON.stringify(actions))
+      : fail('full-control 产生自动授权/续跑 action 证据', JSON.stringify(actions)))
+
+    const messages = await many<{ id: string; content: string; message_type: string; name: string | null; metadata: Record<string, unknown> | null }>(
+      pool,
+      `SELECT m.id::text, m.content, m.message_type, ra.name, m.metadata
+         FROM public.messages m
+         LEFT JOIN public.role_agents ra ON ra.id = m.role_agent_id
+        WHERE m.session_id = $1
+        ORDER BY m.created_at ASC`,
+      [sessionId],
+    )
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'db-messages.json'), JSON.stringify(messages, null, 2))
+    const messageText = messages.map((message) => `${message.name ?? ''}\n${message.message_type}\n${message.content}`).join('\n')
+    const firstProcess = messages.find((message) => message.message_type !== 'text' || message.name)
+    record(firstProcess && includesAny(`${firstProcess.name ?? ''}\n${firstProcess.content}`, [/架构师|Orchestrator/])
+      ? ok('首个可见 Agent/过程回复来自架构师/Orchestrator', firstProcess.id)
+      : fail('首个可见 Agent/过程回复来自架构师/Orchestrator', firstProcess ? JSON.stringify(firstProcess) : 'none'))
+    record(includesAny(messageText, [/前端工程师/]) && includesAny(messageText, [/后端工程师|SQLite|sqlite|数据库|API/])
+      ? ok('消息流展示前端和后端/storage 分工')
+      : fail('消息流展示前端和后端/storage 分工'))
+    const processMessages = messages.filter((message) => message.message_type === 'plan_card' || message.message_type === 'system_event' || message.message_type === 'result_card')
+    record(processMessages.length >= 6
+      ? ok('消息流包含多步可见开发过程', `${processMessages.length} process messages`)
+      : fail('消息流包含多步可见开发过程', `${processMessages.length} process messages`))
+    record(includesAny(messageText, [/src\/server\.js|public\/index\.html|public\/app\.js|package\.json|README\.md/])
+      ? ok('消息流包含代码/文件引用')
+      : fail('消息流包含代码/文件引用'))
+    record(includesAny(messageText, [/已完成/]) ? ok('消息流包含最终已完成状态') : fail('消息流包含最终已完成状态'))
+
+    if (workspaceRoot) await verifyCalculatorProduct(workspaceRoot)
+
+    if (workspaceRoot) {
+      const tree = await jsonOrThrow<{ tree?: unknown[] }>(await apiFetch(`/api/workspaces/${workspaceId}/files`), 'GET workspace files')
+      fs.writeFileSync(path.join(ARTIFACT_DIR, 'workspace-files.json'), JSON.stringify(tree, null, 2))
+      const treeText = JSON.stringify(tree)
+      record(treeText.includes('public/index.html') && treeText.includes('src/server.js')
+        ? ok('文件树 API 读回生成文件')
+        : fail('文件树 API 读回生成文件', treeText.slice(0, 1000)))
+      const previewResponse = await apiFetch(`/api/workspaces/${workspaceId}/files/read?path=${encodeURIComponent('public/index.html')}`)
+      const previewText = await previewResponse.text()
+      let preview: { content?: string | null; previewKind?: string } | null = null
+      try {
+        preview = JSON.parse(previewText) as { content?: string | null; previewKind?: string }
+      } catch {
+        preview = null
+      }
+      record(preview?.previewKind === 'html' && typeof preview.content === 'string' && preview.content.includes('<')
+        ? ok('Workbench 文件预览 API 读回 HTML')
+        : fail('Workbench 文件预览 API 读回 HTML', `status=${previewResponse.status}; body=${previewText.slice(0, 1000)}`))
+    }
+
+    const artifacts = await many<{ id: string; source_path: string | null; artifact_type: string; metadata: Record<string, unknown> | null }>(
+      pool,
+      'SELECT id::text, source_path, artifact_type, metadata FROM public.artifacts WHERE workspace_id = $1 AND session_id = $2 ORDER BY created_at DESC',
+      [workspaceId, sessionId],
+    )
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'db-artifacts.json'), JSON.stringify(artifacts, null, 2))
+    const finalArtifact = artifacts.find((artifact) => artifact.source_path === 'public/index.html')
+    finalArtifactId = finalArtifact?.id ?? null
+    record(finalArtifact ? ok('最终产物候选 artifact row 存在', finalArtifact.id) : fail('最终产物候选 artifact row 存在', JSON.stringify(artifacts)))
+    record(
+      Boolean(finalArtifact?.metadata?.artifactRecommendation && finalArtifact.metadata.artifactConfirmation)
+        ? ok('artifact metadata 包含模型推荐 + 用户确认/指定语义')
+        : fail('artifact metadata 包含模型推荐 + 用户确认/指定语义', JSON.stringify(finalArtifact?.metadata)),
+    )
+    record(artifacts.length <= 3 ? ok('未把整个文件树默认标成产物', `${artifacts.length} artifacts`) : fail('未把整个文件树默认标成产物', `${artifacts.length} artifacts`))
+
+    await verifyTriSurface(sessionId, workspaceId, finalArtifactId)
+  } finally {
+    const summary = {
+      status: failed === 0 ? 'PASS' : 'FAIL',
+      passed,
+      failed,
+      warned,
+      baseUrl: BASE_URL,
+      runMarker: RUN_MARKER,
+      workspaceId,
+      sessionId,
+      planId,
+      workspaceRoot,
+      finalArtifactId,
+      evidenceDir: ARTIFACT_DIR,
+    }
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'summary.json'), JSON.stringify(summary, null, 2))
+    console.log('\nSUMMARY:', JSON.stringify(summary, null, 2))
+    await pool.end()
+  }
+  process.exit(failed === 0 ? 0 : 1)
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.stack ?? error.message : String(error))
+  process.exit(1)
+})

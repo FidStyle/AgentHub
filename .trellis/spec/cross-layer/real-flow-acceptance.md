@@ -185,6 +185,8 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
   - `completed`: final user-visible product is generated, test evidence passes, final summary/architect validation is durable, and Web/Mobile/Desktop readback agrees.
   - `failed/interrupted`: a real failure is durable and visible with an actionable reason. It must not be presented as completed.
 - Completion must be derived from durable plan/action/runtime/artifact state, not from assistant text alone.
+- For the fixed calculator sample, product-generation role nodes should generate or update files and return promptly. The strict gate owns dependency installation, `node --test`, HTTP/API probes, SQLite queries, browser preview, and three-surface readback. Runtime agents may use short syntax/file checks, but they must not keep long-lived services, package installs, curls, Playwright runs, or repeated self-healing test loops inside the chat SSE path.
+- The fixed sample strict gate must install generated project dependencies inside the generated workspace before running product tests. Dependency cache, SQLite files, logs, and cleanup targets must remain inside the selected workspace root; never use `/tmp`, the user home directory, or the AgentHub host repository as validation scratch space.
 - The frontend delivery line is required:
   - Orchestrator/architect first response creates a readable plan.
   - A frontend engineer node is created, dispatched, and reaches `completed`.
@@ -216,16 +218,20 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
 | Frontend files generated | file tree/preview/workbench shows files after refresh | only runtime stdout mentions files |
 | Product UI opens | browser-level test exercises UI behavior | only API/unit test passes |
 | SQLite/history required | history persists through API/UI and reload or DB query evidence | local JS array only while claiming SQLite |
+| Generated project declares dependencies | strict gate runs install inside workspace before product tests | fail because host repo dependencies are missing, or install into host repo |
+| Runtime role enters repeated long test/install/service loop | visible `执行中` until timeout, then durable failure; fix prompt/gate contract | leave `/api/chat` hanging while reporting completed |
 | Runtime fails or is interrupted | durable failure state and visible reason | assistant final text says done |
 | Web passes but Mobile/Desktop readback missing | mark that surface `not-run`/`blocked`; do not count as three-surface pass | count Web screenshot as all surfaces |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: In full-control mode, the fixed sample creates a 4-node plan; architect, backend engineer, frontend engineer, and final validation all complete; Web preview can calculate `8 * 9 = 72`; history persists in SQLite; Mobile/PWA shows the same plan and authorization records; Desktop/Electron fallback passes supervision/readback.
+- Good: Engineering role nodes write `package.json`, `src/server.js`, `public/index.html`, `public/app.js`, and `public/styles.css`, then finish. The strict gate installs dependencies in that workspace and performs the generated product API/UI/SQLite tests.
 - Base: Backend API and SQLite pass, but frontend preview has not been generated yet. The plan remains `执行中` or `partial`, and the report says frontend delivery is incomplete.
 - Base: Full-control mode is configured but a safety policy blocks an outside-workspace path. The run fails closed with a visible reason and does not mark completed.
 - Bad: The assistant says "我已经完成网站" while the frontend engineer node is still `waiting`.
 - Bad: The generated site works only by opening a local file manually, while AgentHub Web file tree/artifact/preview cannot read it back.
+- Bad: The backend role starts `npm install`, `npm test`, `node src/server.js`, or curl probes and keeps the chat SSE open for minutes after files are already generated. Product behavior validation belongs to the strict gate, not to an unbounded role runtime loop.
 - Bad: The report claims three-surface pass without Mobile/PWA or Desktop/Electron evidence.
 
 ### 6. Tests Required
@@ -244,6 +250,7 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
 - Desktop/Electron UAT must use an OpenCLI app adapter when available; otherwise Playwright Electron fallback is acceptable only when documented with command and pass count.
 - DB/API evidence must include durable state checks for `plans`, `plan_nodes`, `actions`, `runtime_sessions`, `messages`, and artifacts/files.
 - Generated product tests must cover both backend and frontend behavior. For the calculator sample:
+  - dependency installation inside the generated workspace when `package.json` declares dependencies;
   - add, subtract, multiply, divide;
   - divide-by-zero and invalid input/operator;
   - SQLite-backed history persistence;

@@ -1,13 +1,14 @@
 import { createClient } from '../lib/app-db-client'
 import { advancePlanProgress } from '../lib/orchestrator/plan-progress'
 import { dispatchReadyMailboxItems } from '../lib/orchestrator/mailbox-control'
-import { dispatchApprovedAction, type ActionRecordForDispatch } from '../lib/orchestrator/action-dispatcher'
+import { type ActionRecordForDispatch } from '../lib/orchestrator/action-dispatcher'
 import {
   CliRuntimeExecutor,
   type ExecutorChunk,
   FakeExecutor,
   ScriptedRealExecutor,
   type CliRuntimeType,
+  type NativeCliObservedAction,
   type NativeCliQuestionRequest,
   type NativeCliToolRequest,
   type RuntimeExecutor,
@@ -21,6 +22,7 @@ const HEARTBEAT_EVENT_INTERVAL_MS = Number(process.env.RUNTIME_HEARTBEAT_EVENT_I
 const WORKER_PRESENCE_TTL_SEC = Number(process.env.RUNTIME_WORKER_PRESENCE_TTL_SEC ?? 15)
 const WORKER_PRESENCE_INTERVAL_MS = Math.max(1_000, Math.floor((WORKER_PRESENCE_TTL_SEC * 1_000) / 3))
 const DEFAULT_RUNTIME_JOB_TIMEOUT_MS = 15 * 60_000
+const DEFAULT_RUNTIME_OUTPUT_IDLE_TIMEOUT_MS = 2 * 60_000
 
 function runtimeTypeForJob(job?: RuntimeJob): CliRuntimeType {
   if (job?.runtimeType === 'codex' || job?.runtimeType === 'claude_code') return job.runtimeType
@@ -196,13 +198,20 @@ function runtimeJobTimeoutMs(): number {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_RUNTIME_JOB_TIMEOUT_MS
 }
 
-async function nextRuntimeChunk(iterator: AsyncIterator<ExecutorChunk>, deadlineAt: number) {
+function runtimeOutputIdleTimeoutMs(): number {
+  const value = Number(process.env.RUNTIME_OUTPUT_IDLE_TIMEOUT_MS ?? DEFAULT_RUNTIME_OUTPUT_IDLE_TIMEOUT_MS)
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_RUNTIME_OUTPUT_IDLE_TIMEOUT_MS
+}
+
+async function nextRuntimeChunk(iterator: AsyncIterator<ExecutorChunk>, deadlineAt: number, idleTimeoutMs: number) {
   const remainingMs = deadlineAt - Date.now()
   if (remainingMs <= 0) {
     await iterator.return?.()
     throw new Error('Runtime 执行超时，已终止。')
   }
 
+  const timeoutMs = Math.min(remainingMs, idleTimeoutMs)
+  const timeoutError = timeoutMs === remainingMs ? 'Runtime 执行超时，已终止。' : 'Runtime 输出空闲超时，已终止。'
   let timer: ReturnType<typeof setTimeout> | null = null
   try {
     return await Promise.race([
@@ -210,8 +219,8 @@ async function nextRuntimeChunk(iterator: AsyncIterator<ExecutorChunk>, deadline
       new Promise<IteratorResult<ExecutorChunk>>((_, reject) => {
         timer = setTimeout(() => {
           void iterator.return?.().catch(() => {})
-          reject(new Error('Runtime 执行超时，已终止。'))
-        }, remainingMs)
+          reject(new Error(timeoutError))
+        }, timeoutMs)
       }),
     ])
   } finally {
@@ -302,6 +311,115 @@ function nativeToolCommandLabel(tool: NativeCliToolRequest, toolCall: NativeCliT
   const targets = toolCall.targetPaths?.filter((target) => target.trim()) ?? []
   if (targets.length > 0) return `${tool.toolName}: ${targets.join(', ')}`
   return `${tool.toolName} (${toolCall.actionKind})`
+}
+
+function observedActionCommandLabel(action: NativeCliObservedAction): string {
+  if (action.commandPreview) return action.commandPreview
+  const targets = action.targetPaths?.filter((target) => target.trim()) ?? []
+  if (targets.length > 0) return `${action.toolName}: ${targets.join(', ')}`
+  return `${action.toolName} (${action.actionKind})`
+}
+
+async function persistObservedAutomaticAction(job: RuntimeJob, action: NativeCliObservedAction, nativeSessionId?: string | null): Promise<void> {
+  if (!job.sessionId || !job.ownerId) return
+  if (!isAutomaticPermissionMode(job.permissionMode)) return
+  if (action.status === 'running') return
+  const db = await createClient()
+  const now = new Date().toISOString()
+  const command = observedActionCommandLabel(action)
+  const result = {
+    source: 'runtime_observed_action',
+    toolCallId: action.id ?? null,
+    toolName: action.toolName,
+    actionKind: action.actionKind,
+    commandPreview: action.commandPreview ?? null,
+    input: action.input ?? null,
+    nativeSessionId: nativeSessionId ?? job.nativeSessionId ?? null,
+    runtimeSessionId: job.runtimeSessionId,
+    originalRuntimeSessionId: job.runtimeSessionId,
+    runtimeType: job.runtimeType ?? null,
+    roleAgentId: job.roleAgentId ?? null,
+    permissionMode: job.permissionMode ?? null,
+    autoApproved: true,
+    targetPaths: action.targetPaths ?? [],
+    cwd: action.cwd ?? job.cwd ?? null,
+    workspaceRoot: job.workspaceRoot ?? null,
+    output: action.output?.slice(-20_000) ?? null,
+    exitCode: action.exitCode ?? null,
+    observedStatus: action.status,
+    at: now,
+  }
+  const status = action.status === 'completed' ? 'completed' : 'failed'
+  await db.from('actions').insert({
+    session_id: job.sessionId,
+    plan_node_id: job.planNodeId ?? null,
+    owner_id: job.ownerId,
+    action_type: action.actionKind,
+    command,
+    cwd: action.cwd ?? job.cwd ?? null,
+    risk_level: 'low',
+    status,
+    requires_approval: false,
+    approved_at: now,
+    executed_at: now,
+    result,
+  })
+}
+
+async function persistAutoApprovedToolRequest(input: {
+  job: RuntimeJob
+  tool: NativeCliToolRequest
+  toolCall: NativeCliToolCall
+  riskLevel: string
+  nativeSessionId?: string | null
+}): Promise<string | null> {
+  const { job, tool, toolCall, riskLevel, nativeSessionId } = input
+  if (!job.ownerId) return null
+  const db = await createClient()
+  const now = new Date().toISOString()
+  const command = nativeToolCommandLabel(tool, toolCall)
+  const { data: action, error } = await db
+    .from('actions')
+    .insert({
+      session_id: toolCall.sessionId,
+      plan_node_id: job.planNodeId ?? null,
+      owner_id: job.ownerId,
+      action_type: toolCall.actionKind,
+      command,
+      cwd: toolCall.cwd,
+      risk_level: riskLevel,
+      status: 'completed',
+      requires_approval: false,
+      approved_at: now,
+      executed_at: now,
+      result: {
+        source: 'runtime_auto_permission_broker',
+        runtimeSessionId: job.runtimeSessionId,
+        originalRuntimeSessionId: job.runtimeSessionId,
+        toolCallId: toolCall.id,
+        toolName: tool.toolName,
+        actionKind: toolCall.actionKind,
+        commandPreview: toolCall.commandPreview ?? null,
+        input: tool.input ?? null,
+        nativeSessionId: nativeSessionId ?? job.nativeSessionId ?? null,
+        runtimeType: job.runtimeType ?? null,
+        roleAgentId: job.roleAgentId ?? null,
+        permissionMode: job.permissionMode ?? null,
+        autoApproved: true,
+        continuedInline: true,
+        targetPaths: toolCall.targetPaths ?? [],
+        cwd: toolCall.cwd,
+        workspaceRoot: job.workspaceRoot,
+        at: now,
+      },
+    })
+    .select('*')
+    .single()
+  if (error) {
+    throw new Error(error.message ?? '创建自动授权动作失败。')
+  }
+  const actionRecord = action as { id?: unknown } | null
+  return typeof actionRecord?.id === 'string' ? actionRecord.id : null
 }
 
 function questionEventFromRequest(job: RuntimeJob, question: NativeCliQuestionRequest) {
@@ -540,6 +658,26 @@ async function markAutoContinuationBoundary(job: RuntimeJob, error: string): Pro
   })
 }
 
+async function completeCurrentActionBeforeAutoContinuation(job: RuntimeJob, output: string): Promise<void> {
+  if (!job.actionId) return
+  const db = await createClient()
+  const now = new Date().toISOString()
+  const result = {
+    ...(job.actionResult ?? {}),
+    terminal: 'completed',
+    runtimeSessionId: job.runtimeSessionId,
+    output: output.slice(-20_000),
+    error: null,
+    autoContinuationBoundary: true,
+    at: now,
+  }
+  await db.from('actions').update({
+    status: 'completed',
+    result,
+  }).eq('id', job.actionId)
+  await updateInlinePermissionParts(db, job, 'completed')
+}
+
 async function closeCompletedPlanNodeWaitingQueue(
   db: Awaited<ReturnType<typeof createClient>>,
   planNodeId: string,
@@ -594,6 +732,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
   }
   let suppressedApprovedToolRequest = false
   const deadlineAt = Date.now() + runtimeJobTimeoutMs()
+  const idleTimeoutMs = runtimeOutputIdleTimeoutMs()
 
   await setStatus(id, 'running')
   await markActionRunning(job)
@@ -609,9 +748,9 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     // Prepend the role's system prompt (when present) so the executor runs with the role persona.
     // Absent systemPrompt keeps the prompt unchanged — no behaviour change for existing jobs.
     const prompt = job.systemPrompt ? `${job.systemPrompt}\n\n${job.prompt}` : job.prompt
-    const iterator = executor.execute({ prompt, fail: job.fail, nativeSessionId: job.nativeSessionId })[Symbol.asyncIterator]()
+    const iterator = executor.execute({ prompt, fail: job.fail, nativeSessionId: job.nativeSessionId, permissionMode: job.permissionMode })[Symbol.asyncIterator]()
     while (true) {
-      const next = await nextRuntimeChunk(iterator, deadlineAt)
+      const next = await nextRuntimeChunk(iterator, deadlineAt, idleTimeoutMs)
       if (next.done) break
       const chunk = next.value
       if (await isCancelled(id)) {
@@ -630,6 +769,19 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
       if (chunk.question) {
         await emit(questionEventFromRequest(job, chunk.question))
         throw new Error('Runtime 等待用户补充确认，未继续执行。')
+      }
+      if (chunk.observedAction) {
+        await persistObservedAutomaticAction(job, chunk.observedAction, lastNativeSessionId)
+        await emit({
+          type: 'runtime_observed_action',
+          endpointId: job.endpointId,
+          toolName: chunk.observedAction.toolName,
+          actionKind: chunk.observedAction.actionKind,
+          status: chunk.observedAction.status,
+          commandPreview: chunk.observedAction.commandPreview,
+          targetPaths: chunk.observedAction.targetPaths ?? [],
+        })
+        continue
       }
       if (chunk.toolRequest) {
         if (!suppressedApprovedToolRequest && sameApprovedNativeToolRequest(job, chunk.toolRequest)) {
@@ -659,9 +811,14 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         }
         const riskLevel = permission.approval.riskLevel
         const autoApproved = isAutomaticPermissionMode(job.permissionMode)
-        const { actionId, action } = await createPermissionAction(job, chunk.toolRequest, toolCall, riskLevel, lastNativeSessionId, { autoApproved })
         if (autoApproved) {
-          const dispatch = await dispatchApprovedAction(await createClient(), action)
+          const actionId = await persistAutoApprovedToolRequest({
+            job,
+            tool: chunk.toolRequest,
+            toolCall,
+            riskLevel,
+            nativeSessionId: lastNativeSessionId,
+          })
           await emit({
             type: 'approval_auto_approved',
             actionId,
@@ -669,10 +826,11 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
             riskLevel,
             endpointId: job.endpointId,
             actionKind: toolCall.actionKind,
-            dispatch,
+            inline: true,
           })
-          throw new Error('Runtime 工具已按当前权限模式自动进入续跑。')
+          continue
         }
+        const { actionId } = await createPermissionAction(job, chunk.toolRequest, toolCall, riskLevel, lastNativeSessionId)
         await emit({
           type: 'approval_requested',
           actionId,
@@ -700,6 +858,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
     await setStatus(id, 'failed', true)
     await clearHeartbeat(id)
     if (isAutoContinuationBoundaryError(error)) {
+      await completeCurrentActionBeforeAutoContinuation(job, output)
       await markAutoContinuationBoundary(job, error)
       await emit({ type: 'runtime_failed', endpointId: job.endpointId, error })
       return 'failed'

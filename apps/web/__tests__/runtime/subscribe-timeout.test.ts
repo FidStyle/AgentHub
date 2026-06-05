@@ -7,6 +7,7 @@ type SubCb = (msg: string) => void
 const subscribers = new Map<string, SubCb>()
 let unsubscribed = false
 let quit = false
+const sets: Array<{ key: string; value: string; options?: unknown }> = []
 
 function makeClient() {
   const client: Record<string, unknown> = {
@@ -20,7 +21,7 @@ function makeClient() {
     publish: async () => {},
     lPush: async () => {},
     brPop: async () => null,
-    set: async () => {},
+    set: async (key: string, value: string, options?: unknown) => { sets.push({ key, value, options }) },
     get: async () => null,
     del: async () => {},
     exists: async () => 0,
@@ -42,7 +43,9 @@ beforeEach(() => {
   subscribers.clear()
   unsubscribed = false
   quit = false
+  sets.length = 0
   process.env.REDIS_URL = 'redis://localhost:6379'
+  delete process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS
 })
 
 describe('subscribeEvents — dual timeout', () => {
@@ -85,5 +88,34 @@ describe('subscribeEvents — dual timeout', () => {
 
     expect(events.some((e) => e.type === 'runtime_completed')).toBe(true)
     expect(events.some((e) => e.type === 'runtime_failed')).toBe(false)
+  })
+
+  it('treats runtime_status heartbeats as non-progress and cancels the stalled runtime', async () => {
+    process.env.RUNTIME_SUB_IDLE_TIMEOUT_MS = '500'
+    process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS = '35'
+    process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS = '1000'
+    vi.resetModules()
+    const { subscribeEvents } = await import('../../lib/runtime/redis-client')
+
+    const events: Array<{ type?: string; error?: string }> = []
+    const gen = subscribeEvents('heartbeat-only') as AsyncGenerator<{ type?: string; error?: string }>
+    void (async () => {
+      while (!subscribers.has('agenthub:runtime:events:heartbeat-only')) {
+        await new Promise((r) => setTimeout(r, 1))
+      }
+      emit('heartbeat-only', { type: 'runtime_status', status: 'running' })
+      await new Promise((r) => setTimeout(r, 10))
+      emit('heartbeat-only', { type: 'runtime_status', status: 'running' })
+    })()
+    for await (const e of gen) events.push(e)
+
+    const failed = events.find((e) => e.type === 'runtime_failed')
+    expect(failed?.error).toBe('runtime progress timeout')
+    expect(sets).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'agenthub:runtime:cancel:heartbeat-only',
+        value: '1',
+      }),
+    ]))
   })
 })

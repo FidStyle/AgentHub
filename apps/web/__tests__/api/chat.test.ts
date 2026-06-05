@@ -208,6 +208,8 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(arg.systemPrompt).toContain('Do not infer stack, package manager, AGENTS.md, Trellis, or monorepo context from the AgentHub host repository.')
     expect(arg.systemPrompt).toContain('不要调用 AskUserQuestion 或停下来询问可选项')
     expect(arg.systemPrompt).toContain('Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS')
+    expect(arg.systemPrompt).toContain('node src/server.js')
+    expect(arg.systemPrompt).toContain('直接启动 HTTP 服务')
     expect(arg.systemPrompt).toContain('不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent')
     expect(arg.systemPrompt).toContain('不要把 npm start、npm run dev、node server.js 或其他长驻服务作为必须保持运行的交付步骤')
     expect(arg.systemPrompt).toContain('临时验证脚本、临时 SQLite 数据库、临时日志和清理命令也必须留在 selected workspace root 内')
@@ -546,6 +548,8 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('Do not infer stack, package manager, AGENTS.md, Trellis, or monorepo context from the AgentHub host repository.')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('不要调用 AskUserQuestion 或停下来询问可选项')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS')
+    expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('node src/server.js')
+    expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('直接启动 HTTP 服务')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('不要把 npm start、npm run dev、node server.js 或其他长驻服务作为必须保持运行的交付步骤')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('临时验证脚本、临时 SQLite 数据库、临时日志和清理命令也必须留在 selected workspace root 内')
@@ -686,7 +690,9 @@ describe('POST /api/chat — role-chat-core', () => {
 
     const { status, text } = await callChat({
       sessionId: 'session-001',
-      content: '做一个加减乘除的简单网站，使用sqlite存储历史记录',
+      content: '做一个加减乘除的简单网站，使用sqlite存储历史记录。全自动完成直到交付产物',
+      permissionMode: 'full_control',
+      runMarker: 'STRICT-SPD-UNIT',
     })
 
     expect(status).toBe(200)
@@ -700,13 +706,16 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(insertedAttempts.every((attempt) => attempt.status === 'completed')).toBe(true)
     expect(insertedAttempts.every((attempt) => attempt.runtime_session_id === 'runtime-latest')).toBe(true)
     expect(insertedMailboxItems.map((mailbox) => mailbox.to_role_agent_id)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-orch'])
-    expect(insertedMailboxItems.map((mailbox) => mailbox.runtime_type)).toEqual(['claude_code', 'codex', 'claude_code', 'claude_code'])
+    expect(insertedMailboxItems.map((mailbox) => mailbox.runtime_type)).toEqual(['codex', 'codex', 'codex', 'codex'])
     expect(createSessionMock.mock.calls.every((call) => call[0].cwd === mockWorkspaceRoot)).toBe(true)
     expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-orch'])
+    expect(createSessionMock.mock.calls.map((call) => call[0].runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex'])
     expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).cwd === mockWorkspaceRoot)).toBe(true)
     expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).suppressPlanProgress === true)).toBe(true)
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex'])
     expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3', 'attempt-4'])
     expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3', 'mailbox-4'])
+    expect(insertedPlanNodes.map((node) => (node.action_payload as Record<string, unknown>).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex'])
     expect(insertedMessages[0].metadata).toMatchObject({
       mentions: ['agent-orch', 'agent-be', 'agent-fe'],
       roleAgents: [
@@ -717,6 +726,12 @@ describe('POST /api/chat — role-chat-core', () => {
       architectDispatch: {
         requestedTargets: ['role-backend', 'role-frontend'],
         selectedTargets: ['agent-be', 'agent-fe'],
+      },
+      permissionMode: 'full_control',
+      runMarker: 'STRICT-SPD-UNIT',
+      deliveryIntent: {
+        mode: 'full_auto',
+        requestedFinalProduct: true,
       },
     })
     expect(text).toContain('orchestrator_plan_started')

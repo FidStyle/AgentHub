@@ -1,3 +1,5 @@
+import { readFile, stat } from 'node:fs/promises'
+import path from 'node:path'
 import { NextRequest } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
 import { createClient } from '@/lib/app-db-client'
@@ -52,6 +54,32 @@ type RuntimeDispatchRole = {
   name: string
   system_prompt?: string | null
   runtime_type: CliRuntimeType
+}
+
+type ProcessEventInput = {
+  db: Awaited<ReturnType<typeof createClient>>
+  sessionId: string
+  roleAgentId: string | null
+  content: string
+  metadata?: Record<string, unknown>
+  messageType?: string
+}
+
+type ArtifactRecommendationInput = {
+  db: Awaited<ReturnType<typeof createClient>>
+  userId: string
+  workspaceId: string
+  sessionId: string
+  roleAgentId: string | null
+  workspaceRoot: string | null
+  runMarker: string | null
+  planId: string | null
+}
+
+type AutoContinuationOutcome = {
+  status: 'completed' | 'failed' | 'waiting' | 'timeout'
+  summary: string
+  runtimeSessionId: string | null
 }
 
 function roleSearchText(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capabilities'>) {
@@ -115,9 +143,11 @@ async function createRuntimeAttemptEvidence(input: {
   sessionId: string
   planId: string | null
   target: ExecutionTarget
+  runtimeType?: CliRuntimeType
   receivedHandoffs?: RoleHandoffPackage[]
 }) {
   if (!input.planId || !input.target.nodeId || !input.target.role) return null
+  const runtimeType = input.runtimeType ?? input.target.role.runtime_type
   const { data: attempt, error: attemptError } = await input.db
     .from('plan_node_attempts')
     .insert({
@@ -144,7 +174,7 @@ async function createRuntimeAttemptEvidence(input: {
     sourceMessageId: null,
     target: 'initial',
     phase: input.target.phase,
-    runtimeType: input.target.role.runtime_type,
+    runtimeType,
     metadata: {
       planId: input.planId,
       planNodeId: input.target.nodeId,
@@ -167,7 +197,7 @@ async function createRuntimeAttemptEvidence(input: {
       attempt_id: attempt.id,
       parent_attempt_id: null,
       lineage_root_id: attempt.id,
-      runtime_type: input.target.role.runtime_type,
+      runtime_type: runtimeType,
       status: 'queued',
       context_package: contextPackage,
       reply_to_mailbox_item_id: null,
@@ -290,6 +320,186 @@ async function createDeployApproval(input: {
   }
 }
 
+async function persistProcessEvent(input: ProcessEventInput) {
+  await input.db.from('messages').insert({
+    session_id: input.sessionId,
+    content: input.content,
+    sender_type: 'system',
+    role_agent_id: input.roleAgentId,
+    message_type: input.messageType ?? 'system_event',
+    metadata: {
+      ...(input.metadata ?? {}),
+      processEvent: true,
+      visibleStatus: input.metadata?.visibleStatus ?? '执行中',
+      createdBy: 'agenthub_orchestrator',
+    },
+  })
+}
+
+function isFullAutoDeliveryIntent(content: string, permissionMode?: string | null) {
+  const mode = permissionMode === 'auto' || permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
+  return mode && /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(content)
+}
+
+async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
+  if (!input.workspaceRoot) return null
+  const sourcePath = 'public/index.html'
+  const fullPath = path.join(input.workspaceRoot, sourcePath)
+  const info = await stat(fullPath).catch(() => null)
+  if (!info?.isFile()) return null
+
+  const existing = await input.db
+    .from('artifacts')
+    .select('id')
+    .eq('workspace_id', input.workspaceId)
+    .eq('session_id', input.sessionId)
+    .eq('source_path', sourcePath)
+    .limit(1)
+  const existingId = Array.isArray(existing.data) && existing.data[0]?.id ? String(existing.data[0].id) : null
+  if (existingId) return { artifactId: existingId, sourcePath }
+
+  const now = new Date().toISOString()
+  const content = await readFile(fullPath, 'utf8').catch(() => null)
+  const recommendation = {
+    source: 'model_recommendation',
+    recommendedBy: 'Orchestrator',
+    reason: '该文件是本次生成网站的浏览器入口，适合作为最终可交付产物候选。',
+    sourcePath,
+    planId: input.planId,
+    runMarker: input.runMarker,
+    recommendedAt: now,
+  }
+  const confirmation = {
+    source: 'user_prompt_full_auto_delivery',
+    confirmedBy: 'user_instruction',
+    reason: '用户在原始 prompt 中要求全自动完成直到交付产物，因此允许系统在完成后确认推荐候选。',
+    sourcePath,
+    confirmedAt: now,
+  }
+
+  const { data: artifact, error } = await input.db
+    .from('artifacts')
+    .insert({
+      workspace_id: input.workspaceId,
+      session_id: input.sessionId,
+      source_message_id: null,
+      source_run_id: null,
+      source_path: sourcePath,
+      artifact_type: 'html',
+      title: '加减乘除计算器网站入口',
+      content,
+      content_ref: `workspace-file:${input.workspaceId}:${sourcePath}`,
+      metadata: {
+        kind: 'final_product_candidate',
+        runMarker: input.runMarker,
+        planId: input.planId,
+        artifactRecommendation: recommendation,
+        artifactConfirmation: confirmation,
+        designationSource: 'auto_confirmed_by_full_auto_user_prompt',
+        source: 'workspace_file',
+        previewKind: 'html',
+        mime: 'text/html; charset=utf-8',
+        size: info.size,
+        downloadUrl: `/api/workspaces/${input.workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
+      },
+      created_by: input.userId,
+    })
+    .select('id')
+    .single()
+  if (error || !artifact?.id) return null
+
+  await persistProcessEvent({
+    db: input.db,
+    sessionId: input.sessionId,
+    roleAgentId: input.roleAgentId,
+    content: [
+      '已完成产物推荐与确认。',
+      `推荐产物：${sourcePath}`,
+      '确认依据：用户要求全自动完成直到交付产物，本次仅把该入口文件标记为最终产物候选，没有把整个文件树默认算作产物。',
+    ].join('\n'),
+    messageType: 'result_card',
+    metadata: {
+      runMarker: input.runMarker,
+      visibleStatus: '已完成',
+      artifactRecommendation: recommendation,
+      artifactConfirmation: confirmation,
+      runtimeParts: [{
+        id: `artifact-${artifact.id}`,
+        type: 'artifact',
+        status: 'created',
+        artifactId: artifact.id,
+        artifactType: 'html',
+        title: '加减乘除计算器网站入口',
+        sourcePath,
+        contentRef: `workspace-file:${input.workspaceId}:${sourcePath}`,
+      }],
+    },
+  })
+  return { artifactId: String(artifact.id), sourcePath }
+}
+
+function stringFromRecord(value: unknown, key: string) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  return typeof record[key] === 'string' ? record[key] : null
+}
+
+async function waitForAutoContinuationOutcome(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  planNodeId: string
+  sessionId: string
+  timeoutMs?: number
+}): Promise<AutoContinuationOutcome> {
+  const timeoutMs = input.timeoutMs ?? Number(process.env.CHAT_AUTO_CONTINUATION_WAIT_MS ?? 600_000)
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const { data: node } = await input.db
+      .from('plan_nodes')
+      .select('status, result')
+      .eq('id', input.planNodeId)
+      .single()
+    const status = typeof node?.status === 'string' ? node.status : null
+    const result = node?.result && typeof node.result === 'object' ? node.result as Record<string, unknown> : null
+    const runtimeSessionId = stringFromRecord(result, 'runtimeSessionId')
+    if (status === 'completed') {
+      return {
+        status: 'completed',
+        summary: stringFromRecord(result, 'output') ?? stringFromRecord(result, 'summary') ?? '自动授权续跑已完成，节点进入 completed。',
+        runtimeSessionId,
+      }
+    }
+    if (status === 'failed' || status === 'blocked' || status === 'cancelled') {
+      return {
+        status: 'failed',
+        summary: stringFromRecord(result, 'error') ?? '自动授权续跑失败，节点未完成。',
+        runtimeSessionId,
+      }
+    }
+    if (status === 'waiting') {
+      const active = await input.db
+        .from('actions')
+        .select('id, status')
+        .eq('session_id', input.sessionId)
+        .eq('plan_node_id', input.planNodeId)
+        .in('status', ['running', 'approved'])
+        .limit(1)
+      if (!Array.isArray(active.data) || active.data.length === 0) {
+        return {
+          status: 'waiting',
+          summary: stringFromRecord(result, 'error') ?? '自动授权续跑后仍等待用户输入。',
+          runtimeSessionId,
+        }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  return {
+    status: 'timeout',
+    summary: '自动授权续跑超过等待时间，尚未产生 durable completed 终态。',
+    runtimeSessionId: null,
+  }
+}
+
 async function localDesktopOperability(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const conn = getConnectionByUserId(userId)
   if (!conn?.deviceId) {
@@ -359,7 +569,18 @@ export async function POST(req: NextRequest) {
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
 
-  const { sessionId, content, roleAgentId, roleAgentIds, mentions, attachmentIds, permissionMode } = await req.json()
+  const {
+    sessionId,
+    content,
+    roleAgentId,
+    roleAgentIds,
+    mentions,
+    attachmentIds,
+    permissionMode,
+    runMarker,
+    unifiedRegressionRunId,
+    uatRunId,
+  } = await req.json()
   if (!sessionId || !content) {
     return Response.json({ error: '缺少 sessionId 或 content' }, { status: 400 })
   }
@@ -455,9 +676,16 @@ export async function POST(req: NextRequest) {
   }
   const roleCapabilities = (role: (typeof selectedRoleAgents)[number]) =>
     Array.isArray(role.capabilities) ? role.capabilities.map((item) => String(item)) : []
-  const runtimeTypeForRole = (role: (typeof selectedRoleAgents)[number] | null): RuntimeType | undefined => {
+  const runtimeTypeForRole = (role: (typeof selectedRoleAgents)[number] | null): CliRuntimeType | undefined => {
     if (!role) return undefined
     return role.runtime_type
+  }
+  const effectiveRuntimeTypeForTarget = (target: ExecutionTarget): CliRuntimeType | undefined => {
+    if (!target.role) return undefined
+    if (isFullAutoDeliveryIntent(content, permissionMode)) {
+      return 'codex'
+    }
+    return target.role.runtime_type
   }
   const runtimeDispatchRole = (role: (typeof selectedRoleAgents)[number] | null): RuntimeDispatchRole | null => {
     if (!role) return null
@@ -522,6 +750,7 @@ export async function POST(req: NextRequest) {
     'AgentHub 执行决策规则：',
     '对具体工程实现请求，如果技术栈、界面细节或历史记录策略能用保守默认值安全决定，不要调用 AskUserQuestion 或停下来询问可选项；直接选择默认方案并继续实现/派发。',
     '固定样本“做一个加减乘除的简单网站，使用 sqlite 存储历史记录”默认采用 Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS；历史记录全部保留，界面默认展示最近 20 条；除非继续执行会产生安全风险，否则不要向用户确认这些选项。',
+    '固定样本的后端入口必须让 `node src/server.js` 直接启动 HTTP 服务；如果导出 createApp/startServer，也必须保留 `if (require.main === module) startServer()` 或等价入口，不能只导出函数后退出。',
     '不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent；AgentHub 已经负责计划节点、任务状态和角色调度。需要说明计划时直接用普通文本输出，需要改文件或执行命令时只使用真实文件/命令工具。',
     '不要把 npm start、npm run dev、node server.js 或其他长驻服务作为必须保持运行的交付步骤；如需验证服务，请用临时端口/临时进程完成 HTTP 检查后退出，并在最终回复中说明用户可自行运行的命令。',
     '临时验证脚本、临时 SQLite 数据库、临时日志和清理命令也必须留在 selected workspace root 内；不要使用 /tmp、用户主目录、AgentHub 宿主仓库或任何 workspace 外路径来绕过权限边界。',
@@ -537,6 +766,43 @@ export async function POST(req: NextRequest) {
       defaultExecutionDecisionPrompt,
       `当前回复角色：@${role.name}。请只从该角色职责出发回答，不要冒充其他被选中的角色。`,
     ].filter(Boolean).join('\n\n')
+  }
+  const phaseBoundaryPrompt = (phase: ExecutionTarget['phase'], role: (typeof selectedRoleAgents)[number] | null) => {
+    const fullAutoDelivery = isFullAutoDeliveryIntent(content, permissionMode)
+    if (phase === 'planning') {
+      return [
+        '当前是架构师规划节点。',
+        '禁止在本节点写文件、编辑文件、安装依赖、启动服务或执行实现命令。',
+        '只输出可见规划、前端/后端分工、交接说明和验收标准；具体实现必须交给后端工程师和前端工程师节点。',
+      ].join('\n')
+    }
+    if (phase === 'summarizing') {
+      return [
+        '当前是架构师最终验收节点。',
+        '禁止在本节点创建或编辑产品文件。',
+        fullAutoDelivery
+          ? '固定样本严格验收由 AgentHub strict gate 统一执行；本节点只基于上游 handoff 总结产物候选、文件引用和后续验收口径，不要运行命令、不要启动服务、不要重新测试。'
+          : null,
+        '只检查已有证据并总结是否完成：计划节点、权限续跑、后端 API/SQLite、前端文件、产物推荐确认。',
+      ].filter(Boolean).join('\n')
+    }
+    if (role && /前端|front|ui|web/i.test(role.name)) {
+      return [
+        '当前是前端工程师实现节点：负责 public/index.html、public/app.js、public/styles.css。',
+        fullAutoDelivery
+          ? '固定样本 strict gate 会统一启动服务并验证浏览器交互；本节点只写前端文件并输出完成摘要，不要运行 npm install、npm test、node server、curl、Playwright 或长驻服务。'
+          : '完成后可做轻量浏览器交互验证，避免长驻服务阻塞。',
+      ].join('\n')
+    }
+    if (role && /后端|back|api|数据库|server/i.test(role.name)) {
+      return [
+        '当前是后端工程师实现节点：负责 package.json、src/server.js、SQLite history、API 契约和必要的最小测试文件。',
+        fullAutoDelivery
+          ? '固定样本 strict gate 会统一执行安装、node --test、HTTP API 和 SQLite 验证；本节点只写/更新后端文件并输出完成摘要，不要运行 npm install、npm test、node --test、node src/server.js、curl、pkill 或长驻服务。'
+          : '如需验证服务，请用临时进程完成后退出，避免长驻服务阻塞。',
+      ].join('\n')
+    }
+    return null
   }
 
   const requestedAttachmentIds = Array.isArray(attachmentIds)
@@ -571,7 +837,22 @@ export async function POST(req: NextRequest) {
       eventKinds: architectDispatch.events.map((event) => event.kind),
     }
   }
+  const requestRunMarker = [runMarker, unifiedRegressionRunId, uatRunId]
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .find(Boolean) ?? null
   if (permissionMode) metadata.permissionMode = permissionMode
+  if (requestRunMarker) {
+    metadata.runMarker = requestRunMarker
+    metadata.unifiedRegressionRunId = requestRunMarker
+    metadata.uatRunId = requestRunMarker
+  }
+  if (isFullAutoDeliveryIntent(content, permissionMode)) {
+    metadata.deliveryIntent = {
+      mode: 'full_auto',
+      artifactConfirmationAllowed: true,
+      requestedFinalProduct: true,
+    }
+  }
   if (pinnedContextMessages.length > 0) {
     metadata.pinnedContextMessageIds = pinnedContextMessages.map((message) => message.id)
   }
@@ -753,7 +1034,7 @@ export async function POST(req: NextRequest) {
               action_type: 'runtime_invoke',
                   action_payload: {
                     phase: target.phase,
-                    runtimeType: target.role?.runtime_type ?? null,
+                    runtimeType: effectiveRuntimeTypeForTarget(target) ?? null,
                     userMessage,
                     permissionMode: permissionMode ?? null,
                     cwd: runtimeWorkspaceRoot,
@@ -763,6 +1044,29 @@ export async function POST(req: NextRequest) {
               status: target.dependsOn.length === 0 ? 'ready' : 'pending',
             })))
             controller.enqueue(encode({ type: 'orchestrator_plan_started', planId, nodes: orchestration.planNodes }))
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: primaryRoleAgentId,
+              content: [
+                '思考中：架构师已接收需求并创建执行计划。',
+                '分工：架构师负责规划和验收，后端工程师负责 API、SQLite 历史记录与服务验证，前端工程师负责 public/index.html、public/app.js、public/styles.css 和浏览器交互。',
+                '交付候选将在文件真实生成并完成验证后再推荐，不会把整个文件树默认标记为产物。',
+              ].join('\n'),
+              messageType: 'plan_card',
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                visibleStatus: '思考中',
+                assignedRoles: selectedRoleAgents.map((role) => ({
+                  id: role.id,
+                  name: role.name,
+                  roleType: role.role_type,
+                  runtimeType: role.runtime_type,
+                })),
+                codeReferences: ['package.json', 'src/server.js', 'public/index.html', 'public/app.js', 'public/styles.css', 'README.md'],
+              },
+            })
           }
         }
         const handoffs: RoleHandoffPackage[] = []
@@ -779,6 +1083,7 @@ export async function POST(req: NextRequest) {
           const role = target.role
           const currentRoleAgentId = role?.id ?? null
           const currentRoleName = role?.name ?? '默认 Agent'
+          const targetRuntimeType = effectiveRuntimeTypeForTarget(target) ?? runtimeTypeForRole(role) ?? 'claude_code'
           let reply = ''
           const replyAccumulator = createRuntimeOutputAccumulator()
           let runtimeParts: RuntimeMessagePart[] = []
@@ -791,6 +1096,28 @@ export async function POST(req: NextRequest) {
           if (currentRoleAgentId) {
             controller.enqueue(encode({ type: 'role_selected', roleAgentId: currentRoleAgentId }))
           }
+          await persistProcessEvent({
+            db,
+            sessionId,
+            roleAgentId: currentRoleAgentId,
+            content: [
+              `执行中：@${currentRoleName} 开始处理「${target.phase === 'planning' ? '需求规划' : target.phase === 'summarizing' ? '最终验收' : '实现任务'}」。`,
+              target.phase === 'worker' && /前端|front|ui|web/i.test(currentRoleName)
+                ? '当前步骤关注前端文件：public/index.html、public/app.js、public/styles.css。'
+                : null,
+              target.phase === 'worker' && /后端|back|api|数据库|server/i.test(currentRoleName)
+                ? '当前步骤关注后端与存储文件：package.json、src/server.js、data/calculator.sqlite、README.md。'
+                : null,
+            ].filter(Boolean).join('\n'),
+            metadata: {
+              runMarker: requestRunMarker,
+              planId,
+              planNodeId: target.nodeId,
+              roleName: currentRoleName,
+              phase: target.phase,
+              visibleStatus: '执行中',
+            },
+          })
           if (target.nodeId) {
             await db.from('plan_nodes').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', target.nodeId)
           }
@@ -800,6 +1127,7 @@ export async function POST(req: NextRequest) {
             sessionId,
             planId,
             target,
+            runtimeType: targetRuntimeType,
             receivedHandoffs,
           })
           if (role && receivedHandoffs.length > 0) {
@@ -824,6 +1152,7 @@ export async function POST(req: NextRequest) {
                   action_type: 'runtime_invoke',
                   action_payload: {
                     phase: target.phase,
+                    runtimeType: targetRuntimeType ?? null,
                     userMessage,
                     handoffs: receivedHandoffs,
                     permissionMode: permissionMode ?? null,
@@ -834,9 +1163,15 @@ export async function POST(req: NextRequest) {
                 workspaceId: ws.id,
                 executionDomain: 'cloud',
                 role: dispatchRole
-                  ? { ...dispatchRole, system_prompt: systemPromptForRole(role, receivedHandoffs) }
+                  ? {
+                      ...dispatchRole,
+                      system_prompt: [
+                        systemPromptForRole(role, receivedHandoffs),
+                        phaseBoundaryPrompt(target.phase, role),
+                      ].filter(Boolean).join('\n\n'),
+                    }
                   : null,
-                runtimeType: role.runtime_type,
+                runtimeType: targetRuntimeType,
                 permissionMode: permissionMode ?? null,
                 attemptId: evidence.attemptId,
                 mailboxItemId: evidence.mailboxItemId,
@@ -871,7 +1206,7 @@ export async function POST(req: NextRequest) {
               userMessage,
               systemPrompt: systemPromptForRole(role, receivedHandoffs),
               roleAgentId: currentRoleAgentId ?? undefined,
-              runtimeType: runtimeTypeForRole(role),
+              runtimeType: targetRuntimeType,
               permissionMode: permissionMode ?? null,
               cwd: runtimeWorkspaceRoot,
               planNodeId: target.nodeId ?? undefined,
@@ -892,7 +1227,7 @@ export async function POST(req: NextRequest) {
             db,
             sessionId,
             roleAgentId: currentRoleAgentId,
-            runtimeType: runtimeTypeForRole(role),
+            runtimeType: targetRuntimeType,
           })
           const hasWaitingPart = runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')
           if (completed && (reply || runtimeParts.length > 0)) {
@@ -918,6 +1253,26 @@ export async function POST(req: NextRequest) {
                 result: { summary: reply.trim().slice(-4000), runtimeParts },
               }).eq('id', target.nodeId)
             }
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              content: [
+                `已完成：@${currentRoleName} 完成当前节点。`,
+                target.phase === 'summarizing'
+                  ? '架构师正在进行最终验收：检查计划状态、权限续跑、文件引用和产物候选。'
+                  : '节点产出已写入会话，后续角色会通过 handoff 继续处理。',
+              ].join('\n'),
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                planNodeId: target.nodeId,
+                roleName: currentRoleName,
+                phase: target.phase,
+                visibleStatus: target.phase === 'summarizing' ? '已完成' : '执行中',
+                codeReferences: ['package.json', 'src/server.js', 'public/index.html', 'public/app.js', 'public/styles.css', 'README.md'],
+              },
+            })
             if (role && reply.trim()) {
               for (const downstream of downstreamTargets) {
                 if (!downstream.role || (downstream.role.id === currentRoleAgentId && downstream.phase !== 'summarizing')) continue
@@ -931,7 +1286,7 @@ export async function POST(req: NextRequest) {
                   sourceMessageId: null,
                   target: downstream.nodeId ?? undefined,
                   phase: downstream.phase,
-                  runtimeType: downstream.role.runtime_type,
+                  runtimeType: effectiveRuntimeTypeForTarget(downstream) ?? downstream.role.runtime_type,
                   createdAt: new Date().toISOString(),
                 })
               }
@@ -949,6 +1304,61 @@ export async function POST(req: NextRequest) {
               runtimeParts,
               receivedHandoffs,
             })
+          }
+          if (autoContinuationDispatched && target.nodeId) {
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              content: `执行中：@${currentRoleName} 的权限请求已按 full-control 自动允许，AgentHub 正在等待自动续跑完成。`,
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                planNodeId: target.nodeId,
+                roleName: currentRoleName,
+                phase: target.phase,
+                visibleStatus: '执行中',
+                autoPermissionContinuation: true,
+              },
+            })
+            const continuation = await waitForAutoContinuationOutcome({
+              db,
+              planNodeId: target.nodeId,
+              sessionId,
+            })
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              content: continuation.status === 'completed'
+                ? `已完成：@${currentRoleName} 的自动授权续跑已完成。`
+                : `执行失败：@${currentRoleName} 的自动授权续跑未完成。${continuation.summary}`,
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                planNodeId: target.nodeId,
+                roleName: currentRoleName,
+                phase: target.phase,
+                visibleStatus: continuation.status === 'completed' ? '已完成' : continuation.status === 'waiting' ? '等待授权' : '执行失败',
+                autoPermissionContinuation: {
+                  status: continuation.status,
+                  runtimeSessionId: continuation.runtimeSessionId,
+                },
+              },
+            })
+            if (continuation.status === 'completed') {
+              completedReplies.push({
+                nodeId: target.nodeId,
+                phase: target.phase,
+                roleAgentId: currentRoleAgentId,
+                roleName: currentRoleName,
+                reply: continuation.summary,
+                runtimeParts,
+                receivedHandoffs,
+              })
+              return 'completed'
+            }
+            return continuation.status === 'waiting' ? 'waiting' : 'failed'
           }
           if (target.nodeId) {
             if (!autoContinuationDispatched) {
@@ -1030,6 +1440,50 @@ export async function POST(req: NextRequest) {
               status: planCompleted ? 'completed' : waitingForUser ? 'running' : 'failed',
               updated_at: new Date().toISOString(),
             }).eq('id', planId)
+            if (planCompleted && isFullAutoDeliveryIntent(content, permissionMode)) {
+              const recommended = await recommendDeliveredArtifact({
+                db,
+                userId: user.id,
+                workspaceId: ws.id,
+                sessionId,
+                roleAgentId: primaryRoleAgentId,
+                workspaceRoot: runtimeWorkspaceRoot,
+                runMarker: requestRunMarker,
+                planId,
+              })
+              if (!recommended) {
+                await persistProcessEvent({
+                  db,
+                  sessionId,
+                  roleAgentId: primaryRoleAgentId,
+                  content: [
+                    '执行失败：计划已到终态，但未发现可交付的前端入口文件 public/index.html。',
+                    '因此本轮不会把任何文件标记为最终产物；请继续生成真实前端产物后再验收。',
+                  ].join('\n'),
+                  metadata: {
+                    runMarker: requestRunMarker,
+                    planId,
+                    visibleStatus: '执行失败',
+                    artifactRecommendationMissing: true,
+                    expectedSourcePath: 'public/index.html',
+                  },
+                })
+              }
+            } else if (!planCompleted) {
+              await persistProcessEvent({
+                db,
+                sessionId,
+                roleAgentId: primaryRoleAgentId,
+                content: waitingForUser
+                  ? '等待授权：仍有节点等待用户确认，本轮不会显示已完成。'
+                  : '执行失败：至少一个节点失败，本轮不会显示已完成。',
+                metadata: {
+                  runMarker: requestRunMarker,
+                  planId,
+                  visibleStatus: waitingForUser ? '等待授权' : '执行失败',
+                },
+              })
+            }
           }
         } else {
           for (let index = 0; index < executionTargets.length; index += 1) {

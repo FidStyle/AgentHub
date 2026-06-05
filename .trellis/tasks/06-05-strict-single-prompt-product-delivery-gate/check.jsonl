@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "检查 strict gate 是否满足 fresh run、消息过程、权限、artifact 和三端验收"}
+{"file": ".trellis/spec/guides/end-to-end-contract-planning.md", "reason": "检查是否仍存在历史静态证据假阳性"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "检查 runtime/permission broker evidence 是否真实且不越界"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "检查 Web/Mobile/Desktop 或 fallback 真实浏览器证据口径"}
+{"file": "research/regression-ledger.md", "reason": "检查 REG-20260605-003 关闭条件是否被满足或仍保持打开"}
+{"file": "research/project-tracker.md", "reason": "检查公开状态是否不再假绿"}

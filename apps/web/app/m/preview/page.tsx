@@ -143,8 +143,10 @@ function MobilePreviewContent() {
 
 export default function MobilePreviewPage() {
   return (
-    <Suspense fallback={<StateCard variant="loading" />}>
-      <MobilePreviewContent />
-    </Suspense>
+    <div data-testid="mobile-preview">
+      <Suspense fallback={<StateCard variant="loading" />}>
+        <MobilePreviewContent />
+      </Suspense>
+    </div>
   )
 }
