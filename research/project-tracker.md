@@ -124,6 +124,21 @@
 | **阻塞问题** | REG-20260605-001 已解除；REG-20260605-002 Mobile/PWA durable permission detail readback 仍为 P0 open。 |
 | **下一步动作** | 已关闭；clean 后创建 `06-05-fix-mobile-permission-readback`。 |
 
+### MOBILE-PERMISSION-READBACK-2026-06-05: Mobile/PWA durable permission detail readback
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-MOB-001, FR-PERM-001, FR-ACTION-001, FR-CHAT-001 |
+| **对应计划** | `.trellis/tasks/06-05-fix-mobile-permission-readback` |
+| **合同路径** | `research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md`；`.trellis/spec/backend/runtime-workspace-contract.md` |
+| **当前状态** | verified（2026-06-05）：Mobile/PWA `/m/sessions/:sessionId` 已从真实 `/api/actions?session_id=...` 读取 durable action rows，并渲染 `授权记录` 区块。Approved `read_file` broker action 显示 `已允许本次执行`、动作、命令、cwd、workspace root、target path 和 tool name；pending action 仍通过真实 `/api/actions/:id/approve` 保留允许/拒绝入口。 |
+| **目标** | 同一 session 刷新后，Mobile/PWA 必须能读回 durable permission/action metadata，不能只依赖 Web 编排面或 DB 证据。 |
+| **验收方式** | Mobile/PWA render regression test + real OpenCLI Mobile/PWA route readback + Electron fallback smoke。 |
+| **测试证据** | Report: `research/execution-reports/mobile-permission-readback-uat-2026-06-05.md`；Artifacts: `e2e/artifacts/opencli-uat/mobile-permission-readback-2026-06-05/`；OpenCLI browser user session `43361319-a417-4db9-a135-c2c9fd44dd61`；action `7a5052d7-d0fc-4f55-8399-0671ebeae2c1`；`opencli-actions-api-browser-user.json` 证明 `/api/actions?session_id` 返回 approved `read_file` broker action；`mobile-readback-dom.json` 证明 `durablePermissionCards=1`、`hasApprovedText=true`、`hasReadFile=true`、`hasTargetPath=true`、`overflow=false`；截图 `mobile-permission-readback.png`；`pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts` PASS（15 tests）；Web type-check/lint PASS；Shared type-check PASS；Shared `runtime-workspace.test.ts` PASS（15 tests）；Desktop build PASS；Electron fallback PASS（3/3）。 |
+| **阻塞问题** | REG-20260605-002 已解除。 |
+| **下一步动作** | 提交并关闭当前 Trellis task；clean 后回到 `06-05-opencli-role-runtime-uat` 固定样本三端 UAT。 |
+
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
 | 字段 | 内容 |

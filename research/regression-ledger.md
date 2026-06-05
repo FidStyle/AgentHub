@@ -51,14 +51,14 @@
 | --- | --- |
 | **类型** | bug / mobile-readback-gap |
 | **优先级** | P0（影响 Mobile 远程监督/审批读回一致性） |
-| **状态** | `open` |
+| **状态** | `closed`（2026-06-05，`06-05-fix-mobile-permission-readback` 修复并通过 OpenCLI Mobile/PWA 验证） |
 | **关联 FR/PRD** | FR-MOB-001, FR-PERM-001, FR-ACTION-001, FR-CHAT-001 |
 | **关联任务/合同** | 发现于 `06-05-fix-approved-native-tool-continuation` UAT；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
 | **影响功能面** | Mobile/PWA `/m/sessions/:sessionId` 权限卡/审批状态刷新读回 |
 | **发现方式** | 2026-06-05 OpenCLI mobile route readback after Web approved the `Read` action. |
-| **证据** | `/m/sessions/b7cb9b2d-227a-4188-8c41-95319936acc3` loads plan supervision and message text, but does not show the approved `read_file` permission detail/card visible on Web and stored in DB action `d23a4396-a3e0-4521-a91c-644bc3291911`. Screenshot: `e2e/artifacts/opencli-uat/approved-native-tool-continuation-2026-06-05/13-mobile-rerun-approved-readback.png`。 |
+| **证据** | 原失败证据：`/m/sessions/b7cb9b2d-227a-4188-8c41-95319936acc3` loads plan supervision and message text, but does not show the approved `read_file` permission detail/card visible on Web and stored in DB action `d23a4396-a3e0-4521-a91c-644bc3291911`. Screenshot: `e2e/artifacts/opencli-uat/approved-native-tool-continuation-2026-06-05/13-mobile-rerun-approved-readback.png`。修复证据：OpenCLI current browser user session `43361319-a417-4db9-a135-c2c9fd44dd61`，action `7a5052d7-d0fc-4f55-8399-0671ebeae2c1`，Mobile/PWA DOM `durablePermissionCards=1`、`hasApprovedText=true`、`hasReadFile=true`、`hasTargetPath=true`、`overflow=false`；截图 `e2e/artifacts/opencli-uat/mobile-permission-readback-2026-06-05/mobile-permission-readback.png`；报告 `research/execution-reports/mobile-permission-readback-uat-2026-06-05.md`。 |
 | **关闭条件** | Mobile/PWA can read durable action/permission metadata for the same session after reload, including decided state (`已允许本次执行`/rejected), action kind, tool name, workspace/cwd, and relevant target path; OpenCLI mobile screenshot and DOM state must prove it. |
-| **下一步** | 按顺序队列新拆 P0 mobile permission readback task；不得用 Web DB evidence 代替 Mobile surface evidence。 |
+| **下一步** | 已关闭。回到 `06-05-opencli-role-runtime-uat` 固定样本三端 UAT，验证前序 P0 blocker 全部解除后是否能继续产出 calculator + SQLite artifact。 |
 
 ### REG-20260603-001 — IM Markdown 分点文本被压平且消息内权限请求缺少确认按钮
 

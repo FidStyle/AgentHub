@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Card, CardContent, StateCard, Badge } from '@agenthub/ui'
-import { GitBranch, Paperclip, PlayCircle, RefreshCcw } from 'lucide-react'
+import { GitBranch, Paperclip, PlayCircle, RefreshCcw, ShieldCheck } from 'lucide-react'
 import { createRuntimeOutputAccumulator, type Message, type Plan, type PlanNode, type PlanNodeControl, type RuntimeMessagePart, type RuntimeOutputEvent } from '@agenthub/shared'
+import { MobileActionCard, type MobilePermissionAction } from './mobile-permission-readback'
 
 interface RoleAgent {
   id: string
@@ -30,6 +31,7 @@ function messageParts(metadata: Message['metadata']): RuntimeMessagePart[] {
     Boolean(part) && typeof part === 'object' && typeof (part as { id?: unknown }).id === 'string'
   ))
 }
+
 
 function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
   if (part.type === 'tool') {
@@ -116,6 +118,7 @@ export default function MobileSessionPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [roleAgents, setRoleAgents] = useState<RoleAgent[]>([])
   const [plans, setPlans] = useState<PlanWithNodes[]>([])
+  const [actions, setActions] = useState<MobilePermissionAction[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -129,6 +132,13 @@ export default function MobileSessionPage() {
     if (Array.isArray(body)) setPlans(body)
   }
 
+  const loadActions = async () => {
+    const res = await fetch(`/api/actions?session_id=${sessionId}`)
+    if (!res.ok) return
+    const body = await res.json()
+    if (Array.isArray(body)) setActions(body)
+  }
+
   // Resolve the session's workspace, then its role agents. GET /api/role-agents auto-seeds the
   // default Orchestrator, guaranteeing at least one role context for the default strategy.
   useEffect(() => {
@@ -138,6 +148,7 @@ export default function MobileSessionPage() {
       .then(d => { if (!cancelled && Array.isArray(d)) setMessages(d) })
       .finally(() => { if (!cancelled) setLoading(false) })
     loadPlans().catch(() => undefined)
+    loadActions().catch(() => undefined)
 
     fetch(`/api/sessions/${sessionId}`)
       .then(r => (r.ok ? r.json() : null))
@@ -165,6 +176,20 @@ export default function MobileSessionPage() {
       return
     }
     await loadPlans()
+  }
+
+  const approveAction = async (actionId: string, approved: boolean) => {
+    const res = await fetch(`/api/actions/${actionId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError((body as { error?: string }).error || '授权动作失败')
+      return
+    }
+    await loadActions()
   }
 
   // Mirrors the Web sendMessage runtime path: POST /api/chat, stream SSE, accumulate
@@ -317,6 +342,20 @@ export default function MobileSessionPage() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+      {actions.length > 0 && (
+        <div data-testid="mobile-permission-readback" className="mb-3 space-y-2 rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-medium">授权记录</h2>
+            <Badge variant="secondary">{actions.length}</Badge>
+          </div>
+          <div className="space-y-2">
+            {actions.map((action) => (
+              <MobileActionCard key={action.id} action={action} onApprove={approveAction} />
+            ))}
           </div>
         </div>
       )}

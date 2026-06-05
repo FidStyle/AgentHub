@@ -1,0 +1,7 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Check implementation against permission broker shared contract."}
+{"file":"research/regression-ledger.md","reason":"Verify REG-20260605-002 closure conditions are met before closing."}
+{"file":"research/sequential-execution-progress.md","reason":"Verify queue status and evidence are updated accurately."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Check Mobile/PWA UI consistency and stable test ids."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check UI quality, OpenCLI, and tri-surface reporting expectations."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Check durable permission metadata semantics."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Check real-flow acceptance and anti-fake-green requirements."}

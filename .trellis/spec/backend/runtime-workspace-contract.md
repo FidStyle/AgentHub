@@ -230,6 +230,106 @@ await enqueueRuntimeJob({
 
 The correct path treats approval as continuation of a specific native tool request, not as a synthetic shell command.
 
+## Scenario: Mobile Durable Permission Readback
+
+### 1. Scope / Trigger
+
+- Trigger: any Mobile/PWA session page, actions API, permission-card UI, runtime permission broker, or action approval change that affects how permission/action state is read after refresh.
+- This is a cross-layer contract spanning durable `actions` rows, `/api/actions?session_id=...`, message `runtimeParts.permission`, and Mobile/PWA `/m/sessions/:sessionId`.
+
+### 2. Signatures
+
+- `GET /api/actions?session_id=<sessionId>`
+  - Response: durable action rows for the authenticated owner/session.
+- `MobilePermissionAction`
+  - `id: string`
+  - `session_id: string`
+  - `action_type: string`
+  - `command: string`
+  - `cwd?: string | null`
+  - `risk_level?: string | null`
+  - `status: string`
+  - `requires_approval?: boolean | null`
+  - `result?: Record<string, unknown> | null`
+- Runtime permission broker `actions.result` fields:
+  - `source = "runtime_permission_broker"`
+  - `toolName`
+  - `actionKind`
+  - `workspaceRoot`
+  - `cwd`
+  - `targetPaths`
+
+Concrete sources:
+
+- `apps/web/app/api/actions/route.ts`
+- `apps/web/app/m/sessions/[sessionId]/page.tsx`
+- `apps/web/app/m/sessions/[sessionId]/mobile-permission-readback.tsx`
+- `apps/web/components/workspace/MessageContent.tsx`
+
+### 3. Contracts
+
+- Mobile/PWA must not rely only on `messages.metadata.runtimeParts.permission` for refresh/readback. It must also read durable `actions` rows for the same session through `/api/actions?session_id=...`.
+- Mobile/PWA must render durable action rows even when message runtime parts are missing, partial, or from an earlier stream state.
+- Decided action states must be read-only and visible after reload:
+  - `approved` -> `已允许本次执行`
+  - `rejected` -> `已拒绝，未执行该操作。`
+  - `failed` -> `执行失败`
+- Pending actions may render approve/reject controls, but those controls must call the real `/api/actions/:id/approve` endpoint.
+- Durable broker details must be visible when present: action kind/type, command/tool label, cwd, workspace root, target paths, and tool name.
+- Web DB/API evidence does not close Mobile/PWA readback. Mobile/PWA OpenCLI DOM or screenshot evidence must show the durable permission detail on `/m/sessions/:sessionId`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result |
+| --- | --- |
+| `/api/actions?session_id` has approved `read_file` broker action | Mobile/PWA shows `mobile-durable-permission-card` with `已允许本次执行`, `read_file`, `Read`, cwd/workspace root, and target path |
+| Durable action exists but message `runtimeParts.permission` is absent | Mobile/PWA still shows the durable permission card |
+| Durable action is pending | Mobile/PWA shows approve/reject controls wired to `/api/actions/:id/approve` |
+| Durable action is approved/rejected/failed/completed | Mobile/PWA shows read-only decided state; no misleading pending controls |
+| Session belongs to another user | `/api/actions` rejects via existing ownership guard; Mobile/PWA must not show another user's actions |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Web approves Claude native `Read`; DB action stores `result.source = runtime_permission_broker`, `actionKind = read_file`, `toolName = Read`, and `targetPaths`; Mobile/PWA reloads the same session and shows the permission details plus `已允许本次执行`.
+- Base: Mobile/PWA session has no actions; no authorization section is shown.
+- Bad: Mobile/PWA only shows plan/message text after reload, while `/api/actions` has the approved permission row.
+- Bad: Mobile/PWA shows a generic "需要授权" card for an already approved action.
+
+### 6. Tests Required
+
+- Unit/render test: durable approved native `read_file` action renders `mobile-durable-permission-card` with status, command, action kind, tool name, cwd/workspace root, and target path.
+- Unit/render test: pending durable action renders approve/reject controls.
+- API ownership tests for `/api/actions?session_id` must stay in place.
+- UAT: OpenCLI Mobile/PWA route must show `mobile-durable-permission-card` for the real session/action, and DOM evidence must include `durablePermissionCards = 1`, `hasApprovedText = true`, `hasReadFile = true`, and no horizontal overflow.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+const parts = messageParts(message.metadata)
+return parts.map((part) => <MobilePartCard part={part} />)
+```
+
+This loses permission details when the message stream did not persist a complete permission part, even though the durable `actions` row exists.
+
+#### Correct
+
+```typescript
+const actions = await fetch(`/api/actions?session_id=${sessionId}`).then((res) => res.json())
+
+return (
+  <>
+    {actions.map((action) => (
+      <MobileActionCard key={action.id} action={action} onApprove={approveAction} />
+    ))}
+    {parts.map((part) => <MobilePartCard key={part.id} part={part} />)}
+  </>
+)
+```
+
+The correct path treats `actions` as the durable permission source of truth for refresh/readback while keeping message runtime parts for inline stream context.
+
 ## Scenario: Native User Question Tool Requests
 
 ### 1. Scope / Trigger

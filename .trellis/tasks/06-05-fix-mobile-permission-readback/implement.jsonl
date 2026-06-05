@@ -1,0 +1,9 @@
+{"file":"research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md","reason":"Shared contract for role runtime permission broker and native CLI approval semantics."}
+{"file":"research/regression-ledger.md","reason":"REG-20260605-002 source, impact, evidence, and closure conditions."}
+{"file":"research/sequential-execution-progress.md","reason":"Current single-branch queue and status ledger."}
+{"file":"research/execution-reports/approved-native-tool-continuation-uat-2026-06-05.md","reason":"Original Mobile/PWA readback failure evidence for approved read_file action."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend spec index and required UI rules."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Mobile/PWA component reuse, Chinese copy, stable test ids, and permission card conventions."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Tri-surface E2E/OpenCLI and mobile UI quality gates."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Runtime permission/action metadata contract and native tool broker behavior."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Real API/DB/session/OpenCLI acceptance contract."}

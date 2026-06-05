@@ -7,6 +7,7 @@ import type { RuntimeMessagePart } from '@agenthub/shared'
 import { normalizeMessageMarkdown } from '@/lib/chat/markdown'
 import { MessageContent } from '@/components/workspace/MessageContent'
 import { MessageMarkdown } from '@/components/workspace/MessageMarkdown'
+import { MobileActionCard, mobileActionDetailRows, mobileActionStatusText, type MobilePermissionAction } from '@/app/m/sessions/[sessionId]/mobile-permission-readback'
 
 describe('normalizeMessageMarkdown', () => {
   it('only normalizes CRLF line endings and does not repair Markdown structure', () => {
@@ -283,5 +284,69 @@ describe('MessageContent', () => {
     expect(html).toContain('install_dependency')
     expect(html).toContain('pnpm install')
     expect(html).toContain('/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2')
+  })
+})
+
+describe('MobileActionCard', () => {
+  it('renders durable approved native permission details for Mobile/PWA readback', () => {
+    const action: MobilePermissionAction = {
+      id: 'action-read-1',
+      session_id: 'session-001',
+      action_type: 'read_file',
+      command: 'Read: /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md',
+      cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+      risk_level: 'low',
+      status: 'approved',
+      requires_approval: true,
+      result: {
+        source: 'runtime_permission_broker',
+        toolName: 'Read',
+        actionKind: 'read_file',
+        workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+        cwd: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
+        targetPaths: ['/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md'],
+      },
+      approved_at: '2026-06-05T00:00:00.000Z',
+      created_at: '2026-06-05T00:00:00.000Z',
+    }
+
+    const html = renderToStaticMarkup(createElement(MobileActionCard, { action }))
+
+    expect(mobileActionStatusText(action)).toBe('已允许本次执行')
+    expect(mobileActionDetailRows(action)).toEqual(expect.arrayContaining([
+      ['动作', 'read_file'],
+      ['工具', 'Read'],
+      ['Workspace', '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'],
+      ['路径', '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md'],
+    ]))
+    expect(html).toContain('data-testid="mobile-durable-permission-card"')
+    expect(html).toContain('授权记录')
+    expect(html).toContain('已允许本次执行')
+    expect(html).toContain('Read: /Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2/README.md')
+    expect(html).toContain('read_file')
+    expect(html).toContain('Read')
+    expect(html).toContain('/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2')
+    expect(html).not.toContain('允许</button>')
+    expect(html).not.toContain('拒绝</button>')
+  })
+
+  it('keeps pending durable actions actionable on Mobile/PWA', () => {
+    const action: MobilePermissionAction = {
+      id: 'action-write-1',
+      session_id: 'session-001',
+      action_type: 'file_write',
+      command: 'Write: package.json',
+      status: 'pending',
+      requires_approval: true,
+    }
+
+    const html = renderToStaticMarkup(createElement(MobileActionCard, {
+      action,
+      onApprove: () => undefined,
+    }))
+
+    expect(html).toContain('需要授权')
+    expect(html).toContain('允许')
+    expect(html).toContain('拒绝')
   })
 })
