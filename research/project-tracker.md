@@ -160,14 +160,14 @@
 |------|------|
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-AGENT-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WS-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-UI-001 |
-| **对应计划** | `.trellis/tasks/06-05-bytedance-fixed-sample-product-gate` |
+| **对应计划** | `.trellis/tasks/archive/2026-06/06-05-bytedance-fixed-sample-product-gate` |
 | **合同路径** | `bytedance_init_prd.md`；`bytedance_init_video_txt.txt`；`research/contracts/ROLE-RUNTIME-WORKSPACE-PERMISSIONS-2026-06-03.md` |
-| **当前状态** | verified（2026-06-05）：固定 prompt 已在真实 AgentHub session 完成 Bytedance product gate。Session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe` / plan `15ce3bf0-dc53-4537-a521-210bbc6aee07` 中，架构师规划、后端工程师执行、前端工程师执行、架构师汇总 4/4 completed；Web 文件树、Git/变更、权限卡、Mobile/PWA 计划监督和授权记录均可读回；Desktop/Electron 使用 fallback 通过。 |
+| **当前状态** | closed（2026-06-05）：固定 prompt 已在真实 AgentHub session 完成 Bytedance product gate，并已归档 Trellis task。Session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe` / plan `15ce3bf0-dc53-4537-a521-210bbc6aee07` 中，架构师规划、后端工程师执行、前端工程师执行、架构师汇总 4/4 completed；Web 文件树、Git/变更、权限卡、Mobile/PWA 计划监督和授权记录均可读回；Desktop/Electron 使用 fallback 通过。 |
 | **目标** | 把当前“权限续接修复 + 计算器产物可运行”推进为 Bytedance 原始多 Agent 协作平台主链路完成。 |
 | **验收方式** | OpenCLI Web + Mobile/PWA；Electron 无 OpenCLI adapter 时使用 Playwright Electron fallback；真实 DB/API/session/runtime worker/CLI；不得使用 fake/script runtime 或只验证生成站点 URL。 |
-| **测试证据** | Report: `research/execution-reports/bytedance-fixed-sample-product-gate-2026-06-05.md`；Artifacts: `e2e/artifacts/opencli-uat/bytedance-fixed-sample-product-gate-2026-06-05/`；DB evidence：plans 1、plan_nodes 4、agent_mailbox_items 6、plan_node_attempts 6、runtime_sessions 14、messages 1、actions 10；actions：9 completed、1 rejected；Web OpenCLI screenshots `web-agenthub-changes-final-clean.png`、`web-agenthub-files-loaded.png`、`web-calculator-after-ui-calc.png`；Mobile/PWA `mobile-agenthub-session.png` shows 4/4 plan and 10 authorization records；Desktop fallback `npx playwright test --config e2e/playwright.desktop.config.ts e2e/tests/desktop/electron.spec.ts e2e/tests/desktop/desktop-main-shell.spec.ts` PASS（21/21）；generated calculator API add/sub/mul/div, divide-by-zero, invalid input/operator, SQLite history PASS；generated `node --test` PASS（2/2）；focused Web regression PASS（69 tests）。 |
+| **测试证据** | Report: `research/execution-reports/bytedance-fixed-sample-product-gate-2026-06-05.md`；Archive: `.trellis/tasks/archive/2026-06/06-05-bytedance-fixed-sample-product-gate`；Artifacts: `e2e/artifacts/opencli-uat/bytedance-fixed-sample-product-gate-2026-06-05/`；DB evidence：plans 1、plan_nodes 4、agent_mailbox_items 6、plan_node_attempts 6、runtime_sessions 14、messages 1、actions 10；actions：9 completed、1 rejected；Web OpenCLI screenshots `web-agenthub-changes-final-clean.png`、`web-agenthub-files-loaded.png`、`web-calculator-after-ui-calc.png`；Mobile/PWA `mobile-agenthub-session.png` shows 4/4 plan and 10 authorization records；Desktop fallback `npx playwright test --config e2e/playwright.desktop.config.ts e2e/tests/desktop/electron.spec.ts e2e/tests/desktop/desktop-main-shell.spec.ts` PASS（21/21）；generated calculator API add/sub/mul/div, divide-by-zero, invalid input/operator, SQLite history PASS；generated `node --test` PASS（2/2）；focused Web regression PASS（69 tests）；work commit `7754605`；governance commit `cd446c2`；archive commit `b6b6da7`；journal commit `38aef58`。 |
 | **阻塞问题** | 无。OpenCLI 当前无 AgentHub Electron app adapter，因此 Desktop 按允许的 Playwright Electron fallback 记录。 |
-| **下一步动作** | 提交并归档 Trellis task；clean 后可进入 P1 队列，未开始的 P2 仍不启动。 |
+| **下一步动作** | clean 后可进入 P1 队列，未开始的 P2 仍不启动。 |
 
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 
