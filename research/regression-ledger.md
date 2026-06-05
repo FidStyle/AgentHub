@@ -30,6 +30,21 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260605-003 — 统一全功能回归把历史静态证据误判为真实一键交付通过
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | bug / acceptance-false-positive / test-coverage-gap |
+| **优先级** | P0（影响 Bytedance 主链路完成结论） |
+| **状态** | `in_progress`（2026-06-05，`06-05-fix-unified-regression-false-positive` 正在修正验收口径） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-ACTION-001 |
+| **关联任务/合同** | `UNIFIED-PRODUCT-LINE-REGRESSION-2026-06-05`；`.trellis/tasks/06-05-fix-unified-regression-false-positive`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
+| **影响功能面** | 单句 prompt 到最终产物交付、Orchestrator/前后端可见开发过程、权限模式 UX、artifact/产物确认、三端统一验收结论 |
+| **发现方式** | 用户复核指出旧统一回归没有真实开发过程、权限状态不正常、完全控制下仍出现手动权限语义、产物标记不能默认全部文件。 |
+| **证据** | 旧脚本 `apps/web/scripts/verify-unified-product-lines.ts` 只读取 fixed session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe`、plan `15ce3bf0-dc53-4537-a521-210bbc6aee07`、workspace 文件、artifact row、manifest、截图路径和生成 calculator API/SQLite；缺 fresh run id、消息级 Orchestrator/前后端过程、权限卡原状态迁移和产物推荐/确认语义。 |
+| **关闭条件** | 统一脚本在旧样本上失败并列出缺口；report/tracker/sequential ledger 撤销旧 pass；spec/guide 写入防假阳性规则；后续真实 single-prompt full-control product delivery 任务必须补 fresh run、消息流、权限 UX 和 artifact confirmation 后才能重新标 pass。 |
+| **下一步** | 完成本修正任务并提交；另起 P0 修复真实一键交付链路。最终 Demo 包和 3 分钟素材仍按用户要求排除，未开始纯 P2 不启动。 |
+
 ### REG-20260605-001 — `AskUserQuestion` native tool 被归类为 shell_command，阻塞固定样本继续完成
 
 | 字段 | 内容 |

@@ -4,14 +4,59 @@
 TASK-ID：UNIFIED-PRODUCT-LINE-REGRESSION-2026-06-05  
 Trellis：`.trellis/tasks/06-05-unified-product-line-regression`
 
+## 2026-06-05 纠正结论：旧 pass 已撤销
+
+用户复核后确认：本报告原先的 `A-D pass` 结论是验收假阳性，不再作为“单句 prompt 到最终产物交付”的通过证据引用。
+
+撤销原因：
+
+- 原统一脚本主要读取固定历史 session、workspace 文件、artifact 行、截图路径和生成站点行为；它没有证明当前一次单句 prompt 触发真实 Orchestrator/架构师首响、前端/后端分配、逐步开发、文件编辑请求、测试和最终验收。
+- 权限验证只看 action row、side effect 和截图路径，不足以证明手动“允许本次操作”后原权限卡从 pending 变为已允许/执行中/已完成，也不足以证明完全控制模式下没有出现手动权限请求。
+- Artifact/产物验证只看 artifact row、manifest 和文件读回，不足以证明模型先推荐产物并等待用户确认，或用户明确指定产物；不能把全部文件默认标记为最终产物。
+
+纠正后状态：
+
+| 线 | 名称 | 当前状态 | 纠正说明 |
+| --- | --- | --- | --- |
+| A | Full-Auto Product Delivery | failed | 缺 fresh single-prompt run id、消息级开发过程、代码/文件引用和当前可见编排证据。 |
+| B | Permission Lifecycle | failed | 缺原权限卡状态迁移的 durable readback；full-control/manual UX 语义未被旧脚本验证。 |
+| C | Workbench / Deploy / Artifact | failed | 缺产物推荐 + 用户确认/指定语义；artifact row/manifest 不能代表最终产物确认。 |
+| D | Tri-Surface State | partial | Web/Mobile/Desktop fallback 有历史读回证据，但不能单独证明 A-C 主链路真实通过。 |
+
+新的验证脚本已改为按上述口径失败，直到存在 fresh run、消息级开发过程、权限卡状态迁移和产物确认语义为止。
+
+纠正后脚本执行结果：
+
+```bash
+pnpm --filter @agenthub/web exec tsx scripts/verify-unified-product-lines.ts
+```
+
+结果：预期失败，exit 1。
+
+| 线 | 状态 | 失败摘要 |
+| --- | --- | --- |
+| A | failed | 缺 `UNIFIED_REGRESSION_RUN_ID` fresh run marker；消息流未证明前端 + 后端/storage 分配。 |
+| B | failed | full-control 样本仍存在 pending manual permission card。 |
+| C | failed | deployment artifact 缺模型推荐 + 用户确认 metadata；消息流缺产物推荐/确认步骤。 |
+| D | pass | 仅证明历史 Web/Mobile/Desktop fallback 读回存在，不足以让整体回归通过。 |
+
+Break-loop 根因：
+
+| 维度 | 结论 |
+| --- | --- |
+| Root Cause Category | D Test Coverage Gap + B Cross-Layer Contract + E Implicit Assumption |
+| Specific Cause | 验证器把历史终态 DB/文件/截图坐标等同于当前真实用户流，把“生成物可运行”等同于“AgentHub 一句话完整交付”。 |
+| Why Fix Failed | 旧检查停在 DB 行、截图文件和生成项目 API；没有消息流语义、权限卡原状态迁移、full-control 行为和产物确认协议。 |
+| Prevention | `.trellis/spec/cross-layer/real-flow-acceptance.md`、`.trellis/spec/guides/end-to-end-contract-planning.md` 和 `apps/web/scripts/verify-unified-product-lines.ts` 已加入防静态坐标假阳性规则。 |
+
 ## 测试线
 
 | 线 | 名称 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| A | Full-Auto Product Delivery | pass | `apps/web/scripts/verify-unified-product-lines.ts`；fixed sample DB/session/workspace；生成站点 API/UI/SQLite 验证 |
-| B | Permission Lifecycle | pass | full-auto、manual allow、reject durable action/plan/message 读回；Web/Mobile OpenCLI 权限截图 |
-| C | Workbench / Deploy / Artifact | pass | 自建 Agent、聊天部署 reject/allow、deployment manifest/artifact、富文档 artifact、文件树/预览读回 |
-| D | Tri-Surface State | pass | Web OpenCLI、Mobile/PWA OpenCLI、Desktop Playwright Electron fallback |
+| A | Full-Auto Product Delivery | failed | 旧证据不足：fixed sample DB/session/workspace 与生成站点 API/UI/SQLite 不能证明 fresh single-prompt 开发过程 |
+| B | Permission Lifecycle | failed | 旧证据不足：action/side effect/截图不能证明权限卡状态迁移与 full-control 无手动卡 |
+| C | Workbench / Deploy / Artifact | failed | 旧证据不足：artifact row/manifest 不能证明模型推荐 + 用户确认产物 |
+| D | Tri-Surface State | partial | 历史 Web/Mobile/Desktop fallback 读回存在，但不能独立支撑整体 pass |
 
 ## 原则
 
@@ -30,7 +75,7 @@ Trellis：`.trellis/tasks/06-05-unified-product-line-regression`
 pnpm --filter @agenthub/web exec tsx scripts/verify-unified-product-lines.ts
 ```
 
-结果：A-D 四条线全部 `pass`。脚本重新读取当前 acceptance Postgres、workspace 文件系统、生成 calculator 服务、SQLite 文件、OpenCLI 证据目录和 Desktop fallback 证据；历史报告只作为 ID 坐标，不作为通过结论来源。
+原结果曾记录为 A-D 四条线全部 `pass`。该结论已撤销：脚本虽然重新读取 acceptance Postgres、workspace 文件系统、生成 calculator 服务、SQLite 文件、OpenCLI 证据目录和 Desktop fallback 证据，但缺少 fresh single-prompt run、消息级开发过程、权限卡状态迁移和产物确认语义。
 
 核心对象：
 

@@ -27,12 +27,12 @@
 | **优先级** | P0 |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-ACTION-001 |
 | **对应计划** | `.trellis/tasks/06-05-unified-product-line-regression` |
-| **当前状态** | ✅ 验证通过（2026-06-05）：按用户新规则把已完成 P0/P1 功能统一为 A-D 四条大测试线回归，全部通过。历史报告只作为 ID 坐标，本轮重新读取 acceptance DB、workspace 文件系统、生成 calculator 服务、SQLite 文件、OpenCLI 截图和 Desktop fallback 证据。 |
+| **当前状态** | ❌ 已撤销 / failed（2026-06-05）：用户复核确认上一轮 `A-D pass` 是验收假阳性。旧脚本只重读历史 fixed session、workspace 文件、artifact row、截图路径和生成 calculator 行为，不能证明当前一次单句 prompt 触发真实 Orchestrator/架构师首响、前后端分配、逐步开发过程、权限 UX 状态迁移和产物确认。 |
 | **目标** | 证明用户单句 prompt 到最终产物交付、权限生命周期、Workbench/Deploy/Artifact、Web/Mobile/Desktop 三端状态能作为完整 Bytedance 主链路闭环运行；若暴露问题则登记、修复并回归同一测试线。 |
-| **验收方式** | `apps/web/scripts/verify-unified-product-lines.ts` 统一验证脚本；OpenCLI Web/Mobile/PWA 新截图；Playwright Electron fallback；Web/shared type-check；focused Web tests；acceptance smoke；Web lint；Desktop build/test。 |
-| **测试证据** | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md`；Script: `apps/web/scripts/verify-unified-product-lines.ts`；OpenCLI screenshots: `e2e/artifacts/opencli-uat/unified-product-line-regression-2026-06-05/web-fixed-session.png`, `mobile-fixed-session.png`；fixed session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe`；plan `15ce3bf0-dc53-4537-a521-210bbc6aee07`；workspace root `/Users/joytion/.agenthub/cloud-workspaces/joytion/bytedance-fixed-uat-1507-58a63e3f`；A-D line statuses all `pass`；generated calculator API add/sub/mul/div + invalid guards + SQLite `4|+-*/` PASS；`pnpm env:acceptance:smoke` PASS；focused Web regression 5 files / 94 tests PASS；Web/shared type-check PASS；Web lint PASS；Desktop build PASS；Desktop Vitest 29 tests PASS；Electron fallback 21/21 PASS。 |
-| **阻塞问题** | 无。OpenCLI 当前没有 AgentHub Electron app adapter，Desktop 按项目合同使用 Playwright Electron fallback。 |
-| **下一步动作** | 提交、归档 Trellis task、记录 journal；最终 Demo 包和 3 分钟素材按用户要求不处理，未开始纯 P2 不启动。 |
+| **验收方式** | 纠正后统一脚本必须验证 fresh single-prompt run id、消息级开发过程、权限卡原状态迁移、full-control 无手动待批卡、产物推荐 + 用户确认/指定、Web/Mobile/Desktop 同 session 读回；旧静态坐标只能作为定位输入。 |
+| **测试证据** | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md` 已追加撤销结论；Script: `apps/web/scripts/verify-unified-product-lines.ts` 已补 anti-false-positive checks，当前样本预期失败。旧历史证据 `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe` / `15ce3bf0-dc53-4537-a521-210bbc6aee07` / workspace root 只能证明有历史终态，不能证明当前一键交付。 |
+| **阻塞问题** | 真实一键交付仍未通过：缺当前 fresh run 证据；缺足够可见开发过程；权限卡状态迁移和 full-control UX 仍需按 UI/DB 双路验真；产物确认语义未设计/落库。 |
+| **下一步动作** | 先关闭本次假阳性修正任务；后续另起 P0 修复真实 single-prompt full-control product delivery、permission UX 和 artifact confirmation contract。最终 Demo 包和 3 分钟素材按用户要求不处理，未开始纯 P2 不启动。 |
 
 ### SEQUENTIAL-EXECUTION-GOVERNANCE-RESET-2026-06-05: 单分支顺序执行治理重置
 

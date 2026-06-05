@@ -1114,11 +1114,14 @@ Bytedance product gate remains partial: frontend plan node is waiting, architect
 ### 3. Contracts
 
 - The unified verifier must re-read current DB/API/filesystem evidence. Historical execution reports may supply IDs, but cannot be counted as fresh pass evidence.
+- Historical fixed session/workspace coordinates are not proof that the current product can run from one fresh prompt to final delivery. A full-auto pass requires a fresh one-prompt run id, timestamp, or equivalent durable marker that is visible in `messages.metadata`, message content, or the UAT artifact manifest for that run.
+- The message stream must show audited development process events without exposing private chain-of-thought: Orchestrator/architect first response, role assignment, reading/planning/editing/testing/final validation, and concrete file/code references. A final assistant paragraph plus completed DB rows is not enough.
 - A-D must be reported together in one table. A single green line is not enough to claim overall product viability.
 - If one line exposes a problem, fix that problem and rerun the same line. Do not create a new narrower pass path to avoid the failing line.
 - Full-auto product delivery must prove both AgentHub orchestration completion and generated product behavior. For the calculator sample, assert arithmetic operations, invalid guards, and SQLite-backed history.
-- Permission lifecycle must cover full-auto, manual allow, and manual reject. Reject must stop side effects and leave durable waiting/user-visible state.
-- Workbench/deploy/artifact must prove durable data and file readback, not only UI presence.
+- Permission lifecycle must cover full-auto, manual allow, and manual reject. Reject must stop side effects and leave durable waiting/user-visible state. Manual allow/reject must update the original permission card state in durable `messages.metadata.runtimeParts`; action rows alone are insufficient.
+- Full-control mode must auto-approve allowed actions without leaving user-facing pending approval cards. If a manual allow/reject card appears in full-control mode for an allowed action, line B fails even if the action later completes.
+- Workbench/deploy/artifact must prove durable data and file readback, not only UI presence. Final product/artifact marking requires explicit model recommendation plus user confirmation/designation, or a direct user instruction naming the product; marking every generated file as product by default is forbidden.
 - Tri-surface state must include Web and Mobile/PWA OpenCLI readback. If no AgentHub Electron OpenCLI adapter exists, Playwright Electron fallback is acceptable only when the report says so explicitly and includes command/result evidence.
 
 ### 4. Validation & Error Matrix
@@ -1126,26 +1129,35 @@ Bytedance product gate remains partial: frontend plan node is waiting, architect
 | Condition | Required result | Forbidden result |
 | --- | --- | --- |
 | Historical report says pass but current DB row missing | line `failed` or `blocked` | Treat report text as pass |
+| Historical DB/files/screenshots exist but no fresh run id | A `failed` | Count static fixed session as current one-prompt pass |
+| Message stream has only a terse final answer | A `failed` | Infer invisible development process from completed files |
 | A passes generated API but frontend plan node missing/waiting | A `partial` or `failed` | Mark full-auto delivery pass |
+| Orchestrator/architect assignment is not visible | A `failed` | Count hidden plan state as user-visible process |
 | Permission allow clicked but no continuation or side effect | B `failed` | Say manual allow works because action is approved |
+| Manual allow action completed but original permission card stayed pending/approved | B `failed` | Count action row as enough UX evidence |
+| Full-control mode shows manual pending approval for allowed action | B `failed` | Ask user to click in full-control mode |
 | Permission reject has `executed_at` or side effect | B `failed` | Count reject as pass |
+| Artifact row exists but no recommendation/confirmation | C `failed` | Mark all generated files as final product |
 | Deployment artifact row exists but manifest file missing | C `failed` | Count artifact row alone as deploy pass |
 | Web OpenCLI passes but Mobile not run | D `not-run` or `blocked` | Count Web screenshot as tri-surface pass |
 | Electron app adapter unavailable | Document fallback and run Electron fallback | Claim OpenCLI Desktop pass |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `verify-unified-product-lines.ts` reports A-D all `pass`; report records current DB IDs, workspace root, generated product test result, OpenCLI Web/Mobile screenshots, and Electron fallback command result.
+- Good: `verify-unified-product-lines.ts` reports A-D all `pass`; report records fresh run id, current DB IDs, workspace root, visible process message evidence, generated product test result, permission card state transitions, artifact recommendation/confirmation, OpenCLI Web/Mobile screenshots, and Electron fallback command result.
 - Base: A-C pass, D has Web/Mobile pass but Desktop adapter unavailable and fallback not run. Overall is not complete; D is `blocked` or `not-run`.
 - Base: A generated calculator works but permission reject side effect occurred. A may pass, B fails; fix B and rerun B.
 - Bad: Four separate historical reports are summarized into a table without any current command, DB query, filesystem check, or fresh OpenCLI readback.
+- Bad: The fixed sample workspace contains `public/index.html` and SQLite history, but the AgentHub chat shows no meaningful Orchestrator/engineer process and no artifact confirmation step.
 
 ### 6. Tests Required
 
 - Unified script test/readback:
+  - Require a fresh one-prompt run id or equivalent durable marker; static historical IDs cannot make line A pass.
   - Query fixed sample plan/nodes/actions/runtime sessions and assert terminal consistency.
-  - Query permission allow/reject actions and reject node/message state.
-  - Query role agent, deploy actions, deployment artifact, document artifact, and manifest file.
+  - Query `messages` for Orchestrator/architect first response, frontend/backend assignment, multi-step visible process, and concrete file/code references.
+  - Query permission allow/reject actions, reject node/message state, and original permission card `runtimeParts` status transitions.
+  - Query role agent, deploy actions, deployment artifact, document artifact, manifest file, and artifact recommendation/confirmation metadata or messages.
   - Start or exercise the generated product without relying on existing process state; assert API behavior and SQLite persistence.
 - UI evidence:
   - Web OpenCLI opens the fixed session/workspace and saves a fresh screenshot in a task-specific directory.

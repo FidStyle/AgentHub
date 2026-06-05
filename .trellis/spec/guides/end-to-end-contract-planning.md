@@ -29,6 +29,7 @@ Reject or revise a plan if any task uses these as completion evidence:
 - "TODO later" for auth, DB, permission, persistence, or runtime routing inside a P0 main path.
 - Reports that say "completed" while verification data says `passed: false`, `NO-GO`, `DONE_WITH_CONCERNS`, or equivalent.
 - Reports that merge skipped external-login, missing worker, missing Desktop app path, or mock-route tests into the passed count for a P0 main chain.
+- Unified regression reports that summarize historical session IDs, screenshots, workspace files, or generated artifacts without proving a fresh one-prompt run, message-level development process, permission-card state transitions, and artifact recommendation/confirmation.
 
 ---
 
@@ -43,6 +44,7 @@ Before a plan may execute, review every task against this checklist:
 - [ ] If the task touches Desktop auth, it explains the identity transfer mechanism explicitly: device binding token/code, deep link with one-time token, or main-process mediated session exchange.
 - [ ] If the task touches runtime/agent behavior, it distinguishes unavailable runtime errors from successful responses and never emits fake Agent success.
 - [ ] If the task claims local/remote conversation, `@role`, attachment, or artifact closure, it names the exact Web/API/runtime/Desktop path, persistence rows, refresh assertion, and artifact/contentRef evidence.
+- [ ] If the task claims "one prompt to final product", it names the fresh run marker, the Orchestrator/architect first response, frontend/backend assignment, visible progress states, code/file references, permission UX state transitions, and final artifact confirmation/designation evidence.
 - [ ] If a minimal adapter is used, UI/API labels it honestly as a minimal/local test adapter and the plan states what real contract it proves.
 - [ ] Each wave has a behavior-level verification artifact in `research/execution-reports/`.
 - [ ] Product runtime mock removal is verified separately from test fixture use.

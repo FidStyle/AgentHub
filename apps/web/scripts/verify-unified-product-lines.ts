@@ -3,8 +3,8 @@
  *
  * This script re-reads durable acceptance evidence for the consolidated A-D
  * product lines. Historical reports provide only coordinates; current DB,
- * workspace files, generated product tests, and UAT artifact paths are checked
- * again here.
+ * workspace files, generated product tests, UAT artifact paths, and message-level
+ * process evidence are checked again here.
  */
 import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -37,6 +37,7 @@ type DbRow = Record<string, unknown>
 const REPO_ROOT = path.resolve(__dirname, '../../..')
 const ACCEPTANCE_ENV = path.join(REPO_ROOT, 'docker/.acceptance.env')
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const CURRENT_RUN_ID = process.env.UNIFIED_REGRESSION_RUN_ID || null
 
 const fixed = {
   workspaceId: '58a63e3f-5ca7-457b-af02-2824d02ab9fa',
@@ -95,6 +96,20 @@ function skip(label: string, detail?: string): Check {
 
 function exists(filePath: string) {
   return fs.existsSync(filePath)
+}
+
+function includesAny(text: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text))
+}
+
+function permissionRuntimePartsSql() {
+  return `jsonb_array_elements(
+    CASE
+      WHEN jsonb_typeof(COALESCE(m.metadata, '{}'::jsonb)->'runtimeParts') = 'array'
+      THEN COALESCE(m.metadata, '{}'::jsonb)->'runtimeParts'
+      ELSE '[]'::jsonb
+    END
+  )`
 }
 
 function asRows<T extends DbRow>(rows: DbRow[]): T[] {
@@ -278,6 +293,67 @@ async function verifyCalculatorProduct(root: string): Promise<Check[]> {
 async function verifyLineA(pool: Pool): Promise<LineResult> {
   const checks: Check[] = []
   const evidence = [fixed.workspaceRoot, fixed.artifactDir]
+  checks.push(CURRENT_RUN_ID
+    ? ok('fresh single-prompt run id provided', CURRENT_RUN_ID)
+    : fail('fresh single-prompt run id provided', 'Set UNIFIED_REGRESSION_RUN_ID to the current one-prompt UAT run id; static historical session coordinates are not acceptance evidence.'))
+
+  if (CURRENT_RUN_ID) {
+    const freshRunEvidence = await one<{ count: string }>(
+      pool,
+      `SELECT count(*)::text
+         FROM public.messages
+        WHERE session_id = $1
+          AND (
+            metadata->>'unifiedRegressionRunId' = $2
+            OR metadata->>'uatRunId' = $2
+            OR content LIKE '%' || $2 || '%'
+          )`,
+      [fixed.sessionId, CURRENT_RUN_ID],
+    )
+    checks.push(Number(freshRunEvidence?.count ?? 0) > 0
+      ? ok('fresh run id is present in durable message evidence', `${freshRunEvidence?.count} messages`)
+      : fail('fresh run id is present in durable message evidence', `session=${fixed.sessionId}, runId=${CURRENT_RUN_ID}`))
+  }
+
+  const messages = await many<{ id: string; content: string; message_type: string; name: string | null; metadata: Record<string, unknown> | null }>(
+    pool,
+    `SELECT m.id::text, m.content, m.message_type, ra.name, m.metadata
+       FROM public.messages m
+       LEFT JOIN public.role_agents ra ON ra.id = m.role_agent_id
+      WHERE m.session_id = $1
+      ORDER BY m.created_at ASC`,
+    [fixed.sessionId],
+  )
+  const firstAgentMessage = messages.find((message) => message.name || message.message_type !== 'text')
+  const messageText = messages.map((message) => `${message.name ?? ''}\n${message.message_type}\n${message.content}`).join('\n')
+  const processMessages = messages.filter((message) => {
+    const text = `${message.name ?? ''}\n${message.message_type}\n${message.content}`
+    return message.message_type === 'plan_card' ||
+      message.message_type === 'system_event' ||
+      message.message_type === 'role_acknowledgement' ||
+      includesAny(text, [/思考中|执行中|读取|编辑|写入|测试|验证|完成/, /Orchestrator|架构师|前端工程师|后端工程师/])
+  })
+  checks.push(
+    firstAgentMessage && includesAny(`${firstAgentMessage.name ?? ''}\n${firstAgentMessage.content}`, [/Orchestrator|架构师/])
+      ? ok('first visible agent response is Orchestrator/architect', firstAgentMessage.id)
+      : fail('first visible agent response is Orchestrator/architect', firstAgentMessage ? JSON.stringify({ id: firstAgentMessage.id, name: firstAgentMessage.name, type: firstAgentMessage.message_type }) : 'no agent-visible message'),
+  )
+  checks.push(
+    includesAny(messageText, [/前端工程师/]) && includesAny(messageText, [/后端工程师|SQLite|sqlite|数据库|API/])
+      ? ok('visible process assigns frontend and backend/storage work')
+      : fail('visible process assigns frontend and backend/storage work', 'message stream must show Orchestrator assigning frontend plus backend/storage work'),
+  )
+  checks.push(
+    processMessages.length >= 6
+      ? ok('message stream shows multi-step development process', `${processMessages.length} process messages`)
+      : fail('message stream shows multi-step development process', `${processMessages.length} process messages; expected planning/reading/editing/testing/finalizing states without private chain-of-thought`),
+  )
+  checks.push(
+    includesAny(messageText, [/src\/server\.js|public\/index\.html|public\/app\.js|package\.json|README\.md/])
+      ? ok('message stream includes code/file references')
+      : fail('message stream includes code/file references', 'expected user-visible references to edited/generated files'),
+  )
+
   const plan = await one<{ id: string; status: string }>(
     pool,
     'SELECT id, status FROM public.plans WHERE id = $1 AND session_id = $2',
@@ -363,6 +439,22 @@ async function verifyLineB(pool: Pool): Promise<LineResult> {
   checks.push(autoActions.some((row) => row.status === 'completed' && Number(row.count) >= 1) ? ok('full-auto permission actions completed', JSON.stringify(autoActions)) : fail('full-auto permission actions completed', JSON.stringify(autoActions)))
   checks.push(autoActions.every((row) => row.status !== 'pending') ? ok('full-auto line has no pending action') : fail('full-auto line has no pending action', JSON.stringify(autoActions)))
 
+  const fullAutoManualCards = await many<{ status: string; count: string }>(
+    pool,
+    `SELECT part.value->>'status' AS status, count(*)::text
+       FROM public.messages m,
+            LATERAL ${permissionRuntimePartsSql()} AS part(value)
+      WHERE m.session_id = $1
+        AND part.value->>'type' = 'permission'
+        AND part.value->>'status' IN ('pending', 'approved')
+      GROUP BY part.value->>'status'
+      ORDER BY part.value->>'status'`,
+    [fixed.sessionId],
+  )
+  checks.push(fullAutoManualCards.length === 0
+    ? ok('full-control mode has no manual pending/approved permission cards')
+    : fail('full-control mode has no manual pending/approved permission cards', JSON.stringify(fullAutoManualCards)))
+
   const approveAction = await one<{ status: string; executed_at: string | null; result: Record<string, unknown> | null }>(
     pool,
     'SELECT status, executed_at, result FROM public.actions WHERE id = $1',
@@ -372,6 +464,24 @@ async function verifyLineB(pool: Pool): Promise<LineResult> {
     approveAction && ['running', 'completed', 'failed'].includes(approveAction.status) && approveAction.executed_at
       ? ok('manual allow dispatches continuation', JSON.stringify({ status: approveAction.status, executed_at: approveAction.executed_at }))
       : fail('manual allow dispatches continuation', JSON.stringify(approveAction)),
+  )
+
+  const approveCard = await one<{ status: string | null; message_id: string | null }>(
+    pool,
+    `SELECT part.value->>'status' AS status, m.id::text AS message_id
+       FROM public.messages m,
+            LATERAL ${permissionRuntimePartsSql()} AS part(value)
+      WHERE m.session_id = $1
+        AND part.value->>'type' = 'permission'
+        AND part.value->>'actionId' = $2
+      ORDER BY m.updated_at DESC
+      LIMIT 1`,
+    [permission.approveSessionId, permission.approveActionId],
+  )
+  checks.push(
+    approveCard && ['running', 'completed', 'failed'].includes(String(approveCard.status))
+      ? ok('manual allow updates original permission card state', JSON.stringify(approveCard))
+      : fail('manual allow updates original permission card state', JSON.stringify(approveCard)),
   )
 
   const sideEffectPath = '/Users/joytion/.agenthub/cloud-workspaces/joytion/permission-fix-webuser_perm_fix_1780654469787-487c6e64/agenthub-permission-status-sync.txt'
@@ -406,6 +516,24 @@ async function verifyLineB(pool: Pool): Promise<LineResult> {
     [permission.rejectSessionId],
   )
   checks.push(rejectMessage ? ok('manual reject writes durable user-visible event') : fail('manual reject writes durable user-visible event'))
+
+  const rejectCard = await one<{ status: string | null; message_id: string | null }>(
+    pool,
+    `SELECT part.value->>'status' AS status, m.id::text AS message_id
+       FROM public.messages m,
+            LATERAL ${permissionRuntimePartsSql()} AS part(value)
+      WHERE m.session_id = $1
+        AND part.value->>'type' = 'permission'
+        AND part.value->>'actionId' = $2
+      ORDER BY m.updated_at DESC
+      LIMIT 1`,
+    [permission.rejectSessionId, permission.rejectActionId],
+  )
+  checks.push(
+    rejectCard?.status === 'rejected'
+      ? ok('manual reject updates original permission card state', JSON.stringify(rejectCard))
+      : fail('manual reject updates original permission card state', JSON.stringify(rejectCard)),
+  )
 
   for (const screenshot of [permission.webRejectScreenshot, permission.mobileRejectScreenshot]) {
     checks.push(exists(screenshot) ? ok(`OpenCLI permission evidence ${path.basename(screenshot)}`) : fail(`OpenCLI permission evidence ${path.basename(screenshot)}`, screenshot))
@@ -450,6 +578,14 @@ async function verifyLineC(pool: Pool): Promise<LineResult> {
     [p1.deploymentArtifactId],
   )
   checks.push(deploymentArtifact?.metadata?.kind === 'deployment' ? ok('deployment artifact row exists', JSON.stringify(deploymentArtifact)) : fail('deployment artifact row exists', JSON.stringify(deploymentArtifact)))
+  checks.push(
+    deploymentArtifact?.metadata?.artifactRecommendation && deploymentArtifact.metadata.artifactConfirmation
+      ? ok('deployment artifact was recommended and confirmed', JSON.stringify({
+          recommendation: deploymentArtifact.metadata.artifactRecommendation,
+          confirmation: deploymentArtifact.metadata.artifactConfirmation,
+        }))
+      : fail('deployment artifact was recommended and confirmed', 'artifact metadata must show model recommendation plus user confirmation/designation; artifact row alone is not enough'),
+  )
   const manifestPath = path.join(fixed.workspaceRoot, '.agenthub/deployments', p1.completedDeployActionId, 'manifest.json')
   checks.push(exists(manifestPath) ? ok('deployment manifest file exists', manifestPath) : fail('deployment manifest file exists', manifestPath))
   evidence.push(manifestPath)
@@ -472,6 +608,25 @@ async function verifyLineC(pool: Pool): Promise<LineResult> {
     editRequests.length > 0
       ? ok('rich document create/edit/edit-request readback', JSON.stringify({ title: docArtifact.title, editRequests: editRequests.length }))
       : fail('rich document create/edit/edit-request readback', JSON.stringify(docArtifact)),
+  )
+
+  const artifactRecommendationMessage = await one<{ id: string; content: string }>(
+    pool,
+    `SELECT id::text, content
+       FROM public.messages
+      WHERE session_id IN ($1, $2)
+        AND (
+          content ~ '(推荐|建议).{0,24}(产物|artifact|Artifact)'
+          OR content ~ '(确认|指定|标记).{0,24}(产物|artifact|Artifact)'
+        )
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [fixed.sessionId, permission.approveSessionId],
+  )
+  checks.push(
+    artifactRecommendationMessage
+      ? ok('message stream includes artifact recommendation/confirmation step', artifactRecommendationMessage.id)
+      : fail('message stream includes artifact recommendation/confirmation step', 'model must recommend artifact candidates and user must confirm/designate before marking final product'),
   )
 
   const p1Screens = [

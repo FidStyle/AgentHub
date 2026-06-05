@@ -21,13 +21,13 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 当前任务 | `.trellis/tasks/06-05-unified-product-line-regression` |
+| 当前任务 | `.trellis/tasks/06-05-fix-unified-regression-false-positive` |
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
-| 开始状态 | 非 clean（统一回归 Trellis task、execution report 待提交） |
-| 当前状态 | verified：按新规则将已完成 P0/P1 功能统一成 A-D 四条主测试线回归，全部通过；最终 Demo 包和 3 分钟素材不处理，未开始的纯 P2 未启动。 |
-| 阻塞项 | 无。 |
-| 下一步 | 运行治理门禁、提交并归档 Trellis task。 |
+| 开始状态 | 非 clean（新增 `06-05-fix-unified-regression-false-positive` Trellis task） |
+| 当前状态 | in_progress：用户复核指出统一回归 `A-D pass` 为假阳性；正在撤销旧 pass、补验证脚本 anti-false-positive checks、更新 spec/report/tracker。 |
+| 阻塞项 | 真实 single-prompt full-control product delivery 尚未通过；当前任务只修验收假阳性和防复发规则。 |
+| 下一步 | 跑预期失败的统一脚本、type-check、Trellis validate、`git diff --check`，提交并归档本修正任务。 |
 
 ---
 
@@ -49,7 +49,8 @@
 | 7 | IM/联系人/自建 Agent 体验补全 | P1 | verified | Web OpenCLI + DB：角色联系人、自建 Agent 创建/编辑、刷新读回；Mobile/PWA 读回同 session 状态；Desktop fallback 不破主壳 | Report: `research/execution-reports/remaining-p1-features-2026-06-05.md`；Artifacts: `e2e/artifacts/opencli-uat/remaining-p1-features-2026-06-05/`；Agent `ec25dcf7-ff39-4515-aba0-34cbfa5f341d` / `P1验收Agent-已编辑-1780648490`，`runtime_type=codex`，capabilities persisted | 无 | 等待提交/归档 |
 | 8 | 聊天式部署发布闭环 | P1 | verified | Web OpenCLI：部署请求进入审批；拒绝不执行；允许后生成 manifest、artifact、result card；Mobile/PWA 读回 deploy completed/rejected；Desktop fallback | Report: `research/execution-reports/remaining-p1-features-2026-06-05.md`；Rejected action `848e1389-db7c-46a6-8c7b-dc95c211e6a3`，deployment artifact count 0；Completed action `06905123-81e1-4c32-bf20-4c85b488d919`，artifact `07dacb62-0a52-4724-8271-2d043882882c`，manifest `.agenthub/deployments/06905123-81e1-4c32-bf20-4c85b488d919/manifest.json` | 无 | 等待提交/归档 |
 | 9 | Mini IDE / 富文档 / Artifact workbench 演示链路硬化 | P1/P2 demo-value | verified | Web OpenCLI：deployment artifact、富文档创建/编辑/二次编辑请求/下载、文件树和文件预览；自动化覆盖 patch 草案/应用；纯 P2 保持不启动 | Report: `research/execution-reports/remaining-p1-features-2026-06-05.md`；Document artifact `d85af1ff-7d5f-4b51-87b6-f773fc665699`，title/content/editRequests persisted，browser DOCX download MIME PASS；Screenshots `web-artifact-doc-edited.png`、`web-file-tree.png`、`web-file-preview-index.png`、`web-file-preview-readme.png`；Web full tests 294 PASS | 无 | 等待提交/归档 |
-| 9.5 | `06-05-unified-product-line-regression` 统一全功能主链路回归测试 | P0 | verified | A Full-Auto Product Delivery；B Permission Lifecycle；C Workbench / Deploy / Artifact；D Tri-Surface State。统一脚本重新读 acceptance DB/API/filesystem，OpenCLI Web/Mobile 新截图，Desktop Electron fallback。 | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md`；Script: `apps/web/scripts/verify-unified-product-lines.ts`；OpenCLI screenshots: `e2e/artifacts/opencli-uat/unified-product-line-regression-2026-06-05/web-fixed-session.png`, `mobile-fixed-session.png`；`pnpm --filter @agenthub/web exec tsx scripts/verify-unified-product-lines.ts` PASS（A-D all pass）；Web/shared type-check PASS；acceptance smoke PASS；focused Web tests 94 PASS；Web lint PASS；Desktop build/test PASS；Electron fallback 21/21 PASS。 | 无；OpenCLI Desktop adapter 缺失，按合同使用 Playwright Electron fallback。 | 提交/归档当前 Trellis task |
+| 9.5 | `06-05-unified-product-line-regression` 统一全功能主链路回归测试 | P0 | failed / invalidated | A Full-Auto Product Delivery；B Permission Lifecycle；C Workbench / Deploy / Artifact；D Tri-Surface State。用户复核确认旧验证器把历史 DB/文件/截图/生成物终态误当成当前一次 prompt 的真实开发过程。 | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md` 已追加撤销结论；Script: `apps/web/scripts/verify-unified-product-lines.ts` 已补 fresh run、消息级开发过程、权限卡状态迁移、full-control 无手动卡、产物推荐/确认检查；旧 `A-D all pass` 不再作为通过证据。 | 缺 fresh single-prompt run；缺充分 Orchestrator/前后端可见开发过程；缺权限 UX 状态迁移验真；缺产物推荐 + 用户确认/指定语义。 | 由 `06-05-fix-unified-regression-false-positive` 修正验收假阳性；后续另起真实 single-prompt full-control product delivery 修复 |
+| 9.6 | `06-05-fix-unified-regression-false-positive` 修正统一回归假阳性 | P0 | in_progress | `$trellis-break-loop`：撤销旧 pass、补验证器失败断言、更新 spec/guide/report/tracker，防止静态坐标假阳性。 | Task: `.trellis/tasks/06-05-fix-unified-regression-false-positive`；Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md`；Script: `apps/web/scripts/verify-unified-product-lines.ts`；Spec: `.trellis/spec/cross-layer/real-flow-acceptance.md`。 | 当前任务预期让统一脚本在旧样本上失败；真实产品链路修复不在本任务范围。 | 运行验证并提交/归档 |
 | 10 | 最终 Demo 包和 3 分钟视频素材 | P1 | excluded-by-user | Bytedance 原始 PRD 反查；三端录屏/截图/脚本证据 | 用户 2026-06-05 明确“不需要你来处理” | 用户排除 | 不处理 |
 
 ---
