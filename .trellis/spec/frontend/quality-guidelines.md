@@ -68,6 +68,8 @@
 - `document.body.scrollWidth <= window.innerWidth + 1`。
 - 关键元素 bounding box 不重叠。
 - 长中文、长文件名、长路径摘要不溢出父容器。
+- 工作台右侧栏拖动宽度：桌面视口必须拖动 `artifact-resize-handle`，断言宽度变化、聊天区/输入框仍可操作、刷新后 `agenthub:right-panel-width` 恢复；移动视口必须验证抽屉行为而非桌面 resize。
+- IM-first 编排验收：任何声称“单句 prompt 到产物交付”的测试，必须先断言中央 IM transcript 中有 Orchestrator 分工、真实角色回复、Orchestrator 验收和产物推荐/确认；右侧 `过程` timeline 只能作为匹配证据，不能单独计入通过。
 
 ### 并行 worktree 端口规则
 

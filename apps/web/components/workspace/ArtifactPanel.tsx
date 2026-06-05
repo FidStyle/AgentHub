@@ -5,12 +5,12 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, CheckCircle2, Clock, Copy, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, Presentation, RotateCcw, Save, SendHorizontal, ShieldCheck, Terminal, Trash2, Upload, WandSparkles, X } from 'lucide-react'
+import { Bot, Boxes, CheckCircle2, Clock, Copy, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Terminal, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
 
-const TABS = ['角色', '编排', '文件', 'Git', '产物'] as const
+const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物', '部署'] as const
 
 const ROLE_TYPE_LABELS: Record<string, string> = {
   orchestrator: '编排者',
@@ -96,6 +96,18 @@ type GitCommitRow = {
   date: string
   message: string
 }
+type TimelineKind = 'message' | 'plan' | 'plan_node' | 'attempt' | 'mailbox' | 'runtime' | 'action' | 'artifact' | 'deployment'
+type TimelineItem = {
+  id: string
+  kind: TimelineKind
+  status: string
+  title: string
+  summary: string
+  createdAt: string
+  roleAgentId?: string | null
+  roleName?: string | null
+  refs?: Record<string, unknown>
+}
 
 export function formatPanelTime(value: string) {
   const date = new Date(value)
@@ -149,6 +161,32 @@ function isEditablePreview(preview: FilePreview | null) {
 
 function runtimeLabel(runtimeType: RoleAgentRow['runtime_type']) {
   return runtimeType === 'codex' ? 'Codex' : 'Claude Code'
+}
+
+function timelineKindLabel(kind: TimelineKind) {
+  const labels: Record<TimelineKind, string> = {
+    message: '消息',
+    plan: '计划',
+    plan_node: '节点',
+    attempt: '尝试',
+    mailbox: '交接',
+    runtime: '运行',
+    action: '权限',
+    artifact: '产物',
+    deployment: '部署',
+  }
+  return labels[kind] ?? kind
+}
+
+function timelineStatusVariant(status: string): 'secondary' | 'default' | 'warning' | 'success' | 'destructive' {
+  if (['completed', 'complete', 'created', 'approved', 'success'].includes(status)) return 'success'
+  if (['running', 'queued', 'pending', 'pending_confirm', 'waiting'].includes(status)) return 'warning'
+  if (['failed', 'rejected', 'blocked', 'cancelled', 'unavailable'].includes(status)) return 'destructive'
+  return 'secondary'
+}
+
+function isDeploymentItem(item: TimelineItem) {
+  return item.kind === 'deployment' || item.kind === 'action' && item.refs?.actionId && item.title.includes('部署')
 }
 
 function PreviewBlock({
@@ -568,6 +606,103 @@ function OrchestrationTab() {
   return (
     <div data-testid="artifact-orchestration" className="space-y-3">
       <OrchestratorPanel />
+    </div>
+  )
+}
+
+function TimelineTab({ deploymentsOnly = false }: { deploymentsOnly?: boolean }) {
+  const { activeSessionId } = useSessionStore()
+  const [items, setItems] = useState<TimelineItem[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = async () => {
+    if (!activeSessionId) return
+    setLoaded(false)
+    setError(null)
+    try {
+      const res = await fetch(`/api/sessions/${activeSessionId}/timeline`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `读取过程失败（${res.status}）`)
+      const rows = Array.isArray((body as { items?: unknown }).items) ? (body as { items: TimelineItem[] }).items : []
+      setItems(deploymentsOnly ? rows.filter(isDeploymentItem) : rows)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '读取过程失败')
+    } finally {
+      setLoaded(true)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+    const onChanged = () => void load()
+    window.addEventListener('actions:changed', onChanged)
+    window.addEventListener('artifacts:changed', onChanged)
+    window.addEventListener('messages:changed', onChanged)
+    return () => {
+      window.removeEventListener('actions:changed', onChanged)
+      window.removeEventListener('artifacts:changed', onChanged)
+      window.removeEventListener('messages:changed', onChanged)
+    }
+  }, [activeSessionId, deploymentsOnly])
+
+  if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后可查看完整过程记录" />
+
+  return (
+    <div data-testid={deploymentsOnly ? 'artifact-deployment-timeline' : 'artifact-process-timeline'} className="space-y-3">
+      <PanelSection
+        icon={deploymentsOnly ? Rocket : Route}
+        title={deploymentsOnly ? '部署记录' : '会话过程'}
+        description={deploymentsOnly ? '只显示当前 session 的部署审批、manifest 和部署产物' : '从真实 DB/API 聚合消息、计划、角色交接、Runtime、权限和产物'}
+        action={(
+          <Button size="sm" variant="outline" onClick={() => void load()}>
+            <RotateCcw className="mr-1 h-3.5 w-3.5" />
+            刷新
+          </Button>
+        )}
+      >
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {!loaded ? (
+          <StateCard variant="loading" title="读取过程记录" />
+        ) : items.length === 0 ? (
+          <StateCard
+            variant="empty"
+            title={deploymentsOnly ? '暂无部署记录' : '暂无过程记录'}
+            description={deploymentsOnly ? '当前会话还没有部署审批或部署结果' : '当前会话还没有可读回的编排、运行或产物记录'}
+          />
+        ) : (
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div key={item.id} data-testid="timeline-item" className="rounded-md border border-border bg-background p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Badge variant="secondary">{timelineKindLabel(item.kind)}</Badge>
+                      <span className="truncate font-medium">{item.title}</span>
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">{item.summary}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{formatPanelTime(item.createdAt)}{item.roleName ? ` · @${item.roleName}` : ''}</p>
+                    {deploymentsOnly && item.refs && (
+                      <dl className="mt-2 grid gap-1 rounded-md bg-muted/40 p-2 text-[11px] leading-4">
+                        {(['previewPath', 'manifestPath', 'artifactId'] as const).map((key) => {
+                          const value = item.refs?.[key]
+                          return typeof value === 'string' && value ? (
+                            <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+                              <dt className="text-muted-foreground">{key}</dt>
+                              <dd className="break-all font-mono">{value}</dd>
+                            </div>
+                          ) : null
+                        })}
+                      </dl>
+                    )}
+                  </div>
+                  <Badge variant={timelineStatusVariant(item.status)}>{item.status}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </PanelSection>
     </div>
   )
 }
@@ -1785,10 +1920,12 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
               data-testid={`artifact-tab-${tab}`}
             >
               {tab === '角色' && <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
+              {tab === '过程' && <Route className="mr-1 h-3.5 w-3.5" />}
               {tab === '编排' && <Bot className="mr-1 h-3.5 w-3.5" />}
               {tab === '文件' && <FolderTree className="mr-1 h-3.5 w-3.5" />}
               {tab === 'Git' && <GitBranch className="mr-1 h-3.5 w-3.5" />}
               {tab === '产物' && <FileText className="mr-1 h-3.5 w-3.5" />}
+              {tab === '部署' && <Rocket className="mr-1 h-3.5 w-3.5" />}
               {tab}
             </Button>
           ))}
@@ -1796,10 +1933,12 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {activeTab === '角色' && <RolesTab />}
+        {activeTab === '过程' && <TimelineTab />}
         {activeTab === '编排' && <OrchestrationTab />}
         {activeTab === '文件' && <FileTreeTab />}
         {activeTab === 'Git' && <GitTab />}
         {activeTab === '产物' && <ArtifactsTab />}
+        {activeTab === '部署' && <TimelineTab deploymentsOnly />}
       </div>
     </aside>
   )

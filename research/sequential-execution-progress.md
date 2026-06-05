@@ -21,13 +21,13 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 当前任务 | `.trellis/tasks/06-05-fix-unified-regression-false-positive` |
+| 当前任务 | `.trellis/tasks/06-06-workbench-strict-product-line` |
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
-| 开始状态 | 非 clean（新增 `06-05-fix-unified-regression-false-positive` Trellis task） |
-| 当前状态 | in_progress：用户复核指出统一回归 `A-D pass` 为假阳性；正在撤销旧 pass、补验证脚本 anti-false-positive checks、更新 spec/report/tracker。 |
-| 阻塞项 | 真实 single-prompt full-control product delivery 尚未通过；当前任务只修验收假阳性和防复发规则。 |
-| 下一步 | 跑预期失败的统一脚本、type-check、Trellis validate、`git diff --check`，提交并归档本修正任务。 |
+| 开始状态 | 非 clean（本任务已有代码/合同改动，正在收口） |
+| 当前状态 | in_progress / partial：API/右栏读回层已补 `/api/messages` regression、session timeline API、Web `过程/部署` tab 和 focused tests；用户最新复核要求升级为 IM-first 真实角色事务链路，已补 spec/合同/台账和源码合同测试，等待重跑验证。 |
+| 阻塞项 | REG-20260606-003 仍 open：三端 fresh OpenCLI strict session 尚未证明中央 IM transcript 中有 Orchestrator 分工、真实角色回复/handoff、Orchestrator 验收和产物推荐；本轮不把三端计入通过。 |
+| 下一步 | 跑 focused tests、type-check、lint、task validate、`git diff --check`；提交本轮读回/规范修复后继续 fresh IM-first 三端 UAT 和必要实现。 |
 
 ---
 
@@ -51,6 +51,7 @@
 | 9 | Mini IDE / 富文档 / Artifact workbench 演示链路硬化 | P1/P2 demo-value | verified | Web OpenCLI：deployment artifact、富文档创建/编辑/二次编辑请求/下载、文件树和文件预览；自动化覆盖 patch 草案/应用；纯 P2 保持不启动 | Report: `research/execution-reports/remaining-p1-features-2026-06-05.md`；Document artifact `d85af1ff-7d5f-4b51-87b6-f773fc665699`，title/content/editRequests persisted，browser DOCX download MIME PASS；Screenshots `web-artifact-doc-edited.png`、`web-file-tree.png`、`web-file-preview-index.png`、`web-file-preview-readme.png`；Web full tests 294 PASS | 无 | 等待提交/归档 |
 | 9.5 | `06-05-unified-product-line-regression` 统一全功能主链路回归测试 | P0 | failed / invalidated | A Full-Auto Product Delivery；B Permission Lifecycle；C Workbench / Deploy / Artifact；D Tri-Surface State。用户复核确认旧验证器把历史 DB/文件/截图/生成物终态误当成当前一次 prompt 的真实开发过程。 | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md` 已追加撤销结论；Script: `apps/web/scripts/verify-unified-product-lines.ts` 已补 fresh run、消息级开发过程、权限卡状态迁移、full-control 无手动卡、产物推荐/确认检查；旧 `A-D all pass` 不再作为通过证据。 | 缺 fresh single-prompt run；缺充分 Orchestrator/前后端可见开发过程；缺权限 UX 状态迁移验真；缺产物推荐 + 用户确认/指定语义。 | 由 `06-05-fix-unified-regression-false-positive` 修正验收假阳性；后续另起真实 single-prompt full-control product delivery 修复 |
 | 9.6 | `06-05-fix-unified-regression-false-positive` 修正统一回归假阳性 | P0 | in_progress | `$trellis-break-loop`：撤销旧 pass、补验证器失败断言、更新 spec/guide/report/tracker，防止静态坐标假阳性。 | Task: `.trellis/tasks/06-05-fix-unified-regression-false-positive`；Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md`；Script: `apps/web/scripts/verify-unified-product-lines.ts`；Spec: `.trellis/spec/cross-layer/real-flow-acceptance.md`。 | 当前任务预期让统一脚本在旧样本上失败；真实产品链路修复不在本任务范围。 | 运行验证并提交/归档 |
+| 9.7 | `06-06-workbench-strict-product-line` 严格工作台主链路闭环 | P0/P1 | partial / im-first-open | API/unit/static contract：`/api/messages` 保留 role acknowledgement；`GET /api/sessions/:id/timeline` owner check + same-session message/plan/node/attempt/mailbox/runtime/action/artifact/deployment aggregation；Web `过程/部署` tab 读回同一 timeline；新增 IM-first 源码合同与右栏拖拽宽度合同。三端 fresh UAT 未计入通过。 | Task: `.trellis/tasks/06-06-workbench-strict-product-line`；Contract: `research/contracts/WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06.md`；Report: `research/execution-reports/workbench-strict-product-line-2026-06-06.md`；`pnpm --filter @agenthub/web test -- __tests__/api/messages.test.ts __tests__/api/session-timeline.test.ts __tests__/message-markdown.test.ts` PASS（3 files / 40 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning）；`task.py validate` PASS；`git diff --check` PASS；OpenCLI Web 历史 session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe` 已读回 `过程/部署` tab，截图在 `e2e/artifacts/opencli-uat/workbench-strict-product-line-2026-06-06/`，不计为 fresh pass。 | REG-20260606-003 open：三端 fresh strict OpenCLI 未完成；本轮不声明完整 single-prompt product delivery 新 pass。 | 提交本轮读回/规范修复；后续完整验收必须 fresh session 同时验证中央 IM transcript、`过程/部署` tab、右栏拖拽和三端读回 |
 | 10 | 最终 Demo 包和 3 分钟视频素材 | P1 | excluded-by-user | Bytedance 原始 PRD 反查；三端录屏/截图/脚本证据 | 用户 2026-06-05 明确“不需要你来处理” | 用户排除 | 不处理 |
 
 ---

@@ -17,6 +17,7 @@ import {
   mockUser,
   mockWorkspace,
   mockSession,
+  mockMessage,
 } from '../utils'
 
 // ---------------------------------------------------------------------------
@@ -117,6 +118,38 @@ describe('GET /api/messages', () => {
     const result = await callRoute(GET, 'GET', { query: { session_id: 'session-001' } })
     expect(result.status).toBe(200)
     expect(result.data).toBeInstanceOf(Array)
+  })
+
+  it('keeps role acknowledgement rows visible in the same session transcript', async () => {
+    const { GET } = await import('@/app/api/messages/route')
+    setupMockClient(createPostgresChain(
+      undefined,
+      undefined,
+      undefined,
+      [
+        mockMessage,
+        {
+          ...mockMessage,
+          id: 'msg-role-ack-001',
+          sender_type: 'agent',
+          role_agent_id: 'agent-architect',
+          message_type: 'role_acknowledgement',
+          content: '作为架构师，我会先确认工作区约定并分派前后端工程师。',
+          created_at: '2026-01-01T00:00:01.000Z',
+        },
+      ],
+    ))
+
+    const result = await callRoute(GET, 'GET', { query: { session_id: 'session-001' } })
+
+    expect(result.status).toBe(200)
+    expect(result.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'msg-role-ack-001',
+        message_type: 'role_acknowledgement',
+        content: expect.stringContaining('分派前后端工程师'),
+      }),
+    ]))
   })
 
   it('AT-M005: returns 404 when session not found on DB error', async () => {

@@ -319,7 +319,9 @@ describe('ArtifactPanel frontend contract', () => {
   it('keeps the right workbench split into orchestration, files, Git and launchable artifacts', () => {
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
 
-    expect(source).toContain("const TABS = ['角色', '编排', '文件', 'Git', '产物'] as const")
+    expect(source).toContain("const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物', '部署'] as const")
+    expect(source).toContain("'artifact-deployment-timeline' : 'artifact-process-timeline'")
+    expect(source).toContain('/api/sessions/${activeSessionId}/timeline')
     expect(source).toContain('data-testid="artifact-orchestration"')
     expect(source).toContain('data-testid="artifact-git"')
     expect(source).toContain('data-testid="git-change-row"')
@@ -333,6 +335,40 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).not.toContain('data-testid="artifact-changes"')
     expect(source).not.toContain('运行记录')
     expect(source).not.toContain('允许单次执行')
+  })
+
+  it('keeps the right workbench width draggable and persisted on desktop', () => {
+    const source = readFileSync(fileURLToPath(new URL('../components/workspace/WorkspaceShell.tsx', import.meta.url)), 'utf8')
+
+    expect(source).toContain('data-testid="artifact-resize-handle"')
+    expect(source).toContain('aria-label="拖动调整右侧面板宽度"')
+    expect(source).toContain("window.localStorage.getItem('agenthub:right-panel-width')")
+    expect(source).toContain("window.localStorage.setItem('agenthub:right-panel-width'")
+    expect(source).toContain("window.addEventListener('pointermove'")
+    expect(source).toContain("window.addEventListener('pointerup'")
+    expect(source).toContain('Math.min(560, Math.max(300, window.innerWidth - event.clientX))')
+    expect(source).toContain("lg:grid-cols-[280px_minmax(480px,1fr)_var(--artifact-width)]")
+    expect(source).toContain("style={{ '--artifact-width': `${rightPanelWidth}px` } as CSSProperties}")
+  })
+})
+
+describe('IM-first orchestration contract', () => {
+  it('requires real role runtime transactions to be persisted back into the IM transcript', () => {
+    const source = readFileSync(fileURLToPath(new URL('../app/api/chat/route.ts', import.meta.url)), 'utf8')
+
+    expect(source).toContain('dispatchPreparedRuntimeInvokeNode')
+    expect(source).toContain('createRuntimeAttemptEvidence')
+    expect(source).toContain('completedReplies.push')
+    expect(source).toContain("sender_type: 'agent'")
+    expect(source).toContain('role_agent_id: completedReply.roleAgentId')
+    expect(source).toContain('handoffsReceived')
+    expect(source).toContain("type: 'role_handoff'")
+    expect(source).toContain("messageType: 'plan_card'")
+    expect(source).toContain('思考中：架构师已接收需求并创建执行计划。')
+    expect(source).toContain('分工：架构师负责规划和验收，后端工程师负责 API、SQLite 历史记录与服务验证，前端工程师负责 public/index.html、public/app.js、public/styles.css 和浏览器交互。')
+    expect(source).toContain('已完成产物推荐与确认。')
+    expect(source).not.toContain("content: '已发布'")
+    expect(source).not.toContain("content: '部署完成'")
   })
 })
 

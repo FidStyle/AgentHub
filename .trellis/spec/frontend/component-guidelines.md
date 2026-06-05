@@ -183,6 +183,11 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - `POST /api/actions/:actionId/approve`
   - Request: `{ approved: boolean }`
   - Chat permission card states: `pending`, local `approving/rejecting`, durable `approved/rejected/running/completed/failed`.
+- Session process timeline:
+  - `GET /api/sessions/:sessionId/timeline`
+  - Response: `{ sessionId, workspaceId, items: TimelineItem[] }`.
+  - `TimelineItem.kind`: `message | plan | plan_node | attempt | mailbox | runtime | action | artifact | deployment`.
+  - The right workbench must use this read model for the user-visible `过程` tab and deployment-only filtered `部署` tab.
 - Git workbench:
   - `GET /api/workspaces/:id/git/status`
   - `GET /api/workspaces/:id/git/diff?path=<path>&staged=<bool>`
@@ -201,6 +206,11 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 - Chat transcript:
   - Do not filter out role acknowledgements, planning/process messages, or final validation summaries when they are part of the user's workflow.
   - The transcript must show more than the initial prompt plus permission cards for multi-agent delivery runs.
+  - Orchestrator allocation must appear in the IM transcript before the user is expected to inspect the right workbench. The allocation must explain which roles will handle frontend, backend/storage, validation, and artifact recommendation.
+  - Assigned roles must produce visible IM replies tied to their `role_agent_id`. A `plan_node`, `mailbox`, or `runtime_session` row that only appears in the right panel does not count as a role conversation.
+  - Handoff/reply semantics must be visible or auditable from message metadata. Downstream role replies must include a quote/reference to upstream context or durable `handoffsReceived`/`roleHandoffs` metadata.
+  - Orchestrator must return to the transcript after role completion and either redispatch, fail visibly, or approve the result. A final deployment/result card without this validation message is incomplete.
+  - Artifact recommendation and confirmation must be represented as an IM-visible final step before deploy/publish. Full-auto mode may auto-confirm only when the original user prompt asked for full-auto delivery, but the recommendation remains visible and durable.
   - Do not expose private chain-of-thought; show audited process states and role messages.
 - Permission card:
   - The primary status text is approval state, not tool execution state.
@@ -208,10 +218,13 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - After approval, replace buttons with `已允许` or `已审批`; after durable execution, `已执行` may be shown as the action result.
   - Tool execution progress belongs in a tool/action/process card, not as the permission decision label.
 - Right workbench:
+  - Desktop right workbench width must be draggable through a visible resize handle, constrained to a stable min/max width, and persisted across reload. Mobile uses drawer behavior instead of column resizing.
+  - `过程` shows the same-session durable timeline: role acknowledgement/messages, plans, nodes, attempts, mailbox handoffs, runtime sessions, actions, artifacts and deployments.
   - `编排` shows plan nodes and authorization/action cards.
   - `Git` shows only Git status, staged/unstaged groups, selected-file diff, stage/unstage/discard, and commit history.
   - `文件` shows file tree, preview, selection capture, code/reference actions, and patch draft/apply.
   - `产物` shows durable artifacts and launch/download/edit actions.
+  - `部署` shows deployment action, manifest path, preview path and deployment artifact references, filtered from the same session timeline.
   - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
 - Git progressive disclosure:
   - First level: file path, status badge, staged/unstaged grouping.
@@ -226,33 +239,49 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 
 | Condition | Required UI result | Forbidden result |
 | --- | --- | --- |
+| User sends the fixed calculator prompt | transcript shows Orchestrator allocation and role assignment | only right-panel plan/timeline updates |
+| Assigned role starts | transcript shows a role message with role badge/context | role activity is hidden in plan/runtime rows only |
+| Role hands off to another role | downstream reply references upstream context or message metadata stores handoff | role outputs appear as unrelated generic messages |
+| Orchestrator validates | transcript shows accept/redispatch/fail decision | deployment/result card appears without validation |
+| Artifact is recommended | transcript shows concrete artifact recommendation/confirmation | all files are marked as products by default |
 | SSE contains role acknowledgement | visible chat message with role badge/context | silently ignore it as control-only |
 | Permission pending | shows risk/details plus `允许本次操作` and `拒绝` | generic text with no actionable buttons |
 | Permission approved | buttons replaced by `已允许`/`已审批` badge | badge says `执行中` as approval status |
 | Tool still running after approval | separate tool/process card shows running/waiting | permission card alone claims execution status |
+| User opens Process tab | sees same-session timeline from real DB/API | only deployment approval/result cards are visible |
+| User opens Deploy tab | sees deploy action + manifest/artifact refs for same session | lists every artifact or every file as deployment result |
 | User opens Git tab | sees staged/unstaged file list first | starts with mixed approval/runtime/Git records |
 | User clicks a Git file | selected diff appears for that file | all diffs expanded by default |
 | File selection backend exists | UI exposes selection/capture/draft/apply or quote action | backend supports patching but user cannot find it |
 | Runnable artifact exists | artifact card exposes launch script/command | only a transient iframe preview exists |
+| Desktop user drags right panel edge | panel width changes, middle chat remains usable, reload keeps width | fixed-width right sidebar with no handle |
 | Frontend path missing | task remains partial/failed | backend tests mark feature complete |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: A strict calculator delivery session shows architect acknowledgement, backend/frontend role process messages, permission decisions as `已允许`, a separate `Git` tab with file list then diff, a `文件` tab with visible selection editing, and a `产物` card with a launch command.
+- Good: The same session transcript shows `用户请求 -> 架构师分工 -> 后端工程师回复 -> 前端工程师回复 -> 架构师验收 -> 产物推荐确认`; the right `过程` tab shows matching durable state, not a replacement transcript.
 - Base: Git API works but no file changes exist; the `Git` tab shows a clean empty state and no approval cards.
 - Base: Artifact is a static document; the card shows download/edit but no launch script.
 - Bad: The chat transcript only shows the user prompt, several permission cards, and a final `已发布`.
+- Bad: The right `过程` tab has many records, but the central IM transcript has no role assignment, no frontend/backend role messages, and no Orchestrator acceptance decision.
 - Bad: The right panel has one `变更` tab containing Orchestrator cards, permission approvals, Git diff, runtime logs, and message metadata together.
 - Bad: Code selection/patch APIs pass tests, but the UI has no visible control for selecting or referencing code.
 
 ### 6. Tests Required
 
 - Unit/component tests:
+  - `/api/chat` or a source-level contract test must prove Orchestrator allocation, role runtime replies, handoff metadata, validation, and artifact recommendation are inserted into IM-visible `messages`.
   - `session-store` keeps historical and streamed `role_acknowledgement` rows as visible messages.
   - permission card maps approved/running/completed to approval/result wording without using `执行中` as the approval label.
   - code block quote button emits `agenthub:quote-to-composer` and composer displays the quote.
+  - `WorkspaceShell` right panel resize contract includes `artifact-resize-handle`, pointer drag handling, min/max width, and `agenthub:right-panel-width` persistence.
 - Web E2E:
+  - send the fixed calculator prompt once and assert the central transcript shows Orchestrator allocation, assigned role replies, Orchestrator validation, and artifact recommendation/confirmation before counting the run as passed.
   - send or seed a session with role acknowledgements/process messages and assert the transcript shows them after reload.
+  - open `过程` and assert same-session message/plan/node/runtime/action/artifact timeline items are visible.
+  - drag the right panel resize handle, assert width changes within bounds, middle chat/composer remains usable, then reload and assert width persists.
+  - open `部署` and assert only deploy action/manifest/artifact refs are visible.
   - open `编排` and assert plan/action cards are present without Git diff content.
   - open `Git` and assert file names are visible before diff; click one file and assert diff appears.
   - open `文件`, select code, generate a draft diff, and assert no file write happens before apply.

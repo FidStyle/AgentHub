@@ -162,6 +162,7 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
   - `roleAgentId?`
   - `permissionMode = "auto" | "full_control" | equivalent full-control mode`
 - Durable state sources:
+  - `GET /api/sessions/:sessionId/timeline`
   - `plans.status`
   - `plan_nodes.status`
   - `plan_node_attempts.status`
@@ -185,6 +186,7 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
   - `completed`: final user-visible product is generated, test evidence passes, final summary/architect validation is durable, and Web/Mobile/Desktop readback agrees.
   - `failed/interrupted`: a real failure is durable and visible with an actionable reason. It must not be presented as completed.
 - Completion must be derived from durable plan/action/runtime/artifact state, not from assistant text alone.
+- The same-session process timeline is the canonical readback surface for user-visible development evidence. It must aggregate real `messages`, `plans`, `plan_nodes`, `plan_node_attempts`, `agent_mailbox_items`, `runtime_sessions`, `actions`, and `artifacts` after session/workspace owner checks.
 - For the fixed calculator sample, product-generation role nodes should generate or update files and return promptly. The strict gate owns dependency installation, `node --test`, HTTP/API probes, SQLite queries, browser preview, and three-surface readback. Runtime agents may use short syntax/file checks, but they must not keep long-lived services, package installs, curls, Playwright runs, or repeated self-healing test loops inside the chat SSE path.
 - The fixed sample strict gate must install generated project dependencies inside the generated workspace before running product tests. Dependency cache, SQLite files, logs, and cleanup targets must remain inside the selected workspace root; never use `/tmp`, the user home directory, or the AgentHub host repository as validation scratch space.
 - The frontend delivery line is required:
@@ -212,6 +214,9 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
 | Condition | Required result | Forbidden result |
 | --- | --- | --- |
 | Full-control prompt starts | plan created, progress visible as `思考中`/`执行中` | assistant text appears with no durable plan/progress |
+| Same session has role/process messages | timeline includes `message` items including `role_acknowledgement` | `/api/messages` or timeline filters them out |
+| Same session has runtime sessions | timeline includes direct `runtime_sessions.session_id` rows plus attempt-linked rows | only attempt-linked runtime sessions are visible |
+| Same session has deploy action + artifact | timeline/deployment tab exposes actionId, previewPath, manifestPath, artifactId | final deployment text exists but refs cannot be refreshed |
 | Backend node completed, frontend node waiting | overall state remains `执行中`/`partial`, not completed | mark product `已完成` because backend passed |
 | Native tool permission appears in full-control mode and policy allows it | auto approve, dispatch continuation, keep progressing | stop forever on pending permission |
 | User manually rejects a permission in manual mode | action `rejected`, no side effect, plan waits for next input | continue execution or mark completed |
@@ -238,6 +243,8 @@ Plan shows completed; stale queued/waiting attempts and mailbox items for termin
 
 - Web OpenCLI UAT must start from the real chat/workspace entry, send the prompt once, and record:
   - plan exists and progress states are visible;
+  - `/api/sessions/:sessionId/timeline` returns typed same-session process evidence after owner check;
+  - Web `过程` tab shows role acknowledgement/messages, plan/node, attempt/mailbox, runtime/action and artifact/deploy items;
   - frontend engineer node reaches `completed`;
   - permission actions auto-complete in full-control mode or are clearly rejected/failed;
   - generated files appear in file tree or workbench;
@@ -277,6 +284,105 @@ Completion = durable plan terminal state + frontend engineer completed + generat
 
 ```text
 Expose audited progress states: planning -> executing backend -> executing frontend -> testing -> final validation -> completed. If any required line is waiting/failed/not-run, the product gate is not completed.
+```
+
+## Scenario: IM-First Orchestrator Role Transaction Loop
+
+### 1. Scope / Trigger
+
+- Trigger: any feature, regression, report, or UAT that claims a natural-language request is completed by Orchestrator, architect, backend/frontend engineers, Claude Code, Codex, or any equivalent role runtime.
+- Applies to `/api/chat`, role selection, Orchestrator DAG generation, plan nodes, mailbox/handoff, runtime sessions, `messages`, session timeline, Artifact recommendation, permission modes, and Web/Mobile/Desktop acceptance.
+- This scenario is stricter than process timeline readback. A right-panel timeline can supplement evidence, but it cannot replace the IM transcript as the primary user-visible collaboration record.
+
+### 2. Signatures
+
+- Fixed acceptance prompt:
+  - `做一个加减乘除的简单网站，使用sqlite存储历史记录`
+- Required durable message rows:
+  - user request: `messages.sender_type='user'`
+  - Orchestrator allocation: `messages.sender_type in ('agent','system')`, `role_agent_id=<orchestrator role>`, `message_type='plan_card' | 'role_acknowledgement' | equivalent`, `metadata.processEvent=true`
+  - role acknowledgement/reply: `messages.sender_type='agent'`, `role_agent_id=<worker role>`, content from real runtime output or durable runtime continuation result
+  - handoff/reply context: `messages.metadata.handoffsReceived[]` or `messages.metadata.roleHandoffs[]`
+  - Orchestrator validation: `messages.sender_type in ('agent','system')`, `role_agent_id=<orchestrator role>`, terminal visible status
+  - artifact recommendation/confirmation: durable `artifacts` row plus IM `result_card` or equivalent message
+- Required state rows:
+  - `plans.status`
+  - `plan_nodes.status`
+  - `plan_node_attempts.status`
+  - `agent_mailbox_items.status`
+  - `runtime_sessions.status`
+  - `actions.status`
+  - `artifacts.metadata.artifactRecommendation`
+
+### 3. Contracts
+
+- User sends the prompt once. The first assistant-visible response must be the Orchestrator/architect allocation message in the IM transcript, explaining how the work is split and which roles will execute.
+- Assigned roles must respond in the same IM transcript. A hidden plan node, mailbox row, runtime log, or right-panel-only status does not count as the role receiving work.
+- Role process messages must be backed by real runtime sessions, durable continuation results, or persisted process events tied to a plan node. Program-generated success text that is not linked to role/runtime state cannot be used as acceptance evidence.
+- Role handoff must be explicit and durable. Downstream role messages must either quote/reference upstream context or include `handoffsReceived`/`roleHandoffs` metadata so the reply chain can be audited.
+- After each role terminal state, control returns to Orchestrator. Orchestrator must decide one of: redispatch/retry with a visible reason; mark a role blocked/failed and stop with visible failure; accept the current evidence and proceed to final validation.
+- The loop repeats until Orchestrator reaches durable acceptance or durable failure. The UI must show `思考中`/`执行中`/`等待授权`/`执行失败`/`已完成` from durable state, not from a hardcoded final paragraph.
+- Artifact designation is the final Orchestrator step before publish/deploy. Orchestrator must recommend concrete artifact content and delivery method, or explain why no artifact is eligible. Full-auto user instructions may auto-confirm the recommendation, but the recommendation/confirmation still must be visible and durable.
+- Publishing/deploying is downstream of this loop. A deploy approval/result message alone does not prove the development loop happened.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| User sends fixed calculator prompt | IM shows Orchestrator allocation before or with the plan | Only a generic assistant reply or hidden plan state |
+| Orchestrator assigns frontend/backend roles | Each assigned role has a visible IM acknowledgement/reply tied to `role_agent_id` | Roles exist only in right-panel timeline or DB rows |
+| Runtime produces role output | Output is persisted as `messages.sender_type='agent'` with role id | Runtime logs exist but transcript is empty |
+| Role completes | Orchestrator receives durable state and validates/redispatches visibly | Final result appears with no Orchestrator decision |
+| Role fails or waits for permission | IM shows waiting/failure and plan remains non-completed | Mark `已完成` because a later deploy action completed |
+| Full-control mode is enabled | Safe policy-approved permissions auto-continue and no manual permission buttons appear | Manual approval request blocks the IM loop |
+| Manual allow mode is enabled | Clicking allow changes approval to `已允许/已审批` and dispatches continuation | Button remains pending or the chain stops silently |
+| Manual reject mode is enabled | Action is rejected, no side effect, IM shows waiting for next input | Execution continues or artifact/deploy is created |
+| Artifact is ready | Orchestrator recommends concrete artifact(s) in IM and creates durable artifact metadata | Mark the entire file tree as product by default |
+| Right panel timeline passes | Still verify IM transcript rows and role messages | Treat timeline-only evidence as completion |
+
+### 5. Good/Base/Bad Cases
+
+- Good: The fixed prompt produces an IM transcript with user prompt, architect allocation, backend engineer runtime reply, frontend engineer runtime reply, architect validation, artifact recommendation/confirmation, and only then downstream deploy/publish.
+- Good: Frontend engineer fails a browser check. Orchestrator writes a visible redispatch message, the frontend node retries, then validation continues.
+- Base: Backend passes and frontend is waiting for manual permission. Transcript shows `等待授权`; plan is not completed and no final artifact is confirmed.
+- Base: Deploy is requested after product acceptance. Deploy approval appears after artifact recommendation, not as the only visible process record.
+- Bad: The transcript contains the user prompt, repeated "允许执行" cards, and a final "已发布" message with no role conversation.
+- Bad: A report claims role process is visible because `/api/sessions/:id/timeline` has `plan_node` and `runtime` items, while `/api/messages` has no role allocation or worker replies.
+
+### 6. Tests Required
+
+- API/source contract:
+  - `/api/chat` must insert Orchestrator allocation/process messages into `messages`, not only create hidden `plans`.
+  - Completed role runtime replies must insert `messages.sender_type='agent'` with `role_agent_id`.
+  - Handoff metadata must be persisted on either user or agent messages and exposed by timeline.
+- Web OpenCLI:
+  - start from the real chat entry, send the fixed prompt once, then assert the IM transcript contains Orchestrator allocation, at least one assigned role reply, Orchestrator final validation, and artifact recommendation/confirmation.
+  - assert right panel `过程` and `部署` match the same session, but do not count them without transcript assertions.
+  - drag the right sidebar width, verify middle chat remains usable, and reload to confirm width persistence.
+- Mobile/PWA OpenCLI:
+  - open the same session and assert the lightweight transcript/readback shows the same terminal status and authorization records.
+- Desktop/Electron:
+  - use OpenCLI app adapter if available; otherwise Playwright Electron fallback must show supervision/readback or be marked blocked/not-run.
+- Reports:
+  - include `sessionId`, `workspaceId`, API path `GET /api/messages?session_id=...`, API path `GET /api/sessions/:sessionId/timeline`, screenshots, and per-surface status.
+  - classify timeline-only proof as `partial`, not pass.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Right panel process tab has 52 items.
+Deploy tab has manifest and artifact refs.
+Therefore the single-prompt development process passed.
+```
+
+#### Correct
+
+```text
+/api/messages shows user prompt, architect allocation, backend/frontend role replies, architect validation, and artifact recommendation.
+/api/sessions/:id/timeline shows matching plan/node/attempt/mailbox/runtime/action/artifact evidence.
+Web/Mobile/Desktop read back the same terminal state. Only then the loop can be marked completed.
 ```
 
 ## Scenario: Chat Deployment Local Manifest Closure

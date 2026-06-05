@@ -20,6 +20,21 @@
 
 ## P0 任务
 
+### WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06: 严格工作台主链路闭环
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0/P1（Trellis task priority 记录为 P2，但本条按 Bytedance 主链路验收口径管理） |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-06-workbench-strict-product-line` |
+| **合同路径** | `research/contracts/WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06.md` |
+| **当前状态** | in_progress / partial（2026-06-06）：API/右栏读回层已修复并通过 focused tests；用户最新复核将验收升级为 IM-first 真实角色事务链路。当前不能写 completed：`/api/messages` 和中央 IM transcript 必须证明 Orchestrator 分工、真实角色回复/handoff、Orchestrator 验收/重派和产物推荐/确认；右侧 `过程` timeline 只能作为补充证据。 |
+| **目标** | 用户发起固定样本或部署请求后，必须能在同一真实 session 中从中央 IM 和右侧工作台同时读回：Orchestrator/架构师首响分工、前后端角色过程、真实 runtime 回复/引用/handoff、权限拒绝/允许、runtime、Git/File/Artifact、产物推荐/确认和部署结果，而不是只看到部署审批卡和最终“已发布”。 |
+| **验收方式** | API/unit/static contract tests + Web type-check + OpenCLI capability/readback check。完整通过还需要 fresh Web/Mobile/Desktop IM-first UAT：从真实 IM 发送固定 prompt 一次，断言中央 transcript 与 right-panel timeline 同时满足合同。 |
+| **测试证据** | Report: `research/execution-reports/workbench-strict-product-line-2026-06-06.md`；`pnpm --filter @agenthub/web test -- __tests__/api/messages.test.ts __tests__/api/session-timeline.test.ts __tests__/message-markdown.test.ts` PASS（3 files / 40 tests，含 IM-first source contract + right sidebar resize contract）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning）；`python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-workbench-strict-product-line` PASS；`git diff --check` PASS；OpenCLI Web 补充读回过历史 session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe` 的 `过程/部署` tab，截图在 `e2e/artifacts/opencli-uat/workbench-strict-product-line-2026-06-06/`，不计为 fresh IM-first 三端 pass。 |
+| **阻塞问题** | REG-20260606-003 仍 open：三端 fresh IM-first strict session 验收尚未完成；本轮不声明 fixed sample 重新全链路通过。 |
+| **下一步动作** | 重跑 focused tests/type/lint/task validate 后提交本轮规范与读回修复；随后继续 REG-20260606-003，做 fresh IM-first 三端 UAT 和必要实现修复。最终 Demo 包和 3 分钟素材仍按用户要求不处理，未开始纯 P2 不启动。 |
+
 ### FRONTEND-WORKBENCH-USER-FLOW-CLOSURE-2026-06-06: 前端用户可见工作台闭环修复
 
 | 字段 | 内容 |

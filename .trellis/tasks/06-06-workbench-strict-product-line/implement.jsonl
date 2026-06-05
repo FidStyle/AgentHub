@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "research/contracts/WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06.md", "reason": "本轮共享合同"}
+{"file": "research/reference-repos/workbench-strict-product-line-2026-06-06.md", "reason": "参考项目采用点"}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "真实主链路验收"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "前端工作台组件规范"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量规范"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "runtime 权限和工作区合同"}
