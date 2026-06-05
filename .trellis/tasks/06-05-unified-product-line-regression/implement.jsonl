@@ -1,0 +1,7 @@
+{"file": "bytedance_init_prd.md", "reason": "最高产品事实源：全自动单 prompt、多 Agent、权限、三端、产物交付"}
+{"file": "bytedance_init_video_txt.txt", "reason": "辅助事实源：三端职责、IM/Agent/Artifact 语义"}
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "统一主链路和全自动前端产物交付验收规范"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "runtime workspace、permission continuation 和 durable 状态契约"}
+{"file": "research/sequential-execution-progress.md", "reason": "单分支顺序执行和三端验收队列"}
+{"file": "research/project-tracker.md", "reason": "已完成功能范围和公开状态"}
+{"file": "research/regression-ledger.md", "reason": "回归问题和关闭条件"}

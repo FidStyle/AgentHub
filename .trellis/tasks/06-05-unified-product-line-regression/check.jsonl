@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "检查 A-D 测试线是否满足新真实主链路验收规范"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "检查权限和 runtime 状态验证是否符合契约"}
+{"file": "research/project-tracker.md", "reason": "检查公开跟进记录是否同步"}
+{"file": "research/regression-ledger.md", "reason": "检查新发现问题是否登记"}

@@ -1085,3 +1085,89 @@ Calculator Web and Mobile UI passed, so fixed sample accepted.
 Approved-result blocker accepted. Fixed sample product artifact passed.
 Bytedance product gate remains partial: frontend plan node is waiting, architect summary is waiting, and Git/code-reference readback was not verified.
 ```
+
+## Scenario: Unified Product-Line Regression Gate
+
+### 1. Scope / Trigger
+
+- Trigger: Any task claims previously completed P0/P1 AgentHub functionality is still usable as a complete product system, or the user asks to consolidate many feature checks into a few major regression lines.
+- Applies to: fixed-sample product delivery, permission lifecycle, workbench/deploy/artifact, and tri-surface state readback.
+- This gate is a regression aggregator. It does not replace feature-specific tests; it verifies that completed features still compose into a user-visible Bytedance product flow.
+
+### 2. Signatures
+
+- Canonical command:
+  - `pnpm --filter @agenthub/web exec tsx scripts/verify-unified-product-lines.ts`
+- Required line IDs and status values:
+  - `A`: Full-Auto Product Delivery
+  - `B`: Permission Lifecycle
+  - `C`: Workbench / Deploy / Artifact
+  - `D`: Tri-Surface State
+  - Status enum: `pass | partial | failed | blocked | not-run`
+- Durable evidence sources:
+  - `plans`, `plan_nodes`, `plan_node_attempts`, `agent_mailbox_items`
+  - `actions`, `runtime_sessions`, `messages`, `role_agents`, `artifacts`
+  - selected workspace root files and deployment manifests
+  - generated product runtime/API/SQLite checks
+  - OpenCLI Web/Mobile screenshots and Desktop/Electron adapter or fallback results
+
+### 3. Contracts
+
+- The unified verifier must re-read current DB/API/filesystem evidence. Historical execution reports may supply IDs, but cannot be counted as fresh pass evidence.
+- A-D must be reported together in one table. A single green line is not enough to claim overall product viability.
+- If one line exposes a problem, fix that problem and rerun the same line. Do not create a new narrower pass path to avoid the failing line.
+- Full-auto product delivery must prove both AgentHub orchestration completion and generated product behavior. For the calculator sample, assert arithmetic operations, invalid guards, and SQLite-backed history.
+- Permission lifecycle must cover full-auto, manual allow, and manual reject. Reject must stop side effects and leave durable waiting/user-visible state.
+- Workbench/deploy/artifact must prove durable data and file readback, not only UI presence.
+- Tri-surface state must include Web and Mobile/PWA OpenCLI readback. If no AgentHub Electron OpenCLI adapter exists, Playwright Electron fallback is acceptable only when the report says so explicitly and includes command/result evidence.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Historical report says pass but current DB row missing | line `failed` or `blocked` | Treat report text as pass |
+| A passes generated API but frontend plan node missing/waiting | A `partial` or `failed` | Mark full-auto delivery pass |
+| Permission allow clicked but no continuation or side effect | B `failed` | Say manual allow works because action is approved |
+| Permission reject has `executed_at` or side effect | B `failed` | Count reject as pass |
+| Deployment artifact row exists but manifest file missing | C `failed` | Count artifact row alone as deploy pass |
+| Web OpenCLI passes but Mobile not run | D `not-run` or `blocked` | Count Web screenshot as tri-surface pass |
+| Electron app adapter unavailable | Document fallback and run Electron fallback | Claim OpenCLI Desktop pass |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `verify-unified-product-lines.ts` reports A-D all `pass`; report records current DB IDs, workspace root, generated product test result, OpenCLI Web/Mobile screenshots, and Electron fallback command result.
+- Base: A-C pass, D has Web/Mobile pass but Desktop adapter unavailable and fallback not run. Overall is not complete; D is `blocked` or `not-run`.
+- Base: A generated calculator works but permission reject side effect occurred. A may pass, B fails; fix B and rerun B.
+- Bad: Four separate historical reports are summarized into a table without any current command, DB query, filesystem check, or fresh OpenCLI readback.
+
+### 6. Tests Required
+
+- Unified script test/readback:
+  - Query fixed sample plan/nodes/actions/runtime sessions and assert terminal consistency.
+  - Query permission allow/reject actions and reject node/message state.
+  - Query role agent, deploy actions, deployment artifact, document artifact, and manifest file.
+  - Start or exercise the generated product without relying on existing process state; assert API behavior and SQLite persistence.
+- UI evidence:
+  - Web OpenCLI opens the fixed session/workspace and saves a fresh screenshot in a task-specific directory.
+  - Mobile/PWA OpenCLI opens `/m/sessions/:sessionId` and saves a fresh screenshot.
+  - Desktop/Electron uses OpenCLI adapter when available; otherwise run Playwright Electron fallback and record pass count.
+- Quality gates:
+  - Web/shared type-check.
+  - Focused Web tests covering chat, action dispatcher, plans/actions owner, runtime executor, and artifacts.
+  - Acceptance smoke.
+  - Web lint.
+  - Desktop build/test and Electron fallback.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Bytedance fixed sample passed earlier, remaining P1 passed earlier, and permission continuation passed earlier, so unified regression is pass.
+```
+
+#### Correct
+
+```text
+Run verify-unified-product-lines.ts. It re-reads current durable evidence for A-D, exercises the generated calculator and SQLite history, captures fresh Web/Mobile OpenCLI screenshots, runs Desktop Electron fallback, and only then records A-D as pass.
+```

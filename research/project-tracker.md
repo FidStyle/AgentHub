@@ -20,6 +20,20 @@
 
 ## P0 任务
 
+### UNIFIED-PRODUCT-LINE-REGRESSION-2026-06-05: 统一全功能主链路回归测试
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-ACTION-001 |
+| **对应计划** | `.trellis/tasks/06-05-unified-product-line-regression` |
+| **当前状态** | ✅ 验证通过（2026-06-05）：按用户新规则把已完成 P0/P1 功能统一为 A-D 四条大测试线回归，全部通过。历史报告只作为 ID 坐标，本轮重新读取 acceptance DB、workspace 文件系统、生成 calculator 服务、SQLite 文件、OpenCLI 截图和 Desktop fallback 证据。 |
+| **目标** | 证明用户单句 prompt 到最终产物交付、权限生命周期、Workbench/Deploy/Artifact、Web/Mobile/Desktop 三端状态能作为完整 Bytedance 主链路闭环运行；若暴露问题则登记、修复并回归同一测试线。 |
+| **验收方式** | `apps/web/scripts/verify-unified-product-lines.ts` 统一验证脚本；OpenCLI Web/Mobile/PWA 新截图；Playwright Electron fallback；Web/shared type-check；focused Web tests；acceptance smoke；Web lint；Desktop build/test。 |
+| **测试证据** | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md`；Script: `apps/web/scripts/verify-unified-product-lines.ts`；OpenCLI screenshots: `e2e/artifacts/opencli-uat/unified-product-line-regression-2026-06-05/web-fixed-session.png`, `mobile-fixed-session.png`；fixed session `bbea8366-1e19-4ccc-9eb7-2a5d2fde6dbe`；plan `15ce3bf0-dc53-4537-a521-210bbc6aee07`；workspace root `/Users/joytion/.agenthub/cloud-workspaces/joytion/bytedance-fixed-uat-1507-58a63e3f`；A-D line statuses all `pass`；generated calculator API add/sub/mul/div + invalid guards + SQLite `4|+-*/` PASS；`pnpm env:acceptance:smoke` PASS；focused Web regression 5 files / 94 tests PASS；Web/shared type-check PASS；Web lint PASS；Desktop build PASS；Desktop Vitest 29 tests PASS；Electron fallback 21/21 PASS。 |
+| **阻塞问题** | 无。OpenCLI 当前没有 AgentHub Electron app adapter，Desktop 按项目合同使用 Playwright Electron fallback。 |
+| **下一步动作** | 提交、归档 Trellis task、记录 journal；最终 Demo 包和 3 分钟素材按用户要求不处理，未开始纯 P2 不启动。 |
+
 ### SEQUENTIAL-EXECUTION-GOVERNANCE-RESET-2026-06-05: 单分支顺序执行治理重置
 
 | 字段 | 内容 |
