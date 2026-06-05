@@ -47,6 +47,49 @@
 - None - task complete
 
 
+## Session 18: 修复 Mobile 权限详情读回
+
+**Date**: 2026-06-05
+**Task**: 修复 Mobile/PWA durable permission detail readback
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+关闭 `REG-20260605-002`：Mobile/PWA `/m/sessions/:sessionId` 现在会读取真实 `/api/actions?session_id=...` durable action rows，并显示 `授权记录`。Approved `read_file` broker action 刷新后可见 `已允许本次执行`、动作、命令、cwd、workspace root、target path 和 tool name。
+
+### Main Changes
+
+- 新增 `mobile-permission-readback.tsx`，封装 Mobile durable permission card 和 action detail 映射。
+- Mobile session page 加载 `/api/actions?session_id=...`，pending action 保留真实 approve/reject 入口。
+- 补 render regression tests、runtime workspace spec、execution report、regression ledger、project tracker 和 sequential progress。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4b26d0a` | fix: 修复 Mobile 权限详情读回 |
+| `fbffcdf` | chore(task): archive 06-05-fix-mobile-permission-readback |
+
+### Testing
+
+- [OK] `pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts`（15 passed）
+- [OK] `pnpm --filter @agenthub/web type-check`
+- [OK] `pnpm --filter @agenthub/web lint`
+- [OK] `pnpm --filter @agenthub/shared type-check`
+- [OK] `pnpm --filter @agenthub/shared test -- src/domain/runtime-workspace.test.ts`（15 passed）
+- [OK] `pnpm --filter @agenthub/desktop build`
+- [OK] `npx playwright test --config e2e/playwright.desktop.config.ts e2e/tests/desktop/electron.spec.ts --reporter=line`（3 passed）
+- [OK] OpenCLI Mobile/PWA readback: `mobile-readback-dom.json` shows `durablePermissionCards=1`, `hasApprovedText=true`, `hasReadFile=true`, `hasTargetPath=true`, `overflow=false`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Return to `06-05-opencli-role-runtime-uat` fixed sample three-surface UAT.
+
+
 ## Session 17: 修复 AskUserQuestion 原生问题事件
 
 **Date**: 2026-06-05
