@@ -106,10 +106,10 @@ export function NotificationBell() {
                   </div>
                   {n.body && <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>}
                   {n.type === 'approval_required' && n.ref_type === 'action' && n.ref_id && (
-                    <div className="mt-3 flex flex-col gap-2">
+                    <div className="mt-3 flex gap-2">
                       <Button
                         size="sm"
-                        className="w-full px-1.5"
+                        className="flex-1"
                         disabled={actingId === n.id}
                         onClick={() => approveAction(n, true)}
                       >
@@ -118,7 +118,7 @@ export function NotificationBell() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="w-full px-1.5"
+                        className="flex-1"
                         disabled={actingId === n.id}
                         onClick={() => approveAction(n, false)}
                       >

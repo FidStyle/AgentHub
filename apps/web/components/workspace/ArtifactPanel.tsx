@@ -2170,18 +2170,18 @@ export function ArtifactPanel({
               key={tab}
               variant={activeTab === tab ? 'default' : 'ghost'}
               size="sm"
-              className="flex-1"
+              className="h-11 flex-1 flex-col gap-0.5 px-1.5 leading-none"
               onClick={() => setActiveTab(tab)}
               data-testid={`artifact-tab-${tab}`}
             >
-              {tab === '角色' && <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
-              {tab === '过程' && <Route className="mr-1 h-3.5 w-3.5" />}
-              {tab === '编排' && <Bot className="mr-1 h-3.5 w-3.5" />}
-              {tab === '文件' && <FolderTree className="mr-1 h-3.5 w-3.5" />}
-              {tab === 'Git' && <GitBranch className="mr-1 h-3.5 w-3.5" />}
-              {tab === '产物' && <FileText className="mr-1 h-3.5 w-3.5" />}
-              {tab === '部署' && <Rocket className="mr-1 h-3.5 w-3.5" />}
-              {tab}
+              {tab === '角色' && <ShieldCheck className="h-3.5 w-3.5" />}
+              {tab === '过程' && <Route className="h-3.5 w-3.5" />}
+              {tab === '编排' && <Bot className="h-3.5 w-3.5" />}
+              {tab === '文件' && <FolderTree className="h-3.5 w-3.5" />}
+              {tab === 'Git' && <GitBranch className="h-3.5 w-3.5" />}
+              {tab === '产物' && <FileText className="h-3.5 w-3.5" />}
+              {tab === '部署' && <Rocket className="h-3.5 w-3.5" />}
+              <span>{tab}</span>
             </Button>
           ))}
         </div>

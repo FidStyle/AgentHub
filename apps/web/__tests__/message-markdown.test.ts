@@ -359,17 +359,18 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).not.toContain('absolute -left-1.5 top-0 hidden h-full w-3')
   })
 
-  it('stacks approval buttons vertically in narrow orchestrator surfaces', () => {
-    const actionCard = readFileSync(fileURLToPath(new URL('../components/orchestrator/ActionCard.tsx', import.meta.url)), 'utf8')
-    const notificationBell = readFileSync(fileURLToPath(new URL('../components/orchestrator/NotificationBell.tsx', import.meta.url)), 'utf8')
+  it('stacks artifact tab icons above labels with compact horizontal padding', () => {
+    const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
+    const tabBlock = source.slice(
+      source.indexOf('{TABS.map((tab) => ('),
+      source.indexOf('</Button>', source.indexOf('data-testid={`artifact-tab-${tab}`}')) + '</Button>'.length,
+    )
 
-    expect(actionCard).toContain('className="flex flex-col gap-2"')
-    expect(actionCard).toContain('className="w-full px-1.5"')
-    expect(actionCard).not.toContain('grid grid-cols-2 gap-2')
-
-    expect(notificationBell).toContain('className="mt-3 flex flex-col gap-2"')
-    expect(notificationBell).toContain('className="w-full px-1.5"')
-    expect(notificationBell).not.toContain('className="flex-1"')
+    expect(tabBlock).toContain('data-testid={`artifact-tab-${tab}`}')
+    expect(tabBlock).toContain('className="h-11 flex-1 flex-col gap-0.5 px-1.5 leading-none"')
+    expect(tabBlock).toContain('<span>{tab}</span>')
+    expect(tabBlock).toContain('<ShieldCheck className="h-3.5 w-3.5" />')
+    expect(tabBlock).not.toContain('mr-1 h-3.5 w-3.5')
   })
 
   it('renders the workspace file and Git panels as tree-first wide workbench surfaces', () => {
