@@ -54,6 +54,22 @@ type StreamEvent = {
   metadata?: unknown
 }
 
+const PLACEHOLDER_SESSION_TITLES = new Set(['', '新会话', '未命名会话'])
+
+function titleFromFirstUserMessage(content: string) {
+  const title = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean)
+    ?.replace(/\s+/g, ' ')
+    .slice(0, 80)
+  return title || '新会话'
+}
+
+function shouldAutoTitleSession(title: string) {
+  return PLACEHOLDER_SESSION_TITLES.has(title.trim())
+}
+
 function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
   if (!value || typeof value !== 'object') return false
   const record = value as { id?: unknown; type?: unknown }
@@ -408,6 +424,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const { activeSessionId, messages } = get()
     if (!activeSessionId) return
     const primaryRoleAgentId = roleAgentIds[0] ?? null
+    const optimisticTitle = titleFromFirstUserMessage(content)
 
     const optimistic: Message = {
       id: `tmp-${Date.now()}`,
@@ -422,7 +439,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.map((session) => (
         session.id === activeSessionId
-          ? { ...session, lastMessage: content, updatedAt: optimistic.createdAt }
+          ? {
+              ...session,
+              title: shouldAutoTitleSession(session.title) ? optimisticTitle : session.title,
+              lastMessage: content,
+              updatedAt: optimistic.createdAt,
+            }
           : session
       )),
     }))
@@ -548,6 +570,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               replyCreated = false
             }
             respondingRoleAgentId = evt.roleAgentId
+          }
+          if (evt.type === 'session_title_updated' && evt.sessionId && evt.title) {
+            set((state) => ({
+              sessions: state.sessions.map((session) => (
+                session.id === evt.sessionId
+                  ? { ...session, title: String(evt.title) }
+                  : session
+              )),
+            }))
+            continue
           }
           if (evt.type === 'role_process_message' && evt.content) {
             if (replyCreated && (reply || runtimeParts.length > 0)) {

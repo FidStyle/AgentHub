@@ -20,7 +20,8 @@
 
 - Web 发送：`POST /api/chat`
   - 请求字段：`workspaceId`, `sessionId`, `content`, `roleAgentId`, `attachmentIds?`
-  - 响应：SSE `runtime_status`, `runtime_output.delta`, `agent_message`, `artifact_created`, 终态事件之一。
+  - 响应：SSE `session_title_updated?`, `runtime_status`, `runtime_output.delta`, `agent_message`, `artifact_created`, 终态事件之一。
+  - `session_title_updated` 仅用于默认占位标题（如 `新会话`、`未命名会话`）在首条用户消息后同步新标题；后端必须先持久化 `sessions.name`，前端只用该事件刷新本地会话列表，不能覆盖已有自定义标题。
 - 附件上传：`POST /api/attachments`
   - 请求字段：文件内容、文件名、MIME、所属 `sessionId` 或上下文绑定信息。
   - 持久化字段：`messages.metadata.attachment.content` 或可重读的 `contentRef`；大文件升级对象存储时必须有等价引用。

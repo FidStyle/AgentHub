@@ -101,6 +101,48 @@ type RoleProcessMessageEvent = {
   metadata: Record<string, unknown>
 }
 
+const PLACEHOLDER_SESSION_TITLES = new Set(['', '新会话', '未命名会话'])
+
+function titleFromFirstUserMessage(content: string) {
+  const title = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean)
+    ?.replace(/\s+/g, ' ')
+    .slice(0, 80)
+  return title || '新会话'
+}
+
+async function maybeRenameSessionFromFirstMessage(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  sessionId: string
+  currentName: unknown
+  content: string
+}) {
+  const currentName = typeof input.currentName === 'string' ? input.currentName.trim() : ''
+  if (!PLACEHOLDER_SESSION_TITLES.has(currentName)) return null
+
+  const { data: existingUserMessages } = await input.db
+    .from('messages')
+    .select('id, sender_type')
+    .eq('session_id', input.sessionId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+  if (Array.isArray(existingUserMessages) && existingUserMessages.some((message) => (
+    (message as { sender_type?: unknown }).sender_type === 'user'
+  ))) return null
+
+  const nextTitle = titleFromFirstUserMessage(input.content)
+  if (nextTitle === currentName) return null
+
+  const { error } = await input.db
+    .from('sessions')
+    .update({ name: nextTitle, updated_at: new Date().toISOString() })
+    .eq('id', input.sessionId)
+  if (error) return null
+  return nextTitle
+}
+
 function roleSearchText(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capabilities'>) {
   const capabilities = Array.isArray(role.capabilities) ? role.capabilities.join(' ') : ''
   return `${role.name} ${role.role_type} ${capabilities}`.toLowerCase()
@@ -704,7 +746,7 @@ export async function POST(req: NextRequest) {
 
   const { data: session } = await db
     .from('sessions')
-    .select('workspace_id')
+    .select('workspace_id, name')
     .eq('id', sessionId)
     .single()
   if (!session) return Response.json({ error: '会话不存在' }, { status: 404 })
@@ -982,6 +1024,13 @@ export async function POST(req: NextRequest) {
     }))
   }
 
+  const renamedSessionTitle = await maybeRenameSessionFromFirstMessage({
+    db,
+    sessionId,
+    currentName: (session as unknown as { name?: unknown }).name,
+    content,
+  })
+
   const { data: userMessageRow } = await db.from('messages').insert({
     session_id: sessionId,
     content,
@@ -992,6 +1041,14 @@ export async function POST(req: NextRequest) {
 
   const encoder = new TextEncoder()
   const encode = (data: object) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+  const enqueueSessionTitleUpdate = (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    if (!renamedSessionTitle) return
+    controller.enqueue(encode({
+      type: 'session_title_updated',
+      sessionId,
+      title: renamedSessionTitle,
+    }))
+  }
   const partId = (prefix: string, evt: RuntimeGatewayEvent) => {
     const record = evt as Record<string, unknown>
     return String(record.toolCallId || record.actionId || record.questionId || record.artifactId || `${prefix}-${Date.now()}`)
@@ -1096,6 +1153,7 @@ export async function POST(req: NextRequest) {
     })
     const deployStream = new ReadableStream({
       start(controller) {
+        enqueueSessionTitleUpdate(controller)
         controller.enqueue(encode(approvalEvent))
         controller.enqueue(encode({ type: 'done' }))
         controller.close()
@@ -1112,6 +1170,7 @@ export async function POST(req: NextRequest) {
   const adapter = new HostedRuntimeAdapter()
   const stream = new ReadableStream({
     async start(controller) {
+      enqueueSessionTitleUpdate(controller)
       const emitProcess = (event: RoleProcessMessageEvent) => controller.enqueue(encode(event))
       const completedReplies: Array<{
         nodeId: string | null

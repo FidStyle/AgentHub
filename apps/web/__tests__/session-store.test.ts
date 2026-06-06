@@ -129,6 +129,30 @@ describe('session store message pinning', () => {
 })
 
 describe('session store streaming replies', () => {
+  it('renames a placeholder session locally from the first user message', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
+      {
+        type: 'session_title_updated',
+        sessionId: 'session-001',
+        title: '做一个加减乘除的简单网站',
+      },
+      { type: 'runtime_completed' },
+    ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '新会话', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+    })
+
+    await useSessionStore.getState().sendMessage({
+      content: '做一个加减乘除的简单网站\n使用 sqlite 存储历史记录',
+    })
+
+    expect(useSessionStore.getState().sessions[0]).toMatchObject({
+      title: '做一个加减乘除的简单网站',
+      lastMessage: '做一个加减乘除的简单网站\n使用 sqlite 存储历史记录',
+    })
+  })
+
   it('accumulates sequenced markdown runtime_output fragments without rewriting markdown bytes', async () => {
     const chunks = [
       '# 标题\n\n> 引用\n\n',

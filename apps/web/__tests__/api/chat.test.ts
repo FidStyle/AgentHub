@@ -35,6 +35,7 @@ const insertedMailboxItems: Record<string, unknown>[] = []
 const insertedActions: Record<string, unknown>[] = []
 const insertedNotifications: Record<string, unknown>[] = []
 const insertedArtifacts: Record<string, unknown>[] = []
+const updatedSessions: Record<string, unknown>[] = []
 
 // Events the mocked runtime adapter emits; per-test override via setAdapterEvents.
 let adapterEvents: Record<string, unknown>[] = [{ type: 'runtime_output', delta: 'ok' }]
@@ -125,8 +126,8 @@ function chainCapturingInserts() {
   return chainCapturingInsertsWithRoles()
 }
 
-function chainCapturingInsertsWithRoles(roleAgents?: unknown[], messages?: unknown[]) {
-  const base = createPostgresChain(undefined, undefined, undefined, messages, roleAgents)
+function chainCapturingInsertsWithRoles(roleAgents?: unknown[], messages?: unknown[], sessions?: unknown[]) {
+  const base = createPostgresChain(undefined, undefined, sessions, messages, roleAgents)
   return vi.fn(() => {
     const client = base()
     const origFrom = client.from
@@ -140,6 +141,13 @@ function chainCapturingInsertsWithRoles(roleAgents?: unknown[], messages?: unkno
           insertedMessages.push(vals)
           return origInsert(vals)
         }
+      }
+      if (table === 'sessions') {
+        const origUpdate = t.update
+        t.update = ((vals: Record<string, unknown>) => {
+          updatedSessions.push(vals)
+          return origUpdate(vals)
+        }) as typeof t.update
       }
       return t
     })
@@ -206,6 +214,7 @@ describe('POST /api/chat — role-chat-core', () => {
     insertedActions.length = 0
     insertedNotifications.length = 0
     insertedArtifacts.length = 0
+    updatedSessions.length = 0
     resolveEndpointMock.mockClear()
     createSessionMock.mockClear()
     isWorkerAliveMock.mockClear()
@@ -213,6 +222,41 @@ describe('POST /api/chat — role-chat-core', () => {
     process.env.REDIS_URL = 'redis://test'
     setAdapterEvents([{ type: 'runtime_output', delta: 'ok' }])
     setupMockAuth()
+  })
+
+  it('renames the default new session from the first user message and streams the title update', async () => {
+    setupMockClient(chainCapturingInsertsWithRoles(undefined, [], [
+      { id: 'session-001', workspace_id: 'ws-001', name: '新会话', status: 'active' },
+    ]))
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: '做一个加减乘除的简单网站\n使用 sqlite 存储历史记录',
+      roleAgentId: 'agent-001',
+    })
+
+    expect(status).toBe(200)
+    expect(updatedSessions).toEqual([
+      expect.objectContaining({ name: '做一个加减乘除的简单网站' }),
+    ])
+    expect(text).toContain('"type":"session_title_updated"')
+    expect(text).toContain('"title":"做一个加减乘除的简单网站"')
+  })
+
+  it('does not rename a session that already has a custom title', async () => {
+    setupMockClient(createPostgresChain(undefined, undefined, [
+      { id: 'session-001', workspace_id: 'ws-001', name: '已有标题', status: 'active' },
+    ], []))
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: '第一句话',
+      roleAgentId: 'agent-001',
+    })
+
+    expect(status).toBe(200)
+    expect(updatedSessions).toHaveLength(0)
+    expect(text).not.toContain('"type":"session_title_updated"')
   })
 
   it('AT-001 [critical]: cross-workspace roleAgentId is rejected with 403', async () => {
