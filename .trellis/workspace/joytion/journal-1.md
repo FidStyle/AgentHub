@@ -886,3 +886,37 @@ Implemented self-hosted hash release staging, Docker app/Caddy deploy profile, f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: 收口严格工作台主链路验收
+
+**Date**: 2026-06-06
+**Task**: 收口严格工作台主链路验收
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+补齐严格单 prompt 工作台主链路验收的真实右侧栏 OpenCLI 拖动、SQLite 表扫描和 product-pass 审计；同步顺序总表并归档已完成 strict gate task。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `68c9454` | (see git log) |
+| `8df9ca6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
