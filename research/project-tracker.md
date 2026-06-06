@@ -26,13 +26,13 @@
 |------|------|
 | **优先级** | P0/P1（Trellis task priority 记录为 P2，但按 Bytedance Web 工作台主验收口径管理） |
 | **绑定 FR-ID** | FR-WEB-001, FR-CHAT-001, FR-RESULT-001, FR-ARTIFACT-001, FR-UI-001 |
-| **对应计划** | `.trellis/tasks/06-06-workbench-resize-filetree-ux` |
-| **当前状态** | ✅ verified / 待提交归档（2026-06-06）：右侧工作台支持更可靠的拖动宽度和宽屏模式；文件面板改为树 + 查看器，支持新增文件并在新建/打开深层文件时展开父目录；Git 面板改为树优先，点击文件后才加载右侧 diff；真实浏览器 UAT 已覆盖拖动、刷新持久化、宽屏文件分栏、文件/Git 真实 API 链路。 |
+| **对应计划** | `.trellis/tasks/archive/2026-06/06-06-workbench-resize-filetree-ux` |
+| **当前状态** | ✅ closed（2026-06-06）：右侧工作台支持更可靠的拖动宽度和宽屏模式；文件面板改为树 + 查看器，支持新增文件并在新建/打开深层文件时展开父目录；Git 面板改为树优先，点击文件后才加载右侧 diff；真实浏览器 UAT 已覆盖拖动、刷新持久化、宽屏文件分栏、文件/Git 真实 API 链路。Trellis task 已归档。 |
 | **目标** | 解决用户复核指出的右侧面栏过窄不可拖、角色/过程/编排/文件/Git 文本被挤压、文件和 Git 不像 VSCode 文件树、缺少简单新建文件入口的问题。 |
 | **验收方式** | Web focused tests + type-check/lint/build + Playwright 真实浏览器 UAT。OpenCLI 本轮未使用；用户允许 Playwright 或 OpenCLI，当前环境 Playwright 已能启动真实 Chromium 并通过。 |
 | **测试证据** | `pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/workspace-files-artifacts.test.ts` PASS（34 tests）；`pnpm --filter @agenthub/web lint` PASS；`pnpm --filter @agenthub/web build` PASS；`pnpm --filter @agenthub/web type-check` PASS；`npx playwright test --config e2e/playwright.config.ts --project=web-desktop tests/web/workbench-file-ops.spec.ts` PASS（真实 DB/session/workspace，上传->预览->产物->Git 树->diff）；`npx playwright test --config e2e/playwright.config.ts --project=web-desktop tests/web/web-workspace-layout-uat.spec.ts -g "右侧工作台可拖动"` PASS（拖动宽度、localStorage 持久化、刷新恢复、新建深层文件、宽屏分栏）；截图 `e2e/artifacts/web-workspace-layout/desktop-right-panel-resize-wide-file.png`。 |
 | **阻塞问题** | 无代码阻塞。此前并行运行 build/dev/type-check 时出现 `.next` 临时文件竞争，已改为顺序重跑并通过；不计入代码失败。 |
-| **下一步动作** | 提交并归档 Trellis task。后续 product-pass/strict gate 仍需继续覆盖中央 IM 编排链路，本任务只声明 Web 工作台 UX 路径通过。 |
+| **下一步动作** | 已关闭。后续 product-pass/strict gate 仍需继续覆盖中央 IM 编排链路，本任务只声明 Web 工作台 UX 路径通过。 |
 
 ### ROLE-PROCESS-MESSAGE-FOREGROUNDING-2026-06-06: 角色过程消息完整前台化
 
