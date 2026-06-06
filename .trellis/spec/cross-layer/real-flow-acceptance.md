@@ -408,6 +408,7 @@ Web/Mobile/Desktop read back the same terminal state. Only then the loop can be 
 ### 3. Contracts
 
 - A tracker row containing `in_progress`, `partial`, `blocked`, `not-run`, `im-first-open`, `fixed_pending_verify`, `不能写 completed`, `未计入通过`, or a related `REG-* open` cannot pass the governance gate.
+- Evidence-audit blocking word checks must use status-token boundaries. Do not treat substrings inside product/tool names or numeric success summaries as blockers: `OpenCLI` is not `open`, and `0 failed / 0 warned` is not a failed result.
 - A related open or `fixed_pending_verify` P0 regression in `research/regression-ledger.md` blocks completion even if the tracker/report contains pass-like language.
 - IM-first product-flow claims must prove all of:
   - `/api/messages` or equivalent transcript API evidence;

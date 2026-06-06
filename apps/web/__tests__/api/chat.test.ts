@@ -44,6 +44,48 @@ const setAdapterEvents = (events: Record<string, unknown>[]) => {
 
 const firstMockArg = (call: unknown[]): Record<string, unknown> => call[0] as Record<string, unknown>
 
+function strictDeliveryActionEvidenceForNode(planNodeId: string) {
+  const node = insertedPlanNodes.find((item) => item.id === planNodeId)
+  const label = String(node?.label ?? '')
+  if (label.includes('后端')) {
+    return [
+      {
+        plan_node_id: planNodeId,
+        action_type: 'write_file',
+        status: 'completed',
+        result: {
+          input: {
+            changed_paths: [
+              `${mockWorkspaceRoot}/package.json`,
+              `${mockWorkspaceRoot}/src/server.js`,
+              `${mockWorkspaceRoot}/test/api.test.js`,
+            ],
+          },
+        },
+      },
+    ]
+  }
+  if (label.includes('前端')) {
+    return [
+      {
+        plan_node_id: planNodeId,
+        action_type: 'write_file',
+        status: 'completed',
+        result: {
+          input: {
+            changed_paths: [
+              `${mockWorkspaceRoot}/public/index.html`,
+              `${mockWorkspaceRoot}/public/app.js`,
+              `${mockWorkspaceRoot}/public/styles.css`,
+            ],
+          },
+        },
+      },
+    ]
+  }
+  return []
+}
+
 vi.mock('@/lib/runtime/hosted-adapter', () => ({
   HostedRuntimeAdapter: class {
     async *invoke(input: Record<string, unknown>) {
@@ -498,6 +540,22 @@ describe('POST /api/chat — role-chat-core', () => {
             select: () => runtimeChain,
           }
         }
+        if (table === 'actions') {
+          const actionChain = {
+            eq: (_field: string, planNodeId: string) => ({
+              order: () => ({
+                data: [
+                  ...insertedActions.filter((action) => action.plan_node_id === planNodeId),
+                  ...strictDeliveryActionEvidenceForNode(planNodeId),
+                ],
+                error: null,
+              }),
+            }),
+          }
+          return {
+            select: () => actionChain,
+          }
+        }
         const t = origFrom(table)
         if (table === 'messages') {
           const origInsert = t.insert
@@ -675,6 +733,22 @@ describe('POST /api/chat — role-chat-core', () => {
             select: () => runtimeChain,
           }
         }
+        if (table === 'actions') {
+          const actionChain = {
+            eq: (_field: string, planNodeId: string) => ({
+              order: () => ({
+                data: [
+                  ...insertedActions.filter((action) => action.plan_node_id === planNodeId),
+                  ...strictDeliveryActionEvidenceForNode(planNodeId),
+                ],
+                error: null,
+              }),
+            }),
+          }
+          return {
+            select: () => actionChain,
+          }
+        }
         const t = origFrom(table)
         if (table === 'messages') {
           const origInsert = t.insert
@@ -735,6 +809,19 @@ describe('POST /api/chat — role-chat-core', () => {
       },
     })
     expect(text).toContain('orchestrator_plan_started')
+    const backendMessage = insertedMessages.find((message) => message.sender_type === 'agent' && message.role_agent_id === 'agent-be')
+    const frontendMessage = insertedMessages.find((message) => message.sender_type === 'agent' && message.role_agent_id === 'agent-fe')
+    const architectMessage = insertedMessages.find((message) => (
+      message.sender_type === 'agent'
+      && message.role_agent_id === 'agent-orch'
+      && Array.isArray((message.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived)
+    ))
+    expect(String(backendMessage?.content)).toContain('AgentHub 观察到的落地证据')
+    expect(String(backendMessage?.content)).toContain('src/server.js')
+    expect(String(frontendMessage?.content)).toContain('AgentHub 观察到的落地证据')
+    expect(String(frontendMessage?.content)).toContain('public/index.html')
+    expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('public/index.html')
+    expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('src/server.js')
   })
 
   it('AT-003 [high]: no roleAgentId uses the default orchestrator role instead of appending @ text', async () => {

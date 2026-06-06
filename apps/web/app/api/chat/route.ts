@@ -82,6 +82,13 @@ type AutoContinuationOutcome = {
   runtimeSessionId: string | null
 }
 
+type NodeActionEvidence = {
+  action_type?: string | null
+  command?: string | null
+  status?: string | null
+  result?: unknown
+}
+
 function roleSearchText(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capabilities'>) {
   const capabilities = Array.isArray(role.capabilities) ? role.capabilities.join(' ') : ''
   return `${role.name} ${role.role_type} ${capabilities}`.toLowerCase()
@@ -250,6 +257,86 @@ async function finishRuntimeAttemptEvidence(input: {
       updated_at: patch.updated_at,
     }).eq('id', input.evidence.mailboxItemId)
   }
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : []
+}
+
+function relativeWorkspacePath(workspaceRoot: string | null, filePath: string) {
+  if (!workspaceRoot) return filePath
+  const relative = path.relative(workspaceRoot, filePath)
+  return relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : filePath
+}
+
+function collectActionTargetPaths(action: NodeActionEvidence, workspaceRoot: string | null) {
+  const result = action.result && typeof action.result === 'object' && !Array.isArray(action.result)
+    ? action.result as Record<string, unknown>
+    : {}
+  const input = result.input && typeof result.input === 'object' && !Array.isArray(result.input)
+    ? result.input as Record<string, unknown>
+    : {}
+  const changed = stringArray(input.changed_paths)
+  const targetPaths = stringArray(result.targetPaths)
+  return [...new Set([...changed, ...targetPaths])]
+    .map((item) => relativeWorkspacePath(workspaceRoot, item))
+    .filter((item) => item && !item.startsWith('.agenthub/'))
+}
+
+async function existingWorkspaceFiles(workspaceRoot: string | null, files: string[]) {
+  if (!workspaceRoot) return []
+  const found: string[] = []
+  for (const file of files) {
+    const fullPath = path.join(workspaceRoot, file)
+    const info = await stat(fullPath).catch(() => null)
+    if (info?.isFile()) found.push(file)
+  }
+  return found
+}
+
+async function buildCompletedRoleEvidenceSummary(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  planNodeId: string | null
+  workspaceRoot: string | null
+  roleName: string
+  phase: ExecutionTarget['phase']
+}) {
+  if (!input.planNodeId) return ''
+  const { data } = await input.db
+    .from('actions')
+    .select('action_type, command, status, result')
+    .eq('plan_node_id', input.planNodeId)
+    .order('created_at', { ascending: true })
+  const actions = Array.isArray(data) ? data as NodeActionEvidence[] : []
+  const completedActions = actions.filter((action) => action.status === 'completed')
+  const writtenFiles = [...new Set(actions.flatMap((action) => (
+    action.action_type === 'write_file' ? collectActionTargetPaths(action, input.workspaceRoot) : []
+  )))]
+  const commandCount = completedActions.filter((action) => action.action_type === 'shell_command').length
+  const expectedFiles = /前端|front|ui|web/i.test(input.roleName)
+    ? ['public/index.html', 'public/app.js', 'public/styles.css']
+    : /后端|back|api|数据库|server/i.test(input.roleName)
+      ? ['package.json', 'src/server.js', 'test/api.test.js']
+      : input.phase === 'summarizing'
+        ? ['package.json', 'src/server.js', 'public/index.html', 'public/app.js', 'public/styles.css']
+        : []
+  const existingFiles = await existingWorkspaceFiles(input.workspaceRoot, expectedFiles)
+  const lines = [
+    '',
+    'AgentHub 观察到的落地证据：',
+    completedActions.length > 0 ? `- 已完成动作：${completedActions.length} 个${commandCount > 0 ? `，其中命令 ${commandCount} 个` : ''}。` : null,
+    writtenFiles.length > 0 ? `- 写入/更新文件：${writtenFiles.slice(0, 12).join('、')}。` : null,
+    existingFiles.length > 0 ? `- 当前工作区可读文件：${existingFiles.join('、')}。` : null,
+  ].filter(Boolean)
+  return lines.length > 2 ? lines.join('\n') : ''
+}
+
+function appendEvidenceSummary(reply: string, evidenceSummary: string) {
+  if (!evidenceSummary) return reply
+  const trimmedReply = reply.trim()
+  return trimmedReply ? `${trimmedReply}\n\n${evidenceSummary}` : evidenceSummary.trim()
 }
 
 function isRuntimeWaitingBoundary(error: string | null, runtimeParts: RuntimeMessagePart[]) {
@@ -1231,6 +1318,14 @@ export async function POST(req: NextRequest) {
           })
           const hasWaitingPart = runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')
           if (completed && (reply || runtimeParts.length > 0)) {
+            const evidenceSummary = await buildCompletedRoleEvidenceSummary({
+              db,
+              planNodeId: target.nodeId,
+              workspaceRoot: runtimeWorkspaceRoot,
+              roleName: currentRoleName,
+              phase: target.phase,
+            })
+            const completedReplyText = appendEvidenceSummary(reply, evidenceSummary)
             await finishRuntimeAttemptEvidence({
               db,
               evidence,
@@ -1242,7 +1337,7 @@ export async function POST(req: NextRequest) {
               phase: target.phase,
               roleAgentId: currentRoleAgentId,
               roleName: currentRoleName,
-              reply,
+              reply: completedReplyText,
               runtimeParts,
               receivedHandoffs,
             })
@@ -1250,7 +1345,7 @@ export async function POST(req: NextRequest) {
               await db.from('plan_nodes').update({
                 status: 'completed',
                 completed_at: new Date().toISOString(),
-                result: { summary: reply.trim().slice(-4000), runtimeParts },
+                result: { summary: completedReplyText.trim().slice(-4000), runtimeParts },
               }).eq('id', target.nodeId)
             }
             await persistProcessEvent({
@@ -1273,7 +1368,7 @@ export async function POST(req: NextRequest) {
                 codeReferences: ['package.json', 'src/server.js', 'public/index.html', 'public/app.js', 'public/styles.css', 'README.md'],
               },
             })
-            if (role && reply.trim()) {
+            if (role && completedReplyText.trim()) {
               for (const downstream of downstreamTargets) {
                 if (!downstream.role || (downstream.role.id === currentRoleAgentId && downstream.phase !== 'summarizing')) continue
                 handoffs.push({
@@ -1282,7 +1377,7 @@ export async function POST(req: NextRequest) {
                   toRoleAgentId: downstream.role.id,
                   toRoleName: downstream.role.name,
                   sessionId,
-                  summary: reply.trim().slice(-4000),
+                  summary: completedReplyText.trim().slice(-4000),
                   sourceMessageId: null,
                   target: downstream.nodeId ?? undefined,
                   phase: downstream.phase,

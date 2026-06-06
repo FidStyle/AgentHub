@@ -238,6 +238,35 @@ function includesAny(text: string, patterns: RegExp[]) {
   return patterns.some((pattern) => pattern.test(text))
 }
 
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function numericResultFrom(body: Record<string, unknown>, paths: string[][]) {
+  for (const segments of paths) {
+    let current: unknown = body
+    for (const segment of segments) {
+      const record = objectRecord(current)
+      if (!record) {
+        current = undefined
+        break
+      }
+      current = record[segment]
+    }
+    if (typeof current === 'number') return current
+    if (typeof current === 'string' && current.trim() !== '' && Number.isFinite(Number(current))) return Number(current)
+  }
+  return null
+}
+
+function arrayFromAny(body: Record<string, unknown> | unknown[], keys: string[]) {
+  if (Array.isArray(body)) return body
+  for (const key of keys) {
+    if (Array.isArray(body[key])) return body[key] as unknown[]
+  }
+  return []
+}
+
 async function freePort() {
   const server = net.createServer()
   server.listen(0, '127.0.0.1')
@@ -341,28 +370,30 @@ async function verifyCalculatorProduct(root: string) {
       {
         name: 'leftOperand/operator/rightOperand',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ leftOperand, operator, rightOperand }),
-        result: (body: Record<string, unknown>) => {
-          const calculation = body.calculation && typeof body.calculation === 'object' && !Array.isArray(body.calculation)
-            ? body.calculation as Record<string, unknown>
-            : null
-          return typeof calculation?.result === 'number' ? calculation.result : null
-        },
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['calculation', 'result'], ['result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
-        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.calculations) ? body.calculations : [],
+        historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['calculations', 'history', 'items', 'records']),
       },
       {
         name: 'left/operator/right',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ left: leftOperand, operator, right: rightOperand }),
-        result: (body: Record<string, unknown>) => typeof body.result === 'number' ? body.result : null,
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
-        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.history) ? body.history : [],
+        historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['history', 'calculations', 'items', 'records']),
+      },
+      {
+        name: 'a/operator/b',
+        payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ a: leftOperand, operator, b: rightOperand }),
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
+        historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
+        historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['history', 'calculations', 'items', 'records']),
       },
       {
         name: 'a/op/b',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ a: leftOperand, op: operator, b: rightOperand }),
-        result: (body: Record<string, unknown>) => typeof body.result === 'number' ? body.result : null,
-        historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : null,
-        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.items) ? body.items : [],
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
+        historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : typeof item.operator === 'string' ? item.operator : null,
+        historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['items', 'history', 'calculations', 'records']),
       },
       {
         name: 'a/op/b symbolic names',
@@ -370,9 +401,9 @@ async function verifyCalculatorProduct(root: string) {
           const op = operator === '+' ? 'add' : operator === '-' ? 'sub' : operator === '*' ? 'mul' : operator === '/' ? 'div' : operator
           return { a: leftOperand, op, b: rightOperand }
         },
-        result: (body: Record<string, unknown>) => typeof body.result === 'number' ? body.result : null,
-        historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : null,
-        historyItems: (body: Record<string, unknown> | unknown[]) => Array.isArray(body) ? body : Array.isArray(body.items) ? body.items : [],
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
+        historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : typeof item.operator === 'string' ? item.operator : null,
+        historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['items', 'history', 'calculations', 'records']),
       },
     ]
     async function postCalculation(contract: typeof contracts[number], leftOperand: number | string, operator: string, rightOperand: number | string) {
@@ -394,7 +425,7 @@ async function verifyCalculatorProduct(root: string) {
       }
     }
     if (!activeContract) {
-      record(fail('API 契约探测通过', '既不符合 leftOperand/operator/rightOperand，也不符合 a/op/b'))
+      record(fail('API 契约探测通过', '既不符合 leftOperand/operator/rightOperand、left/operator/right、a/operator/b，也不符合 a/op/b'))
       return
     }
 
@@ -672,9 +703,9 @@ async function main() {
       ? ok('full-control 产生自动授权/续跑 action 证据', JSON.stringify(actions))
       : fail('full-control 产生自动授权/续跑 action 证据', JSON.stringify(actions)))
 
-    const messages = await many<{ id: string; content: string; message_type: string; name: string | null; metadata: Record<string, unknown> | null }>(
+    const messages = await many<{ id: string; content: string; message_type: string; sender_type: string; role_agent_id: string | null; name: string | null; metadata: Record<string, unknown> | null }>(
       pool,
-      `SELECT m.id::text, m.content, m.message_type, ra.name, m.metadata
+      `SELECT m.id::text, m.content, m.message_type, m.sender_type, m.role_agent_id::text, ra.name, m.metadata
          FROM public.messages m
          LEFT JOIN public.role_agents ra ON ra.id = m.role_agent_id
         WHERE m.session_id = $1
@@ -698,6 +729,31 @@ async function main() {
       ? ok('消息流包含代码/文件引用')
       : fail('消息流包含代码/文件引用'))
     record(includesAny(messageText, [/已完成/]) ? ok('消息流包含最终已完成状态') : fail('消息流包含最终已完成状态'))
+    const roleMessages = messages.filter((message) => message.sender_type === 'agent' && message.role_agent_id)
+    const workerMessages = roleMessages.filter((message) => message.name && !includesAny(message.name, [/架构师|Orchestrator/]))
+    const workerNames = new Set(workerMessages.map((message) => message.name))
+    record(workerMessages.length >= 2 && workerNames.has('前端工程师') && workerNames.has('后端工程师')
+      ? ok('IM transcript 包含真实前端/后端角色回复', Array.from(workerNames).join(','))
+      : fail('IM transcript 包含真实前端/后端角色回复', JSON.stringify(workerMessages)))
+    record(workerMessages.some((message) => JSON.stringify(message.metadata ?? {}).includes('handoffsReceived') || message.content.includes('AgentHub 观察到的落地证据'))
+      ? ok('角色回复包含 handoff 或落地证据元数据')
+      : fail('角色回复包含 handoff 或落地证据元数据', JSON.stringify(workerMessages.map((message) => ({ name: message.name, metadata: message.metadata, content: message.content.slice(0, 400) })))))
+    const orchestratorMessages = roleMessages.filter((message) => message.name && includesAny(message.name, [/架构师|Orchestrator/]))
+    const negativeValidation = orchestratorMessages.find((message) => includesAny(message.content, [/不能确认|当前不能确认|暂不能|未收到已完成|不会显示已完成|执行失败：至少一个节点失败/]))
+    record(!negativeValidation
+      ? ok('Orchestrator 验收消息无负向完成结论')
+      : fail('Orchestrator 验收消息无负向完成结论', negativeValidation.content.slice(0, 1000)))
+    record(orchestratorMessages.some((message) => includesAny(message.content, [/验收|验证|确认|已完成|产物推荐|推荐产物/]))
+      ? ok('IM transcript 包含 Orchestrator 验收/产物决策')
+      : fail('IM transcript 包含 Orchestrator 验收/产物决策', JSON.stringify(orchestratorMessages.map((message) => message.content.slice(0, 500)))))
+    const artifactResultCard = messages.find((message) => (
+      message.message_type === 'result_card'
+      && Boolean(message.metadata?.artifactRecommendation)
+      && Boolean(message.metadata?.artifactConfirmation)
+    ))
+    record(artifactResultCard
+      ? ok('IM transcript 包含产物推荐/确认 result card', artifactResultCard.id)
+      : fail('IM transcript 包含产物推荐/确认 result card', JSON.stringify(messages.filter((message) => message.message_type === 'result_card'))))
 
     if (workspaceRoot) await verifyCalculatorProduct(workspaceRoot)
 

@@ -52,15 +52,15 @@
 | --- | --- |
 | **类型** | bug / process-readback-gap / acceptance-coverage-gap |
 | **优先级** | P0（影响 Bytedance 主链路和 P1 部署验收结论） |
-| **状态** | `fixed_pending_verify`（2026-06-06，API/前端读回层已修复并通过 focused tests；用户最新复核要求升级为 IM-first 真实角色事务链路，见 REG-20260606-003，三端 fresh UAT 未计入通过） |
+| **状态** | `closed`（2026-06-06，fresh strict run `STRICT-IMFIRST-1780728733` 通过同一 session IM transcript、timeline、Web/Mobile/Desktop readback 和 artifact recommendation checks） |
 | **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001 |
 | **关联任务/合同** | `.trellis/tasks/06-06-workbench-strict-product-line`；`research/contracts/WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md`；`.trellis/spec/frontend/component-guidelines.md` |
 | **影响功能面** | Web right workbench `过程/部署`、`/api/messages`、session timeline API、部署审批/manifest/artifact 读回、三端验收证据口径 |
 | **发现方式** | 用户复核 P1 部署拒绝/允许样本时指出：真实 workspace 中只能看到部署审批卡和“部署已完成”，没有 Orchestrator/架构师分派、前后端工程师执行、文件编辑请求、Git 流程和完整中间对话记录。 |
 | **证据** | 原问题包含两层：一是 `/api/messages` 仍过滤 `message_type='role_acknowledgement'`，导致历史对话缺少角色确认；二是右侧工作台没有同一 session 的统一过程读模型，前端只能零散展示编排、文件、Git、产物，部署链路缺少从 action 到 manifest/artifact 的刷新读回 refs。 |
 | **关闭条件** | `/api/messages` 保留 role acknowledgement；新增 owner-checked `GET /api/sessions/:id/timeline`，聚合 `messages/plans/plan_nodes/plan_node_attempts/agent_mailbox_items/runtime_sessions/actions/artifacts`；Web `过程` tab 显示同 session 全过程，`部署` tab 只显示部署 action、previewPath、manifestPath、artifactId；补 regression tests、type-check、report/tracker/spec。 |
-| **关闭证据** | `pnpm --filter @agenthub/web test -- __tests__/api/messages.test.ts __tests__/api/session-timeline.test.ts __tests__/message-markdown.test.ts` PASS（3 files / 38 tests）：消息 API 断言 role acknowledgement 不被过滤；session timeline API 断言 owner check、typed timeline、runtime direct session rows、deployment action refs 和 deployment artifact refs；前端源码契约断言 `角色/过程/编排/文件/Git/产物/部署` tab、process/deployment timeline endpoint、Git progressive disclosure 和 launch artifact 入口。`pnpm --filter @agenthub/web type-check` PASS。OpenCLI capability check `opencli doctor` PASS，但真实 Web/Mobile/Desktop fresh UAT 未在本轮计入通过。报告：`research/execution-reports/workbench-strict-product-line-2026-06-06.md`。 |
-| **下一步** | API/前端读回层已修复，但不再单独关闭为完整主链路。后续若声明完整 Bytedance single-prompt 或部署主链路通过，必须用 fresh session 重新跑 Web/Mobile/Desktop OpenCLI/Playwright evidence，并同时验证中央 IM transcript 与 `过程/部署` tab，不得复用历史截图或只看最终 deployment artifact。 |
+| **关闭证据** | Fresh strict run `STRICT-IMFIRST-1780728733` PASS（64/64）：workspace `519d0c8f-c52b-4a2e-bc12-503db2af2690`，session `512f4209-ced8-4314-b61e-dbff7d55d7fc`，plan `2e0fdecb-3b66-4f0f-8adf-dfa7e82ad196`，artifact `90ec5f1e-7569-480e-a407-7f6b3e6e956b`；`GET /api/messages?session_id=512f4209-ced8-4314-b61e-dbff7d55d7fc` 读回 15 条消息；`GET /api/sessions/512f4209-ced8-4314-b61e-dbff7d55d7fc/timeline` 为同 session 结构化状态入口；OpenCLI Web/Mobile screenshots 位于 `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-IMFIRST-1780728733/`；Desktop/Electron 使用允许的 Playwright fallback。Focused tests 55/55、type-check、lint、task validate、`git diff --check` 均 PASS。报告：`research/execution-reports/workbench-strict-product-line-2026-06-06.md`。 |
+| **下一步** | 已关闭。后续若声明完整 Bytedance single-prompt 或部署主链路通过，必须继续使用 fresh strict gate，不得复用历史截图或只看最终 deployment artifact。 |
 
 ### REG-20260606-003 — IM 对话中缺少 Orchestrator 分工、真实角色回复和循环验收
 
@@ -68,15 +68,15 @@
 | --- | --- |
 | **类型** | bug / im-first-orchestration-gap / acceptance-contract-gap |
 | **优先级** | P0（直接影响 Bytedance 原始 PRD 的群聊协作、Orchestrator 自动协调分工和 Agent 依次回复） |
-| **状态** | `open`（2026-06-06，已更新 spec/合同/测试合同；fresh IM-first 三端 UAT 尚未通过） |
+| **状态** | `closed`（2026-06-06，fresh strict run `STRICT-IMFIRST-1780728733` 已证明中央 IM transcript 的 Orchestrator 分工、真实角色回复/handoff、Orchestrator 验收和产物推荐/确认） |
 | **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-CTX-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001 |
 | **关联任务/合同** | `.trellis/tasks/06-06-workbench-strict-product-line`；`research/contracts/WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md` Scenario `IM-First Orchestrator Role Transaction Loop`；`.trellis/spec/frontend/component-guidelines.md` Scenario `用户可见工作台闭环` |
 | **影响功能面** | 中央 IM transcript、Orchestrator/架构师分工首响、角色回复/引用/handoff、角色 runtime 会话转发、Orchestrator 重新派发/验收状态、产物推荐/确认、三端读回 |
 | **发现方式** | 用户复核指出：当前样本只有部署审批/允许/已发布，没有“用户 prompt -> Orchestrator 分工 -> 对应工程师收到并实现 -> 回到 Orchestrator 判断重派或验收 -> Orchestrator 推荐产物”的完整 IM 对话过程；右侧 timeline 或程序生成状态不能替代真实角色会话。 |
 | **证据** | 已有修复能让 `/api/sessions/:id/timeline` 显示 message/plan/node/attempt/mailbox/runtime/action/artifact/deployment，但验收仍可能只靠右栏读回。用户要求中央 IM 中必须出现 Orchestrator 首响、真实角色回复/引用/handoff、Orchestrator 验收循环和产物推荐。 |
 | **关闭条件** | Fresh session 从真实 Web IM 入口发送固定 prompt 一次；`GET /api/messages?session_id=<id>` 读回用户 prompt、Orchestrator 分工、至少后端/前端角色回复或等价真实角色 runtime 回复、handoff/引用 metadata、Orchestrator 验收/重派决策、产物推荐/确认；`GET /api/sessions/:id/timeline` 有匹配 plan/runtime/action/artifact；Web OpenCLI 断言中央 IM 与右栏一致；Mobile/PWA 和 Desktop/Electron 读回同一 terminal 状态；右侧栏拖拽宽度通过桌面验收。 |
-| **当前进展** | 已补规范和合同：cross-layer 新增 `IM-First Orchestrator Role Transaction Loop`；frontend 组件/质量规范新增 IM transcript、右栏拖拽和 timeline-only partial 规则；`message-markdown.test.ts` 新增源码合同断言 `/api/chat` 必须持久化 Orchestrator 分工、role runtime replies、handoff metadata、产物推荐。2026-06-06 已新增 `scripts/audit-acceptance-evidence.mjs` 并接入 `scripts/verify-governance-gate.sh`，当前任务因本 REG 仍 open 会被 strict audit 判为 `failed`，防止 partial/timeline-only/历史证据被误报为 completed。 |
-| **下一步** | 继续实现/验证 fresh IM-first 三端 UAT；未通过前不得声明“说一句话直接跑到最终产物交付”已完成。 |
+| **当前进展** | 已关闭。`/api/chat` completed role replies now append observed action/file evidence；downstream handoffs and Orchestrator validation consume generated file evidence. Fresh strict run `STRICT-IMFIRST-1780728733` 通过：IM transcript 包含 Orchestrator allocation、后端/前端角色回复、handoff/落地证据、Orchestrator validation 且无负向完成结论、artifact recommendation/confirmation result card。 |
+| **下一步** | 已关闭。后续必须继续使用 strict gate 保护 IM-first 主链路，防止 timeline-only 或程序拼接状态再次被误判为通过。 |
 
 ### REG-20260605-003 — 统一全功能回归把历史静态证据误判为真实一键交付通过
 

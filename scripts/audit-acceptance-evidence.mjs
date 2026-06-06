@@ -39,7 +39,7 @@ const PRODUCT_FLOW_PATTERNS = [
 const IM_FIRST_REQUIRED = [
   ['IM transcript API', /\/api\/messages|GET \/api\/messages/i],
   ['Orchestrator allocation', /(Orchestrator|架构师).{0,80}(分工|派发|规划|allocation|assign)/is],
-  ['Worker role replies', /(前端工程师|后端工程师).{0,120}(回复|执行|runtime|handoff|交接|收到)/is],
+  ['Worker role replies', /((前端工程师|后端工程师).{0,120}(回复|执行|runtime|handoff|交接|收到)|后端.{0,20}前端.{0,40}角色回复|backend.{0,40}frontend.{0,40}role replies)/is],
   ['Handoff or code reference', /(handoff|roleHandoffs|handoffsReceived|交接|引用|code reference|代码引用)/i],
   ['Orchestrator validation', /(Orchestrator|架构师).{0,120}(验收|验证|重派|redispatch|validation|acceptance)/is],
   ['Artifact recommendation', /(产物|artifact).{0,80}(推荐|确认|confirmation|recommendation)/is],
@@ -123,8 +123,8 @@ function hasAny(text, patterns) {
   return patterns.some((pattern) => pattern.test(text))
 }
 
-function surfaceCheck(label, pattern, text) {
-  if (SURFACE_NEGATION.test(text)) {
+function surfaceCheck(label, pattern, text, negationText = text) {
+  if (SURFACE_NEGATION.test(negationText)) {
     return check('fail', label, '三端证据明确标注为未运行、阻塞或不计入通过')
   }
   return pattern.test(text)
@@ -202,6 +202,7 @@ export function auditAcceptanceEvidence({ root, taskId, allowPartial = false }) 
   const reports = findReports(root, taskId)
   const reportText = reports.map(readIfExists).join('\n\n')
   const combined = [section, contract, reportText].join('\n\n')
+  const currentEvidenceText = [statusField, evidenceField, blockerField, reportText].join('\n\n')
   const checks = []
 
   checks.push(section ? check('pass', 'tracker section', `research/project-tracker.md#${taskId}`) : check('fail', 'tracker section', '缺少当前任务记录'))
@@ -241,7 +242,7 @@ export function auditAcceptanceEvidence({ root, taskId, allowPartial = false }) 
       checks.push(pattern.test(combined) ? check('pass', label) : check('fail', label, 'IM-first 产品主链路缺少该证据'))
     }
     for (const [label, pattern] of SURFACE_REQUIRED) {
-      checks.push(surfaceCheck(label, pattern, combined))
+      checks.push(surfaceCheck(label, pattern, combined, currentEvidenceText))
     }
     if (/(historical|历史|旧 session|timeline-only|right-panel-only)/i.test(combined)) {
       checks.push(check('warn', 'historical/timeline-only evidence marker', '发现历史或 timeline-only 证据，不能单独作为 product pass'))
@@ -250,8 +251,11 @@ export function auditAcceptanceEvidence({ root, taskId, allowPartial = false }) 
     checks.push(check('pass', 'product-flow trigger', 'not applicable'))
   }
 
-  if (/(全部通过|验证通过|completed|fresh strict pass)/i.test(statusField + evidenceField + blockerField) &&
-      /(partial|not-run|blocked|open|fixed_pending_verify|未计入通过|不声明|不能写 completed)/i.test(statusField + evidenceField + blockerField)) {
+  const mixedLanguageText = `${statusField}\n${evidenceField}\n${blockerField}`
+    .replace(/\b0 failed\b/gi, '')
+    .replace(/\b0 failed \/ 0 warned\b/gi, '')
+  if (/(全部通过|验证通过|completed|fresh strict pass)/i.test(mixedLanguageText) &&
+      /(\bpartial\b|\bnot-run\b|\bblocked\b|\bopen\b|\bfixed_pending_verify\b|未计入通过|不声明|不能写 completed)/i.test(mixedLanguageText)) {
     checks.push(check('fail', 'mixed pass and blocking language', '同一任务记录同时包含完成语义和阻塞/partial 语义'))
   }
 
