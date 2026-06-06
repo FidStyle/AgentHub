@@ -81,8 +81,11 @@
 - [ ] execution report 记录命令、session、截图/API 证据。
 - [ ] `.trellis/spec` 写入可复用规则。
 - [ ] type-check、相关测试、OpenCLI/Playwright 验收完成或明确 blocked。
+- [ ] `node scripts/audit-acceptance-evidence.mjs WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06 --root <repo>` 必须输出 `Classification: product-pass`；若仍输出 `failed/partial`，说明当前只能作为局部修复，不能声明 Bytedance 主链路完成。
 - [ ] `bash scripts/verify-governance-gate.sh WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06` exit 0。
 - [ ] 中文 commit，禁止提交 `refer_proj/*`。
+
+2026-06-06 规则更新：治理门禁已经接入严格证据审计。只要 `REG-20260606-003` 仍为 `open`、tracker 仍为 `partial/im-first-open`、报告仍标注 fresh Web/Mobile/Desktop UAT 未计入通过，`verify-governance-gate.sh` 必须 exit 1。这是正确的失败，不允许为了完成感把 partial 证据改写成 pass。
 
 ## 10. 残留风险
 

@@ -75,7 +75,7 @@
 | **发现方式** | 用户复核指出：当前样本只有部署审批/允许/已发布，没有“用户 prompt -> Orchestrator 分工 -> 对应工程师收到并实现 -> 回到 Orchestrator 判断重派或验收 -> Orchestrator 推荐产物”的完整 IM 对话过程；右侧 timeline 或程序生成状态不能替代真实角色会话。 |
 | **证据** | 已有修复能让 `/api/sessions/:id/timeline` 显示 message/plan/node/attempt/mailbox/runtime/action/artifact/deployment，但验收仍可能只靠右栏读回。用户要求中央 IM 中必须出现 Orchestrator 首响、真实角色回复/引用/handoff、Orchestrator 验收循环和产物推荐。 |
 | **关闭条件** | Fresh session 从真实 Web IM 入口发送固定 prompt 一次；`GET /api/messages?session_id=<id>` 读回用户 prompt、Orchestrator 分工、至少后端/前端角色回复或等价真实角色 runtime 回复、handoff/引用 metadata、Orchestrator 验收/重派决策、产物推荐/确认；`GET /api/sessions/:id/timeline` 有匹配 plan/runtime/action/artifact；Web OpenCLI 断言中央 IM 与右栏一致；Mobile/PWA 和 Desktop/Electron 读回同一 terminal 状态；右侧栏拖拽宽度通过桌面验收。 |
-| **当前进展** | 已补规范和合同：cross-layer 新增 `IM-First Orchestrator Role Transaction Loop`；frontend 组件/质量规范新增 IM transcript、右栏拖拽和 timeline-only partial 规则；`message-markdown.test.ts` 新增源码合同断言 `/api/chat` 必须持久化 Orchestrator 分工、role runtime replies、handoff metadata、产物推荐。 |
+| **当前进展** | 已补规范和合同：cross-layer 新增 `IM-First Orchestrator Role Transaction Loop`；frontend 组件/质量规范新增 IM transcript、右栏拖拽和 timeline-only partial 规则；`message-markdown.test.ts` 新增源码合同断言 `/api/chat` 必须持久化 Orchestrator 分工、role runtime replies、handoff metadata、产物推荐。2026-06-06 已新增 `scripts/audit-acceptance-evidence.mjs` 并接入 `scripts/verify-governance-gate.sh`，当前任务因本 REG 仍 open 会被 strict audit 判为 `failed`，防止 partial/timeline-only/历史证据被误报为 completed。 |
 | **下一步** | 继续实现/验证 fresh IM-first 三端 UAT；未通过前不得声明“说一句话直接跑到最终产物交付”已完成。 |
 
 ### REG-20260605-003 — 统一全功能回归把历史静态证据误判为真实一键交付通过

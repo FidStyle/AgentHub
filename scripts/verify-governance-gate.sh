@@ -12,6 +12,7 @@ fi
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 TRACKER="$REPO_ROOT/research/project-tracker.md"
 REPORTS_DIR="$REPO_ROOT/research/execution-reports"
+EVIDENCE_AUDIT="$REPO_ROOT/scripts/audit-acceptance-evidence.mjs"
 FAILURES=0
 
 fail() { echo "[失败] $1"; FAILURES=$((FAILURES + 1)); }
@@ -51,7 +52,9 @@ if [[ -f "$TRACKER" ]]; then
     index($0, id) == 1 { found = 1 }
     found { print }
   ' "$TRACKER")
-  if echo "$TASK_SECTION" | grep -qE '(completed|全部完成|验证通过|全量验收通过|✅.*完成|✅.*通过)'; then
+  if echo "$TASK_SECTION" | grep -qE '(in_progress|partial|blocked|not-run|im-first-open|不能写 completed|未计入通过|不声明|尚未完成|fixed_pending_verify|REG-[0-9-]+.*open)'; then
+    fail "$TASK_ID 在 project-tracker.md 中仍包含 partial/open/blocked/not-run 语义"
+  elif echo "$TASK_SECTION" | grep -qE '(completed|全部完成|验证通过|全量验收通过|✅.*完成|✅.*通过)'; then
     pass "$TASK_ID 状态为已完成"
   else
     fail "$TASK_ID 在 project-tracker.md 中未标记为完成状态"
@@ -82,6 +85,23 @@ if [[ "$REPORT_COUNT" -gt 0 ]]; then
   pass "execution-reports 包含 $REPORT_COUNT 个相关报告"
 else
   fail "execution-reports/ 下未找到 $TASK_ID 相关执行报告（搜索词: $SEARCH_TERM）"
+fi
+
+# 5.1. 严格验收证据审计：禁止把 partial、历史证据、open P0 regression 或 timeline-only 读回算成完成。
+if [[ -f "$EVIDENCE_AUDIT" ]]; then
+  AUDIT_STATUS=0
+  AUDIT_OUTPUT=$(node "$EVIDENCE_AUDIT" "$TASK_ID" --root "$REPO_ROOT" 2>&1) || AUDIT_STATUS=$?
+  if [[ "$AUDIT_STATUS" -ne 0 ]]; then
+    fail "严格验收证据审计未通过"
+    echo "$AUDIT_OUTPUT"
+  elif [[ "${AUDIT_OUTPUT:-}" != "" ]] && echo "$AUDIT_OUTPUT" | grep -q "Classification: product-pass"; then
+    pass "严格验收证据审计为 product-pass"
+  elif [[ "${AUDIT_OUTPUT:-}" != "" ]]; then
+    info "严格验收证据审计输出："
+    echo "$AUDIT_OUTPUT"
+  fi
+else
+  fail "严格验收证据审计脚本不存在: $EVIDENCE_AUDIT"
 fi
 
 # 6. 最近 git commit 必须存在，且 commit message 必须包含中文。

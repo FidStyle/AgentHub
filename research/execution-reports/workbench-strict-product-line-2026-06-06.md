@@ -43,6 +43,31 @@ After the latest user review, this report also records a remaining P0 gap: timel
 ## Automated Evidence
 
 ```bash
+node scripts/test-audit-acceptance-evidence.mjs
+```
+
+Result: PASS.
+
+This locks the new governance audit with fixture coverage for two cases:
+
+- a complete IM-first + Web/Mobile/Desktop evidence set returns `product-pass`;
+- a `partial` tracker row with a related open P0 regression returns `failed`.
+
+```bash
+node scripts/audit-acceptance-evidence.mjs WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06 --root /Users/joytion/Documents/code/AgentHub_new_claude_test
+```
+
+Result: FAIL as expected. Classification: `failed`.
+
+The audit blocks completion because the tracker is still `in_progress / partial`, related P0 regressions `REG-20260606-002` and `REG-20260606-003` are not closed, worker role replies are not proven in the IM-first acceptance evidence, Web/Mobile/Desktop fresh UAT is explicitly not claimed, and historical/timeline-only evidence is present. This is the intended strict result for the current state.
+
+```bash
+bash scripts/verify-governance-gate.sh WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06
+```
+
+Expected result after this update: FAIL until fresh IM-first Web/Mobile/Desktop UAT closes `REG-20260606-003`. The governance script now calls `scripts/audit-acceptance-evidence.mjs` and must not print `全部通过` for this partial task.
+
+```bash
 pnpm --filter @agenthub/web test -- __tests__/api/messages.test.ts __tests__/api/session-timeline.test.ts __tests__/message-markdown.test.ts
 ```
 

@@ -385,6 +385,85 @@ Therefore the single-prompt development process passed.
 Web/Mobile/Desktop read back the same terminal state. Only then the loop can be marked completed.
 ```
 
+## Scenario: Acceptance Evidence Governance Gate
+
+### 1. Scope / Trigger
+
+- Trigger: any task, report, tracker row, or governance check that claims `completed`, `验证通过`, `全部通过`, `fresh strict pass`, or equivalent product-flow completion.
+- Applies to `scripts/audit-acceptance-evidence.mjs`, `scripts/verify-governance-gate.sh`, `research/project-tracker.md`, `research/regression-ledger.md`, `research/execution-reports/*`, and `.trellis/spec` contracts used as completion evidence.
+- This gate is mandatory for Bytedance-aligned IM/product-delivery flows. It must fail closed when evidence is partial, historical, timeline-only, or blocked by an open P0 regression.
+
+### 2. Signatures
+
+- Command:
+  - `node scripts/audit-acceptance-evidence.mjs <TASK-ID> --root <repo>`
+  - `bash scripts/verify-governance-gate.sh <TASK-ID>`
+- Required inputs:
+  - `research/project-tracker.md` section headed `### <TASK-ID>`
+  - `research/regression-ledger.md`
+  - `research/contracts/<TASK-ID>.md` when present
+  - related `research/execution-reports/*.md`
+- Result classes: `product-pass`, `partial`, `failed`.
+
+### 3. Contracts
+
+- A tracker row containing `in_progress`, `partial`, `blocked`, `not-run`, `im-first-open`, `fixed_pending_verify`, `不能写 completed`, `未计入通过`, or a related `REG-* open` cannot pass the governance gate.
+- A related open or `fixed_pending_verify` P0 regression in `research/regression-ledger.md` blocks completion even if the tracker/report contains pass-like language.
+- IM-first product-flow claims must prove all of:
+  - `/api/messages` or equivalent transcript API evidence;
+  - Orchestrator/architect allocation;
+  - real frontend/backend or worker role replies tied to role/runtime state;
+  - handoff, reply, or code-reference metadata;
+  - Orchestrator validation, redispatch, or acceptance decision;
+  - artifact recommendation/confirmation;
+  - Web, Mobile/PWA, and Desktop/Electron statuses explicitly classified.
+- Historical session readback, right-panel timeline evidence, screenshot existence, or generated product behavior alone can be supplemental evidence only. They must not produce `product-pass`.
+- `verify-governance-gate.sh` must call the evidence audit before reporting `全部通过`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Tracker says `partial` but report has `PASS` commands | audit classification `failed` or `partial`; governance exits non-zero | governance prints `全部通过` |
+| Related P0 regression is `open` or `fixed_pending_verify` | governance exits non-zero and names the regression | completion based only on latest commit/report |
+| Evidence says fresh Web/Mobile/Desktop UAT is not claimed | each surface check fails or is classified `not-run`/`blocked` | infer pass from historical screenshots |
+| IM transcript lacks worker role replies | product-flow audit fails | pass because timeline has runtime rows |
+| Task is genuinely complete | tracker, ledger, report, contract, and recent commit agree; audit prints `product-pass` | require unrelated historical reports |
+
+### 5. Good/Base/Bad Cases
+
+- Good: A fresh run report lists session/workspace IDs, `GET /api/messages`, Orchestrator allocation, role replies/handoffs, Orchestrator validation, artifact recommendation/confirmation, and Web/Mobile/Desktop pass evidence; no related P0 regressions are open.
+- Base: API/timeline fixes pass focused tests, but `REG-20260606-003` remains open. The audit fails and the tracker remains `partial`.
+- Bad: The tracker includes both `验证通过` and `三端 fresh UAT 未计入通过`, and the governance gate still prints `全部通过`.
+
+### 6. Tests Required
+
+- Unit/script fixture tests must cover:
+  - pass case with complete IM-first and three-surface evidence;
+  - fail case with `partial` status and related open P0 regression.
+- Governance shell check must be run for the active task before completion. If it fails because the task is intentionally partial, the report must record the non-zero result as correct evidence that completion is blocked.
+- `git diff --check` and Trellis task validation remain required for script/spec changes.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+focused tests pass
+OpenCLI read an old process tab
+Report says no fresh IM-first pass is claimed
+Governance: 全部通过
+```
+
+#### Correct
+
+```text
+focused tests pass for the partial fix
+audit-acceptance-evidence reports failed because REG-20260606-003 is open
+verify-governance-gate exits non-zero
+tracker stays partial until fresh IM-first Web/Mobile/Desktop UAT passes
+```
+
 ## Scenario: Chat Deployment Local Manifest Closure
 
 ### 1. Scope / Trigger
