@@ -71,11 +71,11 @@ export function ActionCard({ action, onApprove }: ActionCardProps) {
         )}
 
         {isPending && onApprove && (
-          <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" onClick={() => onApprove(action.id, true)}>
+          <div className="flex flex-col gap-2">
+            <Button size="sm" className="w-full px-1.5" onClick={() => onApprove(action.id, true)}>
               授权本次
             </Button>
-            <Button size="sm" variant="outline" onClick={() => onApprove(action.id, false)}>
+            <Button size="sm" variant="outline" className="w-full px-1.5" onClick={() => onApprove(action.id, false)}>
               取消
             </Button>
           </div>

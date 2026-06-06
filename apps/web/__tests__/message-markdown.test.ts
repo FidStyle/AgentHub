@@ -359,6 +359,19 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).not.toContain('absolute -left-1.5 top-0 hidden h-full w-3')
   })
 
+  it('stacks approval buttons vertically in narrow orchestrator surfaces', () => {
+    const actionCard = readFileSync(fileURLToPath(new URL('../components/orchestrator/ActionCard.tsx', import.meta.url)), 'utf8')
+    const notificationBell = readFileSync(fileURLToPath(new URL('../components/orchestrator/NotificationBell.tsx', import.meta.url)), 'utf8')
+
+    expect(actionCard).toContain('className="flex flex-col gap-2"')
+    expect(actionCard).toContain('className="w-full px-1.5"')
+    expect(actionCard).not.toContain('grid grid-cols-2 gap-2')
+
+    expect(notificationBell).toContain('className="mt-3 flex flex-col gap-2"')
+    expect(notificationBell).toContain('className="w-full px-1.5"')
+    expect(notificationBell).not.toContain('className="flex-1"')
+  })
+
   it('renders the workspace file and Git panels as tree-first wide workbench surfaces', () => {
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
 
