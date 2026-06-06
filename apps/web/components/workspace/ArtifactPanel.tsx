@@ -1410,6 +1410,7 @@ function GitChangeTreeView({
   expandedPaths,
   onToggle,
   onOpen,
+  onQuickAction,
 }: {
   nodes: GitChangeTreeNode[]
   group: 'staged' | 'unstaged'
@@ -1417,6 +1418,7 @@ function GitChangeTreeView({
   expandedPaths: Set<string>
   onToggle: (path: string) => void
   onOpen: (change: GitChangeRow, group: 'staged' | 'unstaged') => void
+  onQuickAction: (action: 'stage' | 'unstage', change: GitChangeRow) => void
 }) {
   if (nodes.length === 0) {
     return <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">没有{group === 'staged' ? '已暂存' : '未暂存'}变更</div>
@@ -1427,30 +1429,50 @@ function GitChangeTreeView({
     const selected = !isDir && selectedPath === node.path
     return (
       <div key={`${group}-${node.type}-${node.path}`}>
-        <button
-          type="button"
+        <div
           data-testid={isDir ? 'workspace-git-folder-node' : 'workspace-git-file-node'}
-          className={`flex w-full min-w-0 items-center gap-2 rounded-sm py-1 pr-2 text-left text-xs hover:bg-muted ${selected ? 'bg-muted text-foreground' : ''}`}
+          className={`group flex w-full min-w-0 items-center gap-1 rounded-sm pr-1 text-xs hover:bg-muted ${selected ? 'bg-muted text-foreground' : ''}`}
           style={{ paddingLeft: 8 + level * 12 }}
-          onClick={() => {
-            if (isDir) {
-              onToggle(`${group}:${node.path}`)
-              return
-            }
-            if (node.change) onOpen(node.change, group)
-          }}
         >
-          {isDir ? (
-            <>
-              {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-              <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </>
-          ) : (
-            <FileCode2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          )}
-          <span className="min-w-0 flex-1 truncate" title={node.path}>{node.name}</span>
+          <button
+            type="button"
+            data-testid={isDir ? 'workspace-git-folder-toggle' : 'workspace-git-open-diff'}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-sm py-1 pr-1 text-left hover:text-foreground"
+            onClick={() => {
+              if (isDir) {
+                onToggle(`${group}:${node.path}`)
+                return
+              }
+              if (node.change) onOpen(node.change, group)
+            }}
+          >
+            {isDir ? (
+              <>
+                {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </>
+            ) : (
+              <FileCode2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="min-w-0 flex-1 truncate" title={node.path}>{node.name}</span>
+          </button>
           {node.change && <Badge variant={node.change.untracked ? 'warning' : group === 'staged' ? 'success' : 'secondary'}>{node.change.status.trim() || 'M'}</Badge>}
-        </button>
+          {node.change && (
+            <button
+              type="button"
+              data-testid={group === 'staged' ? 'workspace-git-unstage-button' : 'workspace-git-stage-button'}
+              aria-label={group === 'staged' ? `取消暂存 ${node.path}` : `暂存 ${node.path}`}
+              title={group === 'staged' ? '取消暂存' : '暂存'}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-sm font-medium text-muted-foreground opacity-70 hover:bg-background hover:text-foreground group-hover:opacity-100"
+              onClick={(event) => {
+                event.stopPropagation()
+                onQuickAction(group === 'staged' ? 'unstage' : 'stage', node.change!)
+              }}
+            >
+              {group === 'staged' ? '-' : '+'}
+            </button>
+          )}
+        </div>
         {expanded && node.children?.map((child) => renderNode(child, level + 1))}
       </div>
     )
@@ -1707,6 +1729,7 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
                 expandedPaths={gitExpandedPaths}
                 onToggle={toggleGitFolder}
                 onOpen={(change, group) => void openDiff(change.path, group === 'staged')}
+                onQuickAction={(action, change) => void runGitAction(action, change.path)}
               />
               <div className="mb-2 mt-4 text-xs font-medium text-muted-foreground">已暂存</div>
               <GitChangeTreeView
@@ -1716,6 +1739,7 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
                 expandedPaths={gitExpandedPaths}
                 onToggle={toggleGitFolder}
                 onOpen={(change, group) => void openDiff(change.path, group === 'staged')}
+                onQuickAction={(action, change) => void runGitAction(action, change.path)}
               />
             </div>
             <div data-testid="workspace-git-diff-viewer" className="min-w-0">
