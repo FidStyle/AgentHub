@@ -134,7 +134,7 @@
 | **验收方式** | Web API/orchestrator/mailbox tests + Shared runtime-workspace contract tests + type-check/lint；本任务不声明 OpenCLI 三端 UAT 通过。 |
 | **测试证据** | Report: `research/execution-reports/architect-durable-dispatch-2026-06-05.md`；focused Web chat/orchestrator suite PASS（2 files / 31 tests）；focused Web dispatcher/mailbox suite PASS（2 files / 10 tests）；`pnpm --filter @agenthub/web test` PASS（30 files / 253 tests）；`pnpm --filter @agenthub/shared test` PASS（7 files / 47 tests）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/web lint` PASS（仅既有 Next lint deprecation/config warning，无 ESLint warnings/errors）；`task.py validate` PASS；task JSON/JSONL parse PASS；`git diff --check` PASS；work commit `8ab4b10`；status commit `161ca12`；archive commit `3a6bf73`。 |
 | **阻塞问题** | 无当前代码阻塞。OpenCLI Web/Mobile/PWA/Desktop-Electron UAT 仍为 `not-run`，按顺序队列留给 `06-05-opencli-role-runtime-uat`。 |
-| **下一步动作** | 提交并归档后进入 `06-05-fix-runtime-permission-broker`；不得跳过 permission broker 修复直接跑最终 OpenCLI UAT。 |
+| **下一步动作** | 已关闭。后续 `06-05-fix-runtime-permission-broker`、固定样本 product gate 和 `06-06-workbench-strict-product-line` 均已完成并归档；不再作为当前待办。 |
 
 ### RUNTIME-PERMISSION-BROKER-2026-06-05: Runtime permission broker 修复
 
@@ -239,7 +239,7 @@
 | **验收方式** | Web OpenCLI 覆盖 `允许单次执行` 与 `拒绝`；Mobile/PWA OpenCLI 读回同 session 的 plan/action/permission 状态；Desktop/Electron 无 OpenCLI adapter 时使用 Playwright Electron fallback；API/worker/dispatcher regression tests；type-check/lint/smoke。 |
 | **测试证据** | Report: `research/execution-reports/single-prompt-permission-continuation-uat-2026-06-05.md`；approve session `e104da72-2989-4a81-a68d-9cc8661c3aed`、action `60f886f1-2684-49c8-9085-4ad465c4568b`，点击“允许单次执行”后原 permission part 为 `running`，action/plan node running，并实际写入 workspace 文件 `agenthub-permission-status-sync.txt`；reject session `d49c3272-8240-4908-ae8d-5e0ddea2caf8`、action `3312a56a-082c-4e45-b9fc-fe1ae1adb04c`，action `rejected` 且 `executed_at` 为空，plan node `waiting`，原卡和 Mobile/PWA readback 显示拒绝；截图 `permission-continuation-web-reject-2026-06-05.png`、`permission-continuation-mobile-reject-2026-06-05.png`。自动化：Web/shared type-check PASS；Web focused regression suite PASS（5 files / 103 tests）；Web lint PASS（仅既有 Next lint/config warning，0 ESLint errors）；`pnpm env:acceptance:smoke` PASS（CRUD 5/5，`/api/chat` 12/12）；Desktop build PASS；Desktop Vitest PASS（6 files / 29 tests）；Electron fallback PASS（21/21）。 |
 | **阻塞问题** | 无。完整 Bytedance fixed-sample product gate 不在本回归任务内重跑，旧结论仍以 `BYTEDANCE-FIXED-SAMPLE-PRODUCT-GATE-2026-06-05` 为准。 |
-| **下一步动作** | 已关闭；提交并归档 Trellis task。 |
+| **下一步动作** | 已关闭；Trellis task 已归档。 |
 
 ### ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03: Orchestrator IM、Markdown、权限确认与 Git 变更面板
 

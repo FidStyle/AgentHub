@@ -21,10 +21,10 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 当前任务 | `.trellis/tasks/06-06-workbench-strict-product-line` |
+| 当前任务 | 无 active Trellis task（`task.py current --source` 返回 `(none)`） |
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
-| 开始状态 | 非 clean（本任务已有代码/合同改动，正在收口） |
+| 开始状态 | 已收口；工作区 clean |
 | 当前状态 | completed / fresh strict pass：最新 run `STRICT-IMRESIZE-1780732772` 已按 IM-first 标准通过 67/67 checks；中央 IM transcript、真实角色回复/handoff、Orchestrator 验收、产物推荐/确认、Web/Mobile/Desktop readback、OpenCLI 真实右侧栏拖动和刷新持久化均有证据。 |
 | 阻塞项 | 无。REG-20260606-002、REG-20260606-003 已由 fresh strict pass 关闭；Electron 使用允许的 Playwright fallback。 |
 | 下一步 | 已归档 `06-06-workbench-strict-product-line` 与 `06-05-strict-single-prompt-product-delivery-gate`，并记录 session journal。继续按本表审计是否还有未关闭 P0/P1；最终 Demo 包和 3 分钟素材仍按用户要求不处理。 |
