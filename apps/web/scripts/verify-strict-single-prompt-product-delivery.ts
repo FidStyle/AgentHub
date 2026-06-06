@@ -301,6 +301,53 @@ function runCommand(command: string, args: string[], cwd: string, timeoutMs = 12
   return fail(`${command} ${args.join(' ')}`, output.split('\n').slice(-16).join('\n'))
 }
 
+function collectSqliteCandidates(root: string, requestedDbPath: string) {
+  const candidates = new Set<string>()
+  if (exists(requestedDbPath)) candidates.add(requestedDbPath)
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name)
+      const relative = path.relative(root, fullPath)
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === '.git' || relative.startsWith('.test-data')) continue
+        walk(fullPath)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (entry.name.endsWith('-wal') || entry.name.endsWith('-shm')) continue
+      if (/\.(sqlite|sqlite3|db)$/i.test(entry.name)) candidates.add(fullPath)
+    }
+  }
+  walk(root)
+  return Array.from(candidates)
+}
+
+function sqlitePersistentHistoryEvidence(root: string, requestedDbPath: string, minRows: number) {
+  const details: string[] = []
+  for (const dbFile of collectSqliteCandidates(root, requestedDbPath)) {
+    const tablesResult = spawnSync(
+      'sqlite3',
+      [dbFile, "select name from sqlite_master where type='table' and name not like 'sqlite_%' order by name;"],
+      { encoding: 'utf8' },
+    )
+    if (tablesResult.status !== 0) {
+      details.push(`${path.relative(root, dbFile)}: ${tablesResult.stderr.trim()}`)
+      continue
+    }
+    const tables = tablesResult.stdout.split('\n').map((item) => item.trim()).filter(Boolean)
+    for (const table of tables) {
+      const escapedTable = table.replace(/"/g, '""')
+      const countResult = spawnSync('sqlite3', [dbFile, `select count(*) from "${escapedTable}";`], { encoding: 'utf8' })
+      const count = Number(countResult.stdout.trim())
+      details.push(`${path.relative(root, dbFile)}:${table}=${Number.isFinite(count) ? count : '?'}${countResult.stderr ? ` ${countResult.stderr.trim()}` : ''}`)
+      if (Number.isFinite(count) && count >= minRows) {
+        return { ok: true, count, file: dbFile, table, detail: details.join('; ') }
+      }
+    }
+  }
+  return { ok: false, count: 0, file: null, table: null, detail: details.join('; ') || 'no sqlite user tables found' }
+}
+
 function runProductNpmInstall(root: string): Check {
   if (!exists(path.join(root, 'package.json'))) return fail('npm install 生成项目依赖', 'package.json missing')
   const result = spawnSync('npm', ['install', '--no-audit', '--no-fund'], {
@@ -463,23 +510,11 @@ async function verifyCalculatorProduct(root: string) {
         : fail('SQLite-backed history API 读回', JSON.stringify({ status: historyResponse.status, history })),
     )
 
-    const sqliteTables = spawnSync('sqlite3', [dbPath, "select name from sqlite_master where type='table' order by name;"], { encoding: 'utf8' })
-    const sqliteHistoryCount = spawnSync('sqlite3', [dbPath, "select count(*) from history;"], { encoding: 'utf8' })
-    const sqliteCalculationsCount = spawnSync('sqlite3', [dbPath, "select count(*) from calculations;"], { encoding: 'utf8' })
-    const sqliteCalculationHistoryCount = spawnSync('sqlite3', [dbPath, "select count(*) from calculation_history;"], { encoding: 'utf8' })
-    const sqliteCount = Number(
-      sqliteHistoryCount.status === 0
-        ? sqliteHistoryCount.stdout.trim()
-        : sqliteCalculationsCount.status === 0
-          ? sqliteCalculationsCount.stdout.trim()
-          : sqliteCalculationHistoryCount.status === 0
-            ? sqliteCalculationHistoryCount.stdout.trim()
-            : '0',
-    )
+    const sqliteEvidence = sqlitePersistentHistoryEvidence(root, dbPath, 4)
     record(
-      sqliteCount >= 4
-        ? ok('SQLite 文件真实持久化历史', `${sqliteCount} rows; tables=${sqliteTables.stdout.trim().replace(/\n/g, ',')}`)
-        : fail('SQLite 文件真实持久化历史', `${sqliteTables.stdout}${sqliteTables.stderr}${sqliteHistoryCount.stderr}${sqliteCalculationsCount.stderr}${sqliteCalculationHistoryCount.stderr}`.trim()),
+      sqliteEvidence.ok
+        ? ok('SQLite 文件真实持久化历史', `${sqliteEvidence.count} rows; ${path.relative(root, sqliteEvidence.file ?? root)}:${sqliteEvidence.table}`)
+        : fail('SQLite 文件真实持久化历史', sqliteEvidence.detail),
     )
   } catch (error) {
     record(fail('生成产物运行验证', error instanceof Error ? error.message : String(error)))
@@ -501,6 +536,91 @@ function runOpencli(args: string[], outputFile: string): Check {
   if (result.error) return warn(`OpenCLI ${args.join(' ')}`, result.error.message)
   if (result.status === 0) return ok(`OpenCLI ${args.join(' ')}`)
   return warn(`OpenCLI ${args.join(' ')}`, `${result.stdout}${result.stderr}`.trim().split('\n').slice(-8).join('\n'))
+}
+
+function runOpencliEval(session: string, script: string, outputFile: string, label: string): Check {
+  const result = spawnSync('opencli', ['browser', session, 'eval', script], { encoding: 'utf8', timeout: 60_000 })
+  fs.writeFileSync(path.join(ARTIFACT_DIR, outputFile), `${result.stdout}${result.stderr}`)
+  const output = `${result.stdout || ''}${result.stderr || ''}`.trim()
+  if (result.error) return fail(label, result.error.message)
+  if (result.status === 0) return ok(label, output.split('\n').slice(0, 20).join('\n'))
+  return fail(label, output.split('\n').slice(-12).join('\n'))
+}
+
+async function verifyWebRightPanelResize(workspaceId: string) {
+  const session = 'agenthub-strict'
+  const workspaceUrl = `${BASE_URL}/workspace/${workspaceId}`
+  const dragScript = String.raw`
+    (async () => {
+      const overlay = document.querySelector('[data-testid="artifact-overlay"]')
+      const handle = document.querySelector('[data-testid="artifact-resize-handle"]')
+      const composer = document.querySelector('[data-testid="message-composer"]')
+      const chatPanel = document.querySelector('[data-testid="chat-panel"]')
+      if (!overlay) throw new Error('missing artifact overlay')
+      if (!handle) throw new Error('missing artifact resize handle')
+      if (!composer || !chatPanel) throw new Error('missing chat panel or composer')
+      const before = overlay.getBoundingClientRect().width
+      const handleBox = handle.getBoundingClientRect()
+      const targetX = window.innerWidth - 500
+      handle.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 91,
+        pointerType: 'mouse',
+        isPrimary: true,
+        clientX: handleBox.left + Math.max(1, handleBox.width / 2),
+        clientY: handleBox.top + Math.max(1, handleBox.height / 2),
+      }))
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 91,
+        pointerType: 'mouse',
+        isPrimary: true,
+        clientX: targetX,
+        clientY: handleBox.top + Math.max(1, handleBox.height / 2),
+      }))
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      window.dispatchEvent(new PointerEvent('pointerup', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 91,
+        pointerType: 'mouse',
+        isPrimary: true,
+        clientX: targetX,
+        clientY: handleBox.top + Math.max(1, handleBox.height / 2),
+      }))
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      const after = overlay.getBoundingClientRect().width
+      const stored = Number(window.localStorage.getItem('agenthub:right-panel-width'))
+      const composerBox = composer.getBoundingClientRect()
+      const chatBox = chatPanel.getBoundingClientRect()
+      if (!Number.isFinite(stored)) throw new Error('right panel width was not persisted')
+      if (Math.abs(after - before) < 40) throw new Error('right panel width did not change enough: before=' + before + ', after=' + after)
+      if (Math.abs(stored - after) > 24) throw new Error('persisted width does not match rendered width: stored=' + stored + ', after=' + after)
+      if (composerBox.width < 260 || chatBox.width < 360) throw new Error('chat area unusable after resize: composer=' + composerBox.width + ', chat=' + chatBox.width)
+      return { before, after, stored, composerWidth: composerBox.width, chatWidth: chatBox.width }
+    })()
+  `
+  record(runOpencliEval(session, dragScript, 'opencli-web-right-panel-resize-drag.txt', 'Web 右侧栏可拖动且聊天区仍可用'))
+  record(runOpencli(['browser', session, 'open', workspaceUrl], 'opencli-web-reopen-after-resize.txt'))
+  const persistedScript = String.raw`
+    (() => {
+      const overlay = document.querySelector('[data-testid="artifact-overlay"]')
+      const composer = document.querySelector('[data-testid="message-composer"]')
+      if (!overlay) throw new Error('missing artifact overlay after reload')
+      if (!composer) throw new Error('missing composer after reload')
+      const rendered = overlay.getBoundingClientRect().width
+      const stored = Number(window.localStorage.getItem('agenthub:right-panel-width'))
+      const composerWidth = composer.getBoundingClientRect().width
+      if (!Number.isFinite(stored)) throw new Error('persisted width missing after reload')
+      if (Math.abs(stored - rendered) > 24) throw new Error('reload width mismatch: stored=' + stored + ', rendered=' + rendered)
+      if (composerWidth < 260) throw new Error('composer unusable after reload: ' + composerWidth)
+      return { rendered, stored, composerWidth }
+    })()
+  `
+  record(runOpencliEval(session, persistedScript, 'opencli-web-right-panel-resize-persisted.txt', 'Web 右侧栏宽度刷新后持久化'))
 }
 
 async function verifyTriSurface(sessionId: string, workspaceId: string, artifactId: string | null) {
@@ -526,7 +646,8 @@ async function verifyTriSurface(sessionId: string, workspaceId: string, artifact
   }
 
   if (opencliAvailable()) {
-    record(runOpencli(['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspaces/${workspaceId}`], 'opencli-web-open.txt'))
+    record(runOpencli(['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspace/${workspaceId}`], 'opencli-web-open.txt'))
+    await verifyWebRightPanelResize(workspaceId)
     record(runOpencli(['browser', 'agenthub-strict', 'screenshot', path.join(ARTIFACT_DIR, 'web-workspace.png')], 'opencli-web-screenshot.txt'))
     record(runOpencli(['browser', 'agenthub-strict-mobile', 'open', `${BASE_URL}/m/sessions/${sessionId}`], 'opencli-mobile-open.txt'))
     record(runOpencli(['browser', 'agenthub-strict-mobile', 'screenshot', path.join(ARTIFACT_DIR, 'mobile-session.png')], 'opencli-mobile-screenshot.txt'))
@@ -569,6 +690,7 @@ async function main() {
   let planId: string | null = null
   let workspaceRoot: string | null = null
   let finalArtifactId: string | null = null
+  let fatalError: string | null = null
 
   try {
     const workspace = await jsonOrThrow<{ id: string; cloud_project_dir?: string | null }>(await apiFetch('/api/workspaces', {
@@ -794,12 +916,17 @@ async function main() {
     record(artifacts.length <= 3 ? ok('未把整个文件树默认标成产物', `${artifacts.length} artifacts`) : fail('未把整个文件树默认标成产物', `${artifacts.length} artifacts`))
 
     await verifyTriSurface(sessionId, workspaceId, finalArtifactId)
+  } catch (error) {
+    fatalError = error instanceof Error ? error.message : String(error)
+    record(fail('strict gate fatal error', fatalError))
+    throw error
   } finally {
     const summary = {
-      status: failed === 0 ? 'PASS' : 'FAIL',
+      status: failed === 0 && !fatalError ? 'PASS' : 'FAIL',
       passed,
       failed,
       warned,
+      fatalError,
       baseUrl: BASE_URL,
       runMarker: RUN_MARKER,
       workspaceId,

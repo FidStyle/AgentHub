@@ -358,7 +358,7 @@ Expose audited progress states: planning -> executing backend -> executing front
 - Web OpenCLI:
   - start from the real chat entry, send the fixed prompt once, then assert the IM transcript contains Orchestrator allocation, at least one assigned role reply, Orchestrator final validation, and artifact recommendation/confirmation.
   - assert right panel `过程` and `部署` match the same session, but do not count them without transcript assertions.
-  - drag the right sidebar width, verify middle chat remains usable, and reload to confirm width persistence.
+  - drag the right sidebar width through `artifact-resize-handle`, verify middle chat/composer remains usable, and reload to confirm `agenthub:right-panel-width` persistence. This must be a real browser/OpenCLI step in the strict product gate, not only a static source assertion.
 - Mobile/PWA OpenCLI:
   - open the same session and assert the lightweight transcript/readback shows the same terminal status and authorization records.
 - Desktop/Electron:

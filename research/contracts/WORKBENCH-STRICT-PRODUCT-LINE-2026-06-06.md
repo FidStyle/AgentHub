@@ -85,7 +85,7 @@
 - [ ] `bash scripts/verify-governance-gate.sh WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06` exit 0。
 - [ ] 中文 commit，禁止提交 `refer_proj/*`。
 
-2026-06-06 规则更新：治理门禁已经接入严格证据审计。`REG-20260606-003` 已由 fresh strict run `STRICT-IMFIRST-1780728733` 关闭；后续如果 tracker/report 再出现 partial、open regression、缺 IM transcript、缺三端状态或缺产物推荐/确认，`verify-governance-gate.sh` 必须重新 exit 1。
+2026-06-06 规则更新：治理门禁已经接入严格证据审计。`REG-20260606-003` 已由 fresh strict run `STRICT-IMRESIZE-1780732772` 关闭；该 run 还覆盖 Web OpenCLI 真实右侧栏拖动和刷新持久化。后续如果 tracker/report 再出现 partial、open regression、缺 IM transcript、缺三端状态、缺产物推荐/确认或缺右侧工作台真实交互证据，`verify-governance-gate.sh` 必须重新 exit 1。
 
 ## 10. 残留风险
 

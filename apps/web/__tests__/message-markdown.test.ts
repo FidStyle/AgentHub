@@ -350,6 +350,35 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).toContain("lg:grid-cols-[280px_minmax(480px,1fr)_var(--artifact-width)]")
     expect(source).toContain("style={{ '--artifact-width': `${rightPanelWidth}px` } as CSSProperties}")
   })
+
+  it('requires the strict product gate to exercise right panel resizing through OpenCLI', () => {
+    const source = readFileSync(fileURLToPath(new URL('../scripts/verify-strict-single-prompt-product-delivery.ts', import.meta.url)), 'utf8')
+
+    expect(source).toContain('verifyWebRightPanelResize')
+    expect(source).toContain('`${BASE_URL}/workspace/${workspaceId}`')
+    expect(source).not.toMatch(/const workspaceUrl = `\$\{BASE_URL\}\/workspaces\/\$\{workspaceId\}`/)
+    expect(source).toContain("['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspace/${workspaceId}`]")
+    expect(source).not.toContain("['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspaces/${workspaceId}`]")
+    expect(source).toContain("opencli-web-right-panel-resize-drag.txt")
+    expect(source).toContain("opencli-web-right-panel-resize-persisted.txt")
+    expect(source).toContain("document.querySelector('[data-testid=\"artifact-resize-handle\"]')")
+    expect(source).toContain('PointerEvent')
+    expect(source).toContain("window.localStorage.getItem('agenthub:right-panel-width')")
+    expect(source).toContain('Web 右侧栏可拖动且聊天区仍可用')
+    expect(source).toContain('Web 右侧栏宽度刷新后持久化')
+  })
+
+  it('requires strict SQLite persistence checks to inspect generated user tables instead of fixed table names', () => {
+    const source = readFileSync(fileURLToPath(new URL('../scripts/verify-strict-single-prompt-product-delivery.ts', import.meta.url)), 'utf8')
+
+    expect(source).toContain('sqlitePersistentHistoryEvidence')
+    expect(source).toContain("name not like 'sqlite_%'")
+    expect(source).toContain('relative.startsWith(\'.test-data\')')
+    expect(source).toContain('select count(*) from "${escapedTable}"')
+    expect(source).not.toContain('select count(*) from history;')
+    expect(source).not.toContain('select count(*) from calculations;')
+    expect(source).not.toContain('select count(*) from calculation_history;')
+  })
 })
 
 describe('IM-first orchestration contract', () => {

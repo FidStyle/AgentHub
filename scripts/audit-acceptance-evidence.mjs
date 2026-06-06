@@ -203,6 +203,7 @@ export function auditAcceptanceEvidence({ root, taskId, allowPartial = false }) 
   const reportText = reports.map(readIfExists).join('\n\n')
   const combined = [section, contract, reportText].join('\n\n')
   const currentEvidenceText = [statusField, evidenceField, blockerField, reportText].join('\n\n')
+  const trackerEvidenceText = [statusField, evidenceField, blockerField].join('\n\n')
   const checks = []
 
   checks.push(section ? check('pass', 'tracker section', `research/project-tracker.md#${taskId}`) : check('fail', 'tracker section', '缺少当前任务记录'))
@@ -244,7 +245,7 @@ export function auditAcceptanceEvidence({ root, taskId, allowPartial = false }) 
     for (const [label, pattern] of SURFACE_REQUIRED) {
       checks.push(surfaceCheck(label, pattern, combined, currentEvidenceText))
     }
-    if (/(historical|历史|旧 session|timeline-only|right-panel-only)/i.test(combined)) {
+    if (/(historical evidence|历史证据|历史截图|历史 session|旧 session|timeline-only|right-panel-only)/i.test(trackerEvidenceText)) {
       checks.push(check('warn', 'historical/timeline-only evidence marker', '发现历史或 timeline-only 证据，不能单独作为 product pass'))
     }
   } else {
