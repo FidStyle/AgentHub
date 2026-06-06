@@ -1721,7 +1721,20 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
         ) : (
           <div className={wideMode ? 'grid min-h-0 gap-3 lg:grid-cols-[280px_minmax(0,1fr)]' : 'space-y-3'}>
             <div data-testid="workspace-git-tree" className="max-h-[56vh] overflow-auto rounded-md border border-border bg-background p-2">
-              <div className="mb-2 text-xs font-medium text-muted-foreground">未暂存</div>
+              <div className="mb-2 flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+                <span>未暂存</span>
+                <button
+                  type="button"
+                  data-testid="workspace-git-stage-root-button"
+                  aria-label="暂存根目录所有未暂存变更"
+                  title="暂存全部"
+                  className="flex h-6 w-6 items-center justify-center rounded-sm text-sm font-medium hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={unstagedChanges.length === 0}
+                  onClick={() => void runGitAction('stage', '.')}
+                >
+                  +
+                </button>
+              </div>
               <GitChangeTreeView
                 nodes={unstagedTree}
                 group="unstaged"

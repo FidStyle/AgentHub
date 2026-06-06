@@ -229,6 +229,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
 - Git progressive disclosure:
   - First level: VSCode-like file tree with staged/unstaged grouping, folder rows, file path and status badge.
+  - The unstaged group header exposes a root-level `+` quick action that stages all unstaged workspace-root changes, equivalent to `git add .` inside the selected workspace root.
   - Unstaged file rows expose a right-side `+` quick action to stage that file; staged file rows expose a right-side `-` quick action to unstage. Clicking the file row opens diff; clicking `+/-` must not also open diff.
   - Second level after click: diff preview and file-specific actions.
   - Large diffs must scroll inside their own container.
