@@ -26,14 +26,14 @@
 |------|------|
 | **优先级** | P0/P1（Trellis task priority 记录为 P2，但按 Bytedance IM 主链路验收口径管理） |
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-UI-001 |
-| **对应计划** | `.trellis/tasks/06-06-role-process-message-foregrounding` |
+| **对应计划** | `.trellis/tasks/archive/2026-06/06-06-role-process-message-foregrounding` |
 | **合同路径** | `.trellis/spec/cross-layer/real-flow-acceptance.md` |
-| **当前状态** | verified / pending final commit（2026-06-06）：已修复用户复核暴露的“后端/前端工程师过程隐藏在后台或由 Orchestrator 代述”问题。`/api/chat` 现在把持久化过程消息同步作为 `role_process_message` SSE 事件返回；前端 store 即时显示同角色过程消息、状态 badge 和权限卡，并避免重复权限卡。 |
+| **当前状态** | closed（2026-06-06）：已修复用户复核暴露的“后端/前端工程师过程隐藏在后台或由 Orchestrator 代述”问题。`/api/chat` 现在把持久化过程消息同步作为 `role_process_message` SSE 事件返回；前端 store 即时显示同角色过程消息、状态 badge 和权限卡，并避免重复权限卡。Trellis task 已归档。 |
 | **目标** | 用户发送固定开发需求后，中央 IM 必须看到 Orchestrator、后端工程师、前端工程师各自的接收、执行、权限等待/继续、完成/失败、handoff 和最终验收过程；右侧 timeline 不能替代中央 IM 证据。 |
 | **验收方式** | API/store/UI focused tests + strict gate assertion update + Web type-check/lint + task validate + diff check。完整 fresh OpenCLI strict gate 需在后续最终 product-pass 声明前重跑。 |
 | **测试证据** | Report: `research/execution-reports/role-process-message-foregrounding-2026-06-06.md`；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/session-store.test.ts` PASS（2 files / 26 tests）；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/api/messages.test.ts __tests__/api/session-timeline.test.ts __tests__/message-markdown.test.ts __tests__/session-store.test.ts` PASS（5 files / 68 tests）；Web type-check PASS；Web lint PASS（仅既有 Next lint deprecation/config warning，无 ESLint warnings/errors）；`python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-role-process-message-foregrounding` PASS；`git diff --check` PASS。 |
 | **阻塞问题** | 无代码阻塞。完整 fresh OpenCLI strict gate 尚未在本任务中重跑，因此本条不替代 `STRICT-IMRESIZE-1780732772` 的历史 product-pass 结论。 |
-| **下一步动作** | 提交后归档 Trellis task；后续任何新的 Bytedance product-pass 结论必须重跑 strict gate，并满足新增中央 IM 角色过程断言。 |
+| **下一步动作** | 已关闭；后续任何新的 Bytedance product-pass 结论必须重跑 strict gate，并满足新增中央 IM 角色过程断言。 |
 
 ### WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06: 严格工作台主链路闭环
 
