@@ -114,6 +114,54 @@ test.describe('Web workspace 桌面三栏布局几何', () => {
       await context.close()
     })
   }
+
+  test('1440x900：右侧工作台可拖动、持久化，并在文件查看时进入宽屏分栏', async ({ browser }) => {
+    const context = await browser.newContext({ storageState, viewport: { width: 1440, height: 900 } })
+    const page = await context.newPage()
+
+    const wsId = await seedWorkspace(page)
+    await page.goto(`/workspace/${wsId}`)
+    await page.waitForLoadState('domcontentloaded')
+    await expect(page.getByTestId('workspace-shell')).toBeVisible()
+    await expect(page.getByTestId('artifact-overlay')).toBeVisible()
+
+    const overlay = page.getByTestId('artifact-overlay')
+    const before = await overlay.boundingBox()
+    expect(before).toBeTruthy()
+    await page.getByTestId('artifact-resize-handle').dragTo(page.locator('body'), {
+      targetPosition: { x: 1440 - 680, y: 240 },
+    })
+    const after = await overlay.boundingBox()
+    expect(after).toBeTruthy()
+    expect(Math.abs(after!.width - before!.width), '右侧栏拖动后宽度应变化').toBeGreaterThan(80)
+    const storedWidth = await page.evaluate(() => Number(window.localStorage.getItem('agenthub:right-panel-width')))
+    expect(Number.isFinite(storedWidth)).toBeTruthy()
+    expect(Math.abs(storedWidth - after!.width), 'localStorage 宽度应接近实际渲染宽度').toBeLessThanOrEqual(32)
+    await assertMinWidth(page, '[data-testid="chat-panel"]', 320)
+    await expect(page.getByTestId('message-composer')).toBeVisible()
+
+    await page.reload()
+    await expect(page.getByTestId('artifact-overlay')).toBeVisible()
+    const reloaded = await page.getByTestId('artifact-overlay').boundingBox()
+    expect(reloaded).toBeTruthy()
+    expect(Math.abs(reloaded!.width - storedWidth), '刷新后右侧栏宽度应恢复').toBeLessThanOrEqual(32)
+
+    await page.getByTestId('artifact-panel').getByRole('button', { name: '文件' }).click()
+    await page.getByTestId('workspace-new-file-button').click()
+    await page.getByPlaceholder('例如：public/index.html').fill('src/deep/example.txt')
+    await page.getByLabel('初始内容').fill('Workbench wide mode evidence')
+    await page.getByRole('button', { name: '创建文件' }).click()
+    await expect(page.getByTestId('workspace-file-tree').getByText('example.txt')).toBeVisible()
+    await expect(page.getByTestId('workspace-code-preview')).toContainText('Workbench wide mode evidence')
+    const wideStored = await page.evaluate(() => window.localStorage.getItem('agenthub:right-panel-wide'))
+    expect(wideStored).toBe('true')
+    const gridColumns = await page.getByTestId('workspace-file-tree').locator('..').evaluate((node) => getComputedStyle(node).gridTemplateColumns)
+    expect(gridColumns, '文件查看应进入左右分栏').toContain('280px')
+
+    await assertNoHorizontalScroll(page)
+    await page.screenshot({ path: `${ARTIFACT_DIR}/desktop-right-panel-resize-wide-file.png`, fullPage: false })
+    await context.close()
+  })
 })
 
 test.describe('Web workspace 窄屏（移动宽度）布局', () => {

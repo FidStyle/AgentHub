@@ -21,13 +21,13 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 当前任务 | 无 active Trellis task（`task.py current --source` 返回 `(none)`） |
+| 当前任务 | `06-06-workbench-resize-filetree-ux` |
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
-| 开始状态 | 已收口；工作区等待归档提交 |
-| 当前状态 | role-process-message-foregrounding closed：角色过程消息已前台化，focused API/store tests、Web type-check/lint、task validate、`git diff --check` 均通过；Trellis task 已归档；完整 fresh OpenCLI strict gate 尚未在本任务中重跑。 |
+| 开始状态 | 接续用户反馈：右侧面栏仍不可拖/过窄，文件与 Git 需要 VSCode 式树和宽屏查看。 |
+| 当前状态 | workbench-resize-filetree-ux verified：右侧栏拖动/持久化、宽屏文件分栏、文件树新建/自动展开父目录、Git 树优先 diff 均已实现；focused tests、lint、build、type-check、Playwright Web UAT 均通过。 |
 | 阻塞项 | 无代码阻塞。 |
-| 下一步 | 提交归档状态；如要声明新的 Bytedance product-pass run，重跑 strict gate。 |
+| 下一步 | 更新 spec/tracker 后提交并归档任务；如要声明新的 Bytedance product-pass run，仍需重跑 strict gate。 |
 
 ---
 
@@ -53,6 +53,7 @@
 | 9.6 | `06-05-fix-unified-regression-false-positive` 修正统一回归假阳性 | P0 | closed | `$trellis-break-loop`：撤销旧 pass、补验证器失败断言、更新 spec/guide/report/tracker，防止静态坐标假阳性。 | Task archived: `.trellis/tasks/archive/2026-06/06-05-fix-unified-regression-false-positive`；Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md`；Script: `apps/web/scripts/verify-unified-product-lines.ts`；Spec: `.trellis/spec/cross-layer/real-flow-acceptance.md`；work commit `4086a4e`；archive commit `3eb8fb0`。 | 无。真实产品链路由 9.7 `STRICT-IMRESIZE-1780732772` fresh strict pass 关闭。 | 已关闭 |
 | 9.7 | `06-06-workbench-strict-product-line` 严格工作台主链路闭环 | P0/P1 | closed | `/api/chat` completed role replies append observed action/file evidence；strict gate checks IM-first Orchestrator allocation、backend/frontend role replies、handoff/evidence、Orchestrator validation、artifact recommendation/confirmation；API contract now supports generated `{a,b,operator}` + nested result/history；Web right sidebar resize is exercised through OpenCLI against the real `/workspace/:id` route. | Task archived: `.trellis/tasks/archive/2026-06/06-06-workbench-strict-product-line`；Contract: `research/contracts/WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06.md`；Report: `research/execution-reports/workbench-strict-product-line-2026-06-06.md`；Strict run `STRICT-IMRESIZE-1780732772` PASS（67/67）；workspace `7b2c1304-eda9-45e7-948f-cd8276ae6fe1`；session `b06980bf-fc93-49b4-8877-cd92e2239104`；plan `e0739be3-3dbe-42aa-9601-8b967c5b3af8`；artifact `e08b63c6-d787-4af8-a413-627b0e81f2af`；evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-IMRESIZE-1780732772/`；right-sidebar drag `opencli-web-right-panel-resize-drag.txt`（360px -> 500px） and reload persistence `opencli-web-right-panel-resize-persisted.txt`；focused tests 57/57 PASS；audit tests PASS；type-check/lint PASS；task validate PASS；`git diff --check` PASS；governance gate PASS；work commit `68c9454`；status commit `8df9ca6`；archive commit `8bc9443`；journal commit `c80ac35`。 | 无。REG-20260606-002、REG-20260606-003 closed；Desktop/Electron 使用允许的 Playwright fallback。 | 已关闭；最终 Demo 包和 3 分钟素材不处理 |
 | 9.8 | `06-06-role-process-message-foregrounding` 角色过程消息完整前台化 | P0/P1 | closed | `/api/chat` persisted process rows stream as `role_process_message`; Web store renders role-owned process messages/status/permission cards and suppresses duplicate approval cards; strict gate now fails if backend/frontend role process messages are absent from central IM. | Task archived: `.trellis/tasks/archive/2026-06/06-06-role-process-message-foregrounding`；Report: `research/execution-reports/role-process-message-foregrounding-2026-06-06.md`；focused tests 26/26 PASS；expanded related tests 68/68 PASS；Web type-check PASS；Web lint PASS；task validate PASS；`git diff --check` PASS；work commit `5839588`。 | 无代码阻塞；完整 fresh OpenCLI strict gate 本任务未重跑，不替代 `STRICT-IMRESIZE-1780732772`。 | 已关闭；后续 product-pass 必须重跑 strict gate |
+| 9.9 | `06-06-workbench-resize-filetree-ux` 右侧工作台拖动与文件树体验修复 | P0/P1 | verified / pending-commit | Web 工作台右侧栏真实拖动、localStorage 持久化、文件/Git 宽屏左树右内容、新增文件和 Git 树优先 diff；用户允许 Playwright 或 OpenCLI，本轮采用 Playwright 真实浏览器 UAT。 | `pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/workspace-files-artifacts.test.ts` PASS（34 tests）；Web lint PASS；Web build PASS；Web type-check PASS；Playwright `tests/web/workbench-file-ops.spec.ts` PASS；Playwright `tests/web/web-workspace-layout-uat.spec.ts -g "右侧工作台可拖动"` PASS；screenshot `e2e/artifacts/web-workspace-layout/desktop-right-panel-resize-wide-file.png`。 | 无。并发 build/dev/type-check 曾产生 `.next` 竞争，顺序重跑已通过。 | 提交并归档 |
 | 10 | 最终 Demo 包和 3 分钟视频素材 | P1 | excluded-by-user | Bytedance 原始 PRD 反查；三端录屏/截图/脚本证据 | 用户 2026-06-05 明确“不需要你来处理” | 用户排除 | 不处理 |
 
 ---

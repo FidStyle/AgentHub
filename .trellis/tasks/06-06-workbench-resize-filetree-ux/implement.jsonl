@@ -1,0 +1,10 @@
+{"file":"bytedance_init_prd.md","reason":"最高产品事实源，约束 Web 工作台、文件/Git/产物和 Bytedance 原始体验目标。"}
+{"file":"bytedance_init_video_txt.txt","reason":"辅助解释 IM、Agent、Artifact 和三端工作台语义。"}
+{"file":"research/workflow/ai-workflow-control.md","reason":"中大型 AgentHub 任务的工作流、真实链路和验收边界。"}
+{"file":"research/product/product-design.md","reason":"派生产品设计，约束工作台信息架构和用户链路。"}
+{"file":"research/product/ui-design-system.md","reason":"三端视觉系统和工作台组件风格基线。"}
+{"file":".trellis/spec/frontend/index.md","reason":"前端开发入口规范。"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"WorkspaceShell、ArtifactPanel、权限卡、文件/Git 面板的组件契约。"}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"右栏布局、拖动、文本不溢出和视觉 E2E 要求。"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"前端测试、中文文案、真实浏览器验收和禁止模式。"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"IM-first、Artifact、工作台拖动和单 prompt 产物验收合同。"}

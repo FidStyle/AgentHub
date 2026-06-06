@@ -13,6 +13,17 @@ import { NotificationBell } from '../orchestrator/NotificationBell'
 import { useSessionStore } from '@/store/session-store'
 
 type WorkspaceMode = 'read-only' | 'operate'
+const RIGHT_PANEL_DEFAULT_WIDTH = 420
+const RIGHT_PANEL_MIN_WIDTH = 320
+const RIGHT_PANEL_NORMAL_MAX_WIDTH = 760
+const RIGHT_PANEL_WIDE_MAX_WIDTH = 1040
+
+function clampRightPanelWidth(width: number, wideMode: boolean) {
+  if (typeof window === 'undefined') return width
+  const available = Math.max(RIGHT_PANEL_MIN_WIDTH, window.innerWidth - 600)
+  const max = Math.min(wideMode ? RIGHT_PANEL_WIDE_MAX_WIDTH : RIGHT_PANEL_NORMAL_MAX_WIDTH, available)
+  return Math.min(max, Math.max(RIGHT_PANEL_MIN_WIDTH, width))
+}
 
 export function WorkspaceShell({
   workspaceId,
@@ -22,7 +33,8 @@ export function WorkspaceShell({
   requestedMode?: WorkspaceMode
 }) {
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
-  const [rightPanelWidth, setRightPanelWidth] = useState(360)
+  const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_WIDTH)
+  const [rightPanelWide, setRightPanelWide] = useState(false)
   const [resizingRightPanel, setResizingRightPanel] = useState(false)
   const [leftPanelOpen, setLeftPanelOpen] = useState(false)
   const [executionDomain, setExecutionDomain] = useState<'cloud' | 'local_desktop' | null>(null)
@@ -58,17 +70,25 @@ export function WorkspaceShell({
 
   useEffect(() => {
     const saved = Number(window.localStorage.getItem('agenthub:right-panel-width') ?? '')
-    if (Number.isFinite(saved) && saved >= 300 && saved <= 560) setRightPanelWidth(saved)
+    const savedWide = window.localStorage.getItem('agenthub:right-panel-wide') === 'true'
+    setRightPanelWide(savedWide)
+    if (Number.isFinite(saved)) setRightPanelWidth(clampRightPanelWidth(saved, savedWide))
   }, [])
 
   useEffect(() => {
-    window.localStorage.setItem('agenthub:right-panel-width', String(rightPanelWidth))
-  }, [rightPanelWidth])
+    const width = clampRightPanelWidth(rightPanelWidth, rightPanelWide)
+    if (width !== rightPanelWidth) {
+      setRightPanelWidth(width)
+      return
+    }
+    window.localStorage.setItem('agenthub:right-panel-width', String(width))
+    window.localStorage.setItem('agenthub:right-panel-wide', String(rightPanelWide))
+  }, [rightPanelWidth, rightPanelWide])
 
   useEffect(() => {
     if (!resizingRightPanel) return
     const onMove = (event: PointerEvent) => {
-      const width = Math.min(560, Math.max(300, window.innerWidth - event.clientX))
+      const width = clampRightPanelWidth(window.innerWidth - event.clientX, rightPanelWide)
       setRightPanelWidth(width)
     }
     const onUp = () => {
@@ -80,15 +100,24 @@ export function WorkspaceShell({
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [resizingRightPanel])
+  }, [resizingRightPanel, rightPanelWide])
+
+  function requestWidePanel(nextWide = true) {
+    setRightPanelOpen(true)
+    setRightPanelWide(nextWide)
+    setRightPanelWidth((current) => {
+      const target = nextWide ? Math.max(current, 760) : Math.min(current, RIGHT_PANEL_DEFAULT_WIDTH)
+      return clampRightPanelWidth(target, nextWide)
+    })
+  }
 
   return (
     <div
       data-testid="workspace-shell"
       className={`relative grid h-screen min-h-0 grid-cols-1 overflow-hidden ${
         rightPanelOpen
-          ? 'lg:grid-cols-[280px_minmax(480px,1fr)_var(--artifact-width)]'
-          : 'lg:grid-cols-[280px_minmax(480px,1fr)]'
+          ? 'lg:grid-cols-[280px_minmax(320px,1fr)_var(--artifact-width)]'
+          : 'lg:grid-cols-[280px_minmax(320px,1fr)]'
       }`}
       style={{ '--artifact-width': `${rightPanelWidth}px` } as CSSProperties}
     >
@@ -206,17 +235,22 @@ export function WorkspaceShell({
               type="button"
               data-testid="artifact-resize-handle"
               aria-label="拖动调整右侧面板宽度"
-              className="absolute left-0 top-0 hidden h-full w-1 cursor-col-resize bg-transparent hover:bg-primary/40 lg:block"
+              className="absolute -left-1.5 top-0 hidden h-full w-3 cursor-col-resize bg-transparent after:absolute after:left-1/2 after:top-0 after:h-full after:w-px after:-translate-x-1/2 after:bg-border hover:after:bg-primary lg:block"
               onPointerDown={(event) => {
                 event.preventDefault()
+                event.currentTarget.setPointerCapture?.(event.pointerId)
                 setResizingRightPanel(true)
               }}
               onDoubleClick={() => {
-                setRightPanelWidth(360)
-                window.localStorage.setItem('agenthub:right-panel-width', '360')
+                requestWidePanel(false)
+                window.localStorage.setItem('agenthub:right-panel-width', String(RIGHT_PANEL_DEFAULT_WIDTH))
               }}
             />
-            <ArtifactPanel onClose={() => setRightPanelOpen(false)} />
+            <ArtifactPanel
+              onClose={() => setRightPanelOpen(false)}
+              wideMode={rightPanelWide}
+              onRequestWide={requestWidePanel}
+            />
           </div>
         </>
       )}

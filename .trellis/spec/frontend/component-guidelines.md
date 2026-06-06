@@ -227,9 +227,14 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - `部署` shows deployment action, manifest path, preview path and deployment artifact references, filtered from the same session timeline.
   - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
 - Git progressive disclosure:
-  - First level: file path, status badge, staged/unstaged grouping.
+  - First level: VSCode-like file tree with staged/unstaged grouping, folder rows, file path and status badge.
   - Second level after click: diff preview and file-specific actions.
   - Large diffs must scroll inside their own container.
+- File tree and wide workbench:
+  - `文件` must expose `workspace-file-tree`, `workspace-file-viewer`, and `workspace-new-file-button` so users can browse, create and inspect files without hidden backend-only APIs.
+  - File trees default to first-level directory expansion, but selecting or creating a deep file must automatically expand its ancestor directories so the active file is visible.
+  - Opening a file or Git diff should request a wide right workbench; the wide surface uses a left tree and right viewer/diff layout instead of squeezing content into a narrow single column.
+  - Wide mode must be reversible and must not hide or block the central chat composer.
 - Artifact launch:
   - A runnable artifact must not depend on only the current preview iframe.
   - The user must be able to get a durable start script/command from the artifact card, e.g. `bash .agenthub/run-<id>.sh` or an equivalent workspace-relative script.
@@ -252,6 +257,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 | User opens Deploy tab | sees deploy action + manifest/artifact refs for same session | lists every artifact or every file as deployment result |
 | User opens Git tab | sees staged/unstaged file list first | starts with mixed approval/runtime/Git records |
 | User clicks a Git file | selected diff appears for that file | all diffs expanded by default |
+| User creates a deep file | parent folders expand and the file is selected/open | file is created but remains hidden in collapsed tree |
 | File selection backend exists | UI exposes selection/capture/draft/apply or quote action | backend supports patching but user cannot find it |
 | Runnable artifact exists | artifact card exposes launch script/command | only a transient iframe preview exists |
 | Desktop user drags right panel edge | panel width changes, middle chat remains usable, reload keeps width | fixed-width right sidebar with no handle |
@@ -284,6 +290,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - open `部署` and assert only deploy action/manifest/artifact refs are visible.
   - open `编排` and assert plan/action cards are present without Git diff content.
   - open `Git` and assert file names are visible before diff; click one file and assert diff appears.
+  - create a nested file from the `文件` tab and assert the tree expands to the new file, the viewer opens it, and wide mode is active.
   - open `文件`, select code, generate a draft diff, and assert no file write happens before apply.
   - open `产物` and assert runnable artifacts expose a launch script/command or clear non-runnable state.
 - Backend/API integration:

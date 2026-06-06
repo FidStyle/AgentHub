@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, CheckCircle2, Clock, Copy, Download, FileCode2, FileText, FolderTree, GitBranch, History, PackagePlus, Pencil, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Terminal, Trash2, Upload, WandSparkles, X } from 'lucide-react'
+import { Bot, Boxes, CheckCircle2, ChevronDown, ChevronRight, Clock, Copy, Download, FileCode2, FileText, FolderTree, GitBranch, History, Maximize2, Minimize2, PackagePlus, Pencil, Plus, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Terminal, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
@@ -79,6 +79,14 @@ type GitChangeRow = {
   unstaged?: boolean
   indexStatus?: string
   workingTreeStatus?: string
+}
+type GitChangeTreeNode = {
+  name: string
+  path: string
+  type: 'file' | 'directory'
+  children?: GitChangeTreeNode[]
+  change?: GitChangeRow
+  group?: 'staged' | 'unstaged'
 }
 type PatchDraft = {
   path: string
@@ -187,6 +195,42 @@ function timelineStatusVariant(status: string): 'secondary' | 'default' | 'warni
 
 function isDeploymentItem(item: TimelineItem) {
   return item.kind === 'deployment' || item.kind === 'action' && item.refs?.actionId && item.title.includes('部署')
+}
+
+function collectDefaultExpandedPaths(nodes: FileTreeNode[] | GitChangeTreeNode[]) {
+  return new Set(nodes.filter((node) => node.type === 'directory').map((node) => node.path))
+}
+
+function ancestorDirectoryPaths(filePath: string) {
+  const parts = filePath.split('/').filter(Boolean)
+  return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join('/'))
+}
+
+function buildGitChangeTree(changes: GitChangeRow[], group: 'staged' | 'unstaged') {
+  const roots: GitChangeTreeNode[] = []
+  const dirMap = new Map<string, GitChangeTreeNode>()
+  for (const change of changes) {
+    const parts = change.path.split('/').filter(Boolean)
+    let siblings = roots
+    let currentPath = ''
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index] ?? ''
+      currentPath = currentPath ? `${currentPath}/${part}` : part
+      const isFile = index === parts.length - 1
+      if (isFile) {
+        siblings.push({ name: part, path: change.path, type: 'file', change, group })
+        continue
+      }
+      let dir = dirMap.get(`${group}:${currentPath}`)
+      if (!dir) {
+        dir = { name: part, path: currentPath, type: 'directory', children: [] }
+        dirMap.set(`${group}:${currentPath}`, dir)
+        siblings.push(dir)
+      }
+      siblings = dir.children ?? []
+    }
+  }
+  return roots
 }
 
 function PreviewBlock({
@@ -710,19 +754,27 @@ function TimelineTab({ deploymentsOnly = false }: { deploymentsOnly?: boolean })
 function FileTreeNodeView({
   node,
   level = 0,
+  selectedPath,
+  expandedPaths,
+  onToggle,
   onOpen,
   onContextAction,
 }: {
   node: FileTreeNode
   level?: number
+  selectedPath?: string | null
+  expandedPaths: Set<string>
+  onToggle: (path: string) => void
   onOpen: (node: FileTreeNode) => void
   onContextAction: (node: FileTreeNode, action: 'rename' | 'delete' | 'artifact') => void
 }) {
   const isDir = node.type === 'directory'
+  const expanded = isDir && expandedPaths.has(node.path)
+  const selected = selectedPath === node.path
   return (
     <div>
       <div
-        className="group flex min-w-0 items-center gap-1 rounded-sm pr-1 hover:bg-muted"
+        className={`group flex min-w-0 items-center gap-1 rounded-sm pr-1 hover:bg-muted ${selected ? 'bg-muted text-foreground' : ''}`}
         style={{ paddingLeft: 8 + level * 12 }}
         onContextMenu={(event) => {
           event.preventDefault()
@@ -732,9 +784,21 @@ function FileTreeNodeView({
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left text-xs"
-          onClick={() => onOpen(node)}
+          data-testid={isDir ? 'workspace-folder-node' : 'workspace-file-node'}
+          onClick={() => {
+            if (isDir) {
+              onToggle(node.path)
+              return
+            }
+            onOpen(node)
+          }}
         >
-          {isDir ? <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {isDir ? (
+            <>
+              {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+              <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </>
+          ) : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           <span className="truncate" title={node.path}>{node.name}</span>
         </button>
         <button
@@ -762,11 +826,14 @@ function FileTreeNodeView({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      {isDir && node.children?.map((child) => (
+      {expanded && node.children?.map((child) => (
         <FileTreeNodeView
           key={child.path}
           node={child}
           level={level + 1}
+          selectedPath={selectedPath}
+          expandedPaths={expandedPaths}
+          onToggle={onToggle}
           onOpen={onOpen}
           onContextAction={onContextAction}
         />
@@ -775,11 +842,12 @@ function FileTreeNodeView({
   )
 }
 
-function FileTreeTab() {
+function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide: (wide?: boolean) => void }) {
   const { activeWorkspaceId, activeSessionId } = useSessionStore()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const editorRef = useRef<HTMLTextAreaElement | null>(null)
   const [tree, setTree] = useState<FileTreeNode[]>([])
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [root, setRoot] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -792,6 +860,9 @@ function FileTreeTab() {
   const [replacementText, setReplacementText] = useState('')
   const [patchDraft, setPatchDraft] = useState<PatchDraft | null>(null)
   const [patchStatus, setPatchStatus] = useState<string | null>(null)
+  const [showCreateFile, setShowCreateFile] = useState(false)
+  const [newFilePath, setNewFilePath] = useState('')
+  const [newFileContent, setNewFileContent] = useState('')
 
   const loadTree = async () => {
     if (!activeWorkspaceId) return
@@ -803,7 +874,9 @@ function FileTreeTab() {
       if (!res.ok) throw new Error((body as { error?: string }).error || `加载文件树失败（${res.status}）`)
       const payload = body as { root: string; tree: FileTreeNode[] }
       setRoot(payload.root)
-      setTree(Array.isArray(payload.tree) ? payload.tree : [])
+      const nextTree = Array.isArray(payload.tree) ? payload.tree : []
+      setTree(nextTree)
+      setExpandedPaths((current) => current.size > 0 ? current : collectDefaultExpandedPaths(nextTree))
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载文件树失败')
     } finally {
@@ -823,6 +896,12 @@ function FileTreeTab() {
     if (!activeWorkspaceId) return
     setPreviewLoading(true)
     setError(null)
+    onRequestWide(true)
+    setExpandedPaths((current) => {
+      const next = new Set(current)
+      ancestorDirectoryPaths(node.path).forEach((path) => next.add(path))
+      return next
+    })
     try {
       const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/read?path=${encodeURIComponent(node.path)}`)
       const body = await res.json().catch(() => ({}))
@@ -837,6 +916,15 @@ function FileTreeTab() {
     } finally {
       setPreviewLoading(false)
     }
+  }
+
+  function toggleFolder(path: string) {
+    setExpandedPaths((current) => {
+      const next = new Set(current)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
   }
 
   function captureEditorSelection() {
@@ -975,6 +1063,42 @@ function FileTreeTab() {
     }
   }
 
+  async function createFile() {
+    if (!activeWorkspaceId) return
+    const pathValue = newFilePath.trim().replace(/^\/+/, '')
+    if (!pathValue) {
+      setOperationStatus('请输入工作区相对路径')
+      return
+    }
+    setOperationStatus('正在创建文件...')
+    setError(null)
+    try {
+      const form = new FormData()
+      const basename = pathValue.split('/').filter(Boolean).pop() ?? 'new-file.txt'
+      const targetDir = pathValue.includes('/') ? pathValue.split('/').slice(0, -1).join('/') : ''
+      form.append('file', new File([newFileContent], basename, { type: 'text/plain' }))
+      if (targetDir) form.append('target_dir', targetDir)
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/upload`, { method: 'POST', body: form })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `创建文件失败（${res.status}）`)
+      const createdPath = (body as { path?: string }).path ?? pathValue
+      setOperationStatus(`已创建 ${createdPath}`)
+      setNewFilePath('')
+      setNewFileContent('')
+      setShowCreateFile(false)
+      setExpandedPaths((current) => {
+        const next = new Set(current)
+        ancestorDirectoryPaths(createdPath).forEach((path) => next.add(path))
+        return next
+      })
+      await loadTree()
+      emitFilesChanged()
+      await openNode({ name: basename, path: createdPath, type: 'file' })
+    } catch (e) {
+      setOperationStatus(e instanceof Error ? e.message : '创建文件失败')
+    }
+  }
+
   async function renameEntry(node: FileTreeNode) {
     if (!activeWorkspaceId) return
     const nextPath = window.prompt('输入新的工作区相对路径', node.path)?.trim()
@@ -1054,10 +1178,19 @@ function FileTreeTab() {
             <div className="font-medium text-foreground">云端项目目录</div>
             <div className="mt-1 break-all">{root}</div>
           </div>
-          <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} data-testid="workspace-file-upload-btn">
-            <Upload className="mr-1 h-3.5 w-3.5" />
-            上传
-          </Button>
+          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+            <Button size="sm" variant="outline" onClick={() => setShowCreateFile((value) => !value)} data-testid="workspace-new-file-button">
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              新建
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} data-testid="workspace-file-upload-btn">
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              上传
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => onRequestWide(!wideMode)} data-testid="workspace-file-wide-toggle" aria-label={wideMode ? '收起文件工作台' : '展开文件工作台'}>
+              {wideMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
         </div>
         <input
           ref={fileInputRef}
@@ -1067,24 +1200,55 @@ function FileTreeTab() {
           onChange={(event) => void uploadFile(event.target.files?.[0] ?? null)}
         />
       </div>
-      {operationStatus && <p className="text-xs text-muted-foreground">{operationStatus}</p>}
-      <div className="rounded-md border border-border bg-background py-1">
-        {tree.length === 0 ? (
-          <div className="p-3">
-            <StateCard variant="empty" title="暂无文件" description="云端项目目录已创建，可上传文件或等待运行时产出文件" />
-          </div>
-        ) : (
-          tree.map((node) => (
-            <FileTreeNodeView
-              key={node.path}
-              node={node}
-              onOpen={openNode}
-              onContextAction={handleContextAction}
+      {showCreateFile && (
+        <div data-testid="workspace-new-file-form" className="space-y-2 rounded-md border border-border bg-background p-3">
+          <label className="grid gap-1 text-xs">
+            <span className="font-medium text-foreground">文件路径</span>
+            <input
+              value={newFilePath}
+              onChange={(event) => setNewFilePath(event.target.value)}
+              placeholder="例如：public/index.html"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
             />
-          ))
-        )}
-      </div>
+          </label>
+          <label className="grid gap-1 text-xs">
+            <span className="font-medium text-foreground">初始内容</span>
+            <textarea
+              value={newFileContent}
+              onChange={(event) => setNewFileContent(event.target.value)}
+              rows={5}
+              className="rounded-md border border-input bg-background p-3 font-mono text-xs outline-none focus:border-primary"
+            />
+          </label>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => void createFile()}>创建文件</Button>
+            <Button size="sm" variant="outline" onClick={() => setShowCreateFile(false)}>取消</Button>
+          </div>
+        </div>
+      )}
+      {operationStatus && <p className="text-xs text-muted-foreground">{operationStatus}</p>}
+      <div className={wideMode ? 'grid min-h-0 gap-3 lg:grid-cols-[280px_minmax(0,1fr)]' : 'space-y-3'}>
+        <div data-testid="workspace-file-tree" className="max-h-[56vh] overflow-auto rounded-md border border-border bg-background py-1">
+          {tree.length === 0 ? (
+            <div className="p-3">
+              <StateCard variant="empty" title="暂无文件" description="云端项目目录已创建，可上传文件或新建文件" />
+            </div>
+          ) : (
+            tree.map((node) => (
+              <FileTreeNodeView
+                key={node.path}
+                node={node}
+                selectedPath={preview?.path}
+                expandedPaths={expandedPaths}
+                onToggle={toggleFolder}
+                onOpen={openNode}
+                onContextAction={handleContextAction}
+              />
+            ))
+          )}
+        </div>
       <div data-testid="workspace-file-preview" className="space-y-2 rounded-lg border border-border bg-background p-3">
+        <div data-testid="workspace-file-viewer" className="space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -1193,6 +1357,8 @@ function FileTreeTab() {
             )}
           </div>
         )}
+        </div>
+      </div>
       </div>
     </div>
   )
@@ -1237,9 +1403,65 @@ function DiffPreview({ value }: { value: unknown }) {
   )
 }
 
-function GitTab() {
+function GitChangeTreeView({
+  nodes,
+  group,
+  selectedPath,
+  expandedPaths,
+  onToggle,
+  onOpen,
+}: {
+  nodes: GitChangeTreeNode[]
+  group: 'staged' | 'unstaged'
+  selectedPath: string | null
+  expandedPaths: Set<string>
+  onToggle: (path: string) => void
+  onOpen: (change: GitChangeRow, group: 'staged' | 'unstaged') => void
+}) {
+  if (nodes.length === 0) {
+    return <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">没有{group === 'staged' ? '已暂存' : '未暂存'}变更</div>
+  }
+  const renderNode = (node: GitChangeTreeNode, level = 0): React.ReactNode => {
+    const isDir = node.type === 'directory'
+    const expanded = isDir && expandedPaths.has(`${group}:${node.path}`)
+    const selected = !isDir && selectedPath === node.path
+    return (
+      <div key={`${group}-${node.type}-${node.path}`}>
+        <button
+          type="button"
+          data-testid={isDir ? 'workspace-git-folder-node' : 'workspace-git-file-node'}
+          className={`flex w-full min-w-0 items-center gap-2 rounded-sm py-1 pr-2 text-left text-xs hover:bg-muted ${selected ? 'bg-muted text-foreground' : ''}`}
+          style={{ paddingLeft: 8 + level * 12 }}
+          onClick={() => {
+            if (isDir) {
+              onToggle(`${group}:${node.path}`)
+              return
+            }
+            if (node.change) onOpen(node.change, group)
+          }}
+        >
+          {isDir ? (
+            <>
+              {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+              <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </>
+          ) : (
+            <FileCode2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="min-w-0 flex-1 truncate" title={node.path}>{node.name}</span>
+          {node.change && <Badge variant={node.change.untracked ? 'warning' : group === 'staged' ? 'success' : 'secondary'}>{node.change.status.trim() || 'M'}</Badge>}
+        </button>
+        {expanded && node.children?.map((child) => renderNode(child, level + 1))}
+      </div>
+    )
+  }
+  return <div className="space-y-0.5">{nodes.map((node) => renderNode(node))}</div>
+}
+
+function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide: (wide?: boolean) => void }) {
   const { activeWorkspaceId, activeSessionId } = useSessionStore()
   const [gitChanges, setGitChanges] = useState<GitChangeRow[]>([])
+  const [gitExpandedPaths, setGitExpandedPaths] = useState<Set<string>>(new Set())
   const [gitCommits, setGitCommits] = useState<GitCommitRow[]>([])
   const [gitLoaded, setGitLoaded] = useState(false)
   const [historyLoaded, setHistoryLoaded] = useState(false)
@@ -1261,7 +1483,17 @@ function GitTab() {
       const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/status`)
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((body as { error?: string }).error || `读取 Git 状态失败（${res.status}）`)
-      setGitChanges(Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : [])
+      const changes = Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : []
+      setGitChanges(changes)
+      setGitExpandedPaths((current) => {
+        if (current.size > 0) return current
+        const staged = buildGitChangeTree(changes.filter((change) => change.staged), 'staged')
+        const unstaged = buildGitChangeTree(changes.filter((change) => change.unstaged || change.untracked || !change.staged), 'unstaged')
+        return new Set([
+          ...Array.from(collectDefaultExpandedPaths(staged)).map((path) => `staged:${path}`),
+          ...Array.from(collectDefaultExpandedPaths(unstaged)).map((path) => `unstaged:${path}`),
+        ])
+      })
     } catch (e) {
       setGitError(e instanceof Error ? e.message : '读取 Git 状态失败')
     } finally {
@@ -1298,6 +1530,7 @@ function GitTab() {
 
   async function openDiff(filePath: string, staged = false) {
     if (!activeWorkspaceId) return
+    onRequestWide(true)
     setSelectedDiffPath(filePath)
     setSelectedDiffStaged(staged)
     setDiffStatus('正在读取 diff...')
@@ -1311,6 +1544,15 @@ function GitTab() {
       setDiffStatus(e instanceof Error ? e.message : '读取 diff 失败')
       setSelectedDiff('')
     }
+  }
+
+  function toggleGitFolder(path: string) {
+    setGitExpandedPaths((current) => {
+      const next = new Set(current)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
   }
 
   async function runGitAction(action: 'stage' | 'unstage' | 'discard', filePath: string, confirm = false) {
@@ -1412,55 +1654,25 @@ function GitTab() {
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其 Git 变更将在此展示" />
   const stagedChanges = gitChanges.filter((change) => change.staged)
   const unstagedChanges = gitChanges.filter((change) => change.unstaged || change.untracked || !change.staged)
-  const renderChange = (change: GitChangeRow, group: 'staged' | 'unstaged') => (
-    <div key={`${group}-${change.status}-${change.path}`} data-testid="git-change-row" className="rounded-lg border border-border bg-background p-3 text-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <button
-            type="button"
-            data-testid="git-change-file"
-            className="flex max-w-full min-w-0 items-center gap-2 text-left hover:text-primary"
-            onClick={() => void openDiff(change.path, group === 'staged')}
-          >
-            <FileCode2 className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate font-medium">{change.path}</span>
-          </button>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {change.untracked ? '未跟踪文件' : group === 'staged' ? '已暂存变更' : '工作区变更'}
-          </p>
-        </div>
-        <Badge variant={change.untracked ? 'warning' : group === 'staged' ? 'success' : 'secondary'}>{change.status.trim() || 'M'}</Badge>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => void openDiff(change.path, group === 'staged')}>
-          查看 diff
-        </Button>
-        {group === 'unstaged' && (
-          <Button size="sm" variant="outline" onClick={() => void runGitAction('stage', change.path)}>
-            暂存
-          </Button>
-        )}
-        {group === 'staged' && (
-          <Button size="sm" variant="outline" onClick={() => void runGitAction('unstage', change.path)}>
-            取消暂存
-          </Button>
-        )}
-        {group === 'unstaged' && (
-          <Button size="sm" variant="outline" onClick={() => void runGitAction('discard', change.path)}>
-            <Trash2 className="mr-1 h-3.5 w-3.5" />
-            丢弃
-          </Button>
-        )}
-      </div>
-    </div>
-  )
+  const stagedTree = buildGitChangeTree(stagedChanges, 'staged')
+  const unstagedTree = buildGitChangeTree(unstagedChanges, 'unstaged')
+  const selectedChange = selectedDiffPath
+    ? gitChanges.find((change) => change.path === selectedDiffPath && (selectedDiffStaged ? change.staged : !change.staged || change.unstaged || change.untracked))
+    : null
   return (
     <div data-testid="artifact-git" className="space-y-4">
       <PanelSection
         icon={GitBranch}
         title="Git 变更"
         description="读取当前云端项目目录的真实 Git 状态；先选文件，再查看 diff"
-        action={<Badge variant="secondary">{gitChanges.length} 项</Badge>}
+        action={(
+          <div className="flex items-center gap-1">
+            <Badge variant="secondary">{gitChanges.length} 项</Badge>
+            <Button size="sm" variant="ghost" onClick={() => onRequestWide(!wideMode)} data-testid="workspace-git-wide-toggle" aria-label={wideMode ? '收起 Git 工作台' : '展开 Git 工作台'}>
+              {wideMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+        )}
       >
         {gitError && <p className="text-sm text-destructive">{gitError}</p>}
         {actionStatus && <p className="text-xs text-muted-foreground">{actionStatus}</p>}
@@ -1485,35 +1697,70 @@ function GitTab() {
         ) : gitChanges.length === 0 ? (
           <StateCard variant="empty" title="暂无 Git 变更" description="当前云端项目没有未提交的文件变更" />
         ) : (
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">未暂存</div>
-              {unstagedChanges.length > 0 ? unstagedChanges.map((change) => renderChange(change, 'unstaged')) : (
-                <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">没有未暂存变更</div>
+          <div className={wideMode ? 'grid min-h-0 gap-3 lg:grid-cols-[280px_minmax(0,1fr)]' : 'space-y-3'}>
+            <div data-testid="workspace-git-tree" className="max-h-[56vh] overflow-auto rounded-md border border-border bg-background p-2">
+              <div className="mb-2 text-xs font-medium text-muted-foreground">未暂存</div>
+              <GitChangeTreeView
+                nodes={unstagedTree}
+                group="unstaged"
+                selectedPath={selectedDiffStaged ? null : selectedDiffPath}
+                expandedPaths={gitExpandedPaths}
+                onToggle={toggleGitFolder}
+                onOpen={(change, group) => void openDiff(change.path, group === 'staged')}
+              />
+              <div className="mb-2 mt-4 text-xs font-medium text-muted-foreground">已暂存</div>
+              <GitChangeTreeView
+                nodes={stagedTree}
+                group="staged"
+                selectedPath={selectedDiffStaged ? selectedDiffPath : null}
+                expandedPaths={gitExpandedPaths}
+                onToggle={toggleGitFolder}
+                onOpen={(change, group) => void openDiff(change.path, group === 'staged')}
+              />
+            </div>
+            <div data-testid="workspace-git-diff-viewer" className="min-w-0">
+              {!selectedDiffPath ? (
+                <StateCard variant="empty" title="选择文件查看 diff" description="左侧只显示文件名和状态，点击后才读取具体 diff 内容" />
+              ) : (
+                <div className="space-y-2 rounded-lg border border-border bg-background p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{selectedDiffPath}</div>
+                      <p className="text-xs text-muted-foreground">{selectedDiffStaged ? '已暂存 diff 预览' : selectedChange?.untracked ? '未跟踪文件 diff 预览' : '工作区 diff 预览'}</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => void saveDiffArtifact()} disabled={!selectedDiff}>
+                      <PackagePlus className="mr-1 h-3.5 w-3.5" />
+                      存为产物
+                    </Button>
+                  </div>
+                  {selectedChange && (
+                    <div data-testid="git-change-actions" className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => void openDiff(selectedChange.path, selectedDiffStaged)}>
+                        查看 diff
+                      </Button>
+                      {!selectedDiffStaged && (
+                        <Button size="sm" variant="outline" onClick={() => void runGitAction('stage', selectedChange.path)}>
+                          暂存
+                        </Button>
+                      )}
+                      {selectedDiffStaged && (
+                        <Button size="sm" variant="outline" onClick={() => void runGitAction('unstage', selectedChange.path)}>
+                          取消暂存
+                        </Button>
+                      )}
+                      {!selectedDiffStaged && (
+                        <Button size="sm" variant="outline" onClick={() => void runGitAction('discard', selectedChange.path)}>
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          丢弃
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {diffStatus && <p className="text-xs text-muted-foreground">{diffStatus}</p>}
+                  {selectedDiff ? <DiffPreview value={selectedDiff} /> : !diffStatus ? <StateCard variant="empty" title="无 diff 内容" description="该文件当前没有可展示的 diff" /> : null}
+                </div>
               )}
             </div>
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">已暂存</div>
-              {stagedChanges.length > 0 ? stagedChanges.map((change) => renderChange(change, 'staged')) : (
-                <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">没有已暂存变更</div>
-              )}
-            </div>
-          </div>
-        )}
-        {selectedDiffPath && (
-          <div className="mt-3 space-y-2 rounded-lg border border-border bg-background p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{selectedDiffPath}</div>
-                <p className="text-xs text-muted-foreground">{selectedDiffStaged ? '已暂存 diff 预览' : '工作区 diff 预览'}</p>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => void saveDiffArtifact()} disabled={!selectedDiff}>
-                <PackagePlus className="mr-1 h-3.5 w-3.5" />
-                存为产物
-              </Button>
-            </div>
-            {diffStatus && <p className="text-xs text-muted-foreground">{diffStatus}</p>}
-            {selectedDiff ? <DiffPreview value={selectedDiff} /> : !diffStatus ? <StateCard variant="empty" title="无 diff 内容" description="该文件当前没有可展示的 diff" /> : null}
           </div>
         )}
       </PanelSection>
@@ -1891,7 +2138,15 @@ function ArtifactsTab() {
   )
 }
 
-export function ArtifactPanel({ onClose }: { onClose: () => void }) {
+export function ArtifactPanel({
+  onClose,
+  wideMode,
+  onRequestWide,
+}: {
+  onClose: () => void
+  wideMode: boolean
+  onRequestWide: (wide?: boolean) => void
+}) {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('角色')
 
   return (
@@ -1935,8 +2190,8 @@ export function ArtifactPanel({ onClose }: { onClose: () => void }) {
         {activeTab === '角色' && <RolesTab />}
         {activeTab === '过程' && <TimelineTab />}
         {activeTab === '编排' && <OrchestrationTab />}
-        {activeTab === '文件' && <FileTreeTab />}
-        {activeTab === 'Git' && <GitTab />}
+        {activeTab === '文件' && <FileTreeTab wideMode={wideMode} onRequestWide={onRequestWide} />}
+        {activeTab === 'Git' && <GitTab wideMode={wideMode} onRequestWide={onRequestWide} />}
         {activeTab === '产物' && <ArtifactsTab />}
         {activeTab === '部署' && <TimelineTab deploymentsOnly />}
       </div>

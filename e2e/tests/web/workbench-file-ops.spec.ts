@@ -38,12 +38,11 @@ test.describe('Web 工作台文件、变更和产物真实链路', () => {
     await page.getByTestId('workspace-file-preview').getByRole('button', { name: '存为产物' }).click()
     await expect(page.getByTestId('workspace-file-preview').getByText('已保存到产物')).toBeVisible()
 
-    await page.getByTestId('artifact-panel').getByRole('button', { name: '变更' }).click()
-    await expect(page.getByTestId('artifact-changes').getByText('e2e-file.md')).toBeVisible()
+    await page.getByTestId('artifact-panel').getByRole('button', { name: 'Git' }).click()
+    await expect(page.getByTestId('workspace-git-tree').getByText('e2e-file.md')).toBeVisible()
     await page
-      .getByTestId('artifact-changes')
-      .locator('.rounded-lg', { hasText: 'e2e-file.md' })
-      .getByRole('button', { name: '查看 diff' })
+      .getByTestId('workspace-git-tree')
+      .getByRole('button', { name: /e2e-file\.md/ })
       .click()
     await expect(page.getByTestId('git-diff-preview').getByText(`+# E2E File ${ts}`)).toBeVisible()
 
