@@ -47,6 +47,24 @@
 - E2E 报告必须区分 `OpenCLI real-browser UAT passed`、`Playwright regression passed`、`blocked/not-run`，被跳过或被外部登录/权限卡住的链路不得计入通过。
 - 多 worktree 或多 lane 并行时，E2E/OpenCLI 必须声明并使用当前 lane 固定端口，禁止用自动跳端口结果作为最终验收。
 
+### Playwright vs OpenCLI 选型规则
+
+| 场景 | 首选工具 | 通过标准 |
+| --- | --- | --- |
+| 组件级交互、固定页面回归、布局几何、拖拽、无横向滚动、截图留证 | Playwright | 有确定性断言：DOM、bounding box、localStorage、API response、截图路径；不能只断言 `toBeVisible`。 |
+| CI 或每次提交的快速回归 | Playwright | 可在无人工介入环境重复运行，失败能定位到测试文件和断言。 |
+| 真实登录态、人工授权后复用浏览器、用户反馈“我现在看到的页面不对”、探索式 UAT | OpenCLI | 从真实页面入口操作，记录 session/workspace/API 路径、截图或 DOM 证据。 |
+| Web/Mobile/Desktop 三端 Bytedance 主链路验收 | OpenCLI 优先，Playwright 补充 | OpenCLI 证明真实用户路径；Playwright 证明确定性布局/回归。缺 OpenCLI 时必须标 `blocked/not-run` 或说明合同允许 fallback。 |
+| Electron 没有可用 OpenCLI app adapter | Playwright Electron fallback | 报告必须写明 adapter 缺失原因、fallback 命令、通过数量；不得写成 OpenCLI pass。 |
+| 单 prompt 到产物交付、IM-first 编排、权限生命周期、Artifact 发布闭环 | 两者都要 | OpenCLI 断言真实用户 transcript/readback；Playwright 或脚本断言可重复的 API/DB/UI 行为和布局。 |
+
+禁止模式：
+
+- 不得用 Playwright 的 mock route、静态 selector 存在、`playwright --list` 或截图存在替代真实主链路验收。
+- 不得把 OpenCLI 探索截图当成 CI 回归充分证据；可复现的缺陷必须补 Playwright 或 API/单元测试。
+- 不得把 Web Playwright pass 写成 Mobile/PWA 或 Desktop pass；三端状态必须分别标注。
+- 当用户允许 “Playwright 或 OpenCLI” 时，可按任务性质选择其一；但如果报告声称 Bytedance 主链路或三端最终通过，仍按上表执行 OpenCLI 优先和必要的 Playwright 补充。
+
 ---
 
 ## 测试要求
