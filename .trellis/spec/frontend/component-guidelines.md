@@ -219,6 +219,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - Tool execution progress belongs in a tool/action/process card, not as the permission decision label.
 - Right workbench:
   - Desktop right workbench width must be draggable through a visible resize handle, constrained to a stable min/max width, and persisted across reload. Mobile uses drawer behavior instead of column resizing.
+  - The desktop resize target must be the visible divider between the central chat column and `artifact-overlay`, with a discoverable hit area and hover/focus affordance. Do not hide it as a transparent absolute child inside the right panel.
   - `过程` shows the same-session durable timeline: role acknowledgement/messages, plans, nodes, attempts, mailbox handoffs, runtime sessions, actions, artifacts and deployments.
   - `编排` shows plan nodes and authorization/action cards.
   - `Git` shows only Git status, staged/unstaged groups, selected-file diff, stage/unstage/discard, and commit history.

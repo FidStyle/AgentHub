@@ -59,7 +59,7 @@ test.describe('Web workspace 桌面三栏布局几何', () => {
       await expect(page.getByTestId('chat-panel')).toBeVisible()
       await expect(page.getByTestId('artifact-overlay')).toBeVisible()
       await assertNoHorizontalScroll(page)
-      await assertNoElementOverlap(page, '[data-testid="workspace-shell"] > *')
+      await assertNoElementOverlap(page, '[data-testid="workspace-shell"] > [data-testid="sidebar-region"], [data-testid="workspace-shell"] > .flex, [data-testid="workspace-shell"] > [data-testid="artifact-resize-handle"], [data-testid="workspace-shell"] > [data-testid="artifact-overlay"]')
       await assertMinWidth(page, '[data-testid="chat-panel"]', 480)
 
       // 2. 新建会话按钮在“会话”区标题右侧
@@ -126,9 +126,20 @@ test.describe('Web workspace 桌面三栏布局几何', () => {
     await expect(page.getByTestId('artifact-overlay')).toBeVisible()
 
     const overlay = page.getByTestId('artifact-overlay')
+    const handle = page.getByTestId('artifact-resize-handle')
     const before = await overlay.boundingBox()
+    const chat = await page.getByTestId('chat-panel').boundingBox()
+    const handleBox = await handle.boundingBox()
     expect(before).toBeTruthy()
-    await page.getByTestId('artifact-resize-handle').dragTo(page.locator('body'), {
+    expect(chat).toBeTruthy()
+    expect(handleBox).toBeTruthy()
+    expect(handleBox!.width, '拖拽分界线必须有可点击宽度，不应是隐藏细线').toBeGreaterThanOrEqual(10)
+    expect(Math.abs(handleBox!.x - (chat!.x + chat!.width)), '拖拽分界线应紧贴聊天区右边缘').toBeLessThanOrEqual(2)
+    expect(Math.abs((handleBox!.x + handleBox!.width) - before!.x), '拖拽分界线应紧贴右侧工作台左边缘').toBeLessThanOrEqual(2)
+    await expect(handle).toHaveCSS('cursor', 'col-resize')
+    await expect(handle).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+
+    await handle.dragTo(page.locator('body'), {
       targetPosition: { x: 1440 - 680, y: 240 },
     })
     const after = await overlay.boundingBox()

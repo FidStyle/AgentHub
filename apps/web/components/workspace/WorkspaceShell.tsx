@@ -7,7 +7,7 @@ import { Sidebar } from './Sidebar'
 import { ChatPanel } from './ChatPanel'
 import { ArtifactPanel } from './ArtifactPanel'
 import { Badge, IconButton } from '@agenthub/ui'
-import { ArrowLeft, PanelLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, GripVertical, PanelLeft, RefreshCw } from 'lucide-react'
 import { useWorkspaceRuntimeStatus } from './useWorkspaceRuntimeStatus'
 import { NotificationBell } from '../orchestrator/NotificationBell'
 import { useSessionStore } from '@/store/session-store'
@@ -17,6 +17,7 @@ const RIGHT_PANEL_DEFAULT_WIDTH = 420
 const RIGHT_PANEL_MIN_WIDTH = 320
 const RIGHT_PANEL_NORMAL_MAX_WIDTH = 760
 const RIGHT_PANEL_WIDE_MAX_WIDTH = 1040
+const RIGHT_PANEL_RESIZER_WIDTH = 12
 
 function clampRightPanelWidth(width: number, wideMode: boolean) {
   if (typeof window === 'undefined') return width
@@ -116,10 +117,13 @@ export function WorkspaceShell({
       data-testid="workspace-shell"
       className={`relative grid h-screen min-h-0 grid-cols-1 overflow-hidden ${
         rightPanelOpen
-          ? 'lg:grid-cols-[280px_minmax(320px,1fr)_var(--artifact-width)]'
+          ? 'lg:grid-cols-[280px_minmax(320px,1fr)_var(--artifact-resizer-width)_var(--artifact-width)]'
           : 'lg:grid-cols-[280px_minmax(320px,1fr)]'
       }`}
-      style={{ '--artifact-width': `${rightPanelWidth}px` } as CSSProperties}
+      style={{
+        '--artifact-width': `${rightPanelWidth}px`,
+        '--artifact-resizer-width': `${RIGHT_PANEL_RESIZER_WIDTH}px`,
+      } as CSSProperties}
     >
       {/* 桌面：左栏常驻；移动：抽屉 overlay，由顶部入口触发 */}
       <div
@@ -227,25 +231,31 @@ export function WorkspaceShell({
             className="fixed inset-0 z-20 bg-black/40 lg:hidden"
             onClick={() => setRightPanelOpen(false)}
           />
+          <button
+            type="button"
+            data-testid="artifact-resize-handle"
+            aria-label="拖动中间分界线调整右侧面板宽度"
+            title="拖动调整右侧工作台宽度"
+            className={`group relative hidden h-full cursor-col-resize touch-none border-x border-border/80 bg-muted/40 text-muted-foreground outline-none transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring lg:flex lg:items-center lg:justify-center ${
+              resizingRightPanel ? 'border-primary/70 bg-primary/15 text-primary' : ''
+            }`}
+            onPointerDown={(event) => {
+              event.preventDefault()
+              event.currentTarget.setPointerCapture?.(event.pointerId)
+              setResizingRightPanel(true)
+            }}
+            onDoubleClick={() => {
+              requestWidePanel(false)
+              window.localStorage.setItem('agenthub:right-panel-width', String(RIGHT_PANEL_DEFAULT_WIDTH))
+            }}
+          >
+            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border group-hover:bg-primary/60" aria-hidden="true" />
+            <GripVertical className="relative h-4 w-4 opacity-70" aria-hidden="true" />
+          </button>
           <div
             data-testid="artifact-overlay"
-            className="fixed inset-y-0 right-0 z-30 w-[320px] max-w-[85vw] border-l border-border bg-card lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-auto lg:max-w-none lg:overflow-hidden"
+            className="fixed inset-y-0 right-0 z-30 w-[320px] max-w-[85vw] border-l border-border bg-card lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-auto lg:max-w-none lg:overflow-hidden lg:border-l-0"
           >
-            <button
-              type="button"
-              data-testid="artifact-resize-handle"
-              aria-label="拖动调整右侧面板宽度"
-              className="absolute -left-1.5 top-0 hidden h-full w-3 cursor-col-resize bg-transparent after:absolute after:left-1/2 after:top-0 after:h-full after:w-px after:-translate-x-1/2 after:bg-border hover:after:bg-primary lg:block"
-              onPointerDown={(event) => {
-                event.preventDefault()
-                event.currentTarget.setPointerCapture?.(event.pointerId)
-                setResizingRightPanel(true)
-              }}
-              onDoubleClick={() => {
-                requestWidePanel(false)
-                window.localStorage.setItem('agenthub:right-panel-width', String(RIGHT_PANEL_DEFAULT_WIDTH))
-              }}
-            />
             <ArtifactPanel
               onClose={() => setRightPanelOpen(false)}
               wideMode={rightPanelWide}

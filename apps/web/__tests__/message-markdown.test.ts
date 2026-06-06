@@ -342,7 +342,10 @@ describe('ArtifactPanel frontend contract', () => {
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/WorkspaceShell.tsx', import.meta.url)), 'utf8')
 
     expect(source).toContain('data-testid="artifact-resize-handle"')
-    expect(source).toContain('aria-label="拖动调整右侧面板宽度"')
+    expect(source).toContain('aria-label="拖动中间分界线调整右侧面板宽度"')
+    expect(source).toContain('title="拖动调整右侧工作台宽度"')
+    expect(source).toContain('GripVertical')
+    expect(source).toContain('RIGHT_PANEL_RESIZER_WIDTH = 12')
     expect(source).toContain("window.localStorage.getItem('agenthub:right-panel-width')")
     expect(source).toContain("window.localStorage.setItem('agenthub:right-panel-width'")
     expect(source).toContain("window.localStorage.getItem('agenthub:right-panel-wide')")
@@ -351,8 +354,9 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).toContain("window.addEventListener('pointerup'")
     expect(source).toContain('clampRightPanelWidth(window.innerWidth - event.clientX, rightPanelWide)')
     expect(source).toContain('RIGHT_PANEL_WIDE_MAX_WIDTH = 1040')
-    expect(source).toContain("lg:grid-cols-[280px_minmax(320px,1fr)_var(--artifact-width)]")
-    expect(source).toContain("style={{ '--artifact-width': `${rightPanelWidth}px` } as CSSProperties}")
+    expect(source).toContain("lg:grid-cols-[280px_minmax(320px,1fr)_var(--artifact-resizer-width)_var(--artifact-width)]")
+    expect(source).toContain("'--artifact-resizer-width': `${RIGHT_PANEL_RESIZER_WIDTH}px`")
+    expect(source).not.toContain('absolute -left-1.5 top-0 hidden h-full w-3')
   })
 
   it('renders the workspace file and Git panels as tree-first wide workbench surfaces', () => {
