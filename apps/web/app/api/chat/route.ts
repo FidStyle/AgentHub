@@ -63,6 +63,7 @@ type ProcessEventInput = {
   content: string
   metadata?: Record<string, unknown>
   messageType?: string
+  emit?: (event: RoleProcessMessageEvent) => void
 }
 
 type ArtifactRecommendationInput = {
@@ -87,6 +88,17 @@ type NodeActionEvidence = {
   command?: string | null
   status?: string | null
   result?: unknown
+}
+
+type RoleProcessMessageEvent = {
+  type: 'role_process_message'
+  messageId: string
+  sessionId: string
+  roleAgentId: string | null
+  content: string
+  messageType: string
+  createdAt: string
+  metadata: Record<string, unknown>
 }
 
 function roleSearchText(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capabilities'>) {
@@ -408,19 +420,35 @@ async function createDeployApproval(input: {
 }
 
 async function persistProcessEvent(input: ProcessEventInput) {
-  await input.db.from('messages').insert({
+  const createdAt = new Date().toISOString()
+  const messageType = input.messageType ?? 'system_event'
+  const metadata = {
+    ...(input.metadata ?? {}),
+    processEvent: true,
+    visibleStatus: input.metadata?.visibleStatus ?? '执行中',
+    createdBy: 'agenthub_orchestrator',
+  }
+  const { data } = await input.db.from('messages').insert({
     session_id: input.sessionId,
     content: input.content,
     sender_type: 'system',
     role_agent_id: input.roleAgentId,
-    message_type: input.messageType ?? 'system_event',
-    metadata: {
-      ...(input.metadata ?? {}),
-      processEvent: true,
-      visibleStatus: input.metadata?.visibleStatus ?? '执行中',
-      createdBy: 'agenthub_orchestrator',
-    },
-  })
+    message_type: messageType,
+    metadata,
+    created_at: createdAt,
+  }).select('id, created_at').single()
+  const event: RoleProcessMessageEvent = {
+    type: 'role_process_message',
+    messageId: String(data?.id ?? `process-${Date.now()}`),
+    sessionId: input.sessionId,
+    roleAgentId: input.roleAgentId,
+    content: input.content,
+    messageType,
+    createdAt: String(data?.created_at ?? createdAt),
+    metadata,
+  }
+  input.emit?.(event)
+  return event
 }
 
 function isFullAutoDeliveryIntent(content: string, permissionMode?: string | null) {
@@ -1084,6 +1112,7 @@ export async function POST(req: NextRequest) {
   const adapter = new HostedRuntimeAdapter()
   const stream = new ReadableStream({
     async start(controller) {
+      const emitProcess = (event: RoleProcessMessageEvent) => controller.enqueue(encode(event))
       const completedReplies: Array<{
         nodeId: string | null
         phase: ExecutionTarget['phase']
@@ -1153,6 +1182,7 @@ export async function POST(req: NextRequest) {
                 })),
                 codeReferences: ['package.json', 'src/server.js', 'public/index.html', 'public/app.js', 'public/styles.css', 'README.md'],
               },
+              emit: emitProcess,
             })
           }
         }
@@ -1204,6 +1234,7 @@ export async function POST(req: NextRequest) {
               phase: target.phase,
               visibleStatus: '执行中',
             },
+            emit: emitProcess,
           })
           if (target.nodeId) {
             await db.from('plan_nodes').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', target.nodeId)
@@ -1306,6 +1337,28 @@ export async function POST(req: NextRequest) {
             if (evt.type === 'runtime_output' && evt.delta) reply = replyAccumulator.append(evt)
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
             if ((evt as unknown as { type?: string }).type === 'approval_auto_approved') autoContinuationDispatched = true
+            if (evt.type === 'approval_requested') {
+              await persistProcessEvent({
+                db,
+                sessionId,
+                roleAgentId: currentRoleAgentId,
+                content: [
+                  `等待授权：@${currentRoleName} 请求执行工具操作，当前节点已暂停。`,
+                  evt.title ? `授权项：${evt.title}` : null,
+                  evt.commandPreview ? `命令：${evt.commandPreview}` : null,
+                ].filter(Boolean).join('\n'),
+                metadata: {
+                  runMarker: requestRunMarker,
+                  planId,
+                  planNodeId: target.nodeId,
+                  roleName: currentRoleName,
+                  phase: target.phase,
+                  visibleStatus: '等待授权',
+                  runtimeParts: reduceRuntimeParts([], evt),
+                },
+                emit: emitProcess,
+              })
+            }
             if (evt.type === 'runtime_completed') completed = true
             if (evt.type === 'runtime_failed') terminalError = evt.error
             controller.enqueue(encode(evt))
@@ -1367,6 +1420,7 @@ export async function POST(req: NextRequest) {
                 visibleStatus: target.phase === 'summarizing' ? '已完成' : '执行中',
                 codeReferences: ['package.json', 'src/server.js', 'public/index.html', 'public/app.js', 'public/styles.css', 'README.md'],
               },
+              emit: emitProcess,
             })
             if (role && completedReplyText.trim()) {
               for (const downstream of downstreamTargets) {
@@ -1415,6 +1469,7 @@ export async function POST(req: NextRequest) {
                 visibleStatus: '执行中',
                 autoPermissionContinuation: true,
               },
+              emit: emitProcess,
             })
             const continuation = await waitForAutoContinuationOutcome({
               db,
@@ -1440,6 +1495,7 @@ export async function POST(req: NextRequest) {
                   runtimeSessionId: continuation.runtimeSessionId,
                 },
               },
+              emit: emitProcess,
             })
             if (continuation.status === 'completed') {
               completedReplies.push({
@@ -1562,6 +1618,7 @@ export async function POST(req: NextRequest) {
                     artifactRecommendationMissing: true,
                     expectedSourcePath: 'public/index.html',
                   },
+                  emit: emitProcess,
                 })
               }
             } else if (!planCompleted) {
@@ -1577,6 +1634,7 @@ export async function POST(req: NextRequest) {
                   planId,
                   visibleStatus: waitingForUser ? '等待授权' : '执行失败',
                 },
+                emit: emitProcess,
               })
             }
           }

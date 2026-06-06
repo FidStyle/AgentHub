@@ -385,6 +385,74 @@ Therefore the single-prompt development process passed.
 Web/Mobile/Desktop read back the same terminal state. Only then the loop can be marked completed.
 ```
 
+## Scenario: Role Process Message Foregrounding
+
+### 1. Scope / Trigger
+
+- Trigger: any change to `/api/chat`, runtime streaming, permission approval, session store, Web/Mobile message rendering, or strict product gate that affects role process visibility.
+- Applies to `messages`, SSE frames, `metadata.runtimeParts`, `metadata.visibleStatus`, role badges, permission cards, and same-session Web/Mobile readback.
+
+### 2. Signatures
+
+- SSE frame: `type="role_process_message"`, `messageId`, `sessionId`, `roleAgentId`, `content`, `messageType`, `createdAt`, `metadata.visibleStatus`, optional `metadata.runtimeParts`, `metadata.planId`, `metadata.planNodeId`, `metadata.attemptId`, `metadata.mailboxItemId`, `metadata.runtimeSessionId`.
+- Durable row: `messages.sender_type in ("system", "agent")`, `messages.role_agent_id=<current role>`, `messages.message_type in ("system_event", "plan_card", "result_card", "role_acknowledgement")`, and `messages.metadata.processEvent=true`.
+
+### 3. Contracts
+
+- Central IM is the primary evidence surface. Every Orchestrator, backend, frontend, permission, continuation, waiting, failure, completion, and artifact recommendation step must be represented by same-session `messages` rows or role agent replies.
+- `role_process_message` SSE must mirror the durable row that was inserted, so live streaming and refresh readback show the same role id, content, visible status, and runtime parts.
+- Runtime permission cards must be attached to the role that requested the tool. If a `role_process_message` already carries the permission `runtimeParts`, the client must not create a duplicate generic permission bubble from the later `approval_requested` frame.
+- Approval status labels express authorization state only: `待确认`, `已允许`, `已拒绝`, `已执行`, `执行失败`. Runtime progress must appear as separate role process messages.
+- Manual allow must create or update visible same-role continuation evidence. Manual reject must show same-role stopped/waiting evidence and must not mark downstream nodes or artifacts complete.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Role starts a node | IM receives `role_process_message` with `visibleStatus=执行中` and role id | Only plan node status changes |
+| Role requests a tool permission | IM shows same-role permission card and `visibleStatus=等待授权` | Generic approval card without role context |
+| Same permission also emits `approval_requested` | Client suppresses duplicate card by `actionId` | Two approval cards for one action |
+| User allows permission | IM shows same-role continuation/allowed process evidence | Button stays pending or chain continues silently |
+| User rejects permission | IM shows rejected/waiting state and no side effect | Later final message claims completion |
+| Refresh Web or Mobile session | `/api/messages` readback preserves the same process messages | Process existed only in transient SSE |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `@前端工程师` emits `等待授权` with a Write permission card; after allow, the same role emits continuation and later completion.
+- Base: full-control auto-approval emits no manual approval buttons, but still emits visible same-role continuation/process status.
+- Bad: `@架构师` says the frontend node is running, while no `messages.role_agent_id=<frontend>` process row or role reply exists.
+- Bad: right-panel timeline has runtime/action rows, but central IM lacks backend/frontend process messages.
+
+### 6. Tests Required
+
+- API test: `/api/chat` inserts and streams `role_process_message` rows for Orchestrator, backend, and frontend roles.
+- Store test: SSE `role_process_message` renders immediately with role id, visible status, and runtime permission parts.
+- Store test: `approval_requested` does not duplicate a permission already carried by a role process message.
+- UI test: Web chat renders role process messages with role badge and visible status badge.
+- Strict gate: fresh fixed prompt must fail if `/api/messages` lacks backend/frontend process messages, permission/continuation evidence, handoff, or Orchestrator validation.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+@架构师
+执行中：@前端工程师 开始处理
+
+Runtime tool approval appears as a generic card with no frontend role message.
+```
+
+#### Correct
+
+```text
+@前端工程师
+等待授权：@前端工程师 请求执行工具操作，当前节点已暂停。
+[permission card: Write public/index.html]
+
+@前端工程师
+授权已通过。现在继续写入前端三件套。
+```
+
 ## Scenario: Acceptance Evidence Governance Gate
 
 ### 1. Scope / Trigger

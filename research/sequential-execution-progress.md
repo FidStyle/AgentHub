@@ -21,13 +21,13 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 当前任务 | 无 active Trellis task（`task.py current --source` 返回 `(none)`） |
+| 当前任务 | `.trellis/tasks/06-06-role-process-message-foregrounding` |
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
-| 开始状态 | 已收口；工作区 clean |
-| 当前状态 | completed / fresh strict pass：最新 run `STRICT-IMRESIZE-1780732772` 已按 IM-first 标准通过 67/67 checks；中央 IM transcript、真实角色回复/handoff、Orchestrator 验收、产物推荐/确认、Web/Mobile/Desktop readback、OpenCLI 真实右侧栏拖动和刷新持久化均有证据。 |
-| 阻塞项 | 无。REG-20260606-002、REG-20260606-003 已由 fresh strict pass 关闭；Electron 使用允许的 Playwright fallback。 |
-| 下一步 | 已归档 `06-06-workbench-strict-product-line` 与 `06-05-strict-single-prompt-product-delivery-gate`，并记录 session journal。继续按本表审计是否还有未关闭 P0/P1；最终 Demo 包和 3 分钟素材仍按用户要求不处理。 |
+| 开始状态 | 非 clean（本任务已有代码/测试/报告改动，正在收口） |
+| 当前状态 | verified / pending final commit：角色过程消息已前台化，focused API/store tests、Web type-check/lint、task validate、`git diff --check` 均通过；完整 fresh OpenCLI strict gate 尚未在本任务中重跑。 |
+| 阻塞项 | 无代码阻塞。 |
+| 下一步 | 提交并归档本 task；如要声明新的 Bytedance product-pass run，重跑 strict gate。 |
 
 ---
 
@@ -52,6 +52,7 @@
 | 9.5 | `06-05-unified-product-line-regression` 统一全功能主链路回归测试 | P0 | closed / invalidated-by-design | A Full-Auto Product Delivery；B Permission Lifecycle；C Workbench / Deploy / Artifact；D Tri-Surface State。用户复核确认旧验证器把历史 DB/文件/截图/生成物终态误当成当前一次 prompt 的真实开发过程。 | Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md` 已追加撤销结论；Script: `apps/web/scripts/verify-unified-product-lines.ts` 已补 fresh run、消息级开发过程、权限卡状态迁移、full-control 无手动卡、产物推荐/确认检查；旧 `A-D all pass` 不再作为通过证据；archive commit `b6c1885`。 | 原缺口已由 9.6 防假阳性修正和 9.7 fresh strict product gate 覆盖。 | 已关闭；后续同类必须跑 fresh strict gate |
 | 9.6 | `06-05-fix-unified-regression-false-positive` 修正统一回归假阳性 | P0 | closed | `$trellis-break-loop`：撤销旧 pass、补验证器失败断言、更新 spec/guide/report/tracker，防止静态坐标假阳性。 | Task archived: `.trellis/tasks/archive/2026-06/06-05-fix-unified-regression-false-positive`；Report: `research/execution-reports/unified-product-line-regression-2026-06-05.md`；Script: `apps/web/scripts/verify-unified-product-lines.ts`；Spec: `.trellis/spec/cross-layer/real-flow-acceptance.md`；work commit `4086a4e`；archive commit `3eb8fb0`。 | 无。真实产品链路由 9.7 `STRICT-IMRESIZE-1780732772` fresh strict pass 关闭。 | 已关闭 |
 | 9.7 | `06-06-workbench-strict-product-line` 严格工作台主链路闭环 | P0/P1 | closed | `/api/chat` completed role replies append observed action/file evidence；strict gate checks IM-first Orchestrator allocation、backend/frontend role replies、handoff/evidence、Orchestrator validation、artifact recommendation/confirmation；API contract now supports generated `{a,b,operator}` + nested result/history；Web right sidebar resize is exercised through OpenCLI against the real `/workspace/:id` route. | Task archived: `.trellis/tasks/archive/2026-06/06-06-workbench-strict-product-line`；Contract: `research/contracts/WORKBENCH-STRICT-PRODUCT-LINE-2026-06-06.md`；Report: `research/execution-reports/workbench-strict-product-line-2026-06-06.md`；Strict run `STRICT-IMRESIZE-1780732772` PASS（67/67）；workspace `7b2c1304-eda9-45e7-948f-cd8276ae6fe1`；session `b06980bf-fc93-49b4-8877-cd92e2239104`；plan `e0739be3-3dbe-42aa-9601-8b967c5b3af8`；artifact `e08b63c6-d787-4af8-a413-627b0e81f2af`；evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-IMRESIZE-1780732772/`；right-sidebar drag `opencli-web-right-panel-resize-drag.txt`（360px -> 500px） and reload persistence `opencli-web-right-panel-resize-persisted.txt`；focused tests 57/57 PASS；audit tests PASS；type-check/lint PASS；task validate PASS；`git diff --check` PASS；governance gate PASS；work commit `68c9454`；status commit `8df9ca6`；archive commit `8bc9443`；journal commit `c80ac35`。 | 无。REG-20260606-002、REG-20260606-003 closed；Desktop/Electron 使用允许的 Playwright fallback。 | 已关闭；最终 Demo 包和 3 分钟素材不处理 |
+| 9.8 | `06-06-role-process-message-foregrounding` 角色过程消息完整前台化 | P0/P1 | verified | `/api/chat` persisted process rows stream as `role_process_message`; Web store renders role-owned process messages/status/permission cards and suppresses duplicate approval cards; strict gate now fails if backend/frontend role process messages are absent from central IM. | Task: `.trellis/tasks/06-06-role-process-message-foregrounding`；Report: `research/execution-reports/role-process-message-foregrounding-2026-06-06.md`；focused tests 26/26 PASS；expanded related tests 68/68 PASS；Web type-check PASS；Web lint PASS；task validate PASS；`git diff --check` PASS。 | 无代码阻塞；完整 fresh OpenCLI strict gate 本任务未重跑，不替代 `STRICT-IMRESIZE-1780732772`。 | 提交并归档；后续 product-pass 必须重跑 strict gate |
 | 10 | 最终 Demo 包和 3 分钟视频素材 | P1 | excluded-by-user | Bytedance 原始 PRD 反查；三端录屏/截图/脚本证据 | 用户 2026-06-05 明确“不需要你来处理” | 用户排除 | 不处理 |
 
 ---

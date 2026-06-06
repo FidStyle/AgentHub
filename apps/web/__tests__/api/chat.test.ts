@@ -629,6 +629,15 @@ describe('POST /api/chat — role-chat-core', () => {
       },
     })
     expect(text).toContain('orchestrator_plan_started')
+    expect(text).toContain('role_process_message')
+    expect(text).toContain('执行中：@前端工程师')
+    expect(text).toContain('执行中：@后端工程师')
+    expect(text).toContain('已完成：@前端工程师')
+    expect(text).toContain('已完成：@后端工程师')
+    const processMessages = insertedMessages.filter((message) => message.sender_type === 'system' && message.metadata && (message.metadata as Record<string, unknown>).processEvent)
+    expect(processMessages.map((message) => message.role_agent_id)).toEqual(expect.arrayContaining(['agent-orch', 'agent-fe', 'agent-be']))
+    expect(processMessages.some((message) => String(message.content).includes('执行中：@前端工程师'))).toBe(true)
+    expect(processMessages.some((message) => String(message.content).includes('执行中：@后端工程师'))).toBe(true)
   })
 
   it('AT-002c [critical]: default architect engineering request expands to durable backend/frontend dispatch', async () => {

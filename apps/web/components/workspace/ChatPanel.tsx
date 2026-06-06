@@ -213,11 +213,13 @@ function MessageList({
       {sessionMessages.map((msg) => {
         const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : undefined
         const canPin = !msg.id.startsWith('tmp-') && !msg.id.startsWith('reply-') && !msg.id.startsWith('sys-')
+        const isProcessMessage = msg.messageType === 'system_event' || msg.messageType === 'plan_card' || msg.messageType === 'result_card'
         return (
           <div
             key={msg.id}
             id={`message-${msg.id}`}
             data-message-id={msg.id}
+            data-testid={isProcessMessage ? 'role-process-message' : 'chat-message'}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <Card className={`max-w-[75%] p-3 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${msg.role === 'user' ? 'bg-primary/10' : 'bg-muted'}`}>
@@ -231,6 +233,16 @@ function MessageList({
                   {msg.isPinned && (
                     <Badge data-testid="message-pinned-badge" variant="secondary" className={name ? 'ml-1' : ''}>
                       已固定
+                    </Badge>
+                  )}
+                  {msg.visibleStatus && (
+                    <Badge data-testid="message-status-badge" variant={
+                      msg.visibleStatus === '等待授权' ? 'warning'
+                        : msg.visibleStatus === '执行失败' ? 'destructive'
+                          : msg.visibleStatus === '已完成' ? 'success'
+                            : 'secondary'
+                    } className={name || msg.isPinned ? 'ml-1' : ''}>
+                      {msg.visibleStatus}
                     </Badge>
                   )}
                 </div>

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/cross-layer/real-flow-acceptance.md", "reason": "IM-first Orchestrator role transaction and strict product gate requirements."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend UI and message rendering guidelines."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and test expectations."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend API and persistence guideline index."}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "Runtime workspace, permission, and broker contracts."}

@@ -203,6 +203,97 @@ describe('session store streaming replies', () => {
       streaming: false,
     })
   })
+
+  it('renders streamed role process messages with role id, status, and permission card', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
+      {
+        type: 'role_process_message',
+        messageId: 'process-fe-waiting',
+        sessionId: 'session-001',
+        roleAgentId: 'agent-fe',
+        content: '等待授权：@前端工程师 请求执行工具操作，当前节点已暂停。',
+        messageType: 'system_event',
+        createdAt: '2026-06-06T00:00:00.000Z',
+        metadata: {
+          visibleStatus: '等待授权',
+          runtimeParts: [{
+            id: 'approval-action-001',
+            type: 'permission',
+            status: 'pending',
+            actionId: 'action-001',
+            title: '写入 public/index.html',
+            description: '需要写入前端入口文件',
+            riskLevel: 'medium',
+          }],
+        },
+      },
+      { type: 'done' },
+    ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+    })
+
+    await useSessionStore.getState().sendMessage({ content: '开始', roleAgentIds: ['agent-fe'] })
+
+    const processMessage = useSessionStore.getState().messages.find((message) => message.id === 'process-fe-waiting')
+    expect(processMessage).toMatchObject({
+      role: 'agent',
+      roleAgentId: 'agent-fe',
+      messageType: 'system_event',
+      visibleStatus: '等待授权',
+      streaming: false,
+    })
+    expect(processMessage?.parts).toEqual([
+      expect.objectContaining({ type: 'permission', status: 'pending', actionId: 'action-001' }),
+    ])
+    expect(useSessionStore.getState().messages.filter((message) => (
+      message.parts?.some((part) => part.type === 'permission' && part.actionId === 'action-001')
+    ))).toHaveLength(1)
+  })
+
+  it('does not duplicate approval cards when a role process message already carries the permission', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
+      {
+        type: 'role_process_message',
+        messageId: 'process-fe-waiting',
+        sessionId: 'session-001',
+        roleAgentId: 'agent-fe',
+        content: '等待授权：@前端工程师 请求执行工具操作，当前节点已暂停。',
+        messageType: 'system_event',
+        metadata: {
+          visibleStatus: '等待授权',
+          runtimeParts: [{
+            id: 'approval-action-001',
+            type: 'permission',
+            status: 'pending',
+            actionId: 'action-001',
+            title: '写入 public/index.html',
+            description: '需要写入前端入口文件',
+            riskLevel: 'medium',
+          }],
+        },
+      },
+      {
+        type: 'approval_requested',
+        actionId: 'action-001',
+        title: '写入 public/index.html',
+        description: '需要写入前端入口文件',
+        riskLevel: 'medium',
+      },
+      { type: 'done' },
+    ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+    })
+
+    await useSessionStore.getState().sendMessage({ content: '开始', roleAgentIds: ['agent-fe'] })
+
+    expect(useSessionStore.getState().messages.filter((message) => (
+      message.parts?.some((part) => part.type === 'permission' && part.actionId === 'action-001')
+    ))).toHaveLength(1)
+  })
 })
 
 describe('session store lifecycle actions', () => {

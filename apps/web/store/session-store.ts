@@ -20,6 +20,7 @@ export interface Message {
   roleAgentId: string | null
   isPinned: boolean
   messageType?: string
+  visibleStatus?: string
   parts?: RuntimeMessagePart[]
   streaming?: boolean
 }
@@ -47,7 +48,10 @@ type StreamEvent = {
   sourcePath?: string
   contentRef?: string
   messageId?: string
+  sessionId?: string
   createdAt?: string
+  messageType?: string
+  metadata?: unknown
 }
 
 function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {
@@ -106,6 +110,27 @@ function reduceRuntimeParts(parts: RuntimeMessagePart[], evt: StreamEvent): Runt
     return [...parts, { id: partId('artifact', evt), type: 'artifact', status: 'created', artifactId: evt.artifactId, artifactType: evt.artifactType, title: evt.title, sourcePath: evt.sourcePath, contentRef: evt.contentRef }]
   }
   return parts
+}
+
+function runtimePartsFromEvent(evt: StreamEvent): RuntimeMessagePart[] | undefined {
+  const fromMetadata = partsFromMetadata(evt.metadata)
+  if (fromMetadata) return fromMetadata
+  const parts = reduceRuntimeParts([], evt)
+  return parts.length > 0 ? parts : undefined
+}
+
+function visibleStatusFromMetadata(metadata: unknown): string | undefined {
+  if (!metadata || typeof metadata !== 'object') return undefined
+  const value = (metadata as { visibleStatus?: unknown }).visibleStatus
+  return typeof value === 'string' ? value : undefined
+}
+
+function permissionActionIds(parts: RuntimeMessagePart[] | undefined): string[] {
+  if (!parts) return []
+  return parts
+    .filter((part): part is Extract<RuntimeMessagePart, { type: 'permission' }> => part.type === 'permission')
+    .map((part) => part.actionId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
 }
 
 interface SessionState {
@@ -336,6 +361,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           roleAgentId: (m.role_agent_id as string | null) ?? null,
           isPinned: Boolean(m.is_pinned),
           messageType: String(m.message_type ?? 'text'),
+          visibleStatus: visibleStatusFromMetadata(m.metadata),
           parts: partsFromMetadata(m.metadata),
         }))
       set({ messages, loading: false })
@@ -433,6 +459,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       let runtimeParts: RuntimeMessagePart[] = []
       let replyCreated = false
       let respondingRoleAgentId: string | null = primaryRoleAgentId
+      const processPermissionActionIds = new Set<string>()
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -521,6 +548,46 @@ export const useSessionStore = create<SessionState>((set, get) => ({
               replyCreated = false
             }
             respondingRoleAgentId = evt.roleAgentId
+          }
+          if (evt.type === 'role_process_message' && evt.content) {
+            if (replyCreated && (reply || runtimeParts.length > 0)) {
+              finishReply(replyId)
+              replySeq += 1
+              replyId = `reply-${Date.now()}-${replySeq}`
+              reply = ''
+              replyAccumulator = createRuntimeOutputAccumulator()
+              runtimeParts = []
+              replyCreated = false
+            }
+            const messageId = evt.messageId ?? `process-${Date.now()}-${replySeq}`
+            const processParts = runtimePartsFromEvent(evt)
+            permissionActionIds(processParts).forEach((actionId) => processPermissionActionIds.add(actionId))
+            set((state) => {
+              const nextMessage: Message = {
+                id: messageId,
+                sessionId: evt.sessionId ?? activeSessionId,
+                role: 'agent',
+                content: evt.content ?? '',
+                createdAt: evt.createdAt ?? new Date().toISOString(),
+                roleAgentId: evt.roleAgentId ?? respondingRoleAgentId ?? null,
+                isPinned: false,
+                messageType: evt.messageType ?? 'system_event',
+                visibleStatus: visibleStatusFromMetadata(evt.metadata),
+                parts: processParts,
+                streaming: false,
+              }
+              const existingIndex = state.messages.findIndex((message) => message.id === messageId)
+              if (existingIndex >= 0) {
+                return {
+                  messages: state.messages.map((message) => (message.id === messageId ? nextMessage : message)),
+                }
+              }
+              return { messages: [...state.messages, nextMessage] }
+            })
+            continue
+          }
+          if (evt.type === 'approval_requested' && evt.actionId && processPermissionActionIds.has(evt.actionId)) {
+            continue
           }
           if (evt.type === 'runtime_status' && !replyCreated) {
             upsertReply()
