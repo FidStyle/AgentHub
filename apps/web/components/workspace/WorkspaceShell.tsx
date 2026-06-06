@@ -241,8 +241,14 @@ export function WorkspaceShell({
             }`}
             onPointerDown={(event) => {
               event.preventDefault()
-              event.currentTarget.setPointerCapture?.(event.pointerId)
               setResizingRightPanel(true)
+              try {
+                event.currentTarget.setPointerCapture?.(event.pointerId)
+              } catch {
+                // Synthetic OpenCLI/Playwright pointer events do not always create
+                // an active pointer that can be captured. Resizing still works via
+                // the window-level pointermove listener above.
+              }
             }}
             onDoubleClick={() => {
               requestWidePanel(false)

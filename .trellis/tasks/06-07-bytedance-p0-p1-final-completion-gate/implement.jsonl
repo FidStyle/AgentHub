@@ -1,0 +1,9 @@
+{"file":"research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md","reason":"Shared product contract and final acceptance scope for the P0/P1 completion gate."}
+{"file":"research/workflow/ai-workflow-control.md","reason":"Project-level workflow, real-flow, tracker, and governance rules."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Strict no-fake-green acceptance rules for real user chains and artifacts."}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"Rules for auditing implementation back to Bytedance PRD obligations."}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"Runtime/API/event consistency requirements across cloud/local runtime flows."}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"Backend runtime workspace, cwd, context, dispatch, and permission broker contract."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Frontend UI component expectations for IM/workbench/permission surfaces."}
+{"file":".trellis/spec/frontend/ui-style-guidelines.md","reason":"Tri-surface UI and visual acceptance requirements."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend quality and testing requirements."}

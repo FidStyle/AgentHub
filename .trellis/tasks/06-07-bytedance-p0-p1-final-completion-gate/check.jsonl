@@ -1,0 +1,6 @@
+{"file":"research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md","reason":"Acceptance contract to verify every P0/P1 final gate claim."}
+{"file":"research/workflow/ai-workflow-control.md","reason":"Governance, tracker/report, and completion rules."}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Strict real-flow acceptance and anti-fake-green rules."}
+{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"PRD backtrace audit requirements for finding missing required behavior."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend test and quality expectations."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Backend test and quality expectations."}

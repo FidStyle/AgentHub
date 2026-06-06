@@ -424,7 +424,7 @@ async function verifyCalculatorProduct(root: string) {
       {
         name: 'left/operator/right',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ left: leftOperand, operator, right: rightOperand }),
-        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['record', 'result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
         historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['history', 'calculations', 'items', 'records']),
       },
@@ -552,6 +552,9 @@ async function verifyWebRightPanelResize(workspaceId: string) {
   const workspaceUrl = `${BASE_URL}/workspace/${workspaceId}`
   const dragScript = String.raw`
     (async () => {
+      window.localStorage.removeItem('agenthub:right-panel-width')
+      window.localStorage.removeItem('agenthub:right-panel-wide')
+      await new Promise((resolve) => setTimeout(resolve, 80))
       const overlay = document.querySelector('[data-testid="artifact-overlay"]')
       const handle = document.querySelector('[data-testid="artifact-resize-handle"]')
       const composer = document.querySelector('[data-testid="message-composer"]')
@@ -561,7 +564,8 @@ async function verifyWebRightPanelResize(workspaceId: string) {
       if (!composer || !chatPanel) throw new Error('missing chat panel or composer')
       const before = overlay.getBoundingClientRect().width
       const handleBox = handle.getBoundingClientRect()
-      const targetX = window.innerWidth - 500
+      const targetWidth = before > 500 ? 360 : 620
+      const targetX = window.innerWidth - targetWidth
       handle.dispatchEvent(new PointerEvent('pointerdown', {
         bubbles: true,
         cancelable: true,
@@ -597,7 +601,7 @@ async function verifyWebRightPanelResize(workspaceId: string) {
       const composerBox = composer.getBoundingClientRect()
       const chatBox = chatPanel.getBoundingClientRect()
       if (!Number.isFinite(stored)) throw new Error('right panel width was not persisted')
-      if (Math.abs(after - before) < 40) throw new Error('right panel width did not change enough: before=' + before + ', after=' + after)
+      if (Math.abs(after - before) < 40) throw new Error('right panel width did not change enough: before=' + before + ', after=' + after + ', target=' + targetWidth)
       if (Math.abs(stored - after) > 24) throw new Error('persisted width does not match rendered width: stored=' + stored + ', after=' + after)
       if (composerBox.width < 260 || chatBox.width < 360) throw new Error('chat area unusable after resize: composer=' + composerBox.width + ', chat=' + chatBox.width)
       return { before, after, stored, composerWidth: composerBox.width, chatWidth: chatBox.width }

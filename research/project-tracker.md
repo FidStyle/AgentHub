@@ -20,6 +20,21 @@
 
 ## P0 任务
 
+### BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE: Bytedance P0/P1 全量最终完成门禁
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-07-bytedance-p0-p1-final-completion-gate` |
+| **合同路径** | `research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md` |
+| **当前状态** | ✅ completed / fresh strict pass（2026-06-07）：P0/P1 全量最终门禁已完成。Fresh run `STRICT-FINAL-P0P1-1780769350` 从真实 `POST /api/chat` 单 prompt 触发 IM-first Orchestrator 分工、后端工程师、前端工程师、Orchestrator 验收、artifact recommendation/confirmation，并通过 Web、Mobile/PWA、Desktop/Electron 三端读回。 |
+| **目标** | 只闭环 Bytedance P0/P1：IM 主链路、权限链路、工作台链路、产物推荐/确认和三端读回；最终 Demo 包、3 分钟素材、未开始纯 P2 继续排除。 |
+| **验收方式** | Fresh strict single-prompt gate + OpenCLI Web/Mobile browser evidence + Desktop/Electron Playwright fallback + focused Web tests + type-check + evidence audit。固定 prompt：`做一个加减乘除的简单网站，使用sqlite存储历史记录`。 |
+| **测试证据** | Report: `research/execution-reports/bytedance-p0-p1-final-completion-gate-2026-06-07.md`；Strict run `STRICT-FINAL-P0P1-1780769350` PASS（70 passed / 0 failed / 0 warned）；workspace `647d378f-5441-4469-849b-908bce147969`；session `54485a3a-4ed8-4ed4-a44d-5cecb3534653`；plan `74e5dda3-4367-48b9-8f4b-37dd30f8da96`；artifact `59b3418b-41d1-4c90-8f54-cfa6499644cf`；API paths `GET /api/messages?session_id=54485a3a-4ed8-4ed4-a44d-5cecb3534653` and `GET /api/sessions/54485a3a-4ed8-4ed4-a44d-5cecb3534653/timeline`；evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-FINAL-P0P1-1780769350/`；Web PASS, Mobile/PWA PASS, Desktop/Electron PASS via accepted fallback；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/message-markdown.test.ts` PASS（40 tests）；`pnpm --filter @agenthub/web type-check` PASS。 |
+| **阻塞问题** | 无。 |
+| **下一步动作** | 本 P0/P1 gate 已通过；最终 Demo 包和 3 分钟素材仍按用户要求排除。 |
+
 ### WORKBENCH-RESIZE-FILETREE-UX-2026-06-06: 右侧工作台拖动与文件树体验修复
 
 | 字段 | 内容 |
