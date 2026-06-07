@@ -1,0 +1,4 @@
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"新增 Bytedance P0/P1 Real-Step UAT 可执行验收标准。"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"新增短 checklist，确保计划阶段想到 real-step UAT。"}
+{"file":".trellis/workflow.md","reason":"加入自然语言触发提示，避免 hook 不稳定时漏读标准。"}
+{"file":".trellis/config.yaml","reason":"修正 journal commit message，避免归档/journal 后治理脚本因英文 commit 失败。"}

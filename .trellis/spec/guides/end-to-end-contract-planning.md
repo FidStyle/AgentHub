@@ -49,6 +49,19 @@ Before a plan may execute, review every task against this checklist:
 - [ ] Each wave has a behavior-level verification artifact in `research/execution-reports/`.
 - [ ] Product runtime mock removal is verified separately from test fixture use.
 
+## Bytedance P0/P1 Real-Step UAT Trigger
+
+When the user asks for Bytedance final acceptance, "全真实验收", "最终验收", "不相信历史 pass", "模拟用户全流程", "每一步验证状态", or "P0/P1 全部完成", use the executable scenario in `.trellis/spec/cross-layer/real-flow-acceptance.md#scenario-bytedance-p0p1-real-step-uat`.
+
+Planning must explicitly include:
+
+- [ ] Fresh canonical prompt run, not historical pass reuse.
+- [ ] Per-step UI/API/DB/runtime/IM verification before the next user action.
+- [ ] Full-control, manual allow, and manual reject permission paths.
+- [ ] Workbench Git/file/code/artifact/deploy readback.
+- [ ] Web, Mobile/PWA, and Desktop/Electron evidence for the same session.
+- [ ] Fail-closed final status: any P0/P1 `partial`, `blocked`, `not-run`, or `failed` means not complete.
+
 ---
 
 ## Acceptable Test Fixtures

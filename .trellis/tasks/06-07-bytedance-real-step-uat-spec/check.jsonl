@@ -1,0 +1,4 @@
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"检查 scenario 是否具备 7 段结构和可执行验收矩阵。"}
+{"file":".agents/skills/bytedance-real-step-uat/SKILL.md","reason":"检查自然语言触发 skill 是否存在且指向正确标准。"}
+{"file":"research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md","reason":"检查业务合同是否可被后续 task/tracker/report 引用。"}
+{"file":".trellis/workflow.md","reason":"检查 breadcrumb 是否明确提示 Bytedance real-step UAT。"}

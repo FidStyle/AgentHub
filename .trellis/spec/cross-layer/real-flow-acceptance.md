@@ -1445,3 +1445,109 @@ Bytedance fixed sample passed earlier, remaining P1 passed earlier, and permissi
 ```text
 Run verify-unified-product-lines.ts. It re-reads current durable evidence for A-D, exercises the generated calculator and SQLite history, captures fresh Web/Mobile OpenCLI screenshots, runs Desktop Electron fallback, and only then records A-D as pass.
 ```
+
+## Scenario: Bytedance P0/P1 Real-Step UAT
+
+### 1. Scope / Trigger
+
+- Trigger: The user asks for Bytedance P0/P1 final acceptance, "全真实验收", "最终验收", "不相信历史 pass", "模拟用户全流程", "每一步验证状态", or equivalent language.
+- Applies to: AgentHub Web, Mobile/PWA, Desktop/Electron, chat orchestration, permissions, runtime execution, workbench, Git/file/code-reference readback, artifacts, deploy/product preview, and durable DB/API evidence.
+- This scenario is the acceptance standard for proving P0/P1 completeness. It does not replace feature-specific specs; it composes them into one user-perspective, step-by-step gate.
+- Historical reports, screenshots, timeline rows, and old pass labels are only clues. They cannot be final acceptance evidence unless the current run re-verifies the same contract path.
+
+### 2. Signatures
+
+- Canonical prompt:
+  - `做一个加减乘除的简单网站，使用sqlite存储历史记录`
+- Required user-flow surfaces:
+  - Web AgentHub session URL for the fresh run.
+  - Mobile/PWA session readback for the same `sessionId`.
+  - Desktop/Electron session readback or explicitly documented Playwright Electron fallback.
+- Required API/DB readback:
+  - `GET /api/messages?session_id=<sessionId>`
+  - `GET /api/sessions/<sessionId>/timeline`
+  - DB rows for `sessions`, `messages`, `plans`, `plan_nodes`, `plan_node_attempts`, `agent_mailbox_items`, `actions`, `runtime_sessions`, `artifacts`, and role/handoff tables where present.
+- Required evidence identifiers:
+  - `sessionId`
+  - `workspaceId`
+  - `planId`
+  - current run timestamp or durable fresh-run marker
+  - evidence paths for screenshots, logs, DB/API dumps, generated product runtime checks, and final report
+
+### 3. Contracts
+
+- Every important user action must be followed by state verification before the next action:
+  - UI state: what the user sees now.
+  - API state: the current response payload for the same object.
+  - DB state: durable rows for the same object.
+  - Runtime/file state: workspace files, Git status, generated app process, SQLite database, or artifact row as applicable.
+  - IM state: central message stream contains user-readable process/result evidence.
+- IM-first orchestration must be visible in `messages`: Orchestrator or architect first response, role assignment, backend/frontend work, handoff, runtime result, final validation, artifact recommendation, and artifact confirmation/designation.
+- Backend-only, frontend-only, UI-only, API-only, timeline-only, or unit-test-only evidence is `partial` at best for a P0/P1 product claim.
+- Full-control permission mode must not show a manual approval card for allowed actions. If it does, permission acceptance fails even if the backend later executes.
+- Manual allow must update the original user-facing permission card to an allowed/approved state and continue the original node/mailbox/runtime session.
+- Manual reject must stop side effects, not create the final artifact/deploy, and leave the user with a clear waiting/failed state and next-input path.
+- Workbench acceptance requires user-visible or API-readable Git, file tree, code references, artifact row, deployment/runtime script, and right-panel width persistence where applicable.
+- Artifact/product acceptance requires a durable artifact row plus a model recommendation and user confirmation/designation, unless the user explicitly names the artifact as the product.
+- Product acceptance for the calculator must prove add/subtract/multiply/divide, divide-by-zero guard, invalid input/operator guard, SQLite-backed history persistence, refresh/readback, and generated app startup from the workspace.
+- Overall status is fail-closed: any `partial`, `blocked`, `not-run`, or `failed` P0/P1 line means the Bytedance P0/P1 standard has not fully passed.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required result | Forbidden result |
+| --- | --- | --- |
+| Root Web entry crashes or cannot load | Overall `failed` or `blocked` | Continue with API-only acceptance |
+| No fresh run marker for the canonical prompt | Overall `failed` | Reuse historical pass as current proof |
+| Orchestrator/architect process not visible in messages | IM/orchestration `failed` | Infer hidden work from final files |
+| Backend row says approved but UI card stays pending | Permission UX `failed` | Count DB status as complete UX |
+| Manual allow does not continue original work | Permission lifecycle `failed` | Start a new unrelated node and call it continuation |
+| Manual reject executes a side effect | Permission lifecycle `failed` | Treat reject as pass because a row says rejected |
+| File tree or Git status appears but cannot refresh/read back | Workbench `partial` | Count first render as durable behavior |
+| Artifact exists without recommendation/confirmation | Artifact `failed` unless user directly designated it | Mark every generated file as final product |
+| Generated calculator works but SQLite history is not durable | Product `partial` or `failed` | Count UI arithmetic only as product pass |
+| Web passes but Mobile/PWA or Desktop/Electron not run | Tri-surface `not-run` or `blocked` | Claim three-surface pass |
+| Report has any P0/P1 line `partial`, `blocked`, `not-run`, or `failed` | Overall not complete | Say "完全通过" |
+
+### 5. Good/Base/Bad Cases
+
+- Good: A fresh Web run sends the canonical prompt, every meaningful user step is followed by UI/API/DB/runtime readback, Orchestrator and role handoffs are visible in central IM, permissions pass full-control/manual allow/manual reject, Git/file/code/artifact/deploy state is refreshable, calculator plus SQLite history passes, and Web/Mobile/Desktop all read back the same session state.
+- Base: The generated calculator works and history persists, but the frontend worker node is still waiting or IM lacks handoff evidence. Product artifact may pass; Bytedance P0/P1 remains partial.
+- Base: Backend allow/reject rows are correct, but the original permission card state is stale. Backend permission may pass; user-facing permission lifecycle fails.
+- Bad: Run only component tests and a generated product smoke, then mark the whole AgentHub Bytedance requirement complete.
+- Bad: Open an old screenshot/report, copy prior pass labels into a new table, and skip current API/DB/UI readback.
+
+### 6. Tests Required
+
+- Fresh full-flow UAT:
+  - Start from a new user prompt using the canonical prompt.
+  - After each user-visible action, record UI, API, DB, runtime/file, and IM state before moving on.
+  - Capture the exact `sessionId`, `workspaceId`, `planId`, timestamps, commands, and evidence paths.
+- Permission tests:
+  - Full-control: assert no manual approval interruption for allowed actions and assert final continuation.
+  - Manual allow: click allow, assert original card status, action row, node/mailbox/runtime continuation, and resulting side effect.
+  - Manual reject: click reject, assert no side effect, no final artifact/deploy, and clear waiting/failed IM state.
+- Workbench tests:
+  - Verify Git state, file tree refresh, file readback, code references, right-panel resize persistence, artifacts, deployment scripts, and product startup path.
+- Tri-surface tests:
+  - Web OpenCLI or Playwright evidence for the fresh session.
+  - Mobile/PWA OpenCLI or Playwright evidence for the same session.
+  - Desktop/Electron OpenCLI evidence or Playwright Electron fallback with explicit reason and result.
+- Product tests:
+  - Start the generated calculator from the workspace.
+  - Assert arithmetic operations, validation guards, SQLite insert/readback, refresh persistence, and history ordering.
+- Quality gates:
+  - Run impacted unit/API/store/component tests, type-check, lint, build, `git diff --check`, Trellis task validation, and governance/evidence audit.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+Previous reports had pass labels and the calculator currently works, so Bytedance P0/P1 is complete.
+```
+
+#### Correct
+
+```text
+Run a fresh canonical prompt, verify every user step through UI/API/DB/runtime/IM readback, capture Web/Mobile/Desktop evidence, and mark the overall gate incomplete if any P0/P1 line is partial, blocked, not-run, or failed.
+```
