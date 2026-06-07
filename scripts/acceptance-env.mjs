@@ -153,6 +153,12 @@ async function dev() {
   await run('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'scripts/verify-acceptance-startup.ts'], { env })
 
   const worker = spawnLong('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'server/runtime-worker.ts'], env)
+  try {
+    await run('pnpm', ['--filter', '@agenthub/web', 'exec', 'tsx', 'scripts/wait-runtime-worker-ready.ts'], { env })
+  } catch (error) {
+    worker.kill('SIGTERM')
+    throw error
+  }
   const web = spawnLong('pnpm', ['dev:web'], env)
 
   const shutdown = () => {

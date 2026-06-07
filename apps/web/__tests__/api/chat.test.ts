@@ -386,7 +386,7 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(text).toContain('"handoffs"')
     const acknowledgementMessages = insertedMessages.filter((m) => m.message_type === 'role_acknowledgement')
     expect(acknowledgementMessages).toHaveLength(0)
-    const agentMessages = insertedMessages.filter((m) => m.sender_type === 'agent')
+    const agentMessages = insertedMessages.filter((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))
     expect(agentMessages.map((m) => m.role_agent_id)).toEqual(['agent-001', 'agent-002'])
     expect((agentMessages[1].metadata as { handoffsReceived?: unknown[] }).handoffsReceived).toEqual([
       expect.objectContaining({
@@ -678,10 +678,11 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(text).toContain('执行中：@后端工程师')
     expect(text).toContain('已完成：@前端工程师')
     expect(text).toContain('已完成：@后端工程师')
-    const processMessages = insertedMessages.filter((message) => message.sender_type === 'system' && message.metadata && (message.metadata as Record<string, unknown>).processEvent)
+    const processMessages = insertedMessages.filter((message) => message.sender_type === 'agent' && message.metadata && (message.metadata as Record<string, unknown>).processEvent)
     expect(processMessages.map((message) => message.role_agent_id)).toEqual(expect.arrayContaining(['agent-orch', 'agent-fe', 'agent-be']))
     expect(processMessages.some((message) => String(message.content).includes('执行中：@前端工程师'))).toBe(true)
     expect(processMessages.some((message) => String(message.content).includes('执行中：@后端工程师'))).toBe(true)
+    expect(processMessages.every((message) => (message.metadata as Record<string, unknown>).createdBy === 'agenthub_orchestrator')).toBe(true)
   })
 
   it('AT-002c [critical]: default architect engineering request expands to durable backend/frontend dispatch', async () => {
@@ -862,17 +863,44 @@ describe('POST /api/chat — role-chat-core', () => {
       },
     })
     expect(text).toContain('orchestrator_plan_started')
-    const backendMessage = insertedMessages.find((message) => message.sender_type === 'agent' && message.role_agent_id === 'agent-be')
-    const frontendMessage = insertedMessages.find((message) => message.sender_type === 'agent' && message.role_agent_id === 'agent-fe')
+    const backendMessage = insertedMessages.find((message) => (
+      message.sender_type === 'agent'
+      && message.role_agent_id === 'agent-be'
+      && Boolean((message.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked)
+    ))
+    const frontendMessage = insertedMessages.find((message) => (
+      message.sender_type === 'agent'
+      && message.role_agent_id === 'agent-fe'
+      && Boolean((message.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked)
+    ))
     const architectMessage = insertedMessages.find((message) => (
       message.sender_type === 'agent'
       && message.role_agent_id === 'agent-orch'
+      && Boolean((message.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked)
       && Array.isArray((message.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived)
     ))
     expect(String(backendMessage?.content)).toContain('AgentHub 观察到的落地证据')
     expect(String(backendMessage?.content)).toContain('src/server.js')
     expect(String(frontendMessage?.content)).toContain('AgentHub 观察到的落地证据')
     expect(String(frontendMessage?.content)).toContain('public/index.html')
+    expect(backendMessage?.metadata).toMatchObject({
+      runtimeBacked: true,
+      runMarker: 'STRICT-SPD-UNIT',
+      attemptId: 'attempt-2',
+      mailboxItemId: 'mailbox-2',
+      runtimeSessionId: 'runtime-latest',
+      roleName: '后端工程师',
+      visibleStatus: '已完成',
+    })
+    expect(frontendMessage?.metadata).toMatchObject({
+      runtimeBacked: true,
+      runMarker: 'STRICT-SPD-UNIT',
+      attemptId: 'attempt-3',
+      mailboxItemId: 'mailbox-3',
+      runtimeSessionId: 'runtime-latest',
+      roleName: '前端工程师',
+      visibleStatus: '已完成',
+    })
     expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('public/index.html')
     expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('src/server.js')
   })
@@ -909,7 +937,7 @@ describe('POST /api/chat — role-chat-core', () => {
       roleAgentId: 'agent-001',
     })
     expect(status).toBe(200)
-    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))
     expect(agentMsg).toBeDefined()
     expect(agentMsg!.content).toBe('hello world')
     expect(agentMsg!.role_agent_id).toBe('agent-001')
@@ -970,7 +998,7 @@ describe('POST /api/chat — role-chat-core', () => {
     for (const chunk of markdownChunks) {
       expect(text).toContain(JSON.stringify(chunk).slice(1, -1))
     }
-    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))
     expect(agentMsg?.content).toBe(markdown)
     expect(String(agentMsg?.content).match(/# 一级标题/g)).toHaveLength(1)
     expect(String(agentMsg?.content)).toContain('- [x] 已完成')
@@ -1014,7 +1042,7 @@ describe('POST /api/chat — role-chat-core', () => {
 
     expect(status).toBe(200)
     expect(text).toContain(JSON.stringify(markdown).slice(1, -1))
-    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))
     expect(agentMsg?.content).toBe(markdown)
   })
 
@@ -1023,7 +1051,7 @@ describe('POST /api/chat — role-chat-core', () => {
     setupMockClient(chainCapturingInserts())
     const { status } = await callChat({ sessionId: 'session-001', content: 'hi' })
     expect(status).toBe(200)
-    expect(insertedMessages.some((m) => m.sender_type === 'agent')).toBe(false)
+    expect(insertedMessages.some((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))).toBe(false)
   })
 
   it('persists a runtime question part even when execution stops to wait for user input', async () => {
@@ -1035,10 +1063,14 @@ describe('POST /api/chat — role-chat-core', () => {
     const { status, text } = await callChat({ sessionId: 'session-001', content: 'hi', roleAgentId: 'agent-001' })
     expect(status).toBe(200)
     expect(text).toContain('question')
-    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))
     expect(agentMsg).toBeDefined()
     expect(agentMsg?.content).toBe('')
     expect(agentMsg?.role_agent_id).toBe('agent-001')
+    expect(agentMsg?.metadata).toMatchObject({
+      runtimeBacked: true,
+      visibleStatus: '等待授权',
+    })
     const parts = ((agentMsg!.metadata as { runtimeParts?: unknown[] }).runtimeParts ?? [])
     expect(parts).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -1064,7 +1096,7 @@ describe('POST /api/chat — role-chat-core', () => {
     const { status, text } = await callChat({ sessionId: 'session-001', content: 'hi', roleAgentId: 'agent-001' })
     expect(status).toBe(200)
     expect(text).toContain('tool_started')
-    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent')
+    const agentMsg = insertedMessages.find((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))
     expect(agentMsg).toBeDefined()
     const parts = ((agentMsg!.metadata as { runtimeParts?: unknown[] }).runtimeParts ?? [])
     expect(parts).toEqual(expect.arrayContaining([

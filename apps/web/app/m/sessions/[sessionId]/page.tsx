@@ -143,9 +143,33 @@ export default function MobileSessionPage() {
   // default Orchestrator, guaranteeing at least one role context for the default strategy.
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setError(null)
     fetch(`/api/messages?session_id=${sessionId}`)
-      .then(r => r.json())
-      .then(d => { if (!cancelled && Array.isArray(d)) setMessages(d) })
+      .then(async (r) => {
+        const body = await r.json().catch(() => null)
+        if (!r.ok) {
+          const detail = body && typeof body === 'object' && 'error' in body ? String((body as { error?: unknown }).error) : r.statusText
+          throw new Error(detail || '消息读取失败')
+        }
+        return body
+      })
+      .then(d => {
+        if (!cancelled) {
+          if (Array.isArray(d)) {
+            setMessages(d)
+          } else {
+            setMessages([])
+            setError('消息读取失败：响应格式不正确')
+          }
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) {
+          setMessages([])
+          setError(err.message || '消息读取失败')
+        }
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     loadPlans().catch(() => undefined)
     loadActions().catch(() => undefined)
@@ -360,7 +384,9 @@ export default function MobileSessionPage() {
         </div>
       )}
       <div className="flex-1 overflow-auto flex flex-col gap-2 pb-4">
-        {messages.length === 0 && (
+        {error && messages.length === 0 ? (
+          <StateCard variant="error" title="消息读取失败" description={error} />
+        ) : messages.length === 0 && (
           <StateCard variant="empty" title="暂无消息" description="发送第一条消息开始对话" />
         )}
         {messages.map(msg => {

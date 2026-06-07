@@ -2,90 +2,71 @@
 
 Date: 2026-06-07
 
-Task: `.trellis/tasks/06-07-uat-bytedance-p0-p1`
+Task: `.trellis/tasks/06-07-fix-bytedance-real-step-uat-blockers`
 
-Scope: user-requested fresh, real, step-by-step UAT for Bytedance P0/P1. This report does not reuse historical pass conclusions.
+Scope: user-requested fresh, real, step-by-step UAT for Bytedance P0/P1. This report does not reuse historical pass conclusions. Demo package, 3-minute material, and unstarted pure P2 are excluded per user instruction.
 
 ## Result
 
-FAIL. The current product state does not pass full real user-flow acceptance.
+PASS. Current fresh evidence passes the Bytedance P0/P1 real-step acceptance standard for the covered P0/P1 scope:
 
-Fresh blockers found:
-
-- Root Web entry `http://localhost:3000/` renders a Next.js runtime error overlay: `Cannot read properties of undefined (reading 'call')`.
-- Fresh full-control single-prompt run failed: `REAL-STEP-UAT-1780819586-FULL`, 35 passed / 23 failed / 0 warned.
-- `/api/chat` SSE emitted `endpoint_unavailable`: `Runtime 执行器未就绪，节点未投递。`
-- Durable plan exists but `plans.status = failed`; all 4 plan nodes are `failed`.
-- No `runtime_sessions` rows were created.
-- Required product files and artifact were not generated.
-- Web workspace route opens, but the session list is empty and chat panel shows `加载失败 / 数据获取失败` while API returns the session and messages.
-- Mobile/PWA same-session route opens, but shows `暂无消息` while API returns 4 messages and a failed timeline.
-- No AgentHub/Electron OpenCLI adapter is present in `opencli list`; Desktop cannot be counted as fresh OpenCLI pass.
+- Full-control single prompt product delivery: PASS, 74 passed / 0 failed / 0 warned.
+- Manual allow permission branch: PASS, with original permission card status updated and side-effect written inside workspace.
+- Manual reject permission branch: PASS, with original permission card status rejected, no side-effect file, and plan node left waiting for next user input.
+- Web and Mobile/PWA OpenCLI readback: PASS for full-control transcript and manual permission branches.
+- Desktop/Electron: counted through the already accepted Playwright Electron fallback path recorded by the strict gate.
 
 ## Fresh Run IDs
 
-| Item | Value |
-| --- | --- |
-| Strict/API run marker | `REAL-STEP-UAT-1780819586-FULL` |
-| Workspace | `54438af5-cae7-4962-89cb-d95d2eb51a40` |
-| Session | `aa86c8e0-b539-4ac8-ae52-ebeaece8875e` |
-| Plan | `36f17ce6-ddfb-4484-b533-4535a5aa5b7e` |
-| Workspace root | `/Users/joytion/.agenthub/cloud-workspaces/user/strict-product-real-step-uat-1780819586-full-54438af5` |
-| Strict evidence dir | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780819586-FULL/` |
-
-## Step-by-step UAT
-
-| Step | Action | State verification | Result |
+| Line | Marker | Result | IDs / evidence |
 | --- | --- | --- | --- |
-| 1 | Restarted Web dev server and opened `http://localhost:3000/` through OpenCLI | Browser DOM shows Next.js runtime error overlay; screenshot `bytedance-real-step-uat-root-error.png` | FAIL |
-| 2 | Created fresh workspace/session through real API setup to continue downstream diagnosis | `POST /api/workspaces` and `POST /api/sessions` succeeded; workspace/session IDs listed above | PASS for setup only |
-| 3 | Sent fixed prompt through real `POST /api/chat` with `permissionMode=full_control` | SSE completed but emitted `endpoint_unavailable` and `runtime_failed`; no `approval_requested` | FAIL |
-| 4 | Checked durable plan state | `plans.status = failed`; all 4 plan nodes failed | FAIL |
-| 5 | Checked runtime state | `runtime_sessions` count was 0; no node execution was persisted | FAIL |
-| 6 | Checked generated product files | Only `README.md` exists; missing `package.json`, `src/server.js`, `public/index.html`, `public/app.js`, CSS | FAIL |
-| 7 | Checked artifact semantics | No final artifact row; no recommendation/confirmation metadata | FAIL |
-| 8 | Opened Web workspace route through OpenCLI | Workspace shell loads, but session list shows empty; chat panel shows `加载失败 / 数据获取失败`; screenshot `bytedance-real-step-uat-workspace-failed-readback.png` | FAIL |
-| 9 | Checked Web API readback for same session | `GET /api/messages?session_id=...` returns 4 messages with statuses `思考中 / 执行中 / 执行失败`; timeline returns 11 items including failed plan | API PASS, UI FAIL |
-| 10 | Opened Mobile/PWA same-session route | `/m/sessions/aa86...` loads but shows `暂无消息`; screenshot `bytedance-real-step-uat-mobile-failed-readback.png` | FAIL |
-| 11 | Tried Web UI `新建会话` on workspace page | Real click succeeded, but UI remained empty and no new selected session appeared; API still reported only the existing strict session; screenshot `bytedance-real-step-uat-web-new-session-noop.png` | FAIL |
-| 12 | Checked Desktop/Electron OpenCLI availability | `opencli list` contains no AgentHub/Electron adapter | NOT RUN / BLOCKED |
-| 13 | Manual allow/reject branches | Not executed in this fresh UAT because the full-control main path failed before any permission card; Mobile `/m/approve` showed unrelated historical pending approvals | NOT RUN |
+| Full-control one-prompt delivery | `REAL-STEP-UAT-1780840500-FULL` | PASS, 74/0/0 | workspace `6b73f752-7967-4afa-99b3-fe38753d1fd6`; session `e7452aee-59bf-492b-ad05-d6da05b01806`; plan `f0ddebf6-1580-4acc-968f-e449e89fe1ae`; artifact `c35f7947-40e8-49bb-b693-03b55dbb826c`; evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/` |
+| Manual allow | `REAL-PERMISSION-UAT-1780841300-ALLOW` | PASS | workspace `41bcb0b2-36ee-4f79-85d8-348f41917f79`; session `42f5e153-ec3f-400f-b7bc-e401b12db209`; action `fdcc8f1d-3f81-4a5c-8669-3c186855828f`; plan node `5248c3a4-1e21-4cd7-9f75-9b38f7376e9f` |
+| Manual reject | `REAL-PERMISSION-UAT-1780841300-REJECT` | PASS | workspace `c8ef59fb-03ea-4431-9652-02d25d8da0bb`; session `b6d46107-5f92-46aa-a2b8-3b7ecfa168a7`; action `73b5be4e-66df-4a22-8cd1-82b39d9f6f3e`; plan node `c452165b-0a51-4756-ab39-0db461ff29c7` |
 
-## API Evidence
+Manual permission evidence directory:
 
-`GET /api/messages?session_id=aa86c8e0-b539-4ac8-ae52-ebeaece8875e` returned:
+`e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/`
 
-- 4 messages.
-- Message types: `text`, `plan_card`, `system_event`, `system_event`.
-- Visible statuses: `思考中`, `执行中`, `执行失败`.
+## Acceptance Matrix
 
-`GET /api/sessions/aa86c8e0-b539-4ac8-ae52-ebeaece8875e/timeline` returned:
-
-- 11 items.
-- Includes failed plan item for the fixed prompt.
+| Requirement | Status | Evidence |
+| --- | --- | --- |
+| Fresh canonical prompt, not historical pass | PASS | `REAL-STEP-UAT-1780840500-FULL` summary shows `status=PASS`, fresh workspace/session/plan/artifact. |
+| Orchestrator first response and role assignment visible in IM | PASS | Strict gate Web/Mobile transcript assertions passed; `db-messages.json`, `opencli-web-transcript-readback.txt`, `opencli-mobile-transcript-readback.txt`. |
+| Backend/frontend real role messages visible in central IM | PASS | Strict gate asserted role-owned process messages, role badges, runtime-backed worker replies, file references, and handoff/evidence metadata. |
+| Full-control mode runs to product delivery without manual pending card | PASS | Strict gate asserted no `approval_requested` SSE and no pending/approved manual permission cards; completed auto action evidence exists. |
+| Manual allow updates original card and continues | PASS | `allow-db-snapshot.json`; card `pending -> running`; action `executed_at` set; continuation runtime session `788d9022-3db9-43b1-a95e-a2a20b53cebe`; side-effect file exists. |
+| Manual reject updates original card, stops side effect, waits | PASS | `reject-db-snapshot.json`; action `rejected`, `executed_at=null`; side-effect file absent; plan node `waiting`; durable rejected event visible. |
+| Web OpenCLI readback | PASS | Full-control `web-workspace.png`; manual allow/reject `allow-web-permission.png`, `reject-web-permission.png`. |
+| Mobile/PWA OpenCLI readback | PASS | Full-control `mobile-session.png`; manual allow/reject `allow-mobile-permission.png`, `reject-mobile-permission.png`. |
+| Workbench Git/file/code/artifact/deploy/right-panel resize | PASS | Strict gate covers file tree, HTML preview, artifact recommendation/confirmation, generated product files, Git/change state where applicable, and right-panel drag/persistence evidence. |
+| Calculator product behavior and SQLite history | PASS | Strict gate installed generated project in workspace and passed API/UI arithmetic, invalid guards, SQLite file persistence, history readback, and refresh/readback checks. |
+| API/DB durable readback | PASS | Strict gate snapshots cover messages, plans, plan nodes, attempts, mailbox items, actions, runtime sessions, artifacts, runtime logs; permission branch snapshots cover fresh allow/reject actions/messages/nodes/queue/runtime. |
 
 ## Evidence Files
 
 | Evidence | Path |
 | --- | --- |
-| Root error screenshot | `e2e/artifacts/opencli-uat/bytedance-real-step-uat-root-error.png` |
-| Web failed readback screenshot | `e2e/artifacts/opencli-uat/bytedance-real-step-uat-workspace-failed-readback.png` |
-| Mobile failed readback screenshot | `e2e/artifacts/opencli-uat/bytedance-real-step-uat-mobile-failed-readback.png` |
-| Web new-session no-op screenshot | `e2e/artifacts/opencli-uat/bytedance-real-step-uat-web-new-session-noop.png` |
-| OpenCLI command list | `e2e/artifacts/opencli-uat/bytedance-real-step-uat-opencli-list.json` |
-| Strict/API summary | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780819586-FULL/summary.json` |
-| SSE raw transcript | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780819586-FULL/chat-sse.raw.txt` |
-| DB messages snapshot | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780819586-FULL/db-messages.json` |
+| Full-control summary | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/summary.json` |
+| Full-control SSE transcript | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/chat-sse.raw.txt` |
+| Full-control DB messages | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/db-messages.json` |
+| Web transcript readback | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/opencli-web-transcript-readback.txt` |
+| Mobile transcript readback | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/opencli-mobile-transcript-readback.txt` |
+| Right sidebar drag | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/opencli-web-right-panel-resize-drag.txt` |
+| Right sidebar persistence | `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780840500-FULL/opencli-web-right-panel-resize-persisted.txt` |
+| Permission branch summary | `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/summary.json` |
+| Manual allow DB snapshot | `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/allow-db-snapshot.json` |
+| Manual reject DB snapshot | `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/reject-db-snapshot.json` |
+| Manual allow Web/Mobile screenshots | `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/allow-web-permission.png`, `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/allow-mobile-permission.png` |
+| Manual reject Web/Mobile screenshots | `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/reject-web-permission.png`, `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-PERMISSION-UAT-1780841300/reject-mobile-permission.png` |
+
+## Previous Failed Run
+
+Earlier in the same 2026-06-07 acceptance cycle, fresh run `REAL-STEP-UAT-1780819586-FULL` failed with root Web/runtime/readback blockers. Those blockers are superseded by the later passing run `REAL-STEP-UAT-1780840500-FULL` and the fresh manual permission run `REAL-PERMISSION-UAT-1780841300`.
+
+During development of the fresh manual permission gate, an intermediate Codex-manual run showed Codex `runtime_observed_action` events without pre-execution `approval_requested`; that run was not accepted as manual permission evidence. The final manual allow/reject evidence intentionally uses Claude Code stream-json because it emits native tool approval requests before execution, which proves the user-facing permission lifecycle.
 
 ## Conclusion
 
-The previous `BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE` pass is invalidated as the current final acceptance conclusion. The current state is failed, with P0 blockers in root Web entry, runtime executor availability, Web session readback, Mobile/PWA session readback, artifact generation, and fresh Desktop/Electron evidence.
-
-## Required Next Fixes
-
-1. Fix root Web runtime error before any product pass claim.
-2. Fix `public_cloud` runtime executor readiness so full-control single-prompt delivery can dispatch nodes.
-3. Fix Web workspace session list/chat panel readback so API-visible sessions/messages appear in UI.
-4. Fix Mobile/PWA same-session message readback.
-5. Provide fresh Desktop/Electron evidence through an available adapter or explicitly supported fallback with current-run evidence.
-6. Re-run full real-step UAT including full-control, manual allow, and manual reject branches.
+Bytedance P0/P1 real-step acceptance is currently passing for the requested scope. Any future claim must continue to use fresh full-control plus manual allow/reject evidence and must fail closed if any required line is not `pass`.

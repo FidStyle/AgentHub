@@ -321,6 +321,56 @@ describe('session store streaming replies', () => {
 })
 
 describe('session store lifecycle actions', () => {
+  it('uses API-visible workspace sessions without creating a replacement session', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 'strict-session-001',
+          name: 'strict product delivery',
+          status: 'active',
+          last_message: '已完成：@前端工程师 完成当前节点。',
+          last_message_at: '2026-06-07T00:00:00.000Z',
+        },
+      ]))
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 'msg-001',
+          session_id: 'strict-session-001',
+          sender_type: 'agent',
+          role_agent_id: 'agent-fe',
+          content: '已完成：@前端工程师 完成当前节点。',
+          created_at: '2026-06-07T00:00:00.000Z',
+          message_type: 'system_event',
+          metadata: { visibleStatus: '已完成', processEvent: true },
+          is_pinned: false,
+        },
+      ]))
+
+    await useSessionStore.getState().fetchSessions('workspace-strict')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/sessions?workspace_id=workspace-strict&status=active')
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/sessions', expect.objectContaining({ method: 'POST' }))
+    expect(useSessionStore.getState().sessions).toEqual([
+      {
+        id: 'strict-session-001',
+        title: 'strict product delivery',
+        lastMessage: '已完成：@前端工程师 完成当前节点。',
+        updatedAt: '2026-06-07T00:00:00.000Z',
+        status: 'active',
+      },
+    ])
+    expect(useSessionStore.getState().activeSessionId).toBe('strict-session-001')
+    expect(useSessionStore.getState().messages).toEqual([
+      expect.objectContaining({
+        id: 'msg-001',
+        sessionId: 'strict-session-001',
+        role: 'agent',
+        roleAgentId: 'agent-fe',
+        visibleStatus: '已完成',
+      }),
+    ])
+  })
+
   it('fetches active sessions with status filter and maps archived state', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([
       {

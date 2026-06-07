@@ -22,7 +22,7 @@ const CREDENTIAL_VALUE_PATTERN = new RegExp(
 
 const REDACTED = '[REDACTED]'
 
-function redactString(value: string): string {
+export function redactString(value: string): string {
   return value.replace(CREDENTIAL_VALUE_PATTERN, REDACTED)
 }
 

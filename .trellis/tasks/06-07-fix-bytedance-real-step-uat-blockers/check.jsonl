@@ -1,0 +1,8 @@
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"检查 Bytedance P0/P1 Real-Step UAT、IM-first 和 evidence audit 是否满足"}
+{"file":"research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md","reason":"检查 completion rule 和 required evidence 是否完整"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查三端 UI、OpenCLI/Playwright 和布局验收"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"检查中央 IM、权限卡、工作台和 artifact 用户可见闭环"}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"检查 runtime workspace、permission continuation 和 broker 状态"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"检查 runtime gateway、worker liveness 和 endpoint failure semantics"}
+{"file":"research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md","reason":"检查原 blocker 是否全部关闭并被 fresh evidence 覆盖"}
+{"file":"research/regression-ledger.md","reason":"检查 REG-20260607-001 是否按关闭条件关闭"}

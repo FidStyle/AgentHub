@@ -55,6 +55,7 @@ vi.mock('../../lib/app-db-client', () => ({
 }))
 
 import { CliOutputParser, CliRuntimeExecutor, ExecutorUnavailableError, FakeExecutor, ScriptedRealExecutor, cliArgs, outputChunks, type RuntimeExecutor } from '../../lib/runtime/executor'
+import { redactString } from '../../lib/runtime/redact'
 import { processJob, createExecutor } from '../../server/runtime-worker'
 import type { RuntimeJob } from '../../lib/runtime/redis-client'
 
@@ -73,6 +74,10 @@ beforeEach(() => {
 })
 
 describe('CliRuntimeExecutor — executor_unavailable', () => {
+  it('redacts credential-shaped text from runtime diagnostics', () => {
+    expect(redactString(`stderr contains ${SECRET}`)).toBe('stderr contains [REDACTED]')
+  })
+
   it('builds Claude Code print commands with stream-json session evidence', () => {
     expect(cliArgs('claude_code', 'hello')).toEqual([
       '--print',

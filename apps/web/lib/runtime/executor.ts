@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
+import { redactString } from './redact'
 import { NativeCliToolActionKind, type NativeCliToolActionKind as NativeCliToolActionKindType } from '@agenthub/shared'
 
 export interface NativeCliToolRequest {
@@ -679,6 +680,7 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
     const queue: ExecutorChunk[] = []
     let spawnError: ExecutorUnavailableError | null = null
     let exitError: Error | null = null
+    let stderrTail = ''
     let done = false
     let notify: (() => void) | null = null
     const wake = () => { notify?.(); notify = null }
@@ -698,12 +700,21 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
       wake()
     })
 
-    // Drain stderr so a chatty CLI can't fill the pipe buffer and block, but never forward it as
-    // output — stderr may carry credential-bearing error text.
-    child.stderr?.resume()
+    // Drain stderr so a chatty CLI can't fill the pipe buffer and block. Keep a short redacted
+    // diagnostic tail for failed real UAT runs, but never forward stderr as model output.
+    child.stderr?.on('data', (chunk) => {
+      stderrTail = `${stderrTail}${chunk.toString()}`
+      if (stderrTail.length > 4000) stderrTail = stderrTail.slice(-4000)
+    })
 
     child.on('close', (code) => {
-      if (code !== 0 && !spawnError) exitError = new Error(`runtime CLI exited with code ${code ?? 'null'}`)
+      if (code !== 0 && !spawnError) {
+        const detail = redactString(stderrTail).trim().split(/\r?\n/).slice(-8).join('\n')
+        exitError = new Error([
+          `runtime CLI exited with code ${code ?? 'null'}`,
+          detail ? `stderr:\n${detail}` : null,
+        ].filter(Boolean).join('\n'))
+      }
       done = true
       wake()
     })

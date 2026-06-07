@@ -200,6 +200,34 @@ describe('MessageMarkdown', () => {
     expect(html).toContain('package.json')
   })
 
+  it('mobile session readback fails closed instead of silently rendering empty messages', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../app/m/sessions/[sessionId]/page.tsx', import.meta.url)),
+      'utf8',
+    )
+
+    expect(source).toContain("if (!r.ok)")
+    expect(source).toContain("throw new Error(detail || '消息读取失败')")
+    expect(source).toContain('<StateCard variant="error" title="消息读取失败" description={error} />')
+  })
+
+  it('acceptance OpenCLI auth uses a test-token middleware gate instead of document.cookie injection', () => {
+    const middlewareSource = readFileSync(
+      fileURLToPath(new URL('../middleware.ts', import.meta.url)),
+      'utf8',
+    )
+    const verifierSource = readFileSync(
+      fileURLToPath(new URL('../scripts/verify-strict-single-prompt-product-delivery.ts', import.meta.url)),
+      'utf8',
+    )
+
+    expect(middlewareSource).toContain("process.env.TEST_AUTH_COOKIE_VALUE")
+    expect(middlewareSource).toContain("req.nextUrl.searchParams.get('uat_auth')")
+    expect(middlewareSource).toContain("response.cookies.set('authjs.session-token'")
+    expect(verifierSource).toContain("url.searchParams.set('uat_auth', token)")
+    expect(verifierSource).not.toContain('document.cookie =')
+  })
+
   it('renders markdown images without nesting Streamdown wrapper divs inside paragraphs', () => {
     const html = renderToStaticMarkup(createElement(MessageMarkdown, {
       content: '链接与图片：\n\n![图片描述](https://example.com/image.png)',
@@ -402,8 +430,10 @@ describe('ArtifactPanel frontend contract', () => {
 
     expect(source).toContain('verifyWebRightPanelResize')
     expect(source).toContain('`${BASE_URL}/workspace/${workspaceId}`')
+    expect(source).toContain('opencliAuthenticatedUrl(`/workspace/${workspaceId}`)')
+    expect(source).toContain("url.searchParams.set('uat_auth', token)")
     expect(source).not.toMatch(/const workspaceUrl = `\$\{BASE_URL\}\/workspaces\/\$\{workspaceId\}`/)
-    expect(source).toContain("['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspace/${workspaceId}`]")
+    expect(source).toContain("['browser', 'agenthub-strict', 'open', opencliAuthenticatedUrl(`/workspace/${workspaceId}`)]")
     expect(source).not.toContain("['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspaces/${workspaceId}`]")
     expect(source).toContain("opencli-web-right-panel-resize-drag.txt")
     expect(source).toContain("opencli-web-right-panel-resize-persisted.txt")

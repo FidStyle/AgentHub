@@ -473,7 +473,7 @@ async function persistProcessEvent(input: ProcessEventInput) {
   const { data } = await input.db.from('messages').insert({
     session_id: input.sessionId,
     content: input.content,
-    sender_type: 'system',
+    sender_type: 'agent',
     role_agent_id: input.roleAgentId,
     message_type: messageType,
     metadata,
@@ -1174,12 +1174,15 @@ export async function POST(req: NextRequest) {
       const emitProcess = (event: RoleProcessMessageEvent) => controller.enqueue(encode(event))
       const completedReplies: Array<{
         nodeId: string | null
+        planId: string | null
         phase: ExecutionTarget['phase']
         roleAgentId: string | null
         roleName: string
         reply: string
         runtimeParts: RuntimeMessagePart[]
         receivedHandoffs: RoleHandoffPackage[]
+        visibleStatus?: string
+        persistedMessageId?: string | null
       }> = []
       const persistedHandoffs: RoleHandoffPackage[] = []
       try {
@@ -1444,14 +1447,41 @@ export async function POST(req: NextRequest) {
               runtimeSessionId: latestRuntimeSession?.id,
               status: 'completed',
             })
+            const receivedHandoffsForMessage = receivedHandoffs.map((handoff) => ({ ...handoff }))
+            const roleMessageMetadata: Record<string, unknown> = {
+              runtimeBacked: true,
+              runMarker: requestRunMarker,
+              planId,
+              planNodeId: target.nodeId,
+              attemptId: evidence?.attemptId ?? null,
+              mailboxItemId: evidence?.mailboxItemId ?? null,
+              runtimeSessionId: latestRuntimeSession?.id ?? null,
+              roleName: currentRoleName,
+              phase: target.phase,
+              visibleStatus: '已完成',
+            }
+            if (runtimeParts.length > 0) roleMessageMetadata.runtimeParts = runtimeParts
+            if (receivedHandoffsForMessage.length > 0) roleMessageMetadata.handoffsReceived = receivedHandoffsForMessage
+            const { data: persistedRoleMessage } = await db.from('messages').insert({
+              session_id: sessionId,
+              content: completedReplyText,
+              sender_type: 'agent',
+              role_agent_id: currentRoleAgentId,
+              message_type: 'text',
+              metadata: roleMessageMetadata,
+            }).select('id').single()
+            const persistedRoleMessageId = typeof persistedRoleMessage?.id === 'string' ? persistedRoleMessage.id : null
             completedReplies.push({
               nodeId: target.nodeId,
+              planId,
               phase: target.phase,
               roleAgentId: currentRoleAgentId,
               roleName: currentRoleName,
               reply: completedReplyText,
               runtimeParts,
               receivedHandoffs,
+              visibleStatus: '已完成',
+              persistedMessageId: persistedRoleMessageId,
             })
             if (target.nodeId) {
               await db.from('plan_nodes').update({
@@ -1491,7 +1521,7 @@ export async function POST(req: NextRequest) {
                   toRoleName: downstream.role.name,
                   sessionId,
                   summary: completedReplyText.trim().slice(-4000),
-                  sourceMessageId: null,
+                  sourceMessageId: persistedRoleMessageId,
                   target: downstream.nodeId ?? undefined,
                   phase: downstream.phase,
                   runtimeType: effectiveRuntimeTypeForTarget(downstream) ?? downstream.role.runtime_type,
@@ -1505,12 +1535,14 @@ export async function POST(req: NextRequest) {
           if (hasWaitingPart) {
             completedReplies.push({
               nodeId: target.nodeId,
+              planId,
               phase: target.phase,
               roleAgentId: currentRoleAgentId,
               roleName: currentRoleName,
               reply,
               runtimeParts,
               receivedHandoffs,
+              visibleStatus: '等待授权',
             })
           }
           if (autoContinuationDispatched && target.nodeId) {
@@ -1559,12 +1591,14 @@ export async function POST(req: NextRequest) {
             if (continuation.status === 'completed') {
               completedReplies.push({
                 nodeId: target.nodeId,
+                planId,
                 phase: target.phase,
                 roleAgentId: currentRoleAgentId,
                 roleName: currentRoleName,
                 reply: continuation.summary,
                 runtimeParts,
                 receivedHandoffs,
+                visibleStatus: '已完成',
               })
               return 'completed'
             }
@@ -1709,21 +1743,50 @@ export async function POST(req: NextRequest) {
         for (const completedReply of completedReplies) {
           const receivedHandoffs = completedReply.receivedHandoffs.map((handoff) => ({
             ...handoff,
-            sourceMessageId: handoff.fromRoleAgentId ? messageIdByRole.get(handoff.fromRoleAgentId) ?? null : null,
+            sourceMessageId: handoff.sourceMessageId ?? (handoff.fromRoleAgentId ? messageIdByRole.get(handoff.fromRoleAgentId) ?? null : null),
           }))
-          const messageMetadata: Record<string, unknown> = {}
-          if (completedReply.runtimeParts.length > 0) messageMetadata.runtimeParts = completedReply.runtimeParts
-          if (receivedHandoffs.length > 0) messageMetadata.handoffsReceived = receivedHandoffs
+          let agentMessageId = completedReply.persistedMessageId ?? null
+          if (agentMessageId && receivedHandoffs.length > 0) {
+            const { data: existingMessage } = await db
+              .from('messages')
+              .select('metadata')
+              .eq('id', agentMessageId)
+              .single()
+            const existingMetadata = existingMessage?.metadata && typeof existingMessage.metadata === 'object' && !Array.isArray(existingMessage.metadata)
+              ? existingMessage.metadata as Record<string, unknown>
+              : {}
+            await db.from('messages').update({
+              metadata: {
+                ...existingMetadata,
+                handoffsReceived: receivedHandoffs,
+              },
+            }).eq('id', agentMessageId)
+          }
+          if (!agentMessageId) {
+            const messageMetadata: Record<string, unknown> = {
+              runtimeBacked: true,
+              runMarker: requestRunMarker,
+              planId: completedReply.planId,
+              planNodeId: completedReply.nodeId,
+              roleName: completedReply.roleName,
+              phase: completedReply.phase,
+              visibleStatus: completedReply.visibleStatus ?? '已完成',
+            }
+            if (completedReply.runtimeParts.length > 0) messageMetadata.runtimeParts = completedReply.runtimeParts
+            if (receivedHandoffs.length > 0) messageMetadata.handoffsReceived = receivedHandoffs
 
-          const { data: agentMessage } = await db.from('messages').insert({
-            session_id: sessionId,
-            content: completedReply.reply,
-            sender_type: 'agent',
-            role_agent_id: completedReply.roleAgentId,
-            metadata: Object.keys(messageMetadata).length > 0 ? messageMetadata : null,
-          }).select('id').single()
-          if (completedReply.roleAgentId && agentMessage?.id) {
-            messageIdByRole.set(completedReply.roleAgentId, agentMessage.id)
+            const { data: agentMessage } = await db.from('messages').insert({
+              session_id: sessionId,
+              content: completedReply.reply,
+              sender_type: 'agent',
+              role_agent_id: completedReply.roleAgentId,
+              message_type: 'text',
+              metadata: messageMetadata,
+            }).select('id').single()
+            agentMessageId = typeof agentMessage?.id === 'string' ? agentMessage.id : null
+          }
+          if (completedReply.roleAgentId && agentMessageId) {
+            messageIdByRole.set(completedReply.roleAgentId, agentMessageId)
           }
           persistedHandoffs.push(...receivedHandoffs)
 
@@ -1738,7 +1801,7 @@ export async function POST(req: NextRequest) {
               metadata: {
                 artifact: {
                   ...artifact,
-                  sourceMessageId: agentMessage?.id ?? null,
+                  sourceMessageId: agentMessageId,
                 },
               },
               is_pinned: true,

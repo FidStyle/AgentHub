@@ -11,6 +11,7 @@ import path from 'node:path'
 import { once } from 'node:events'
 import net from 'node:net'
 import { Pool } from 'pg'
+import { closeRedis, isWorkerAlive } from '../lib/runtime/redis-client'
 
 export {}
 
@@ -547,6 +548,13 @@ function runOpencliEval(session: string, script: string, outputFile: string, lab
   return fail(label, output.split('\n').slice(-12).join('\n'))
 }
 
+function opencliAuthenticatedUrl(pathname: string) {
+  const url = new URL(pathname, BASE_URL)
+  const token = process.env.TEST_AUTH_COOKIE_VALUE ?? apiCookie().split('=').slice(1).join('=')
+  if (token) url.searchParams.set('uat_auth', token)
+  return url.toString()
+}
+
 async function verifyWebRightPanelResize(workspaceId: string) {
   const session = 'agenthub-strict'
   const workspaceUrl = `${BASE_URL}/workspace/${workspaceId}`
@@ -627,6 +635,57 @@ async function verifyWebRightPanelResize(workspaceId: string) {
   record(runOpencliEval(session, persistedScript, 'opencli-web-right-panel-resize-persisted.txt', 'Web 右侧栏宽度刷新后持久化'))
 }
 
+function webTranscriptAssertionScript(runMarker: string) {
+  return String.raw`
+    (async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      for (let i = 0; i < 40; i += 1) {
+        const text = document.body.innerText || ''
+        if (text.includes('${runMarker}') && text.includes('前端工程师') && text.includes('后端工程师')) break
+        await sleep(250)
+      }
+      const text = document.body.innerText || ''
+      const processMessages = Array.from(document.querySelectorAll('[data-testid="role-process-message"]')).map((node) => node.textContent || '')
+      const roleBadges = Array.from(document.querySelectorAll('[data-testid="message-role-badge"]')).map((node) => node.textContent || '')
+      const statusBadges = Array.from(document.querySelectorAll('[data-testid="message-status-badge"]')).map((node) => node.textContent || '')
+      const requiredText = ['架构师', '前端工程师', '后端工程师', 'public/index.html', 'src/server.js']
+      for (const item of requiredText) {
+        if (!text.includes(item)) throw new Error('missing transcript text: ' + item)
+      }
+      if (!processMessages.some((item) => item.includes('执行中：@前端工程师'))) throw new Error('missing frontend process message')
+      if (!processMessages.some((item) => item.includes('执行中：@后端工程师'))) throw new Error('missing backend process message')
+      if (!roleBadges.some((item) => item.includes('前端工程师'))) throw new Error('missing frontend role badge')
+      if (!roleBadges.some((item) => item.includes('后端工程师'))) throw new Error('missing backend role badge')
+      if (!statusBadges.some((item) => item.includes('已完成'))) throw new Error('missing completed status badge')
+      if (!/产物推荐|推荐产物|最终产物候选/.test(text)) throw new Error('missing artifact recommendation text')
+      return { processMessages: processMessages.length, roleBadges, statusBadges }
+    })()
+  `
+}
+
+function mobileTranscriptAssertionScript() {
+  return String.raw`
+    (async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      for (let i = 0; i < 40; i += 1) {
+        const text = document.body.innerText || ''
+        if (text.includes('前端工程师') && text.includes('后端工程师')) break
+        await sleep(250)
+      }
+      const text = document.body.innerText || ''
+      const roleBadges = Array.from(document.querySelectorAll('[data-testid="message-role-badge"]')).map((node) => node.textContent || '')
+      if (text.includes('暂无消息')) throw new Error('mobile still renders empty message state')
+      for (const item of ['计划监督', '前端工程师', '后端工程师', 'public/index.html', 'src/server.js']) {
+        if (!text.includes(item)) throw new Error('missing mobile transcript text: ' + item)
+      }
+      if (!roleBadges.some((item) => item.includes('前端工程师'))) throw new Error('missing mobile frontend role badge')
+      if (!roleBadges.some((item) => item.includes('后端工程师'))) throw new Error('missing mobile backend role badge')
+      if (!/完成|completed/.test(text)) throw new Error('missing mobile completed state')
+      return { roleBadges, textLength: text.length }
+    })()
+  `
+}
+
 async function verifyTriSurface(sessionId: string, workspaceId: string, artifactId: string | null) {
   const webMessages = await jsonOrThrow<unknown[]>(await apiFetch(`/api/messages?session_id=${sessionId}`), 'GET /api/messages')
   record(Array.isArray(webMessages) && webMessages.length >= 3
@@ -650,10 +709,12 @@ async function verifyTriSurface(sessionId: string, workspaceId: string, artifact
   }
 
   if (opencliAvailable()) {
-    record(runOpencli(['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspace/${workspaceId}`], 'opencli-web-open.txt'))
+    record(runOpencli(['browser', 'agenthub-strict', 'open', opencliAuthenticatedUrl(`/workspace/${workspaceId}`)], 'opencli-web-open.txt'))
+    record(runOpencliEval('agenthub-strict', webTranscriptAssertionScript(RUN_MARKER), 'opencli-web-transcript-readback.txt', 'Web 中央 IM 同 session 展示真实角色过程/验收/产物'))
     await verifyWebRightPanelResize(workspaceId)
     record(runOpencli(['browser', 'agenthub-strict', 'screenshot', path.join(ARTIFACT_DIR, 'web-workspace.png')], 'opencli-web-screenshot.txt'))
-    record(runOpencli(['browser', 'agenthub-strict-mobile', 'open', `${BASE_URL}/m/sessions/${sessionId}`], 'opencli-mobile-open.txt'))
+    record(runOpencli(['browser', 'agenthub-strict-mobile', 'open', opencliAuthenticatedUrl(`/m/sessions/${sessionId}`)], 'opencli-mobile-open.txt'))
+    record(runOpencliEval('agenthub-strict-mobile', mobileTranscriptAssertionScript(), 'opencli-mobile-transcript-readback.txt', 'Mobile/PWA 同 session 展示角色过程/状态/文件引用'))
     record(runOpencli(['browser', 'agenthub-strict-mobile', 'screenshot', path.join(ARTIFACT_DIR, 'mobile-session.png')], 'opencli-mobile-screenshot.txt'))
   } else {
     record(warn('OpenCLI doctor 不可用，已退化为 HTTP readback', '三端截图证据未采集，严格报告会标记该项 warning'))
@@ -697,6 +758,19 @@ async function main() {
   let fatalError: string | null = null
 
   try {
+    const executorMode = process.env.RUNTIME_EXECUTOR
+    const realExecutor = executorMode !== 'fake' && executorMode !== 'script'
+    const workerReady = await isWorkerAlive()
+    record(executorMode !== 'fake' && executorMode !== 'script'
+      ? ok('strict gate 使用真实 runtime executor', executorMode || 'real')
+      : fail('strict gate 使用真实 runtime executor', `RUNTIME_EXECUTOR=${executorMode}`))
+    record(workerReady
+      ? ok('Runtime worker ready before /api/chat')
+      : fail('Runtime worker ready before /api/chat', 'Redis worker presence key missing; start pnpm dev:acceptance and wait for worker readiness'))
+    if (!realExecutor || !workerReady) {
+      throw new Error('strict gate preflight failed: real runtime executor and live runtime worker are required')
+    }
+
     const workspace = await jsonOrThrow<{ id: string; cloud_project_dir?: string | null }>(await apiFetch('/api/workspaces', {
       method: 'POST',
       body: JSON.stringify({ name: `strict-product-${RUN_MARKER}`, execution_domain: 'cloud' }),
@@ -867,7 +941,8 @@ async function main() {
       : fail('消息流包含代码/文件引用'))
     record(includesAny(messageText, [/已完成/]) ? ok('消息流包含最终已完成状态') : fail('消息流包含最终已完成状态'))
     const roleMessages = messages.filter((message) => message.sender_type === 'agent' && message.role_agent_id)
-    const workerMessages = roleMessages.filter((message) => message.name && !includesAny(message.name, [/架构师|Orchestrator/]))
+    const runtimeBackedRoleMessages = roleMessages.filter((message) => Boolean(message.metadata?.runtimeBacked))
+    const workerMessages = runtimeBackedRoleMessages.filter((message) => message.name && !includesAny(message.name, [/架构师|Orchestrator/]))
     const workerNames = new Set(workerMessages.map((message) => message.name))
     record(workerMessages.length >= 2 && workerNames.has('前端工程师') && workerNames.has('后端工程师')
       ? ok('IM transcript 包含真实前端/后端角色回复', Array.from(workerNames).join(','))
@@ -954,6 +1029,7 @@ async function main() {
     fs.writeFileSync(path.join(ARTIFACT_DIR, 'summary.json'), JSON.stringify(summary, null, 2))
     console.log('\nSUMMARY:', JSON.stringify(summary, null, 2))
     await pool.end()
+    await closeRedis().catch(() => undefined)
   }
   process.exit(failed === 0 ? 0 : 1)
 }

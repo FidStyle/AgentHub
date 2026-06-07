@@ -1487,6 +1487,7 @@ Run verify-unified-product-lines.ts. It re-reads current durable evidence for A-
 - Full-control permission mode must not show a manual approval card for allowed actions. If it does, permission acceptance fails even if the backend later executes.
 - Manual allow must update the original user-facing permission card to an allowed/approved state and continue the original node/mailbox/runtime session.
 - Manual reject must stop side effects, not create the final artifact/deploy, and leave the user with a clear waiting/failed state and next-input path.
+- Manual permission evidence must prove a pre-execution approval boundary. A runtime `runtime_observed_action` or post-execution file-change record is not sufficient for manual allow/reject, because it means the CLI action already ran before AgentHub displayed an approval card. For manual branch UAT, the accepted evidence shape is `approval_requested` SSE/runtime event -> `actions.status='pending'` -> original message `metadata.runtimeParts[].status='pending'` -> approve/reject API -> original card state changes to `running/completed/failed` or `rejected`.
 - Workbench acceptance requires user-visible or API-readable Git, file tree, code references, artifact row, deployment/runtime script, and right-panel width persistence where applicable.
 - Artifact/product acceptance requires a durable artifact row plus a model recommendation and user confirmation/designation, unless the user explicitly names the artifact as the product.
 - Product acceptance for the calculator must prove add/subtract/multiply/divide, divide-by-zero guard, invalid input/operator guard, SQLite-backed history persistence, refresh/readback, and generated app startup from the workspace.
@@ -1501,6 +1502,7 @@ Run verify-unified-product-lines.ts. It re-reads current durable evidence for A-
 | Orchestrator/architect process not visible in messages | IM/orchestration `failed` | Infer hidden work from final files |
 | Backend row says approved but UI card stays pending | Permission UX `failed` | Count DB status as complete UX |
 | Manual allow does not continue original work | Permission lifecycle `failed` | Start a new unrelated node and call it continuation |
+| Manual branch only records `runtime_observed_action` after execution | Permission lifecycle `failed` | Count post-execution observation as approval evidence |
 | Manual reject executes a side effect | Permission lifecycle `failed` | Treat reject as pass because a row says rejected |
 | File tree or Git status appears but cannot refresh/read back | Workbench `partial` | Count first render as durable behavior |
 | Artifact exists without recommendation/confirmation | Artifact `failed` unless user directly designated it | Mark every generated file as final product |
@@ -1524,8 +1526,8 @@ Run verify-unified-product-lines.ts. It re-reads current durable evidence for A-
   - Capture the exact `sessionId`, `workspaceId`, `planId`, timestamps, commands, and evidence paths.
 - Permission tests:
   - Full-control: assert no manual approval interruption for allowed actions and assert final continuation.
-  - Manual allow: click allow, assert original card status, action row, node/mailbox/runtime continuation, and resulting side effect.
-  - Manual reject: click reject, assert no side effect, no final artifact/deploy, and clear waiting/failed IM state.
+  - Manual allow: require a pre-execution `approval_requested` event and pending action, click allow, assert original card status, action row, node/mailbox/runtime continuation, and resulting side effect.
+  - Manual reject: require a pre-execution `approval_requested` event and pending action, click reject, assert no side effect, no final artifact/deploy, rejected original card, and clear waiting/failed IM state.
 - Workbench tests:
   - Verify Git state, file tree refresh, file readback, code references, right-panel resize persistence, artifacts, deployment scripts, and product startup path.
 - Tri-surface tests:

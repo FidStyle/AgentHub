@@ -1,0 +1,9 @@
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"Bytedance P0/P1 Real-Step UAT、IM-first orchestration、permission、workbench 和 tri-surface 验收源头"}
+{"file":"research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md","reason":"本轮全真实验收合同，定义 completion rule 和 evidence shape"}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"runtime workspace、native tool permission、single-prompt continuation 实现约束"}
+{"file":".trellis/spec/cross-layer/runtime-gateway-contract.md","reason":"public_cloud runtime endpoint、worker liveness、gateway failure semantics"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"中央 IM、权限卡、右侧工作台、Git/file/artifact 用户可见闭环"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Web/Mobile/Desktop UI 质量、OpenCLI/Playwright 验收和布局要求"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"防假绿、Bytedance Real-Step UAT trigger 和计划验收要求"}
+{"file":"research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md","reason":"最新 fresh UAT 失败证据和 blocker 列表"}
+{"file":"research/regression-ledger.md","reason":"当前开放 P0 blocker REG-20260607-001 及关闭条件"}

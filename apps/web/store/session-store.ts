@@ -241,7 +241,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }]
       }
       set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: sessions[0]?.id ?? null, loading: false })
-      if (sessions[0]) get().fetchMessages(sessions[0].id)
+      if (sessions[0]) await get().fetchMessages(sessions[0].id)
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
     }
