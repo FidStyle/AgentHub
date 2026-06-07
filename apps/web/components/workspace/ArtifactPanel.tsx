@@ -5,10 +5,11 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, ChevronDown, ChevronRight, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, Maximize2, Minimize2, PackagePlus, Pencil, Plus, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Square, Trash2, Upload, WandSparkles, X } from 'lucide-react'
+import { Bot, Boxes, Check, ChevronDown, ChevronRight, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, Maximize2, Minimize2, PackagePlus, Pencil, Plus, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Square, Trash2, Upload, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
+import { roleAvatarColorClass, roleBadgeColorClass, roleMessageColorClass } from '@/lib/role-colors'
 
 const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物', '部署'] as const
 
@@ -87,6 +88,7 @@ type GitChangeTreeNode = {
   children?: GitChangeTreeNode[]
   change?: GitChangeRow
   group?: 'staged' | 'unstaged'
+  descendantCount?: number
 }
 type GitCommitRow = {
   hash: string
@@ -207,10 +209,6 @@ function isDeploymentItem(item: TimelineItem) {
   return item.kind === 'deployment' || item.kind === 'action' && item.refs?.actionId && item.title.includes('部署')
 }
 
-function collectDefaultExpandedPaths(nodes: FileTreeNode[] | GitChangeTreeNode[]) {
-  return new Set(nodes.filter((node) => node.type === 'directory').map((node) => node.path))
-}
-
 function ancestorDirectoryPaths(filePath: string) {
   const parts = filePath.split('/').filter(Boolean)
   return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join('/'))
@@ -233,10 +231,11 @@ function buildGitChangeTree(changes: GitChangeRow[], group: 'staged' | 'unstaged
       }
       let dir = dirMap.get(`${group}:${currentPath}`)
       if (!dir) {
-        dir = { name: part, path: currentPath, type: 'directory', children: [] }
+        dir = { name: part, path: currentPath, type: 'directory', children: [], descendantCount: 0 }
         dirMap.set(`${group}:${currentPath}`, dir)
         siblings.push(dir)
       }
+      dir.descendantCount = (dir.descendantCount ?? 0) + 1
       siblings = dir.children ?? []
     }
   }
@@ -518,15 +517,15 @@ function AgentsTab() {
             key={a.id}
             type="button"
             onClick={() => { setSelectedId(a.id); setEditing(false) }}
-            className={`flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-muted ${selected?.id === a.id && !editing ? 'bg-muted' : ''}`}
+            className={`flex w-full items-start gap-3 rounded-lg border border-l-4 border-border p-3 text-left hover:bg-muted ${roleMessageColorClass(a.id, a.name)} ${selected?.id === a.id && !editing ? 'ring-1 ring-ring' : ''}`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-sm font-medium">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-sm font-medium ${roleAvatarColorClass(a.id, a.name)}`}>
               {a.name.slice(0, 1)}
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-2">
                 <span className="truncate font-medium">{a.name}</span>
-                {a.is_orchestrator && <Badge variant="warning">编排者</Badge>}
+                {a.is_orchestrator && <Badge variant="secondary" className={roleBadgeColorClass(a.id, a.name)}>编排者</Badge>}
               </span>
               <span className="mt-1 block text-xs text-muted-foreground">{roleTypeLabel(a)} · 配置摘要：{runtimeLabel(a.runtime_type)}</span>
               {a.capabilities && a.capabilities.length > 0 && (
@@ -776,7 +775,7 @@ function FileTreeNodeView({
   expandedPaths: Set<string>
   onToggle: (path: string) => void
   onOpen: (node: FileTreeNode) => void
-  onContextAction: (node: FileTreeNode, action: 'rename' | 'delete' | 'artifact') => void
+  onContextAction: (node: FileTreeNode, action: 'delete' | 'artifact') => void
 }) {
   const isDir = node.type === 'directory'
   const expanded = isDir && expandedPaths.has(node.path)
@@ -810,14 +809,6 @@ function FileTreeNodeView({
             </>
           ) : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           <span className="truncate" title={node.path}>{node.name}</span>
-        </button>
-        <button
-          type="button"
-          className="hidden rounded-sm p-1 text-muted-foreground hover:bg-background hover:text-foreground group-hover:inline-flex"
-          aria-label={`重命名 ${node.path}`}
-          onClick={() => onContextAction(node, 'rename')}
-        >
-          <Pencil className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
@@ -866,7 +857,6 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
   const [artifactStatus, setArtifactStatus] = useState<string | null>(null)
   const [operationStatus, setOperationStatus] = useState<string | null>(null)
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number; text: string } | null>(null)
-  const [editInstruction, setEditInstruction] = useState('')
   const [patchStatus, setPatchStatus] = useState<string | null>(null)
   const [showCreateFile, setShowCreateFile] = useState(false)
   const [newFilePath, setNewFilePath] = useState('')
@@ -884,7 +874,7 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
       setRoot(payload.root)
       const nextTree = Array.isArray(payload.tree) ? payload.tree : []
       setTree(nextTree)
-      setExpandedPaths((current) => current.size > 0 ? current : collectDefaultExpandedPaths(nextTree))
+      setExpandedPaths((current) => current.size > 0 ? current : new Set())
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载文件树失败')
     } finally {
@@ -956,15 +946,14 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
       return
     }
     const ref = selectionReference(preview, selectionRange)
-    const instruction = editInstruction.trim()
     quoteToComposer({
       id: `${preview.path}:${selectionRange.start}-${selectionRange.end}`,
       author: `文件选区：${preview.path}`,
       preview: ref.preview,
       text,
-      suggestedPrompt: instruction || ref.suggestedPrompt,
+      suggestedPrompt: ref.suggestedPrompt,
     })
-    setPatchStatus('已把文件选区引用到 IM 输入框，请发送给 AI 修改')
+    setPatchStatus(`已引用 ${ref.preview}`)
   }
 
   async function markFileAsArtifact(filePreview: FilePreview) {
@@ -1052,28 +1041,6 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
     }
   }
 
-  async function renameEntry(node: FileTreeNode) {
-    if (!activeWorkspaceId) return
-    const nextPath = window.prompt('输入新的工作区相对路径', node.path)?.trim()
-    if (!nextPath || nextPath === node.path) return
-    setOperationStatus('正在重命名...')
-    try {
-      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/rename`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: node.path, to: nextPath }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((body as { error?: string }).error || `重命名失败（${res.status}）`)
-      setOperationStatus(`已重命名为 ${(body as { path?: string }).path ?? nextPath}`)
-      if (preview?.path === node.path) setPreview(null)
-      await loadTree()
-      emitFilesChanged()
-    } catch (e) {
-      setOperationStatus(e instanceof Error ? e.message : '重命名失败')
-    }
-  }
-
   async function deleteEntry(node: FileTreeNode) {
     if (!activeWorkspaceId) return
     if (!window.confirm(`确定删除「${node.path}」吗？`)) return
@@ -1095,11 +1062,7 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
     }
   }
 
-  async function handleContextAction(node: FileTreeNode, action: 'rename' | 'delete' | 'artifact') {
-    if (action === 'rename') {
-      await renameEntry(node)
-      return
-    }
+  async function handleContextAction(node: FileTreeNode, action: 'delete' | 'artifact') {
     if (action === 'delete') {
       await deleteEntry(node)
       return
@@ -1230,23 +1193,8 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
         </div>
         {artifactStatus && <p className="text-xs text-muted-foreground">{artifactStatus}</p>}
         {previewLoading && <StateCard variant="loading" title="正在读取文件" />}
-        {preview && !previewLoading && <PreviewBlock preview={preview} downloadUrl={preview.downloadUrl} />}
         {isEditablePreview(preview) && preview?.content !== null && !previewLoading && (
-          <div data-testid="mini-ide-editor" className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <WandSparkles className="h-4 w-4 text-muted-foreground" />
-                  引用选区让 AI 修改
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  在下方内容中选择片段，系统会把文件路径、行号范围、字数和原文引用到 IM 输入框，由 AI 按你的消息修改文件。
-                </p>
-              </div>
-              <Badge variant={selectionRange?.text ? 'secondary' : 'default'}>
-                {preview && selectionRange?.text ? `${selectionReference(preview, selectionRange).lineLabel} · ${selectionReference(preview, selectionRange).count} 字` : '未选择'}
-              </Badge>
-            </div>
+          <div data-testid="mini-ide-editor" className="relative">
             <textarea
               ref={editorRef}
               readOnly
@@ -1254,26 +1202,23 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
               onSelect={captureEditorSelection}
               data-testid="mini-ide-source-editor"
               aria-label="文件内容选区"
-              className="h-40 w-full resize-y rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed outline-none focus:border-primary"
+              className="h-72 w-full resize-y rounded-md border border-border bg-muted p-3 font-mono text-xs leading-relaxed outline-none focus:border-primary"
             />
-            <label className="space-y-1 text-xs">
-              <span className="font-medium text-foreground">修改要求</span>
-              <input
-                value={editInstruction}
-                onChange={(event) => setEditInstruction(event.target.value)}
-                placeholder="例如：把这里改成更清晰的变量名"
-                className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-              />
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={sendSelectionEditRequest} disabled={!selectionRange?.text} data-testid="mini-ide-send-selection-edit">
+            {selectionRange?.text && (
+              <Button
+                size="sm"
+                onClick={sendSelectionEditRequest}
+                data-testid="mini-ide-send-selection-edit"
+                className="absolute right-3 top-3 shadow-md"
+              >
                 <SendHorizontal className="mr-1 h-3.5 w-3.5" />
-                发给 AI 修改
+                引用内容
               </Button>
-              {patchStatus && <span className="text-xs text-muted-foreground">{patchStatus}</span>}
-            </div>
+            )}
           </div>
         )}
+        {preview && !isEditablePreview(preview) && !previewLoading && <PreviewBlock preview={preview} downloadUrl={preview.downloadUrl} />}
+        {patchStatus && <p className="text-xs text-muted-foreground">{patchStatus}</p>}
         </div>
       </div>
       </div>
@@ -1328,6 +1273,7 @@ function GitChangeTreeView({
   onToggle,
   onOpen,
   onQuickAction,
+  onQuickPathAction,
 }: {
   nodes: GitChangeTreeNode[]
   group: 'staged' | 'unstaged'
@@ -1336,6 +1282,7 @@ function GitChangeTreeView({
   onToggle: (path: string) => void
   onOpen: (change: GitChangeRow, group: 'staged' | 'unstaged') => void
   onQuickAction: (action: 'stage' | 'unstage', change: GitChangeRow) => void
+  onQuickPathAction: (action: 'stage' | 'unstage', path: string) => void
 }) {
   if (nodes.length === 0) {
     return <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">没有{group === 'staged' ? '已暂存' : '未暂存'}变更</div>
@@ -1374,6 +1321,24 @@ function GitChangeTreeView({
             <span className="min-w-0 flex-1 truncate" title={node.path}>{node.name}</span>
           </button>
           {node.change && <Badge variant={node.change.untracked ? 'warning' : group === 'staged' ? 'success' : 'secondary'}>{node.change.status.trim() || 'M'}</Badge>}
+          {isDir && (
+            <>
+              <Badge variant="secondary">{node.descendantCount ?? node.children?.length ?? 0}</Badge>
+              <button
+                type="button"
+                data-testid={group === 'staged' ? 'workspace-git-folder-unstage-button' : 'workspace-git-folder-stage-button'}
+                aria-label={group === 'staged' ? `取消暂存目录 ${node.path}` : `暂存目录 ${node.path}`}
+                title={group === 'staged' ? '取消暂存目录' : '暂存目录'}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-sm font-medium text-muted-foreground opacity-70 hover:bg-background hover:text-foreground group-hover:opacity-100"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onQuickPathAction(group === 'staged' ? 'unstage' : 'stage', node.path)
+                }}
+              >
+                {group === 'staged' ? '-' : '+'}
+              </button>
+            </>
+          )}
           {node.change && (
             <button
               type="button"
@@ -1411,6 +1376,8 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
   const [selectedDiff, setSelectedDiff] = useState('')
   const [diffStatus, setDiffStatus] = useState<string | null>(null)
   const [actionStatus, setActionStatus] = useState<string | null>(null)
+  const [commitMessage, setCommitMessage] = useState('')
+  const [commitStatus, setCommitStatus] = useState<string | null>(null)
   const [pendingDiscardPath, setPendingDiscardPath] = useState<string | null>(null)
   const [pendingDiscardActionId, setPendingDiscardActionId] = useState<string | null>(null)
 
@@ -1424,15 +1391,7 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
       if (!res.ok) throw new Error((body as { error?: string }).error || `读取 Git 状态失败（${res.status}）`)
       const changes = Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : []
       setGitChanges(changes)
-      setGitExpandedPaths((current) => {
-        if (current.size > 0) return current
-        const staged = buildGitChangeTree(changes.filter((change) => change.staged), 'staged')
-        const unstaged = buildGitChangeTree(changes.filter((change) => change.unstaged || change.untracked || !change.staged), 'unstaged')
-        return new Set([
-          ...Array.from(collectDefaultExpandedPaths(staged)).map((path) => `staged:${path}`),
-          ...Array.from(collectDefaultExpandedPaths(unstaged)).map((path) => `unstaged:${path}`),
-        ])
-      })
+      setGitExpandedPaths((current) => current.size > 0 ? current : new Set())
     } catch (e) {
       setGitError(e instanceof Error ? e.message : '读取 Git 状态失败')
     } finally {
@@ -1532,6 +1491,7 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
       setSelectedDiff('')
       setSelectedDiffPath(null)
       setActionStatus(`${labels[action]}完成`)
+      await loadGitHistory()
     } catch (e) {
       setActionStatus(e instanceof Error ? e.message : `${labels[action]}失败`)
     }
@@ -1590,6 +1550,34 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
     }
   }
 
+  async function commitStagedChanges() {
+    if (!activeWorkspaceId) return
+    const message = commitMessage.trim()
+    if (!message) {
+      setCommitStatus('请输入提交说明')
+      return
+    }
+    setCommitStatus('正在提交已暂存变更...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `提交失败（${res.status}）`)
+      setCommitMessage('')
+      setGitChanges(Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : [])
+      setGitCommits(Array.isArray((body as { commits?: unknown }).commits) ? (body as { commits: GitCommitRow[] }).commits : [])
+      setSelectedDiff('')
+      setSelectedDiffPath(null)
+      setCommitStatus('提交完成')
+      window.dispatchEvent(new CustomEvent('workspace-files:changed', { detail: { workspaceId: activeWorkspaceId } }))
+    } catch (e) {
+      setCommitStatus(e instanceof Error ? e.message : '提交失败')
+    }
+  }
+
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其 Git 变更将在此展示" />
   const stagedChanges = gitChanges.filter((change) => change.staged)
   const unstagedChanges = gitChanges.filter((change) => change.unstaged || change.untracked || !change.staged)
@@ -1603,7 +1591,7 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
       <PanelSection
         icon={GitBranch}
         title="Git 变更"
-        description="读取当前云端项目目录的真实 Git 状态；先选文件，再查看 diff"
+        description="读取当前云端项目目录的真实 Git 状态；先选文件，再查看变更内容"
         action={(
           <div className="flex items-center gap-1">
             <Badge variant="secondary">{gitChanges.length} 项</Badge>
@@ -1660,8 +1648,22 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
                 onToggle={toggleGitFolder}
                 onOpen={(change, group) => void openDiff(change.path, group === 'staged')}
                 onQuickAction={(action, change) => void runGitAction(action, change.path)}
+                onQuickPathAction={(action, path) => void runGitAction(action, path)}
               />
-              <div className="mb-2 mt-4 text-xs font-medium text-muted-foreground">已暂存</div>
+              <div className="mb-2 mt-4 flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+                <span>已暂存</span>
+                <button
+                  type="button"
+                  data-testid="workspace-git-unstage-root-button"
+                  aria-label="取消暂存所有已暂存变更"
+                  title="取消暂存全部"
+                  className="flex h-6 w-6 items-center justify-center rounded-sm text-sm font-medium hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={stagedChanges.length === 0}
+                  onClick={() => void runGitAction('unstage', '.')}
+                >
+                  -
+                </button>
+              </div>
               <GitChangeTreeView
                 nodes={stagedTree}
                 group="staged"
@@ -1670,11 +1672,12 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
                 onToggle={toggleGitFolder}
                 onOpen={(change, group) => void openDiff(change.path, group === 'staged')}
                 onQuickAction={(action, change) => void runGitAction(action, change.path)}
+                onQuickPathAction={(action, path) => void runGitAction(action, path)}
               />
             </div>
             <div data-testid="workspace-git-diff-viewer" className="min-w-0">
               {!selectedDiffPath ? (
-                <StateCard variant="empty" title="选择文件查看 diff" description="左侧只显示文件名和状态，点击后才读取具体 diff 内容" />
+                <StateCard variant="empty" title="选择文件查看变更" description="左侧只显示文件名和状态，点击后才读取具体变更内容" />
               ) : (
                 <div className="space-y-2 rounded-lg border border-border bg-background p-3">
                   <div className="flex items-center justify-between gap-3">
@@ -1689,9 +1692,6 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
                   </div>
                   {selectedChange && (
                     <div data-testid="git-change-actions" className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => void openDiff(selectedChange.path, selectedDiffStaged)}>
-                        查看 diff
-                      </Button>
                       {!selectedDiffStaged && (
                         <Button size="sm" variant="outline" onClick={() => void runGitAction('stage', selectedChange.path)}>
                           暂存
@@ -1724,6 +1724,28 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
         description="读取当前云端项目目录的真实 Git log"
         action={<Badge variant="secondary">{gitCommits.length} 条</Badge>}
       >
+        <div data-testid="git-commit-form" className="mb-3 space-y-2 rounded-md border border-border bg-muted/30 p-2">
+          <label htmlFor="git-commit-message" className="text-xs font-medium">提交已暂存变更</label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              id="git-commit-message"
+              value={commitMessage}
+              onChange={(event) => setCommitMessage(event.target.value)}
+              placeholder="输入 commit message"
+              className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+            />
+            <Button
+              size="sm"
+              onClick={() => void commitStagedChanges()}
+              disabled={stagedChanges.length === 0}
+              data-testid="workspace-git-commit-button"
+            >
+              <Check className="mr-1 h-3.5 w-3.5" />
+              提交
+            </Button>
+          </div>
+          {commitStatus && <p className="text-xs text-muted-foreground">{commitStatus}</p>}
+        </div>
         {historyError && <p className="text-sm text-destructive">{historyError}</p>}
         {!historyLoaded ? (
           <StateCard variant="loading" title="读取提交历史" />
@@ -1824,10 +1846,10 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
 
   async function sendEditRequest() {
     if (!instruction.trim()) {
-      setStatus('修改要求不能为空')
+      setStatus('迭代说明不能为空')
       return
     }
-    setStatus('正在记录修改要求...')
+    setStatus('正在记录迭代说明...')
     try {
       const res = await fetch(`/api/artifacts/${artifact.id}`, {
         method: 'PATCH',
@@ -1840,7 +1862,7 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((body as { error?: string }).error || `记录失败（${res.status}）`)
       setInstruction('')
-      setStatus('已记录修改要求，后续 Agent 可基于该产物继续迭代')
+      setStatus('已记录迭代说明，后续 Agent 可基于该产物继续迭代')
       onChanged()
     } catch (e) {
       setStatus(e instanceof Error ? e.message : '记录失败')
@@ -1881,6 +1903,56 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
 
   return (
     <div data-testid="artifact-card" className="space-y-3 rounded-lg border border-border bg-background p-3">
+      <div data-testid="artifact-publish-panel" className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
+        <div className="flex items-center gap-2 text-xs font-medium">
+          <Rocket className="h-3.5 w-3.5 text-muted-foreground" />
+          发布访问
+        </div>
+        {runnable ? (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant={publishState === 'running' ? 'outline' : 'default'}
+                onClick={() => void publishArtifact('start')}
+                disabled={publishing}
+                data-testid="artifact-publish-start"
+              >
+                <Rocket className="mr-1 h-3.5 w-3.5" />
+                {publishState === 'running' ? '重新启动' : '启动发布'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void publishArtifact('stop')}
+                disabled={publishing || publishState !== 'running'}
+                data-testid="artifact-publish-stop"
+              >
+                <Square className="mr-1 h-3.5 w-3.5" />
+                停止发布
+              </Button>
+              <Badge variant={publishState === 'running' ? 'success' : 'secondary'}>
+                {publishState === 'running' ? '运行中' : '未发布'}
+              </Badge>
+            </div>
+            {publishState === 'running' && publishUrl ? (
+              <a
+                href={publishUrl}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="artifact-publish-link"
+                className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+              >
+                打开发布链接
+              </a>
+            ) : (
+              <p className="text-xs text-muted-foreground">启动发布会生成本地临时访问链接；正式部署请进入「部署」页签完成审批和部署记录。</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">该产物不可发布，可下载或继续编辑；正式部署请进入「部署」页签。</p>
+        )}
+      </div>
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -1938,65 +2010,15 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
       ) : (
         <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
       )}
-      <div data-testid="artifact-publish-panel" className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
-        <div className="flex items-center gap-2 text-xs font-medium">
-          <Rocket className="h-3.5 w-3.5 text-muted-foreground" />
-          发布访问
-        </div>
-        {runnable ? (
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant={publishState === 'running' ? 'outline' : 'default'}
-                onClick={() => void publishArtifact('start')}
-                disabled={publishing}
-                data-testid="artifact-publish-start"
-              >
-                <Rocket className="mr-1 h-3.5 w-3.5" />
-                {publishState === 'running' ? '重新启动' : '启动发布'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void publishArtifact('stop')}
-                disabled={publishing || publishState !== 'running'}
-                data-testid="artifact-publish-stop"
-              >
-                <Square className="mr-1 h-3.5 w-3.5" />
-                停止发布
-              </Button>
-              <Badge variant={publishState === 'running' ? 'success' : 'secondary'}>
-                {publishState === 'running' ? '运行中' : '未发布'}
-              </Badge>
-            </div>
-            {publishState === 'running' && publishUrl ? (
-              <a
-                href={publishUrl}
-                target="_blank"
-                rel="noreferrer"
-                data-testid="artifact-publish-link"
-                className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
-              >
-                打开发布链接
-              </a>
-            ) : (
-              <p className="text-xs text-muted-foreground">点击启动发布后会直接生成可访问链接。</p>
-            )}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">该产物不可发布，可下载或继续编辑。</p>
-        )}
-      </div>
       <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
-        <label htmlFor={`artifact-edit-request-${artifact.id}`} className="text-xs font-medium">二次交互编辑</label>
+        <label htmlFor={`artifact-edit-request-${artifact.id}`} className="text-xs font-medium">二次交互迭代</label>
         <textarea
           id={`artifact-edit-request-${artifact.id}`}
           rows={2}
           value={instruction}
           onChange={(event) => setInstruction(event.target.value)}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
-          placeholder="例如：把第二页改成问题、方案、收益三段"
+          placeholder="例如：第二页调整为问题、方案、收益三段"
         />
         <div className="flex flex-wrap gap-2">
           {editable && (
@@ -2007,7 +2029,7 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
           )}
           <Button size="sm" variant="outline" onClick={() => void sendEditRequest()}>
             <SendHorizontal className="mr-1 h-3.5 w-3.5" />
-            记录修改要求
+            记录迭代说明
           </Button>
           <a
             href={downloadUrl}

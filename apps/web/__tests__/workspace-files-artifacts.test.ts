@@ -9,6 +9,7 @@ import {
   cloudWorkspaceDir,
   cloudWorkspaceRoot,
   createWorkspaceArtifactLaunchScript,
+  commitWorkspaceGit,
   createWorkspaceSelectionPatchDraft,
   deleteWorkspaceEntry,
   discardWorkspaceGitPath,
@@ -180,6 +181,36 @@ describe('workspace file preview and artifact bundle helpers', () => {
     const preview = await readCloudWorkspacePreview(root, 'tracked.txt')
     expect(preview.content).toBe('before\n')
     expect(await readWorkspaceGitStatus(root)).toEqual([])
+  })
+
+  it('unstages newly added files before the first commit without resolving HEAD', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await writeWorkspaceFile(root, 'first.txt', 'first\n')
+
+    await stageWorkspaceGitPath(root, 'first.txt')
+    let status = await readWorkspaceGitStatus(root)
+    expect(status).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'first.txt', staged: true })]))
+
+    await unstageWorkspaceGitPath(root, 'first.txt')
+    status = await readWorkspaceGitStatus(root)
+    expect(status).toEqual(expect.arrayContaining([expect.objectContaining({ path: 'first.txt', untracked: true })]))
+  })
+
+  it('commits staged workspace changes and rejects empty commit messages', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await writeWorkspaceFile(root, 'README.md', '# Commit\n')
+    await stageWorkspaceGitPath(root, 'README.md')
+
+    await expect(commitWorkspaceGit(root, '   ')).rejects.toThrow('提交说明不能为空')
+    await commitWorkspaceGit(root, 'initial from helper')
+
+    expect(await readWorkspaceGitStatus(root)).toEqual([])
+    expect((await readWorkspaceGitHistory(root))[0]).toEqual(expect.objectContaining({
+      author: 'AgentHub',
+      message: 'initial from helper',
+    }))
   })
 
   it('creates and applies selection patch drafts without writing before approval', async () => {

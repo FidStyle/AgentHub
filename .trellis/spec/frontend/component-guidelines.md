@@ -192,6 +192,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - `GET /api/workspaces/:id/git/status`
   - `GET /api/workspaces/:id/git/diff?path=<path>&staged=<bool>`
   - `POST /api/workspaces/:id/git/stage|unstage|discard`
+  - `POST /api/workspaces/:id/git/commit` with `{ message: string }`, committing only staged changes and returning fresh status/history.
   - UI must first show file names/status, then reveal diff only after the user selects a file.
 - File/code reference:
   - code block action emits `agenthub:quote-to-composer`.
@@ -207,6 +208,8 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 ### 3. Contracts
 
 - Chat transcript:
+  - Mention role button must remain visibly clickable in idle and hover states. Do not render it as low-contrast transparent ghost text/icon against the composer background.
+  - Role colors are deterministic across the IM transcript and the right `角色` workbench. New roles use the shared role-color helper automatically; custom color control is optional future scope.
   - Do not filter out role acknowledgements, planning/process messages, or final validation summaries when they are part of the user's workflow.
   - The transcript must show more than the initial prompt plus permission cards for multi-agent delivery runs.
   - Orchestrator allocation must appear in the IM transcript before the user is expected to inspect the right workbench. The allocation must explain which roles will handle frontend, backend/storage, validation, and artifact recommendation.
@@ -232,18 +235,24 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
 - Git progressive disclosure:
   - First level: VSCode-like file tree with staged/unstaged grouping, folder rows, file path and status badge.
+  - Git tree defaults to 0 expanded directories: show only root-level rows until the user expands folders.
   - The unstaged group header exposes a root-level `+` quick action that stages all unstaged workspace-root changes, equivalent to `git add .` inside the selected workspace root.
-  - Unstaged file rows expose a right-side `+` quick action to stage that file; staged file rows expose a right-side `-` quick action to unstage. Clicking the file row opens diff; clicking `+/-` must not also open diff.
+  - The staged group header exposes a root-level `-` quick action that unstages all staged workspace-root changes. This must work before the first commit by falling back from `git restore --staged` to `git rm --cached` when HEAD does not exist.
+  - Unstaged file and folder rows expose a right-side `+` quick action; staged file and folder rows expose a right-side `-` quick action. Clicking the row opens/expands; clicking `+/-` must not also open diff.
+  - Git UI must support commit of staged changes through a visible commit message input and submit button.
   - Second level after click: diff preview and file-specific actions.
   - Large diffs must scroll inside their own container.
 - File tree and wide workbench:
   - `文件` must expose `workspace-file-tree`, `workspace-file-viewer`, and `workspace-new-file-button` so users can browse, create and inspect files without hidden backend-only APIs.
-  - File trees default to first-level directory expansion, but selecting or creating a deep file must automatically expand its ancestor directories so the active file is visible.
+  - File trees default to 0 expanded directories. Selecting or creating a deep file must still automatically expand its ancestor directories so the active file is visible.
+  - File viewer should be a single content surface. For editable text/code, selecting text should reveal an inline `引用内容` affordance that quotes file path, line range, character count, and original snippet into IM. Do not add a separate mini-IDE form for user-written patch text in the viewer.
   - Opening a file or Git diff should request a wide right workbench; the wide surface uses a left tree and right viewer/diff layout instead of squeezing content into a narrow single column.
   - Wide mode must be reversible and must not hide or block the central chat composer.
 - Artifact publish:
   - A runnable artifact must not depend on only the current preview iframe.
   - The artifact card must let the user click `启动发布` to start the service and receive a link, then click `停止发布` to stop that service.
+  - `发布访问` belongs at the top of the artifact card. It is a local temporary access link for previewing the current artifact.
+  - `部署` is the formal deployment flow: deployment tab, approval, manifest path, preview path, and deployment artifact records. Artifact publish must explain that formal deployment lives in the `部署` tab.
   - The UI should hide raw commands from the main path. A generated workspace script may exist internally or in metadata, but the user-facing completion path is link-based.
   - Leaving the AgentHub page may stop a preview process; the artifact metadata should still record the last publish status/link/script evidence for readback.
 

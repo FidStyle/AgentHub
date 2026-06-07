@@ -7,6 +7,7 @@ import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
 import { AtSign, Copy, Pin, PinOff, Plus, Quote, Send, PanelRight, ShieldCheck, Square, WandSparkles, X } from 'lucide-react'
 import { useSessionStore, type Message } from '@/store/session-store'
 import { MessageContent } from './MessageContent'
+import { roleBadgeColorClass, roleMessageColorClass } from '@/lib/role-colors'
 
 interface RoleAgent {
   id: string
@@ -65,24 +66,6 @@ const ROLE_TYPE_LABELS: Record<string, string> = {
   general: '通用',
 }
 
-const ROLE_COLOR_CLASSES = [
-  'border-l-sky-500 bg-sky-50/80 dark:bg-sky-950/20',
-  'border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20',
-  'border-l-amber-500 bg-amber-50/80 dark:bg-amber-950/20',
-  'border-l-rose-500 bg-rose-50/80 dark:bg-rose-950/20',
-  'border-l-violet-500 bg-violet-50/80 dark:bg-violet-950/20',
-  'border-l-cyan-500 bg-cyan-50/80 dark:bg-cyan-950/20',
-]
-
-const ROLE_BADGE_COLOR_CLASSES = [
-  'border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200',
-  'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
-  'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200',
-  'border-rose-300 bg-rose-100 text-rose-900 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200',
-  'border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200',
-  'border-cyan-300 bg-cyan-100 text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-200',
-]
-
 export function roleTypeLabel(role: RoleAgent) {
   if (role.is_orchestrator) return '编排者'
   if (!role.role_type) return '角色智能体'
@@ -101,23 +84,6 @@ export function quotedContent(input: string, quoted: QuotedMessage | null) {
   const quotedText = quoted.text?.trim()
   const block = quotedText ? `\n\n\`\`\`text\n${quotedText}\n\`\`\`` : ''
   return `> 引用 ${quoted.author}：${quoted.preview}${block}\n\n${body}`
-}
-
-function roleColorIndex(roleId: string | null, roleName = '') {
-  const seed = roleId || roleName || 'agent'
-  let hash = 0
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0
-  }
-  return hash % ROLE_COLOR_CLASSES.length
-}
-
-function roleMessageColorClass(roleId: string | null, roleName?: string) {
-  return ROLE_COLOR_CLASSES[roleColorIndex(roleId, roleName)] ?? ROLE_COLOR_CLASSES[0]
-}
-
-function roleBadgeColorClass(roleId: string | null, roleName?: string) {
-  return ROLE_BADGE_COLOR_CLASSES[roleColorIndex(roleId, roleName)] ?? ROLE_BADGE_COLOR_CLASSES[0]
 }
 
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
@@ -474,8 +440,9 @@ function MessageComposer({
             <IconButton
               icon={AtSign}
               label="提及角色"
-              variant="ghost"
+              variant="outline"
               size="sm"
+              className="bg-background text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
               data-testid="mention-role-btn"
               disabled={!activeSessionId || readOnly}
               onClick={() => setPickerOpen((v) => !v)}

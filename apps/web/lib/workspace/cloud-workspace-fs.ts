@@ -434,7 +434,23 @@ export async function stageWorkspaceGitPath(rootDir: string, relativePath: strin
 export async function unstageWorkspaceGitPath(rootDir: string, relativePath: string) {
   const { relativePath: rel } = resolveWorkspacePath(rootDir, relativePath)
   const result = await runGit(rootDir, ['restore', '--staged', '--', rel])
-  if (result.code !== 0) throw new Error(result.stderr || '取消暂存失败')
+  if (result.code === 0) return
+  if (/could not resolve HEAD|ambiguous argument 'HEAD'|unknown revision/i.test(result.stderr)) {
+    const fallback = await runGit(rootDir, ['rm', '--cached', '-r', '--ignore-unmatch', '--', rel])
+    if (fallback.code === 0) return
+  }
+  throw new Error(result.stderr || '取消暂存失败')
+}
+
+export async function commitWorkspaceGit(rootDir: string, message: string) {
+  const trimmed = message.trim()
+  if (!trimmed) throw new Error('提交说明不能为空')
+  const staged = await runGit(rootDir, ['diff', '--cached', '--name-only'])
+  if (staged.code !== 0) throw new Error(staged.stderr || '读取已暂存变更失败')
+  if (!staged.stdout.trim()) throw new Error('没有已暂存变更可提交')
+  const result = await runGit(rootDir, ['-c', 'user.name=AgentHub', '-c', 'user.email=agenthub@example.com', 'commit', '-m', trimmed])
+  if (result.code !== 0) throw new Error(result.stderr || 'Git commit 失败')
+  return result.stdout
 }
 
 export async function discardWorkspaceGitPath(rootDir: string, relativePath: string) {
