@@ -29,8 +29,10 @@ const CHAT_TIMEOUT_MS = (() => {
   const value = Number(process.env.STRICT_PRODUCT_CHAT_TIMEOUT_MS ?? 10 * 60_000)
   return Number.isFinite(value) && value > 0 ? value : 10 * 60_000
 })()
+const PROMPT_TEXT = (process.env.STRICT_PRODUCT_PROMPT || '').trim()
+  || '做一个加减乘除的简单网站，使用sqlite存储历史记录。全自动完成直到交付产物'
 const PROMPT = [
-  '做一个加减乘除的简单网站，使用sqlite存储历史记录。全自动完成直到交付产物',
+  PROMPT_TEXT,
   '',
   `验收标记：${RUN_MARKER}`,
 ].join('\n')
@@ -171,6 +173,7 @@ async function writeRunSnapshot(pool: Pool, input: {
   const snapshot: Record<string, unknown> = {
     reason: input.reason,
     baseUrl: BASE_URL,
+    promptText: PROMPT_TEXT,
     chatPath: 'POST /api/chat',
     workspacePath: input.workspaceId ? `${BASE_URL}/workspaces/${input.workspaceId}` : null,
     mobilePath: input.sessionId ? `${BASE_URL}/m/sessions/${input.sessionId}` : null,
@@ -557,7 +560,7 @@ function opencliAuthenticatedUrl(pathname: string) {
 
 async function verifyWebRightPanelResize(workspaceId: string) {
   const session = 'agenthub-strict'
-  const workspaceUrl = `${BASE_URL}/workspace/${workspaceId}`
+  const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}`)
   const dragScript = String.raw`
     (async () => {
       window.localStorage.removeItem('agenthub:right-panel-width')
@@ -746,6 +749,7 @@ async function main() {
     console.log('\n=== Strict Single-Prompt Product Delivery Gate ===')
     console.log(`BASE_URL=${BASE_URL}`)
     console.log(`runMarker=${RUN_MARKER}`)
+    console.log(`promptText=${PROMPT_TEXT}`)
     console.log(`evidenceDir=${ARTIFACT_DIR}`)
     console.log(`chatTimeoutMs=${CHAT_TIMEOUT_MS}`)
 
@@ -1018,6 +1022,7 @@ async function main() {
       warned,
       fatalError,
       baseUrl: BASE_URL,
+      promptText: PROMPT_TEXT,
       runMarker: RUN_MARKER,
       workspaceId,
       sessionId,

@@ -429,7 +429,7 @@ describe('ArtifactPanel frontend contract', () => {
     const source = readFileSync(fileURLToPath(new URL('../scripts/verify-strict-single-prompt-product-delivery.ts', import.meta.url)), 'utf8')
 
     expect(source).toContain('verifyWebRightPanelResize')
-    expect(source).toContain('`${BASE_URL}/workspace/${workspaceId}`')
+    expect(source).toContain('const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}`)')
     expect(source).toContain('opencliAuthenticatedUrl(`/workspace/${workspaceId}`)')
     expect(source).toContain("url.searchParams.set('uat_auth', token)")
     expect(source).not.toMatch(/const workspaceUrl = `\$\{BASE_URL\}\/workspaces\/\$\{workspaceId\}`/)

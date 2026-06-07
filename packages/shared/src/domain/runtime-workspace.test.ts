@@ -111,6 +111,18 @@ describe('role runtime workspace permission contract', () => {
     expect(plan.nodes.map((node) => node.roleAgentId)).toEqual(['role-backend', 'role-frontend'])
   })
 
+  it('dispatches changed calculator web prompts to both backend and frontend roles', () => {
+    const dispatch = createArchitectDispatch({
+      workspaceId: 'workspace-test2',
+      sessionId: 'session-acceptance',
+      architectRoleAgentId: 'role-architect',
+      userMessage: '请做一个轻量四则运算网页，支持加、减、乘、除，并把每次计算结果和历史记录用 SQLite 持久化保存。请全自动完成直到交付可运行产物',
+    })
+
+    expect(dispatch.requiresEngineeringDispatch).toBe(true)
+    expect(dispatch.targetRoleAgentIds).toEqual(['role-backend', 'role-frontend'])
+  })
+
   it('requires product permission events before native CLI tool execution', () => {
     const toolCall = {
       id: 'tool-write-1',

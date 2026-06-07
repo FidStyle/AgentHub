@@ -622,10 +622,12 @@ function inferEngineeringRoleTargets(userMessage: string): string[] {
   }
   if (
     normalized.includes('网站') ||
+    normalized.includes('网页') ||
     normalized.includes('页面') ||
     normalized.includes('前端') ||
     normalized.includes('ui') ||
-    normalized.includes('加减乘除')
+    normalized.includes('加减乘除') ||
+    normalized.includes('四则运算')
   ) {
     targets.add('role-frontend')
   }
