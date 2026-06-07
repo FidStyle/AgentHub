@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Bot, Boxes, CheckCircle2, ChevronDown, ChevronRight, Clock, Copy, Download, FileCode2, FileText, FolderTree, GitBranch, History, Maximize2, Minimize2, PackagePlus, Pencil, Plus, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Terminal, Trash2, Upload, WandSparkles, X } from 'lucide-react'
+import { Bot, Boxes, ChevronDown, ChevronRight, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, Maximize2, Minimize2, PackagePlus, Pencil, Plus, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Square, Trash2, Upload, WandSparkles, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
@@ -88,15 +88,6 @@ type GitChangeTreeNode = {
   change?: GitChangeRow
   group?: 'staged' | 'unstaged'
 }
-type PatchDraft = {
-  path: string
-  selectionStart: number
-  selectionEnd: number
-  selectedText: string
-  replacement: string
-  content: string
-  diff: string
-}
 type GitCommitRow = {
   hash: string
   shortHash: string
@@ -147,7 +138,7 @@ function toPreview(value: unknown) {
   return JSON.stringify(value, null, 2)
 }
 
-function quoteToComposer(input: { id?: string; author: string; preview: string; text: string }) {
+function quoteToComposer(input: { id?: string; author: string; preview: string; text: string; suggestedPrompt?: string }) {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent('agenthub:quote-to-composer', { detail: input }))
 }
@@ -165,6 +156,25 @@ function artifactTypeForPreview(preview: FilePreview) {
 
 function isEditablePreview(preview: FilePreview | null) {
   return Boolean(preview && preview.content !== null && ['markdown', 'code', 'text'].includes(preview.previewKind))
+}
+
+function lineColumnFromOffset(content: string, offset: number) {
+  const before = content.slice(0, Math.max(0, offset))
+  const lines = before.split('\n')
+  return { line: lines.length, column: (lines.at(-1) ?? '').length + 1 }
+}
+
+function selectionReference(preview: FilePreview, range: { start: number; end: number; text: string }) {
+  const start = lineColumnFromOffset(preview.content ?? '', range.start)
+  const end = lineColumnFromOffset(preview.content ?? '', range.end)
+  const count = Array.from(range.text).length
+  const lineLabel = start.line === end.line ? `第 ${start.line} 行` : `第 ${start.line}-${end.line} 行`
+  return {
+    lineLabel,
+    count,
+    preview: `${preview.path} ${lineLabel}，${count} 字`,
+    suggestedPrompt: `请根据引用的文件选区修改 ${preview.path} ${lineLabel}（${count} 字）。`,
+  }
 }
 
 function runtimeLabel(runtimeType: RoleAgentRow['runtime_type']) {
@@ -857,8 +867,6 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
   const [operationStatus, setOperationStatus] = useState<string | null>(null)
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number; text: string } | null>(null)
   const [editInstruction, setEditInstruction] = useState('')
-  const [replacementText, setReplacementText] = useState('')
-  const [patchDraft, setPatchDraft] = useState<PatchDraft | null>(null)
   const [patchStatus, setPatchStatus] = useState<string | null>(null)
   const [showCreateFile, setShowCreateFile] = useState(false)
   const [newFilePath, setNewFilePath] = useState('')
@@ -908,8 +916,6 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
       if (!res.ok) throw new Error((body as { error?: string }).error || `读取文件失败（${res.status}）`)
       setPreview(body as FilePreview)
       setSelectionRange(null)
-      setReplacementText('')
-      setPatchDraft(null)
       setPatchStatus(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : '读取文件失败')
@@ -934,84 +940,31 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
     const end = editor.selectionEnd
     const text = preview.content.slice(start, end)
     setSelectionRange({ start, end, text })
-    setReplacementText(text)
-    setPatchDraft(null)
-    setPatchStatus(text ? `已选择 ${text.length} 个字符` : '当前选区为空，将作为插入点')
+    if (text) {
+      const ref = selectionReference(preview, { start, end, text })
+      setPatchStatus(`已选择 ${ref.lineLabel}，${ref.count} 字`)
+    } else {
+      setPatchStatus('当前选区为空，请选择需要修改的内容')
+    }
   }
 
-  function quoteSelection() {
+  function sendSelectionEditRequest() {
     if (!preview || !selectionRange) return
     const text = selectionRange.text || ''
     if (!text.trim()) {
       setPatchStatus('当前选区为空，无法引用')
       return
     }
+    const ref = selectionReference(preview, selectionRange)
+    const instruction = editInstruction.trim()
     quoteToComposer({
       id: `${preview.path}:${selectionRange.start}-${selectionRange.end}`,
       author: `文件选区：${preview.path}`,
-      preview: text.replace(/\s+/g, ' ').trim().slice(0, 120),
+      preview: ref.preview,
       text,
+      suggestedPrompt: instruction || ref.suggestedPrompt,
     })
-    setPatchStatus('已引用选区到输入框')
-  }
-
-  async function generatePatchDraft() {
-    if (!activeWorkspaceId || !preview || !selectionRange) return
-    setPatchStatus('正在生成编辑草案...')
-    try {
-      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/patch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: preview.path,
-          selectionStart: selectionRange.start,
-          selectionEnd: selectionRange.end,
-          replacement: replacementText,
-          instruction: editInstruction,
-        }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((body as { error?: string }).error || `生成草案失败（${res.status}）`)
-      setPatchDraft((body as { draft: PatchDraft }).draft)
-      setPatchStatus('草案已生成，应用前不会写入文件')
-    } catch (e) {
-      setPatchStatus(e instanceof Error ? e.message : '生成草案失败')
-    }
-  }
-
-  async function applyPatchDraft() {
-    if (!activeWorkspaceId || !preview || !patchDraft) return
-    setPatchStatus('正在应用修改...')
-    try {
-      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/patch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: preview.path,
-          selectionStart: patchDraft.selectionStart,
-          selectionEnd: patchDraft.selectionEnd,
-          expectedText: patchDraft.selectedText,
-          replacement: patchDraft.replacement,
-          apply: true,
-        }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((body as { error?: string }).error || `应用修改失败（${res.status}）`)
-      setPreview((body as { preview: FilePreview }).preview)
-      setPatchDraft(null)
-      setSelectionRange(null)
-      setReplacementText('')
-      setPatchStatus('修改已应用，Git 变更已刷新')
-      await loadTree()
-      emitFilesChanged()
-    } catch (e) {
-      setPatchStatus(e instanceof Error ? e.message : '应用修改失败')
-    }
-  }
-
-  function rejectPatchDraft() {
-    setPatchDraft(null)
-    setPatchStatus('已拒绝草案，文件未修改')
+    setPatchStatus('已把文件选区引用到 IM 输入框，请发送给 AI 修改')
   }
 
   async function markFileAsArtifact(filePreview: FilePreview) {
@@ -1284,14 +1237,14 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <WandSparkles className="h-4 w-4 text-muted-foreground" />
-                  选区编辑草案
+                  引用选区让 AI 修改
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  在下方内容中选择片段，填写替换内容后先生成 diff，确认后再应用到真实文件。
+                  在下方内容中选择片段，系统会把文件路径、行号范围、字数和原文引用到 IM 输入框，由 AI 按你的消息修改文件。
                 </p>
               </div>
               <Badge variant={selectionRange?.text ? 'secondary' : 'default'}>
-                {selectionRange ? `${selectionRange.end - selectionRange.start} 字符` : '未选择'}
+                {preview && selectionRange?.text ? `${selectionReference(preview, selectionRange).lineLabel} · ${selectionReference(preview, selectionRange).count} 字` : '未选择'}
               </Badge>
             </div>
             <textarea
@@ -1303,58 +1256,22 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
               aria-label="文件内容选区"
               className="h-40 w-full resize-y rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed outline-none focus:border-primary"
             />
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1 text-xs">
-                <span className="font-medium text-foreground">编辑指令</span>
-                <input
-                  value={editInstruction}
-                  onChange={(event) => setEditInstruction(event.target.value)}
-                  placeholder="例如：改成更清晰的变量名"
-                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                />
-              </label>
-              <label className="space-y-1 text-xs">
-                <span className="font-medium text-foreground">替换后的选区内容</span>
-                <textarea
-                  value={replacementText}
-                  onChange={(event) => {
-                    setReplacementText(event.target.value)
-                    setPatchDraft(null)
-                  }}
-                  data-testid="mini-ide-replacement"
-                  className="h-24 w-full resize-y rounded-md border border-border bg-background p-2 font-mono text-xs leading-relaxed outline-none focus:border-primary"
-                />
-              </label>
-            </div>
+            <label className="space-y-1 text-xs">
+              <span className="font-medium text-foreground">修改要求</span>
+              <input
+                value={editInstruction}
+                onChange={(event) => setEditInstruction(event.target.value)}
+                placeholder="例如：把这里改成更清晰的变量名"
+                className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              />
+            </label>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" onClick={quoteSelection} disabled={!selectionRange?.text}>
-                <Copy className="mr-1 h-3.5 w-3.5" />
-                引用选区
+              <Button size="sm" onClick={sendSelectionEditRequest} disabled={!selectionRange?.text} data-testid="mini-ide-send-selection-edit">
+                <SendHorizontal className="mr-1 h-3.5 w-3.5" />
+                发给 AI 修改
               </Button>
-              <Button size="sm" onClick={() => void generatePatchDraft()} disabled={!selectionRange}>
-                <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                生成 diff
-              </Button>
-              {patchDraft && (
-                <>
-                  <Button size="sm" onClick={() => void applyPatchDraft()}>
-                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                    应用修改
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={rejectPatchDraft}>
-                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                    拒绝
-                  </Button>
-                </>
-              )}
               {patchStatus && <span className="text-xs text-muted-foreground">{patchStatus}</span>}
             </div>
-            {patchDraft && (
-              <div data-testid="mini-ide-patch-diff" className="space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">待应用 patch</div>
-                <DiffPreview value={patchDraft.diff || '无内容变化'} />
-              </div>
-            )}
           </div>
         )}
         </div>
@@ -1857,14 +1774,21 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
   const [content, setContent] = useState(artifactEditableContent(artifact))
   const [instruction, setInstruction] = useState('')
   const [status, setStatus] = useState<string | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [publishState, setPublishState] = useState<'running' | 'stopped'>(
+    artifact.metadata?.publishStatus === 'running' ? 'running' : 'stopped',
+  )
+  const [publishUrl, setPublishUrl] = useState<string | null>(
+    typeof artifact.metadata?.publishUrl === 'string' ? artifact.metadata.publishUrl : null,
+  )
   const editable = ['document', 'presentation', 'markdown', 'html', 'code'].includes(artifact.artifact_type)
-  const startCommand = typeof artifact.metadata?.startCommand === 'string' ? artifact.metadata.startCommand : null
-  const startScriptPath = typeof artifact.metadata?.startScriptPath === 'string' ? artifact.metadata.startScriptPath : null
   const runnable = ['html', 'folder', 'generic_file', 'code'].includes(artifact.artifact_type) && Boolean(artifact.source_path)
 
   useEffect(() => {
     setTitle(artifact.title)
     setContent(artifactEditableContent(artifact))
+    setPublishState(artifact.metadata?.publishStatus === 'running' ? 'running' : 'stopped')
+    setPublishUrl(typeof artifact.metadata?.publishUrl === 'string' ? artifact.metadata.publishUrl : null)
   }, [artifact])
   const preview = {
     previewKind: artifactPreviewKind(artifact.artifact_type),
@@ -1923,38 +1847,35 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
     }
   }
 
-  async function generateLaunchScript() {
-    setStatus('正在生成启动脚本...')
+  async function publishArtifact(action: 'start' | 'stop') {
+    if (!runnable && action === 'start') {
+      setStatus('该产物不可发布，可下载或继续编辑。')
+      return
+    }
+    setPublishing(true)
+    setStatus(action === 'start' ? '正在启动发布...' : '正在停止发布...')
     try {
-      const res = await fetch(`/api/artifacts/${artifact.id}/launch-script`, { method: 'POST' })
+      const res = await fetch(`/api/artifacts/${artifact.id}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((body as { error?: string }).error || `生成启动脚本失败（${res.status}）`)
-      setStatus('启动脚本已生成')
+      if (!res.ok) throw new Error((body as { error?: string }).error || `发布操作失败（${res.status}）`)
+      if (action === 'start') {
+        const nextUrl = typeof (body as { url?: unknown }).url === 'string' ? (body as { url: string }).url : null
+        setPublishState('running')
+        setPublishUrl(nextUrl)
+        setStatus(nextUrl ? '发布已启动，可打开链接访问。' : '发布已启动。')
+      } else {
+        setPublishState('stopped')
+        setStatus('发布已停止。')
+      }
       onChanged()
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : '生成启动脚本失败')
-    }
-  }
-
-  async function copyStartCommand() {
-    if (!startCommand || typeof window === 'undefined') return
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(startCommand)
-      } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = startCommand
-        textarea.setAttribute('readonly', '')
-        textarea.style.position = 'absolute'
-        textarea.style.left = '-9999px'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        textarea.remove()
-      }
-      setStatus('启动命令已复制')
-    } catch {
-      setStatus('复制失败，请手动复制启动命令')
+      setStatus(e instanceof Error ? e.message : '发布操作失败')
+    } finally {
+      setPublishing(false)
     }
   }
 
@@ -2017,32 +1938,54 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
       ) : (
         <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
       )}
-      <div data-testid="artifact-launch-panel" className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
+      <div data-testid="artifact-publish-panel" className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
         <div className="flex items-center gap-2 text-xs font-medium">
-          <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
-          启动产物
+          <Rocket className="h-3.5 w-3.5 text-muted-foreground" />
+          发布访问
         </div>
-        {startCommand ? (
+        {runnable ? (
           <div className="space-y-2">
-            {startScriptPath && <p className="break-all text-xs text-muted-foreground">脚本：{startScriptPath}</p>}
-            <code data-testid="artifact-start-command" className="block overflow-x-auto rounded-md border border-border bg-background p-2 text-xs">
-              {startCommand}
-            </code>
-            <Button size="sm" variant="outline" onClick={() => void copyStartCommand()}>
-              <Copy className="mr-1 h-3.5 w-3.5" />
-              复制启动命令
-            </Button>
-          </div>
-        ) : runnable ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => void generateLaunchScript()} data-testid="artifact-generate-launch-script">
-              <Terminal className="mr-1 h-3.5 w-3.5" />
-              生成启动脚本
-            </Button>
-            <span className="text-xs text-muted-foreground">将在工作区写入持久脚本，离开当前页面后仍可通过终端启动。</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant={publishState === 'running' ? 'outline' : 'default'}
+                onClick={() => void publishArtifact('start')}
+                disabled={publishing}
+                data-testid="artifact-publish-start"
+              >
+                <Rocket className="mr-1 h-3.5 w-3.5" />
+                {publishState === 'running' ? '重新启动' : '启动发布'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void publishArtifact('stop')}
+                disabled={publishing || publishState !== 'running'}
+                data-testid="artifact-publish-stop"
+              >
+                <Square className="mr-1 h-3.5 w-3.5" />
+                停止发布
+              </Button>
+              <Badge variant={publishState === 'running' ? 'success' : 'secondary'}>
+                {publishState === 'running' ? '运行中' : '未发布'}
+              </Badge>
+            </div>
+            {publishState === 'running' && publishUrl ? (
+              <a
+                href={publishUrl}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="artifact-publish-link"
+                className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+              >
+                打开发布链接
+              </a>
+            ) : (
+              <p className="text-xs text-muted-foreground">点击启动发布后会直接生成可访问链接。</p>
+            )}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">该产物不可启动，可下载或继续编辑。</p>
+          <p className="text-xs text-muted-foreground">该产物不可发布，可下载或继续编辑。</p>
         )}
       </div>
       <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2">

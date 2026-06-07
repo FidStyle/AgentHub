@@ -20,6 +20,8 @@ type QuotedMessage = {
   id: string
   author: string
   preview: string
+  text?: string
+  suggestedPrompt?: string
 }
 
 type ComposerQuoteEvent = {
@@ -27,6 +29,7 @@ type ComposerQuoteEvent = {
   author?: string
   preview?: string
   text?: string
+  suggestedPrompt?: string
 }
 
 interface UploadedAttachment {
@@ -62,6 +65,24 @@ const ROLE_TYPE_LABELS: Record<string, string> = {
   general: '通用',
 }
 
+const ROLE_COLOR_CLASSES = [
+  'border-l-sky-500 bg-sky-50/80 dark:bg-sky-950/20',
+  'border-l-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/20',
+  'border-l-amber-500 bg-amber-50/80 dark:bg-amber-950/20',
+  'border-l-rose-500 bg-rose-50/80 dark:bg-rose-950/20',
+  'border-l-violet-500 bg-violet-50/80 dark:bg-violet-950/20',
+  'border-l-cyan-500 bg-cyan-50/80 dark:bg-cyan-950/20',
+]
+
+const ROLE_BADGE_COLOR_CLASSES = [
+  'border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200',
+  'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
+  'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200',
+  'border-rose-300 bg-rose-100 text-rose-900 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200',
+  'border-violet-300 bg-violet-100 text-violet-900 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-200',
+  'border-cyan-300 bg-cyan-100 text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-200',
+]
+
 export function roleTypeLabel(role: RoleAgent) {
   if (role.is_orchestrator) return '编排者'
   if (!role.role_type) return '角色智能体'
@@ -77,7 +98,26 @@ export function messagePreview(content: string, max = 96) {
 export function quotedContent(input: string, quoted: QuotedMessage | null) {
   const body = input.trim()
   if (!quoted) return body
-  return `> 引用 ${quoted.author}：${quoted.preview}\n\n${body}`
+  const quotedText = quoted.text?.trim()
+  const block = quotedText ? `\n\n\`\`\`text\n${quotedText}\n\`\`\`` : ''
+  return `> 引用 ${quoted.author}：${quoted.preview}${block}\n\n${body}`
+}
+
+function roleColorIndex(roleId: string | null, roleName = '') {
+  const seed = roleId || roleName || 'agent'
+  let hash = 0
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0
+  }
+  return hash % ROLE_COLOR_CLASSES.length
+}
+
+function roleMessageColorClass(roleId: string | null, roleName?: string) {
+  return ROLE_COLOR_CLASSES[roleColorIndex(roleId, roleName)] ?? ROLE_COLOR_CLASSES[0]
+}
+
+function roleBadgeColorClass(roleId: string | null, roleName?: string) {
+  return ROLE_BADGE_COLOR_CLASSES[roleColorIndex(roleId, roleName)] ?? ROLE_BADGE_COLOR_CLASSES[0]
 }
 
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
@@ -222,11 +262,11 @@ function MessageList({
             data-testid={isProcessMessage ? 'role-process-message' : 'chat-message'}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <Card className={`max-w-[75%] p-3 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${msg.role === 'user' ? 'bg-primary/10' : 'bg-muted'}`}>
+            <Card className={`max-w-[75%] border-l-4 p-3 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${msg.role === 'user' ? 'border-l-primary bg-primary/10' : roleMessageColorClass(msg.roleAgentId, name)}`}>
               <div className="mb-1 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   {name && (
-                    <Badge data-testid="message-role-badge" variant="secondary">
+                    <Badge data-testid="message-role-badge" variant="secondary" className={roleBadgeColorClass(msg.roleAgentId, name)}>
                       @{name}
                     </Badge>
                   )}
@@ -329,6 +369,11 @@ function MessageComposer({
   const effectiveRoles = selectedRoles.length > 0 ? selectedRoles : defaultRole ? [defaultRole] : []
 
   useEffect(() => setMounted(true), [])
+
+  useEffect(() => {
+    if (!quotedMessage?.suggestedPrompt) return
+    setInput((current) => current.trim() ? current : quotedMessage.suggestedPrompt ?? current)
+  }, [quotedMessage])
 
   useLayoutEffect(() => {
     if (!pickerOpen || !triggerRef.current) return
@@ -680,6 +725,8 @@ export function ChatPanel({
         id: typeof detail?.id === 'string' ? detail.id : `external-${Date.now()}`,
         author: typeof detail?.author === 'string' && detail.author.trim() ? detail.author.trim() : '引用内容',
         preview,
+        text: text.trim() ? text : undefined,
+        suggestedPrompt: typeof detail?.suggestedPrompt === 'string' ? detail.suggestedPrompt : undefined,
       })
     }
     window.addEventListener('agenthub:quote-to-composer', onQuote)

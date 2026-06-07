@@ -166,7 +166,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 
 ### 1. Scope / Trigger
 
-- Trigger: 修改 Web 工作台的消息流、权限卡、右侧工作台、Git/文件/产物面板、代码块引用、文件选区编辑、artifact 启动入口，或任何声称“用户一句话可交付产物”的前端验收。
+- Trigger: 修改 Web 工作台的消息流、权限卡、右侧工作台、Git/文件/产物面板、代码块引用、文件选区编辑、artifact 发布入口，或任何声称“用户一句话可交付产物”的前端验收。
 - Applies to: `ChatPanel`, `MessageContent`, `MessageMarkdown`, `ArtifactPanel`, `OrchestratorPanel`, `ActionCard`, `session-store`, workspace file/Git/artifact API consumers, and Web/Mobile readback tests.
 - This is a frontend acceptance contract. Backend/API/runtime tests are required but not sufficient; the user must see and operate the feature from the UI.
 
@@ -195,11 +195,14 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - UI must first show file names/status, then reveal diff only after the user selects a file.
 - File/code reference:
   - code block action emits `agenthub:quote-to-composer`.
-  - file preview selection uses `POST /api/workspaces/:id/files/patch` for draft/apply.
-  - UI must expose an obvious select/capture/quote path; backend capability alone does not count.
-- Launchable artifact:
-  - artifact metadata may include `startCommand`, `startScriptPath`, `sourcePath`, `workspaceRoot`, or generated manifest fields.
-  - UI must offer a durable launch script or command copy/download path for runnable web artifacts.
+  - file preview selection emits `agenthub:quote-to-composer` with `{ author, preview, text, suggestedPrompt }`.
+  - file preview `preview` must include workspace-relative path, line range, and character count; `text` must include the selected source snippet; `suggestedPrompt` should prefill a sendable edit request.
+  - UI must expose an obvious select/capture/quote path; backend patch capability alone does not count, and the file panel must not become a direct inline patch editor for user-written changes.
+- Publishable artifact:
+  - `POST /api/artifacts/:id/publish` with `{ action: "start" | "stop" }`.
+  - Start response returns `{ status: "running", url, pid, port, artifact? }`; stop response returns `{ status: "stopped", pid }`.
+  - artifact metadata may include `publishStatus`, `publishUrl`, `publishPid`, `publishPort`, `startScriptPath`, `launchSourcePath`.
+  - UI must offer user-facing `启动发布` / `停止发布` buttons and a clickable `打开发布链接`; command copying must not be the primary or only path for runnable web artifacts.
 
 ### 3. Contracts
 
@@ -223,8 +226,8 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - `过程` shows the same-session durable timeline: role acknowledgement/messages, plans, nodes, attempts, mailbox handoffs, runtime sessions, actions, artifacts and deployments.
   - `编排` shows plan nodes and authorization/action cards.
   - `Git` shows only Git status, staged/unstaged groups, selected-file diff, stage/unstage/discard, and commit history.
-  - `文件` shows file tree, preview, selection capture, code/reference actions, and patch draft/apply.
-  - `产物` shows durable artifacts and launch/download/edit actions.
+  - `文件` shows file tree, preview, selection capture, code/reference actions, and IM quote-to-edit actions.
+  - `产物` shows durable artifacts and publish/download/edit actions.
   - `部署` shows deployment action, manifest path, preview path and deployment artifact references, filtered from the same session timeline.
   - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
 - Git progressive disclosure:
@@ -238,10 +241,11 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - File trees default to first-level directory expansion, but selecting or creating a deep file must automatically expand its ancestor directories so the active file is visible.
   - Opening a file or Git diff should request a wide right workbench; the wide surface uses a left tree and right viewer/diff layout instead of squeezing content into a narrow single column.
   - Wide mode must be reversible and must not hide or block the central chat composer.
-- Artifact launch:
+- Artifact publish:
   - A runnable artifact must not depend on only the current preview iframe.
-  - The user must be able to get a durable start script/command from the artifact card, e.g. `bash .agenthub/run-<id>.sh` or an equivalent workspace-relative script.
-  - Leaving the AgentHub page may stop a preview process, but the launch script/command must remain in the workspace or artifact metadata.
+  - The artifact card must let the user click `启动发布` to start the service and receive a link, then click `停止发布` to stop that service.
+  - The UI should hide raw commands from the main path. A generated workspace script may exist internally or in metadata, but the user-facing completion path is link-based.
+  - Leaving the AgentHub page may stop a preview process; the artifact metadata should still record the last publish status/link/script evidence for readback.
 
 ### 4. Validation & Error Matrix
 
@@ -261,14 +265,14 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 | User opens Git tab | sees staged/unstaged file list first | starts with mixed approval/runtime/Git records |
 | User clicks a Git file | selected diff appears for that file | all diffs expanded by default |
 | User creates a deep file | parent folders expand and the file is selected/open | file is created but remains hidden in collapsed tree |
-| File selection backend exists | UI exposes selection/capture/draft/apply or quote action | backend supports patching but user cannot find it |
-| Runnable artifact exists | artifact card exposes launch script/command | only a transient iframe preview exists |
+| File selection backend exists | UI exposes selection/capture and quotes path + line range + char count + snippet into IM | backend supports patching but user cannot find it |
+| Runnable artifact exists | artifact card exposes `启动发布` / `停止发布` and clickable publish link | only a transient iframe preview or raw command copy exists |
 | Desktop user drags right panel edge | panel width changes, middle chat remains usable, reload keeps width | fixed-width right sidebar with no handle |
 | Frontend path missing | task remains partial/failed | backend tests mark feature complete |
 
 ### 5. Good/Base/Bad Cases
 
-- Good: A strict calculator delivery session shows architect acknowledgement, backend/frontend role process messages, permission decisions as `已允许`, a separate `Git` tab with file list then diff, a `文件` tab with visible selection editing, and a `产物` card with a launch command.
+- Good: A strict calculator delivery session shows architect acknowledgement, backend/frontend role process messages, permission decisions as `已允许`, a separate `Git` tab with file list then diff, a `文件` tab with visible selection quote-to-edit, and a `产物` card with start/stop publish controls plus a link.
 - Good: The same session transcript shows `用户请求 -> 架构师分工 -> 后端工程师回复 -> 前端工程师回复 -> 架构师验收 -> 产物推荐确认`; the right `过程` tab shows matching durable state, not a replacement transcript.
 - Base: Git API works but no file changes exist; the `Git` tab shows a clean empty state and no approval cards.
 - Base: Artifact is a static document; the card shows download/edit but no launch script.
@@ -276,6 +280,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 - Bad: The right `过程` tab has many records, but the central IM transcript has no role assignment, no frontend/backend role messages, and no Orchestrator acceptance decision.
 - Bad: The right panel has one `变更` tab containing Orchestrator cards, permission approvals, Git diff, runtime logs, and message metadata together.
 - Bad: Code selection/patch APIs pass tests, but the UI has no visible control for selecting or referencing code.
+- Bad: Runnable artifact UI asks the user to copy a command as the main publish path instead of clicking start and opening a generated link.
 
 ### 6. Tests Required
 
@@ -284,7 +289,9 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - `session-store` keeps historical and streamed `role_acknowledgement` rows as visible messages.
   - permission card maps approved/running/completed to approval/result wording without using `执行中` as the approval label.
   - code block quote button emits `agenthub:quote-to-composer` and composer displays the quote.
+  - file selection quote emits path, line range, character count, selected text, and suggested prompt into the composer; no direct apply/diff editor is required in the file panel.
   - `WorkspaceShell` right panel resize contract includes `artifact-resize-handle`, pointer drag handling, min/max width, and `agenthub:right-panel-width` persistence.
+  - `ArtifactPanel` exposes `artifact-publish-panel`, `artifact-publish-start`, `artifact-publish-stop`, and `artifact-publish-link`, and does not expose `artifact-start-command` as the primary path.
 - Web E2E:
   - send the fixed calculator prompt once and assert the central transcript shows Orchestrator allocation, assigned role replies, Orchestrator validation, and artifact recommendation/confirmation before counting the run as passed.
   - send or seed a session with role acknowledgements/process messages and assert the transcript shows them after reload.
@@ -294,11 +301,11 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - open `编排` and assert plan/action cards are present without Git diff content.
   - open `Git` and assert file names are visible before diff; click one file and assert diff appears.
   - create a nested file from the `文件` tab and assert the tree expands to the new file, the viewer opens it, and wide mode is active.
-  - open `文件`, select code, generate a draft diff, and assert no file write happens before apply.
-  - open `产物` and assert runnable artifacts expose a launch script/command or clear non-runnable state.
+  - open `文件`, select code, quote it to the composer, and assert the quote includes file path, line range, character count, and original snippet.
+  - open `产物`, click `启动发布`, assert a link appears and is reachable, then click `停止发布` and assert the service stops.
 - Backend/API integration:
   - keep workspace file/Git/artifact APIs workspace-root bound.
-  - artifact launch metadata must be workspace-relative and reject paths outside the selected workspace root.
+  - artifact publish metadata and internal launch script paths must be workspace-relative and reject paths outside the selected workspace root.
 
 ### 7. Wrong vs Correct
 
@@ -317,8 +324,8 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 ```text
 右栏「编排」: plan nodes + action approvals
 右栏「Git」: file list -> selected diff -> stage/unstage/discard
-右栏「文件」: tree -> preview -> selection quote/patch
-右栏「产物」: artifact preview/edit/download/launch command
+右栏「文件」: tree -> preview -> selection quote to IM
+右栏「产物」: artifact preview/edit/download/start publish/stop publish/open link
 ```
 
 ---

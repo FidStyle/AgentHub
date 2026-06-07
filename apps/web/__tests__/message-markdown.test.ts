@@ -344,7 +344,7 @@ describe('MessageContent', () => {
 })
 
 describe('ArtifactPanel frontend contract', () => {
-  it('keeps the right workbench split into orchestration, files, Git and launchable artifacts', () => {
+  it('keeps the right workbench split into orchestration, files, Git and user-facing publish artifacts', () => {
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
 
     expect(source).toContain("const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物', '部署'] as const")
@@ -355,15 +355,71 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).toContain('data-testid="workspace-git-tree"')
     expect(source).toContain('workspace-git-file-node')
     expect(source).toContain('data-testid="workspace-git-diff-viewer"')
-    expect(source).toContain('data-testid="artifact-launch-panel"')
-    expect(source).toContain('data-testid="artifact-generate-launch-script"')
-    expect(source).toContain('data-testid="artifact-start-command"')
-    expect(source).toContain('引用选区')
+    expect(source).toContain('data-testid="artifact-publish-panel"')
+    expect(source).toContain('data-testid="artifact-publish-start"')
+    expect(source).toContain('data-testid="artifact-publish-stop"')
+    expect(source).toContain('data-testid="artifact-publish-link"')
+    expect(source).toContain('/api/artifacts/${artifact.id}/publish')
+    expect(source).toContain('启动发布')
+    expect(source).toContain('停止发布')
+    expect(source).toContain('打开发布链接')
+    expect(source).toContain('引用选区让 AI 修改')
+    expect(source).toContain('data-testid="mini-ide-send-selection-edit"')
+    expect(source).toContain('selectionReference')
+    expect(source).toContain('suggestedPrompt')
+    expect(source).toContain('第 ${start.line}-${end.line} 行')
     expect(source).toContain('确认丢弃')
     expect(source).not.toContain("activeTab === '变更'")
     expect(source).not.toContain('data-testid="artifact-changes"')
+    expect(source).not.toContain('data-testid="artifact-launch-panel"')
+    expect(source).not.toContain('data-testid="artifact-generate-launch-script"')
+    expect(source).not.toContain('data-testid="artifact-start-command"')
+    expect(source).not.toContain('复制启动命令')
+    expect(source).not.toContain('生成启动脚本')
+    expect(source).not.toContain('应用修改')
+    expect(source).not.toContain('生成 diff')
+    expect(source).not.toContain('替换后的选区内容')
     expect(source).not.toContain('运行记录')
     expect(source).not.toContain('允许单次执行')
+  })
+
+  it('colors role messages deterministically and keeps file-edit references in the IM composer', () => {
+    const chatSource = readFileSync(fileURLToPath(new URL('../components/workspace/ChatPanel.tsx', import.meta.url)), 'utf8')
+    const artifactSource = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
+
+    expect(chatSource).toContain('const ROLE_COLOR_CLASSES')
+    expect(chatSource).toContain('const ROLE_BADGE_COLOR_CLASSES')
+    expect(chatSource).toContain('function roleMessageColorClass')
+    expect(chatSource).toContain('function roleBadgeColorClass')
+    expect(chatSource).toContain('data-testid="message-role-badge"')
+    expect(chatSource).toContain("role === 'user' ? 'border-l-primary bg-primary/10' : roleMessageColorClass")
+    expect(chatSource).toContain('suggestedPrompt')
+    expect(chatSource).toContain('const block = quotedText ?')
+    expect(chatSource).toContain('quotedText')
+    expect(chatSource).toContain("window.addEventListener('agenthub:quote-to-composer'")
+    expect(artifactSource).toContain('文件路径、行号范围、字数和原文引用到 IM 输入框')
+    expect(artifactSource).toContain('已把文件选区引用到 IM 输入框，请发送给 AI 修改')
+  })
+
+  it('adds a publish API that starts and stops runnable artifacts behind the UI buttons', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../app/api/artifacts/[id]/publish/route.ts', import.meta.url)),
+      'utf8',
+    )
+
+    expect(source).toContain("const action = body.action === 'stop' ? 'stop' : 'start'")
+    expect(source).toContain("RUNNABLE_ARTIFACT_TYPES.has(row.artifact_type ?? '')")
+    expect(source).toContain('createWorkspaceArtifactLaunchScript(workspaceRoot, row.id, row.source_path)')
+    expect(source).toContain('if (!scriptFullPath.startsWith(`${workspaceRoot}${path.sep}`))')
+    expect(source).toContain("stdio: ['ignore', 'ignore', 'ignore']")
+    expect(source).toContain("publishStatus: 'running'")
+    expect(source).toContain('publishUrl: url')
+    expect(source).toContain("publishStatus: 'stopped'")
+    expect(source).toContain("typeof metadata?.publishPid === 'number'")
+    expect(source).toContain("process.kill(storedPid, 'SIGTERM')")
+    expect(source).toContain('publishPid: null')
+    expect(source).toContain("NextResponse.json({ status: 'running', url")
+    expect(source).toContain("NextResponse.json({ status: 'stopped', pid")
   })
 
   it('keeps the right workbench width draggable and persisted on desktop', () => {
