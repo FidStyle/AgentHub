@@ -242,12 +242,16 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - The staged group header exposes a root-level `-` quick action that unstages all staged workspace-root changes. This must work before the first commit by falling back from `git restore --staged` to `git rm --cached` when HEAD does not exist.
   - Unstaged file and folder rows expose a right-side `+` quick action; staged file and folder rows expose a right-side `-` quick action. Clicking the row opens/expands; clicking `+/-` must not also open diff.
   - Git UI must support commit of staged changes through a visible commit message input and submit button.
+  - Commit history rows must support progressive actions: first show commit message/hash/author/date, then let the user open the commit diff on demand.
+  - Commit history may expose `reset --hard` as a destructive rollback action only with an explicit irreversible-warning confirmation. After reset, the file tree, Git status, and commit history must refresh.
   - Second level after click: diff preview and file-specific actions.
   - Large diffs must scroll inside their own container.
 - File tree and wide workbench:
   - `文件` must expose `workspace-file-tree`, `workspace-file-viewer`, and `workspace-new-file-button` so users can browse, create and inspect files without hidden backend-only APIs.
   - File trees default to 0 expanded directories. Selecting or creating a deep file must still automatically expand its ancestor directories so the active file is visible.
   - File viewer should be a single content surface. For editable text/code, selecting text should reveal an inline `引用内容` affordance that quotes file path, line range, character count, and original snippet into IM. Do not add a separate mini-IDE form for user-written patch text in the viewer.
+  - Text-like files (`html`, `markdown`, `code`, `text`) are directly editable in the right viewer through a single content editor and a visible save action. Binary, image, document and presentation previews are read/download only.
+  - Directory rows must expose direct zip download using the workspace file download API; users should not need to manually copy a folder path.
   - Opening a file or Git diff should request a wide right workbench; the wide surface uses a left tree and right viewer/diff layout instead of squeezing content into a narrow single column.
   - Wide mode must be reversible and must not hide or block the central chat composer.
 - Artifact publish:

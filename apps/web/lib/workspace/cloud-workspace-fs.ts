@@ -99,6 +99,10 @@ export type WorkspaceGitCommit = {
   message: string
 }
 
+export type WorkspaceGitCommitDiff = WorkspaceGitCommit & {
+  diff: string
+}
+
 export type WorkspaceArtifactLaunchScript = {
   scriptPath: string
   command: string
@@ -423,6 +427,32 @@ export async function readWorkspaceGitHistory(rootDir: string, limit = 12): Prom
         message: messageParts.join('\x1f') || '无提交说明',
       }
     })
+}
+
+export async function readWorkspaceGitCommitDiff(rootDir: string, commitHash: string): Promise<WorkspaceGitCommitDiff> {
+  const hash = commitHash.trim()
+  if (!/^[a-f0-9]{7,40}$/i.test(hash)) throw new Error('commit hash 无效')
+  const meta = await runGit(rootDir, ['show', '--no-patch', '--date=iso-strict', '--pretty=format:%H%x1f%h%x1f%an%x1f%ad%x1f%s', hash])
+  if (meta.code !== 0) throw new Error(meta.stderr || '读取 commit 信息失败')
+  const [fullHash, shortHash, author, date, ...messageParts] = meta.stdout.trim().split('\x1f')
+  const diff = await runGit(rootDir, ['show', '--format=', '--patch', '--find-renames', hash])
+  if (diff.code !== 0) throw new Error(diff.stderr || '读取 commit diff 失败')
+  return {
+    hash: fullHash ?? hash,
+    shortHash: shortHash ?? hash.slice(0, 7),
+    author: author ?? '',
+    date: date ?? '',
+    message: messageParts.join('\x1f') || '无提交说明',
+    diff: diff.stdout,
+  }
+}
+
+export async function resetWorkspaceGitHard(rootDir: string, commitHash: string) {
+  const hash = commitHash.trim()
+  if (!/^[a-f0-9]{7,40}$/i.test(hash)) throw new Error('commit hash 无效')
+  const result = await runGit(rootDir, ['reset', '--hard', hash])
+  if (result.code !== 0) throw new Error(result.stderr || 'Git reset --hard 失败')
+  return result.stdout
 }
 
 export async function stageWorkspaceGitPath(rootDir: string, relativePath: string) {

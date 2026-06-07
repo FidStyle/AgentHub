@@ -12,11 +12,11 @@ const RISK_VARIANT: Record<string, 'success' | 'warning' | 'destructive'> = {
 }
 const STATUS_LABELS: Record<string, string> = {
   pending: '需要授权',
-  approved: '已授权',
+  approved: '已允许',
   running: '执行中',
-  succeeded: '已完成',
+  succeeded: '已执行',
   failed: '失败',
-  rejected: '已取消',
+  rejected: '已拒绝',
 }
 const STATUS_ICON: Record<string, typeof Clock3> = {
   pending: AlertTriangle,
@@ -35,6 +35,12 @@ interface ActionCardProps {
 export function ActionCard({ action, onApprove }: ActionCardProps) {
   const StatusIcon = STATUS_ICON[action.status] ?? Clock3
   const isPending = action.status === 'pending'
+  const result = action.result && typeof action.result === 'object' && !Array.isArray(action.result)
+    ? action.result as Record<string, unknown>
+    : {}
+  const commandText = typeof result.commandPreview === 'string' && result.commandPreview.trim()
+    ? result.commandPreview
+    : action.command
 
   return (
     <div data-testid="authorization-card" className="rounded-lg border border-border bg-card shadow-sm">
@@ -61,7 +67,7 @@ export function ActionCard({ action, onApprove }: ActionCardProps) {
 
       <div className="space-y-3 p-3">
         <code className="block max-h-24 overflow-auto rounded-md bg-muted px-2 py-1.5 text-xs leading-relaxed">
-          {action.command}
+          {commandText}
         </code>
 
         {isPending && (
@@ -73,18 +79,18 @@ export function ActionCard({ action, onApprove }: ActionCardProps) {
         {isPending && onApprove && (
           <div className="grid grid-cols-2 gap-2">
             <Button size="sm" onClick={() => onApprove(action.id, true)}>
-              授权本次
+              允许本次操作
             </Button>
             <Button size="sm" variant="outline" onClick={() => onApprove(action.id, false)}>
-              取消
+              拒绝
             </Button>
           </div>
         )}
 
         {action.result && (
-          <pre className="max-h-36 overflow-auto rounded-md bg-muted p-2 text-xs">
-            {JSON.stringify(action.result, null, 2)}
-          </pre>
+          <p className="text-xs text-muted-foreground">
+            {typeof result.output === 'string' && result.output.trim() ? result.output.split('\n')[0] : '执行记录已保存'}
+          </p>
         )}
       </div>
     </div>

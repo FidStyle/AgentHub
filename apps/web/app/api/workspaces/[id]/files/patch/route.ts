@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
-import { applyWorkspaceSelectionPatch, createWorkspaceSelectionPatchDraft, readCloudWorkspacePreview, readWorkspaceGitStatus } from '@/lib/workspace/cloud-workspace-fs'
+import { applyWorkspaceSelectionPatch, createWorkspaceSelectionPatchDraft, readCloudWorkspacePreview, readWorkspaceGitStatus, writeWorkspaceFile } from '@/lib/workspace/cloud-workspace-fs'
 import { loadCloudWorkspaceRoot, loadOwnedWorkspace } from '@/lib/workspace/workspace-api'
 import { NextResponse } from 'next/server'
 
@@ -18,10 +18,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const selectionStart = intValue(body.selectionStart)
   const selectionEnd = intValue(body.selectionEnd)
   const replacement = typeof body.replacement === 'string' ? body.replacement : ''
+  const content = typeof body.content === 'string' ? body.content : null
   const expectedText = typeof body.expectedText === 'string' ? body.expectedText : ''
   const apply = body.apply === true
   if (!filePath) return NextResponse.json({ error: 'path 必填' }, { status: 400 })
-  if (selectionStart === null || selectionEnd === null) return NextResponse.json({ error: '选区范围必填' }, { status: 400 })
+  if (content === null && (selectionStart === null || selectionEnd === null)) return NextResponse.json({ error: '选区范围必填' }, { status: 400 })
 
   const db = await createClient()
   const owned = await loadOwnedWorkspace(db, id, user)
@@ -30,11 +31,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!cloud.ok) return NextResponse.json({ error: cloud.error }, { status: cloud.status })
 
   try {
+    if (content !== null) {
+      const current = await readCloudWorkspacePreview(cloud.root, filePath)
+      if (current.type !== 'file' || current.content === null || !['html', 'markdown', 'code', 'text'].includes(current.previewKind)) {
+        return NextResponse.json({ error: '该文件类型暂不支持在线编辑' }, { status: 400 })
+      }
+      if (Buffer.byteLength(content, 'utf8') > 256 * 1024) {
+        return NextResponse.json({ error: '文件超过 256KB，暂不支持在线编辑' }, { status: 400 })
+      }
+      await writeWorkspaceFile(cloud.root, filePath, content)
+      const preview = await readCloudWorkspacePreview(cloud.root, filePath)
+      return NextResponse.json({
+        ok: true,
+        preview: {
+          ...preview,
+          downloadUrl: `/api/workspaces/${id}/files/download?path=${encodeURIComponent(preview.path)}`,
+        },
+        changes: await readWorkspaceGitStatus(cloud.root),
+      })
+    }
     if (!apply) {
-      const draft = await createWorkspaceSelectionPatchDraft(cloud.root, filePath, selectionStart, selectionEnd, replacement)
+      const draft = await createWorkspaceSelectionPatchDraft(cloud.root, filePath, selectionStart!, selectionEnd!, replacement)
       return NextResponse.json({ draft })
     }
-    const draft = await applyWorkspaceSelectionPatch(cloud.root, filePath, selectionStart, selectionEnd, expectedText, replacement)
+    const draft = await applyWorkspaceSelectionPatch(cloud.root, filePath, selectionStart!, selectionEnd!, expectedText, replacement)
     const preview = await readCloudWorkspacePreview(cloud.root, draft.path)
     return NextResponse.json({
       ok: true,

@@ -96,6 +96,7 @@ type GitCommitRow = {
   author: string
   date: string
   message: string
+  diff?: string
 }
 type TimelineKind = 'message' | 'plan' | 'plan_node' | 'attempt' | 'mailbox' | 'runtime' | 'action' | 'artifact' | 'deployment'
 type TimelineItem = {
@@ -157,7 +158,7 @@ function artifactTypeForPreview(preview: FilePreview) {
 }
 
 function isEditablePreview(preview: FilePreview | null) {
-  return Boolean(preview && preview.content !== null && ['markdown', 'code', 'text'].includes(preview.previewKind))
+  return Boolean(preview && preview.type === 'file' && preview.content !== null && ['html', 'markdown', 'code', 'text'].includes(preview.previewKind))
 }
 
 function lineColumnFromOffset(content: string, offset: number) {
@@ -166,9 +167,9 @@ function lineColumnFromOffset(content: string, offset: number) {
   return { line: lines.length, column: (lines.at(-1) ?? '').length + 1 }
 }
 
-function selectionReference(preview: FilePreview, range: { start: number; end: number; text: string }) {
-  const start = lineColumnFromOffset(preview.content ?? '', range.start)
-  const end = lineColumnFromOffset(preview.content ?? '', range.end)
+function selectionReference(preview: FilePreview, range: { start: number; end: number; text: string }, content = preview.content ?? '') {
+  const start = lineColumnFromOffset(content, range.start)
+  const end = lineColumnFromOffset(content, range.end)
   const count = Array.from(range.text).length
   const lineLabel = start.line === end.line ? `第 ${start.line} 行` : `第 ${start.line}-${end.line} 行`
   return {
@@ -776,6 +777,7 @@ function FileTreeNodeView({
   onToggle,
   onOpen,
   onContextAction,
+  workspaceId,
 }: {
   node: FileTreeNode
   level?: number
@@ -784,6 +786,7 @@ function FileTreeNodeView({
   onToggle: (path: string) => void
   onOpen: (node: FileTreeNode) => void
   onContextAction: (node: FileTreeNode, action: 'delete' | 'artifact') => void
+  workspaceId: string
 }) {
   const isDir = node.type === 'directory'
   const expanded = isDir && expandedPaths.has(node.path)
@@ -805,6 +808,7 @@ function FileTreeNodeView({
           onClick={() => {
             if (isDir) {
               onToggle(node.path)
+              onOpen(node)
               return
             }
             onOpen(node)
@@ -818,6 +822,17 @@ function FileTreeNodeView({
           ) : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           <span className="truncate" title={node.path}>{node.name}</span>
         </button>
+        {isDir && (
+          <a
+            href={`/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(node.path)}`}
+            className="hidden rounded-sm p-1 text-muted-foreground hover:bg-background hover:text-foreground group-hover:inline-flex"
+            aria-label={`下载目录 ${node.path}`}
+            title="下载 zip"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </a>
+        )}
         <button
           type="button"
           className="hidden rounded-sm p-1 text-muted-foreground hover:bg-background hover:text-foreground group-hover:inline-flex"
@@ -845,6 +860,7 @@ function FileTreeNodeView({
           onToggle={onToggle}
           onOpen={onOpen}
           onContextAction={onContextAction}
+          workspaceId={workspaceId}
         />
       ))}
     </div>
@@ -865,6 +881,9 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
   const [artifactStatus, setArtifactStatus] = useState<string | null>(null)
   const [operationStatus, setOperationStatus] = useState<string | null>(null)
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number; text: string } | null>(null)
+  const [editorContent, setEditorContent] = useState('')
+  const [editorDirty, setEditorDirty] = useState(false)
+  const [savingFile, setSavingFile] = useState(false)
   const [patchStatus, setPatchStatus] = useState<string | null>(null)
   const [showCreateFile, setShowCreateFile] = useState(false)
   const [newFilePath, setNewFilePath] = useState('')
@@ -913,6 +932,8 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((body as { error?: string }).error || `读取文件失败（${res.status}）`)
       setPreview(body as FilePreview)
+      setEditorContent(typeof (body as FilePreview).content === 'string' ? (body as FilePreview).content ?? '' : '')
+      setEditorDirty(false)
       setSelectionRange(null)
       setPatchStatus(null)
     } catch (e) {
@@ -933,13 +954,13 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
 
   function captureEditorSelection() {
     const editor = editorRef.current
-    if (!editor || !preview?.content) return
+    if (!editor || !preview) return
     const start = editor.selectionStart
     const end = editor.selectionEnd
-    const text = preview.content.slice(start, end)
+    const text = editorContent.slice(start, end)
     setSelectionRange({ start, end, text })
     if (text) {
-      const ref = selectionReference(preview, { start, end, text })
+      const ref = selectionReference(preview, { start, end, text }, editorContent)
       setPatchStatus(`已选择 ${ref.lineLabel}，${ref.count} 字`)
     } else {
       setPatchStatus('当前选区为空，请选择需要修改的内容')
@@ -953,7 +974,7 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
       setPatchStatus('当前选区为空，无法引用')
       return
     }
-    const ref = selectionReference(preview, selectionRange)
+    const ref = selectionReference(preview, selectionRange, editorContent)
     quoteToComposer({
       id: `${preview.path}:${selectionRange.start}-${selectionRange.end}`,
       author: `文件选区：${preview.path}`,
@@ -1091,6 +1112,35 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
     }
   }
 
+  async function saveCurrentFile() {
+    if (!activeWorkspaceId || !preview || !isEditablePreview(preview)) return
+    setSavingFile(true)
+    setPatchStatus('正在保存文件...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/files/patch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: preview.path, content: editorContent }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `保存失败（${res.status}）`)
+      const nextPreview = (body as { preview?: FilePreview }).preview
+      if (nextPreview) {
+        setPreview(nextPreview)
+        setEditorContent(nextPreview.content ?? '')
+      }
+      setEditorDirty(false)
+      setSelectionRange(null)
+      setPatchStatus('已保存文件')
+      await loadTree()
+      emitFilesChanged()
+    } catch (e) {
+      setPatchStatus(e instanceof Error ? e.message : '保存失败')
+    } finally {
+      setSavingFile(false)
+    }
+  }
+
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其云端项目文件将在此展示" />
   if (error) return <p data-testid="artifact-files-error" className="text-sm text-destructive">{error}</p>
   if (!loaded) return <StateCard variant="loading" title="加载文件树" />
@@ -1167,6 +1217,7 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
                 onToggle={toggleFolder}
                 onOpen={openNode}
                 onContextAction={handleContextAction}
+                workspaceId={activeWorkspaceId}
               />
             ))
           )}
@@ -1185,6 +1236,12 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
           </div>
           {preview && (
             <div className="flex shrink-0 gap-1">
+              {isEditablePreview(preview) && (
+                <Button size="sm" variant="outline" onClick={() => void saveCurrentFile()} disabled={!editorDirty || savingFile} data-testid="workspace-file-save-button">
+                  <Save className="mr-1 h-3.5 w-3.5" />
+                  {savingFile ? '保存中' : editorDirty ? '保存' : '已保存'}
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={markPreviewAsArtifact}>
                 <PackagePlus className="mr-1 h-3.5 w-3.5" />
                 存为产物
@@ -1205,12 +1262,16 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
           <div data-testid="mini-ide-editor" className="relative">
             <textarea
               ref={editorRef}
-              readOnly
-              value={preview?.content ?? ''}
+              value={editorContent}
+              onChange={(event) => {
+                setEditorContent(event.target.value)
+                setEditorDirty(true)
+                setSelectionRange(null)
+              }}
               onSelect={captureEditorSelection}
               data-testid="mini-ide-source-editor"
-              aria-label="文件内容选区"
-              className="h-72 w-full resize-y rounded-md border border-border bg-muted p-3 font-mono text-xs leading-relaxed outline-none focus:border-primary"
+              aria-label="文件内容编辑器"
+              className="h-72 w-full resize-y rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed outline-none focus:border-primary"
             />
             {selectionRange?.text && (
               <Button
@@ -1386,6 +1447,8 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
   const [actionStatus, setActionStatus] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [commitStatus, setCommitStatus] = useState<string | null>(null)
+  const [selectedCommit, setSelectedCommit] = useState<GitCommitRow | null>(null)
+  const [commitDiffStatus, setCommitDiffStatus] = useState<string | null>(null)
   const [pendingDiscardPath, setPendingDiscardPath] = useState<string | null>(null)
   const [pendingDiscardActionId, setPendingDiscardActionId] = useState<string | null>(null)
 
@@ -1586,6 +1649,48 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
     }
   }
 
+  async function openCommitDiff(commit: GitCommitRow) {
+    if (!activeWorkspaceId) return
+    setSelectedCommit(commit)
+    setCommitDiffStatus('正在读取 commit diff...')
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/commit-diff?hash=${encodeURIComponent(commit.hash)}`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `读取 commit diff 失败（${res.status}）`)
+      const nextCommit = (body as { commit?: GitCommitRow }).commit
+      setSelectedCommit(nextCommit ?? commit)
+      setCommitDiffStatus(null)
+      onRequestWide(true)
+    } catch (e) {
+      setCommitDiffStatus(e instanceof Error ? e.message : '读取 commit diff 失败')
+    }
+  }
+
+  async function resetToCommit(commit: GitCommitRow) {
+    if (!activeWorkspaceId) return
+    const ok = window.confirm(`确定回退到 ${commit.shortHash} 吗？这会执行 git reset --hard，未提交改动将不可恢复。`)
+    if (!ok) return
+    setCommitStatus(`正在回退到 ${commit.shortHash}...`)
+    try {
+      const res = await fetch(`/api/workspaces/${activeWorkspaceId}/git/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hash: commit.hash, confirm: true }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `回退失败（${res.status}）`)
+      setGitChanges(Array.isArray((body as { changes?: unknown }).changes) ? (body as { changes: GitChangeRow[] }).changes : [])
+      setGitCommits(Array.isArray((body as { commits?: unknown }).commits) ? (body as { commits: GitCommitRow[] }).commits : [])
+      setSelectedDiff('')
+      setSelectedDiffPath(null)
+      setSelectedCommit(null)
+      setCommitStatus(`已回退到 ${commit.shortHash}`)
+      window.dispatchEvent(new CustomEvent('workspace-files:changed', { detail: { workspaceId: activeWorkspaceId } }))
+    } catch (e) {
+      setCommitStatus(e instanceof Error ? e.message : '回退失败')
+    }
+  }
+
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，其 Git 变更将在此展示" />
   const stagedChanges = gitChanges.filter((change) => change.staged)
   const unstagedChanges = gitChanges.filter((change) => change.unstaged || change.untracked || !change.staged)
@@ -1770,10 +1875,27 @@ function GitTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequestWide:
                       {commit.author} · {commit.date ? new Date(commit.date).toLocaleString('zh-CN') : '未知时间'}
                     </p>
                   </div>
-                  <Badge variant="secondary">{commit.shortHash}</Badge>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Badge variant="secondary">{commit.shortHash}</Badge>
+                    <Button size="sm" variant="outline" onClick={() => void openCommitDiff(commit)} data-testid="workspace-git-commit-diff-button">
+                      查看
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => void resetToCommit(commit)} data-testid="workspace-git-reset-hard-button">
+                      回退
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {commitDiffStatus && <p className="mt-2 text-xs text-muted-foreground">{commitDiffStatus}</p>}
+        {selectedCommit?.diff && (
+          <div data-testid="workspace-git-commit-diff-viewer" className="mt-3 space-y-2">
+            <div className="text-xs text-muted-foreground">
+              {selectedCommit.shortHash} · {selectedCommit.message}
+            </div>
+            <DiffPreview value={selectedCommit.diff} />
           </div>
         )}
       </PanelSection>

@@ -248,6 +248,19 @@ describe('GET /api/sessions/[id]/timeline', () => {
     ]))
   })
 
+  it('does not synthesize epoch timestamps or verbose observed-action JSON in process timeline', async () => {
+    const { chainFactory } = sessionTimelineChain()
+    setupMockClient(chainFactory)
+
+    const result = await callTimeline()
+
+    expect(result.status).toBe(200)
+    const deployment = (result.data.items as Array<{ kind: string; createdAt: string; summary: string }>).find((item) => item.kind === 'deployment')
+    expect(deployment?.createdAt).not.toBe('1970-01-01T00:00:00.000Z')
+    expect(deployment?.summary).toBe('AgentHub 本地静态部署当前工作区')
+    expect(JSON.stringify(result.data.items)).not.toContain('aggregated_output')
+  })
+
   it('rejects sessions outside the current user workspace', async () => {
     const { chainFactory } = sessionTimelineChain(false)
     setupMockClient(chainFactory)

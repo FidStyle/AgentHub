@@ -15,8 +15,10 @@ import {
   discardWorkspaceGitPath,
   readCloudWorkspacePreview,
   readWorkspaceGitDiff,
+  readWorkspaceGitCommitDiff,
   readWorkspaceGitHistory,
   readWorkspaceGitStatus,
+  resetWorkspaceGitHard,
   renameWorkspaceEntry,
   resolveWorkspacePath,
   stageWorkspaceGitPath,
@@ -211,6 +213,31 @@ describe('workspace file preview and artifact bundle helpers', () => {
       author: 'AgentHub',
       message: 'initial from helper',
     }))
+  })
+
+  it('reads commit diff and reset --hard to a selected commit with explicit hash validation', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await writeWorkspaceFile(root, 'README.md', '# One\n')
+    await stageWorkspaceGitPath(root, 'README.md')
+    await commitWorkspaceGit(root, 'first commit')
+    const first = (await readWorkspaceGitHistory(root))[0]
+    expect(first?.hash).toMatch(/^[a-f0-9]{40}$/)
+
+    await writeWorkspaceFile(root, 'README.md', '# Two\n')
+    await stageWorkspaceGitPath(root, 'README.md')
+    await commitWorkspaceGit(root, 'second commit')
+
+    const second = (await readWorkspaceGitHistory(root))[0]
+    const commitDiff = await readWorkspaceGitCommitDiff(root, second.hash)
+    expect(commitDiff.message).toBe('second commit')
+    expect(commitDiff.diff).toContain('-# One')
+    expect(commitDiff.diff).toContain('+# Two')
+
+    await resetWorkspaceGitHard(root, first.hash)
+    expect((await readCloudWorkspacePreview(root, 'README.md')).content).toBe('# One\n')
+    expect(await readWorkspaceGitStatus(root)).toEqual([])
+    await expect(resetWorkspaceGitHard(root, '../bad')).rejects.toThrow('commit hash 无效')
   })
 
   it('creates and applies selection patch drafts without writing before approval', async () => {

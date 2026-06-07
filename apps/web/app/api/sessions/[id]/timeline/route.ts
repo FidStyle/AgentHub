@@ -25,7 +25,18 @@ function text(value: unknown, fallback = '') {
 }
 
 function time(value: unknown) {
-  return typeof value === 'string' ? value : new Date(0).toISOString()
+  if (typeof value === 'string') {
+    const date = new Date(value)
+    if (!Number.isNaN(date.getTime())) return date.toISOString()
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString()
+  return new Date().toISOString()
+}
+
+function commandSummary(value: unknown, fallback = '无命令摘要') {
+  const raw = text(value, fallback)
+  const firstLine = raw.split('\n').find((line) => line.trim())?.trim() || fallback
+  return clip(firstLine, fallback)
 }
 
 function clip(value: unknown, fallback = '') {
@@ -234,7 +245,7 @@ export async function GET(
       kind: isDeploy ? 'deployment' : 'action',
       status: text(row.status, 'unknown'),
       title: isDeploy ? '部署动作' : `权限动作：${text(row.action_type, 'unknown')}`,
-      summary: clip(row.command, '无命令摘要'),
+      summary: commandSummary(row.command),
       createdAt: time(row.created_at),
       refs,
     }))
