@@ -1794,7 +1794,6 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(artifact.title)
   const [content, setContent] = useState(artifactEditableContent(artifact))
-  const [instruction, setInstruction] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
   const [publishState, setPublishState] = useState<'running' | 'stopped'>(
@@ -1844,31 +1843,6 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
     }
   }
 
-  async function sendEditRequest() {
-    if (!instruction.trim()) {
-      setStatus('迭代说明不能为空')
-      return
-    }
-    setStatus('正在记录迭代说明...')
-    try {
-      const res = await fetch(`/api/artifacts/${artifact.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          edit_request: { instruction: instruction.trim() },
-        }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((body as { error?: string }).error || `记录失败（${res.status}）`)
-      setInstruction('')
-      setStatus('已记录迭代说明，后续 Agent 可基于该产物继续迭代')
-      onChanged()
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : '记录失败')
-    }
-  }
-
   async function publishArtifact(action: 'start' | 'stop') {
     if (!runnable && action === 'start') {
       setStatus('该产物不可发布，可下载或继续编辑。')
@@ -1899,6 +1873,26 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
     } finally {
       setPublishing(false)
     }
+  }
+
+  function quoteArtifactToComposer() {
+    const source = artifact.source_path ? `来源文件：${artifact.source_path}` : `产物 ID：${artifact.id}`
+    const inlineContent = artifactEditableContent(artifact).trim()
+    const summary = [
+      `类型：${typeLabel}`,
+      source,
+      `预览状态：${previewLabel}`,
+      publishUrl ? `发布链接：${publishUrl}` : null,
+      inlineContent ? `内容摘要：${inlineContent.replace(/\s+/g, ' ').slice(0, 240)}` : null,
+    ].filter(Boolean).join('\n')
+    quoteToComposer({
+      id: `artifact:${artifact.id}`,
+      author: `产物：${artifact.title}`,
+      preview: `${artifact.title} · ${typeLabel} · ${artifact.source_path ?? artifact.id}`,
+      text: summary,
+      suggestedPrompt: `请基于引用的产物「${artifact.title}」继续修改：`,
+    })
+    setStatus('已把产物引用到 IM 输入框')
   }
 
   return (
@@ -2010,35 +2004,24 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
       ) : (
         <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
       )}
-      <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
-        <label htmlFor={`artifact-edit-request-${artifact.id}`} className="text-xs font-medium">二次交互迭代</label>
-        <textarea
-          id={`artifact-edit-request-${artifact.id}`}
-          rows={2}
-          value={instruction}
-          onChange={(event) => setInstruction(event.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs"
-          placeholder="例如：第二页调整为问题、方案、收益三段"
-        />
-        <div className="flex flex-wrap gap-2">
-          {editable && (
-            <Button size="sm" variant="outline" onClick={() => setEditing((value) => !value)}>
-              <Pencil className="mr-1 h-3.5 w-3.5" />
-              {editing ? '返回预览' : '基础编辑'}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={() => void sendEditRequest()}>
-            <SendHorizontal className="mr-1 h-3.5 w-3.5" />
-            记录迭代说明
+      <div className="flex flex-wrap gap-2 rounded-md border border-border bg-muted/30 p-2">
+        <Button size="sm" variant="outline" onClick={quoteArtifactToComposer} data-testid="artifact-quote-to-composer">
+          <SendHorizontal className="mr-1 h-3.5 w-3.5" />
+          引用产物
+        </Button>
+        {editable && (
+          <Button size="sm" variant="outline" onClick={() => setEditing((value) => !value)}>
+            <Pencil className="mr-1 h-3.5 w-3.5" />
+            {editing ? '返回预览' : '基础编辑'}
           </Button>
-          <a
-            href={downloadUrl}
-            className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
-          >
-            <Download className="mr-1 h-3.5 w-3.5" />
-            下载产物
-          </a>
-        </div>
+        )}
+        <a
+          href={downloadUrl}
+          className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+        >
+          <Download className="mr-1 h-3.5 w-3.5" />
+          下载产物
+        </a>
       </div>
       {status && <p className="text-xs text-muted-foreground">{status}</p>}
     </div>

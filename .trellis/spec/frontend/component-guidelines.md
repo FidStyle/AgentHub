@@ -204,6 +204,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - Start response returns `{ status: "running", url, pid, port, artifact? }`; stop response returns `{ status: "stopped", pid }`.
   - artifact metadata may include `publishStatus`, `publishUrl`, `publishPid`, `publishPort`, `startScriptPath`, `launchSourcePath`.
   - UI must offer user-facing `启动发布` / `停止发布` buttons and a clickable `打开发布链接`; command copying must not be the primary or only path for runnable web artifacts.
+  - Artifact cards must use `引用产物` to send artifact title/type/source/preview summary into IM for AI iteration. Do not add a second free-form "AI edit" textarea inside the artifact card.
 
 ### 3. Contracts
 
@@ -253,6 +254,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - The artifact card must let the user click `启动发布` to start the service and receive a link, then click `停止发布` to stop that service.
   - `发布访问` belongs at the top of the artifact card. It is a local temporary access link for previewing the current artifact.
   - `部署` is the formal deployment flow: deployment tab, approval, manifest path, preview path, and deployment artifact records. Artifact publish must explain that formal deployment lives in the `部署` tab.
+  - Artifact iteration belongs in the main IM transcript. The artifact card may expose `引用产物`, but must not include a separate free-form AI instruction box such as `二次交互编辑`, `二次交互迭代`, or `记录迭代说明`.
   - The UI should hide raw commands from the main path. A generated workspace script may exist internally or in metadata, but the user-facing completion path is link-based.
   - Leaving the AgentHub page may stop a preview process; the artifact metadata should still record the last publish status/link/script evidence for readback.
 
@@ -299,6 +301,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - permission card maps approved/running/completed to approval/result wording without using `执行中` as the approval label.
   - code block quote button emits `agenthub:quote-to-composer` and composer displays the quote.
   - file selection quote emits path, line range, character count, selected text, and suggested prompt into the composer; no direct apply/diff editor is required in the file panel.
+  - artifact quote button emits artifact title, type, source file/id, preview state, optional publish link and content summary into the composer; no artifact-card AI instruction textarea is allowed.
   - `WorkspaceShell` right panel resize contract includes `artifact-resize-handle`, pointer drag handling, min/max width, and `agenthub:right-panel-width` persistence.
   - `ArtifactPanel` exposes `artifact-publish-panel`, `artifact-publish-start`, `artifact-publish-stop`, and `artifact-publish-link`, and does not expose `artifact-start-command` as the primary path.
 - Web E2E:
