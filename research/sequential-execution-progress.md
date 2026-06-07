@@ -21,13 +21,13 @@
 
 | 字段 | 内容 |
 | --- | --- |
-| 当前任务 | 无 active Trellis task；`06-07-bytedance-p0-p1-final-completion-gate` 已完成并准备归档 |
+| 当前任务 | `.trellis/tasks/06-07-uat-bytedance-p0-p1` |
 | 当前分支 | `AgentHub_new_claude_test` |
 | 模式 | 单分支顺序执行 |
-| 开始状态 | 旧 P0/P1 均已关闭，但任何新的 Bytedance product-pass 结论必须重跑 fresh strict gate。 |
-| 当前状态 | bytedance-p0-p1-final-completion-gate closed：fresh strict run `STRICT-FINAL-P0P1-1780769350` PASS（70/70），Web/Mobile/Desktop evidence 已入账；质量门禁和治理门禁通过；work commit `832cea7`。 |
-| 阻塞项 | 无代码阻塞。 |
-| 下一步 | 归档 Trellis task 并记录 session journal；最终 Demo 包和 3 分钟素材仍按用户要求排除。 |
+| 开始状态 | 用户不接受历史 pass，要求全真实逐步 UAT：真实用户入口、每一步 UI/API/DB/runtime 状态核验。 |
+| 当前状态 | bytedance real-step UAT failed：root Web entry runtime error；fresh strict/API run `REAL-STEP-UAT-1780819586-FULL` FAIL（35/23）；Web/Mobile 同 session UI 读回不一致。 |
+| 阻塞项 | `REG-20260607-001`：Bytedance P0/P1 全真实逐步 UAT 失败。 |
+| 下一步 | 修复 root Web/runtime/session readback/mobile readback blockers 后重跑 full real-step UAT；不再用旧 `STRICT-FINAL-P0P1-1780769350` 宣称最终完成。 |
 
 ---
 
@@ -55,6 +55,7 @@
 | 9.8 | `06-06-role-process-message-foregrounding` 角色过程消息完整前台化 | P0/P1 | closed | `/api/chat` persisted process rows stream as `role_process_message`; Web store renders role-owned process messages/status/permission cards and suppresses duplicate approval cards; strict gate now fails if backend/frontend role process messages are absent from central IM. | Task archived: `.trellis/tasks/archive/2026-06/06-06-role-process-message-foregrounding`；Report: `research/execution-reports/role-process-message-foregrounding-2026-06-06.md`；focused tests 26/26 PASS；expanded related tests 68/68 PASS；Web type-check PASS；Web lint PASS；task validate PASS；`git diff --check` PASS；work commit `5839588`。 | 无代码阻塞；完整 fresh OpenCLI strict gate 本任务未重跑，不替代 `STRICT-IMRESIZE-1780732772`。 | 已关闭；后续 product-pass 必须重跑 strict gate |
 | 9.9 | `06-06-workbench-resize-filetree-ux` 右侧工作台拖动与文件树体验修复 | P0/P1 | closed | Web 工作台右侧栏真实拖动、localStorage 持久化、文件/Git 宽屏左树右内容、新增文件和 Git 树优先 diff；用户允许 Playwright 或 OpenCLI，本轮采用 Playwright 真实浏览器 UAT。 | Task archived: `.trellis/tasks/archive/2026-06/06-06-workbench-resize-filetree-ux`；work commit `372a627`；`pnpm --filter @agenthub/web test -- __tests__/message-markdown.test.ts __tests__/workspace-files-artifacts.test.ts` PASS（34 tests）；Web lint PASS；Web build PASS；Web type-check PASS；Playwright `tests/web/workbench-file-ops.spec.ts` PASS；Playwright `tests/web/web-workspace-layout-uat.spec.ts -g "右侧工作台可拖动"` PASS；screenshot `e2e/artifacts/web-workspace-layout/desktop-right-panel-resize-wide-file.png`。 | 无。并发 build/dev/type-check 曾产生 `.next` 竞争，顺序重跑已通过。 | 已关闭；后续 product-pass 必须重跑 strict gate |
 | 9.10 | `06-07-bytedance-p0-p1-final-completion-gate` Bytedance P0/P1 全量最终完成门禁 | P0 | closed | Fresh strict single-prompt gate；OpenCLI Web/Mobile browser evidence；Desktop/Electron accepted Playwright fallback；focused tests/type-check；evidence audit。 | Contract: `research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md`；Report: `research/execution-reports/bytedance-p0-p1-final-completion-gate-2026-06-07.md`；Strict run `STRICT-FINAL-P0P1-1780769350` PASS（70 passed / 0 failed / 0 warned）；workspace `647d378f-5441-4469-849b-908bce147969`；session `54485a3a-4ed8-4ed4-a44d-5cecb3534653`；plan `74e5dda3-4367-48b9-8f4b-37dd30f8da96`；artifact `59b3418b-41d1-4c90-8f54-cfa6499644cf`；evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-FINAL-P0P1-1780769350/`；Web PASS, Mobile/PWA PASS, Desktop/Electron PASS via accepted fallback；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/message-markdown.test.ts` PASS（40 tests）；`pnpm --filter @agenthub/web type-check` PASS；governance gate PASS；work commit `832cea7`。 | 无。 | 已关闭；最终 Demo 包和 3 分钟素材不处理 |
+| 9.11 | `06-07-uat-bytedance-p0-p1` 全真实逐步 UAT 复核 Bytedance P0/P1 | P0 | failed | OpenCLI real Web entry；fresh strict/API downstream run；Web/Mobile same-session readback；OpenCLI adapter check。 | Report: `research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md`；Fresh run `REAL-STEP-UAT-1780819586-FULL` FAIL（35 passed / 23 failed / 0 warned）；workspace `54438af5-cae7-4962-89cb-d95d2eb51a40`；session `aa86c8e0-b539-4ac8-ae52-ebeaece8875e`；plan `36f17ce6-ddfb-4484-b533-4535a5aa5b7e`；root entry screenshot `e2e/artifacts/opencli-uat/bytedance-real-step-uat-root-error.png`；Web failed readback `bytedance-real-step-uat-workspace-failed-readback.png`；Mobile failed readback `bytedance-real-step-uat-mobile-failed-readback.png`。 | Root Web runtime error；runtime executor unavailable；Web/Mobile readback mismatch；Desktop OpenCLI adapter missing；manual allow/reject fresh branches not reached。 | 修复 `REG-20260607-001` 后重跑 full real-step UAT |
 | 10 | 最终 Demo 包和 3 分钟视频素材 | P1 | excluded-by-user | Bytedance 原始 PRD 反查；三端录屏/截图/脚本证据 | 用户 2026-06-05 明确“不需要你来处理” | 用户排除 | 不处理 |
 
 ---

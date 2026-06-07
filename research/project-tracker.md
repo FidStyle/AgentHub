@@ -28,12 +28,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-07-bytedance-p0-p1-final-completion-gate` |
 | **合同路径** | `research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md` |
-| **当前状态** | ✅ completed / fresh strict pass（2026-06-07）：P0/P1 全量最终门禁已完成。Fresh run `STRICT-FINAL-P0P1-1780769350` 从真实 `POST /api/chat` 单 prompt 触发 IM-first Orchestrator 分工、后端工程师、前端工程师、Orchestrator 验收、artifact recommendation/confirmation，并通过 Web、Mobile/PWA、Desktop/Electron 三端读回。 |
+| **当前状态** | ❌ failed / latest real-step UAT failed（2026-06-07）：用户要求全真实逐步复核后，fresh run `REAL-STEP-UAT-1780819586-FULL` 失败（35 passed / 23 failed）。旧 `STRICT-FINAL-P0P1-1780769350` 只能作为历史证据，不再作为最终完成结论。 |
 | **目标** | 只闭环 Bytedance P0/P1：IM 主链路、权限链路、工作台链路、产物推荐/确认和三端读回；最终 Demo 包、3 分钟素材、未开始纯 P2 继续排除。 |
-| **验收方式** | Fresh strict single-prompt gate + OpenCLI Web/Mobile browser evidence + Desktop/Electron Playwright fallback + focused Web tests + type-check + evidence audit。固定 prompt：`做一个加减乘除的简单网站，使用sqlite存储历史记录`。 |
-| **测试证据** | Report: `research/execution-reports/bytedance-p0-p1-final-completion-gate-2026-06-07.md`；Strict run `STRICT-FINAL-P0P1-1780769350` PASS（70 passed / 0 failed / 0 warned）；workspace `647d378f-5441-4469-849b-908bce147969`；session `54485a3a-4ed8-4ed4-a44d-5cecb3534653`；plan `74e5dda3-4367-48b9-8f4b-37dd30f8da96`；artifact `59b3418b-41d1-4c90-8f54-cfa6499644cf`；API paths `GET /api/messages?session_id=54485a3a-4ed8-4ed4-a44d-5cecb3534653` and `GET /api/sessions/54485a3a-4ed8-4ed4-a44d-5cecb3534653/timeline`；evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-FINAL-P0P1-1780769350/`；Web PASS, Mobile/PWA PASS, Desktop/Electron PASS via accepted fallback；`pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/message-markdown.test.ts` PASS（40 tests）；`pnpm --filter @agenthub/web type-check` PASS；`bash scripts/verify-governance-gate.sh BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE` PASS。 |
-| **阻塞问题** | 无。 |
-| **下一步动作** | 本 P0/P1 gate 已通过；最终 Demo 包和 3 分钟素材仍按用户要求排除。 |
+| **验收方式** | Latest standard is full real-step UAT: real Web entry + per-step UI/API/DB/runtime/action/artifact verification + Web/Mobile/Desktop readback. Fixed prompt：`做一个加减乘除的简单网站，使用sqlite存储历史记录`。 |
+| **测试证据** | Latest report: `research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md`；Fresh run `REAL-STEP-UAT-1780819586-FULL` FAIL（35 passed / 23 failed / 0 warned）；workspace `54438af5-cae7-4962-89cb-d95d2eb51a40`；session `aa86c8e0-b539-4ac8-ae52-ebeaece8875e`；plan `36f17ce6-ddfb-4484-b533-4535a5aa5b7e`；root Web entry screenshot `e2e/artifacts/opencli-uat/bytedance-real-step-uat-root-error.png`；strict evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-STEP-UAT-1780819586-FULL/`。Historical pass retained for audit only: `STRICT-FINAL-P0P1-1780769350`。 |
+| **阻塞问题** | Root Web runtime error；runtime executor unavailable；plan/nodes failed；no runtime_sessions；no generated product files/artifact；Web session list/chat readback broken；Mobile same-session readback broken；Desktop/Electron OpenCLI adapter missing；manual allow/reject fresh branches not reached。 |
+| **下一步动作** | 先修复 `REG-20260607-001`，再重跑 full real-step UAT；最终 Demo 包和 3 分钟素材仍按用户要求排除。 |
 
 ### WORKBENCH-RESIZE-FILETREE-UX-2026-06-06: 右侧工作台拖动与文件树体验修复
 

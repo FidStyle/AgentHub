@@ -1,0 +1,4 @@
+{"file":"research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md","reason":"既有 Bytedance P0/P1 gate 合同；本轮作为验收范围参考，不复用历史结论。"}
+{"file":"research/execution-reports/bytedance-p0-p1-final-completion-gate-2026-06-07.md","reason":"既有 final gate 报告；本轮用来识别必须重新逐步验证的历史 claim 与 fallback。"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"真实主链路验收规范，禁止 fake pass、timeline-only 或历史证据替代。"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"端到端闭环规划规范，用于逐步状态验证设计。"}

@@ -1,0 +1,4 @@
+{"file":"research/project-tracker.md","reason":"最终状态必须回写公开 tracker，不能只写局部报告。"}
+{"file":"research/sequential-execution-progress.md","reason":"顺序执行总表必须反映本轮真实 UAT pass/fail/block。"}
+{"file":"scripts/verify-governance-gate.sh","reason":"当前治理脚本也必须真实重跑并记录结果。"}
+{"file":"scripts/audit-acceptance-evidence.mjs","reason":"证据审计用于识别 product-pass 与 fake/partial 风险。"}

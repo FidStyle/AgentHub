@@ -30,6 +30,21 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260607-001 — Bytedance P0/P1 全真实逐步 UAT 失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | P0 blocker / acceptance-regression / false-positive-correction |
+| **优先级** | P0 |
+| **状态** | `open` |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
+| **关联任务/合同** | `.trellis/tasks/06-07-uat-bytedance-p0-p1`；`research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
+| **影响功能面** | Bytedance P0/P1 最终完成结论、Web 根入口、single-prompt runtime delivery、Web workspace session readback、Mobile/PWA readback、Desktop/Electron fresh evidence、manual permission branch coverage |
+| **发现方式** | 用户质疑历史 pass 后要求“全真实”逐步 UAT。Codex 使用 OpenCLI 真实浏览器入口、clean Web dev server、fresh strict/API run、Web/Mobile same-session readback 和 OpenCLI adapter check 复核。 |
+| **证据** | Report: `research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md`；root Web entry `http://localhost:3000/` shows Next.js runtime overlay `Cannot read properties of undefined (reading 'call')`；fresh run `REAL-STEP-UAT-1780819586-FULL` FAIL（35 passed / 23 failed）；workspace `54438af5-cae7-4962-89cb-d95d2eb51a40`；session `aa86c8e0-b539-4ac8-ae52-ebeaece8875e`；plan `36f17ce6-ddfb-4484-b533-4535a5aa5b7e` status `failed`；SSE `endpoint_unavailable` / `Runtime 执行器未就绪，节点未投递。`；0 runtime_sessions；missing generated product files/artifact；Web UI session list empty despite API session; Mobile same session shows `暂无消息` despite API messages. |
+| **关闭条件** | Root Web entry opens app without runtime overlay; fresh full-control single-prompt run completes with durable plan/nodes/runtime_sessions/artifact/product files; Web workspace lists and opens the fresh session and displays messages/status; Mobile/PWA displays same-session messages/status; Desktop/Electron has current-run evidence through adapter or accepted fallback; manual allow/reject fresh branches pass; report/tracker/governance updated and committed. |
+| **下一步** | Fix blockers before any new Bytedance P0/P1 product-pass claim. Do not reuse `STRICT-FINAL-P0P1-1780769350` as final completion evidence. |
+
 ### REG-20260606-001 — Web 工作台前端没有完整呈现开发过程、Git、代码引用和可启动产物
 
 | 字段 | 内容 |
