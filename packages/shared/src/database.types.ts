@@ -6,6 +6,7 @@
 export type ExecutionDomain = 'cloud' | 'local_desktop'
 export type SessionStatus = 'active' | 'archived'
 export type RoutingMode = 'orchestrated' | 'direct'
+export type ChatKind = 'group' | 'direct'
 export type SenderType = 'user' | 'agent' | 'system'
 export type MessageType = 'text' | 'plan_card' | 'result_card' | 'approval' | 'system_event' | 'role_acknowledgement'
 export type StreamingStatus = 'idle' | 'streaming' | 'complete'
@@ -43,6 +44,11 @@ export interface Session {
   status: SessionStatus
   routing_mode: RoutingMode
   auto_advance: boolean
+  chat_kind?: ChatKind | null
+  direct_role_agent_id?: string | null
+  is_pinned?: boolean
+  pinned_at?: string | null
+  last_activity_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -56,8 +62,15 @@ export interface RoleAgent {
   capabilities: string[]
   runtime_type: 'claude_code' | 'codex'
   is_orchestrator: boolean
+  toolset_ids?: string[] | null
   created_at: string
   updated_at: string
+}
+
+export interface SessionParticipant {
+  session_id: string
+  role_agent_id: string
+  created_at: string
 }
 
 export interface Message {
@@ -157,6 +170,7 @@ export interface Database {
       profiles: { Row: Profile; Insert: Omit<Profile, 'created_at' | 'updated_at'>; Update: Partial<Omit<Profile, 'id' | 'created_at'>> }
       workspaces: { Row: Workspace; Insert: Omit<Workspace, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Workspace, 'id' | 'owner_id' | 'execution_domain' | 'created_at'>> }
       sessions: { Row: Session; Insert: Omit<Session, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Session, 'id' | 'workspace_id' | 'created_at'>> }
+      session_participants: { Row: SessionParticipant; Insert: Omit<SessionParticipant, 'created_at'>; Update: Partial<Omit<SessionParticipant, 'session_id' | 'role_agent_id' | 'created_at'>> }
       role_agents: { Row: RoleAgent; Insert: Omit<RoleAgent, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Omit<RoleAgent, 'id' | 'workspace_id' | 'created_at'>> }
       messages: { Row: Message; Insert: Omit<Message, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Message, 'id' | 'session_id' | 'created_at'>> }
       plans: { Row: Plan; Insert: Omit<Plan, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Plan, 'id' | 'session_id' | 'owner_id' | 'created_at'>> }

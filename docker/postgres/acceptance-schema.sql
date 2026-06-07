@@ -93,6 +93,13 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   status session_status NOT NULL DEFAULT 'active',
   routing_mode routing_mode NOT NULL DEFAULT 'orchestrated',
   auto_advance boolean NOT NULL DEFAULT false,
+  chat_kind text NOT NULL DEFAULT 'group' CHECK (chat_kind IN ('group','direct')),
+  direct_role_agent_id uuid,
+  participant_role_agent_ids jsonb DEFAULT '[]'::jsonb,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  is_pinned boolean NOT NULL DEFAULT false,
+  pinned_at timestamptz,
+  last_activity_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -106,8 +113,38 @@ CREATE TABLE IF NOT EXISTS public.role_agents (
   capabilities jsonb DEFAULT '[]'::jsonb,
   runtime_type text NOT NULL DEFAULT 'claude_code' CHECK (runtime_type IN ('claude_code','codex')),
   is_orchestrator boolean NOT NULL DEFAULT false,
+  toolset_ids jsonb DEFAULT '[]'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.sessions
+  ADD COLUMN IF NOT EXISTS chat_kind text NOT NULL DEFAULT 'group',
+  ADD COLUMN IF NOT EXISTS direct_role_agent_id uuid,
+  ADD COLUMN IF NOT EXISTS participant_role_agent_ids jsonb DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS is_pinned boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS pinned_at timestamptz,
+  ADD COLUMN IF NOT EXISTS last_activity_at timestamptz;
+
+ALTER TABLE public.sessions
+  DROP CONSTRAINT IF EXISTS sessions_chat_kind_check;
+
+ALTER TABLE public.sessions
+  ADD CONSTRAINT sessions_chat_kind_check CHECK (chat_kind IN ('group','direct'));
+
+ALTER TABLE public.sessions
+  DROP CONSTRAINT IF EXISTS sessions_direct_role_agent_id_fkey;
+
+ALTER TABLE public.sessions
+  ADD CONSTRAINT sessions_direct_role_agent_id_fkey
+  FOREIGN KEY (direct_role_agent_id) REFERENCES public.role_agents(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS public.session_participants (
+  session_id uuid NOT NULL REFERENCES public.sessions(id) ON DELETE CASCADE,
+  role_agent_id uuid NOT NULL REFERENCES public.role_agents(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (session_id, role_agent_id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS role_agents_workspace_name_uidx
@@ -115,6 +152,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS role_agents_workspace_name_uidx
 
 ALTER TABLE public.role_agents
   ADD COLUMN IF NOT EXISTS runtime_type text NOT NULL DEFAULT 'claude_code';
+
+ALTER TABLE public.role_agents
+  ADD COLUMN IF NOT EXISTS toolset_ids jsonb DEFAULT '[]'::jsonb;
 
 UPDATE public.role_agents
 SET runtime_type = 'codex'
@@ -134,6 +174,7 @@ SET
   role_type = 'orchestrator',
   system_prompt = '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
   capabilities = '["规划", "路由", "协调"]'::jsonb,
+  toolset_ids = '["file_read", "artifact", "web_fetch"]'::jsonb,
   runtime_type = 'claude_code',
   is_orchestrator = true
 WHERE name = 'Orchestrator'
@@ -145,6 +186,7 @@ SET
   role_type = 'engineer',
   system_prompt = '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
   capabilities = '["前端", "React", "UI", "E2E"]'::jsonb,
+  toolset_ids = '["file_read", "file_write", "shell", "git", "artifact", "publish", "web_fetch"]'::jsonb,
   runtime_type = 'claude_code',
   is_orchestrator = false
 WHERE name = 'Frontend Engineer'
@@ -156,6 +198,7 @@ SET
   role_type = 'engineer',
   system_prompt = '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
   capabilities = '["后端", "数据库", "Runtime", "API"]'::jsonb,
+  toolset_ids = '["file_read", "file_write", "shell", "git", "artifact", "publish", "web_fetch", "ppt_generation"]'::jsonb,
   runtime_type = 'codex',
   is_orchestrator = false
 WHERE name = 'Backend Engineer'

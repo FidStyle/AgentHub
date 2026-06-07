@@ -71,10 +71,32 @@ function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
       </div>
     )
   }
+  if (part.type === 'question') {
+    return (
+      <div data-testid="mobile-question-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="font-medium">{part.title ?? '需要确认'}</div>
+        <p className="mt-1 text-muted-foreground">{part.content}</p>
+      </div>
+    )
+  }
+  const fallbackTitle = part.type === 'attachment'
+    ? part.name
+    : part.type === 'web_preview'
+      ? part.title
+      : part.type === 'publish_status'
+        ? part.title
+        : '消息卡片'
+  const fallbackContent = part.type === 'attachment'
+    ? part.contentRef
+    : part.type === 'web_preview'
+      ? part.description ?? part.url
+      : part.type === 'publish_status'
+        ? part.message ?? part.url
+        : ''
   return (
     <div data-testid="mobile-question-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
-      <div className="font-medium">{part.title ?? '需要确认'}</div>
-      <p className="mt-1 text-muted-foreground">{part.content}</p>
+      <div className="font-medium">{fallbackTitle}</div>
+      {fallbackContent && <p className="mt-1 text-muted-foreground">{fallbackContent}</p>}
     </div>
   )
 }

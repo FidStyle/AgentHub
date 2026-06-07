@@ -110,7 +110,14 @@ function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Rec
           return { select: () => ({ eq: () => ({ eq: () => ({ single: () => ({ data: workspace, error: null }) }) }) }) }
         }
         if (table === 'role_agents') {
-          return { select: () => ({ eq: () => ({ eq: () => ({ single: () => ({ data: role, error: null }) }) }) }) }
+          return {
+            select: () => ({
+              eq: () => ({
+                single: () => ({ data: role, error: null }),
+                eq: () => ({ single: () => ({ data: role, error: null }) }),
+              }),
+            }),
+          }
         }
         if (table === 'plan_node_attempts') {
           return {
@@ -245,6 +252,34 @@ describe('dispatchApprovedAction', () => {
           user_id: 'user-001',
           type: 'action_dispatch_failed',
         }),
+      }),
+    ]))
+  })
+
+  it('blocks role-scoped actions when the role lacks the required toolset', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb({ role: { toolset_ids: ['file_read'] } })
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-shell-no-toolset',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      role_agent_id: 'agent-be',
+      action_type: 'shell',
+      command: 'pnpm test',
+      cwd: workspaceRoot,
+      runtime_type: 'codex',
+    })
+
+    expect(result.status).toBe('unsupported')
+    expect(result.error).toContain('未开通「执行命令」工具集')
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-shell-no-toolset',
+        values: expect.objectContaining({ status: 'failed' }),
       }),
     ]))
   })

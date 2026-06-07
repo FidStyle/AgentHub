@@ -146,6 +146,7 @@ function chainCapturingInsertsWithRoles(roleAgents?: unknown[], messages?: unkno
         const origUpdate = t.update
         t.update = ((vals: Record<string, unknown>) => {
           updatedSessions.push(vals)
+          if (!origUpdate) throw new Error('sessions update mock missing')
           return origUpdate(vals)
         }) as typeof t.update
       }
@@ -236,9 +237,10 @@ describe('POST /api/chat — role-chat-core', () => {
     })
 
     expect(status).toBe(200)
-    expect(updatedSessions).toEqual([
+    expect(updatedSessions).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: '做一个加减乘除的简单网站' }),
-    ])
+      expect.objectContaining({ last_activity_at: expect.any(String) }),
+    ]))
     expect(text).toContain('"type":"session_title_updated"')
     expect(text).toContain('"title":"做一个加减乘除的简单网站"')
   })

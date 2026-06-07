@@ -1,0 +1,9 @@
+{"file":"research/contracts/REMAINING-P1-FEATURES-2026-06-05.md","reason":"P1 剩余功能合同，覆盖 IM/联系人/自建 Agent、聊天式部署与 Artifact workbench"}
+{"file":"research/contracts/RICH-DOC-PPT-ARTIFACTS-2026-06-03.md","reason":"富文档与演示稿 artifact 的生成、预览、导出边界"}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"Orchestrator IM、Git/Diff、权限确认和工作台语义"}
+{"file":"research/workflow/ai-workflow-control.md","reason":"共享合同层、真实主链路和完成口径"}
+{"file":".trellis/spec/cross-layer/im-conversation-artifact-contract.md","reason":"本轮联系人/群聊、工具集、富媒体消息、PPT 和 Diff 应用契约"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"防止用 mock 或单点测试替代真实用户链路验收"}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"runtime workspace、权限 broker 和 approved action dispatch 边界"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"中央 IM、角色消息、右侧工作台、Git/File/Artifact 用户可见闭环"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Web UI 质量、真实浏览器验收和布局/交互门禁"}

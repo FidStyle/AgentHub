@@ -348,7 +348,7 @@ describe('session store lifecycle actions', () => {
 
     await useSessionStore.getState().fetchSessions('workspace-strict')
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/sessions?workspace_id=workspace-strict&status=active')
+    expect(fetchMock).toHaveBeenCalledWith('/api/conversations?workspace_id=workspace-strict&status=active')
     expect(fetchMock).not.toHaveBeenCalledWith('/api/sessions', expect.objectContaining({ method: 'POST' }))
     expect(useSessionStore.getState().sessions).toEqual([
       {
@@ -357,6 +357,11 @@ describe('session store lifecycle actions', () => {
         lastMessage: '已完成：@前端工程师 完成当前节点。',
         updatedAt: '2026-06-07T00:00:00.000Z',
         status: 'active',
+        kind: 'group',
+        roleAgentId: null,
+        sessionId: null,
+        isPinned: false,
+        participants: [],
       },
     ])
     expect(useSessionStore.getState().activeSessionId).toBe('strict-session-001')
@@ -385,7 +390,7 @@ describe('session store lifecycle actions', () => {
 
     await useSessionStore.getState().fetchSessions('ws-001')
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/sessions?workspace_id=ws-001&status=archived')
+    expect(fetchMock).toHaveBeenCalledWith('/api/conversations?workspace_id=ws-001&status=archived')
     expect(useSessionStore.getState().sessions).toEqual([
       {
         id: 'session-archived',
@@ -393,6 +398,11 @@ describe('session store lifecycle actions', () => {
         lastMessage: '已归档',
         updatedAt: '2026-06-01T00:00:00.000Z',
         status: 'archived',
+        kind: 'group',
+        roleAgentId: null,
+        sessionId: null,
+        isPinned: false,
+        participants: [],
       },
     ])
   })

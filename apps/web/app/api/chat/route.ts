@@ -11,6 +11,7 @@ import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dis
 import { classifyRisk } from '@/lib/orchestrator/permission-engine'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
+import { sessionParticipantIds } from '@/lib/conversations'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
 import {
   createArchitectDispatch,
@@ -31,6 +32,7 @@ type SelectedRoleAgent = {
   capabilities: unknown
   runtime_type: 'claude_code' | 'codex'
   is_orchestrator: boolean
+  toolset_ids?: unknown
 }
 
 type RoleHandoffPackage = ContextPackage
@@ -746,7 +748,7 @@ export async function POST(req: NextRequest) {
 
   const { data: session } = await db
     .from('sessions')
-    .select('workspace_id, name')
+    .select('*')
     .eq('id', sessionId)
     .single()
   if (!session) return Response.json({ error: '会话不存在' }, { status: 404 })
@@ -798,6 +800,35 @@ export async function POST(req: NextRequest) {
     : roleAgentId
       ? [String(roleAgentId)]
       : []
+
+  const sessionRecord = session as unknown as {
+    id: string
+    workspace_id: string
+    name?: string | null
+    chat_kind?: string | null
+    direct_role_agent_id?: string | null
+    participant_role_agent_ids?: string[] | null
+    metadata?: Record<string, unknown> | null
+  }
+  const participantIds = sessionParticipantIds(sessionRecord)
+  if (sessionRecord.chat_kind === 'direct') {
+    if (!sessionRecord.direct_role_agent_id) {
+      return Response.json({ error: '单聊会话缺少绑定联系人' }, { status: 409 })
+    }
+    if (requestedRoleIds.length > 0 && requestedRoleIds.some((id) => id !== sessionRecord.direct_role_agent_id)) {
+      return Response.json({ error: '单聊会话不能 @ 其他联系人' }, { status: 400 })
+    }
+    requestedRoleIds.splice(0, requestedRoleIds.length, sessionRecord.direct_role_agent_id)
+  } else if (participantIds.length > 0) {
+    if (requestedRoleIds.some((id) => !participantIds.includes(id))) {
+      return Response.json({ error: '群聊只能 @ 已加入的联系人' }, { status: 400 })
+    }
+    if (requestedRoleIds.length === 0) {
+      const participantRoles = allWorkspaceRoles.filter((role) => participantIds.includes(role.id))
+      const orchestrator = participantRoles.find((role) => role.is_orchestrator || role.name === '架构师' || role.name === 'Orchestrator')
+      requestedRoleIds.push(...(orchestrator ? [orchestrator.id] : participantIds))
+    }
+  }
 
   let selectedRoleAgents: SelectedRoleAgent[] = []
   if (requestedRoleIds.length > 0) {
@@ -1038,6 +1069,7 @@ export async function POST(req: NextRequest) {
     role_agent_id: primaryRoleAgentId,
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
   }).select('id').single()
+  await db.from('sessions').update({ last_activity_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', sessionId)
 
   const encoder = new TextEncoder()
   const encode = (data: object) => encoder.encode(`data: ${JSON.stringify(data)}\n\n`)

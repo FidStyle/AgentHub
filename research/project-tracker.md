@@ -643,6 +643,21 @@
 
 ## P1 任务
 
+### BYTEDANCE-IM-RICH-ARTIFACTS-AGENT-CONTACTS-2026-06-08: IM 联系人、群聊、富媒体消息和 Agent 工具集补齐
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P1（含 P2-light 富媒体 artifact 基础能力；完整 P2 在线编辑不在本任务范围） |
+| **绑定 FR-ID** | FR-CHAT-001, FR-AGENT-001, FR-ORCH-001, FR-ARTIFACT-001, FR-ACTION-001, FR-WEB-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-08-bytedance-im-rich-artifacts-agent-contacts` |
+| **合同路径** | `research/contracts/REMAINING-P1-FEATURES-2026-06-05.md`；`research/contracts/RICH-DOC-PPT-ARTIFACTS-2026-06-03.md`；`.trellis/spec/cross-layer/im-conversation-artifact-contract.md` |
+| **当前状态** | ✅ completed / fresh strict pass（2026-06-08）：已补齐联系人/群聊会话模型、单聊/群聊收件人边界、Role Agent 工具集与草稿 API、富媒体 IM 卡、Diff 应用审批和 presentation artifact 生成/预览/下载基础 API，并通过 fresh Bytedance IM-first 三端 strict gate。 |
+| **目标** | 让 AgentHub Web IM 更接近联系人/群聊产品模型：Role Agent 是联系人，session 是单聊/群聊承载，Agent 消息可内联展示附件、网页预览、Diff、产物和发布状态，并由工具集约束真实执行动作。 |
+| **验收方式** | API/store/component/domain focused tests + Web 全量 Vitest + Web/shared type-check + Web lint + Trellis validate + `git diff --check` + fresh strict single-prompt product delivery gate。 |
+| **测试证据** | Report: `research/execution-reports/bytedance-im-rich-artifacts-agent-contacts-2026-06-08.md`；Fresh strict run `BYTEDANCE-IM-RICH-1780856710` PASS（74 passed / 0 failed / 0 warned），workspace `5d834aa9-6f6d-48f3-9609-43571cba3877`，session `799bec52-cf00-4897-a374-18971ab8e03e`，plan `da697e5b-a60c-417b-8389-6e2f2a7f4ea0`，artifact `c3fcba3d-3ffe-47f3-97ed-f5600213fb2a`，evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/BYTEDANCE-IM-RICH-1780856710/`；Web PASS；Mobile/PWA PASS；Desktop/Electron fallback PASS；targeted rich-contract tests PASS（3 files / 28 tests）；`pnpm --filter @agenthub/web test` PASS（33 files / 338 tests）；Web type-check PASS；Shared type-check PASS；Web lint PASS（仅既有 Next lint deprecation/config warning，0 ESLint errors）；Trellis task validate PASS；`git diff --check` PASS。 |
+| **阻塞问题** | 无。限制：PPT 生成当前使用内置 OpenXML fallback，未接入 `ppt-master`；完整在线 PPT 编辑和 release 历史回档仍不在本轮范围。 |
+| **下一步动作** | 已完成并提交；后续如要把 PPT 生成切到 `ppt-master`，单独拆任务。 |
+
 ### REMAINING-P1-FEATURES-2026-06-05: 剩余 P1 功能收口
 
 | 字段 | 内容 |

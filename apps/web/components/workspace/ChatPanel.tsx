@@ -336,8 +336,14 @@ function MessageComposer({
   const fileRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const { sendMessage, activeSessionId } = useSessionStore()
+  const sessions = useSessionStore((state) => state.sessions)
+  const activeConversation = sessions.find((session) => (session.sessionId ?? session.id) === activeSessionId) ?? null
+  const directRole = activeConversation?.kind === 'contact' && activeConversation.roleAgentId
+    ? roleAgents.find((role) => role.id === activeConversation.roleAgentId) ?? null
+    : null
+  const directMode = Boolean(directRole)
   const currentMode = PERMISSION_MODES.find((mode) => mode.value === permissionMode)
-  const defaultRole = roleAgents.find((role) => role.is_orchestrator || role.name === 'Orchestrator') ?? roleAgents[0] ?? null
+  const defaultRole = directRole ?? roleAgents.find((role) => role.is_orchestrator || role.name === 'Orchestrator') ?? roleAgents[0] ?? null
   const effectiveRoles = selectedRoles.length > 0 ? selectedRoles : defaultRole ? [defaultRole] : []
 
   useEffect(() => setMounted(true), [])
@@ -442,33 +448,35 @@ function MessageComposer({
       )}
       <div className="rounded-lg border border-border bg-background p-2 shadow-sm">
         <div data-testid="composer-toolbar" className="mb-2 flex flex-wrap items-center gap-2">
-          <div ref={triggerRef} className="relative">
-            <IconButton
-              icon={AtSign}
-              label="提及角色"
-              variant="outline"
-              size="sm"
-              className="bg-background text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
-              data-testid="mention-role-btn"
-              disabled={!activeSessionId || readOnly}
-              onClick={() => setPickerOpen((v) => !v)}
-            />
-            <RolePicker
-              open={mounted && pickerOpen}
-              pos={pos}
-              roleAgents={roleAgents}
-              onSelect={(r) => {
-                setSelectedRoles((current) => current.some((role) => role.id === r.id) ? current : [...current, r])
-                setPickerOpen(false)
-              }}
-            />
-          </div>
+          {!directMode && (
+            <div ref={triggerRef} className="relative">
+              <IconButton
+                icon={AtSign}
+                label="提及角色"
+                variant="outline"
+                size="sm"
+                className="bg-background text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
+                data-testid="mention-role-btn"
+                disabled={!activeSessionId || readOnly}
+                onClick={() => setPickerOpen((v) => !v)}
+              />
+              <RolePicker
+                open={mounted && pickerOpen}
+                pos={pos}
+                roleAgents={roleAgents}
+                onSelect={(r) => {
+                  setSelectedRoles((current) => current.some((role) => role.id === r.id) ? current : [...current, r])
+                  setPickerOpen(false)
+                }}
+              />
+            </div>
+          )}
           {selectedRoles.length === 0 && defaultRole && (
             <Badge data-testid="selected-role-default" variant="secondary">
-              默认 @{defaultRole.name}
+              {directMode ? `单聊 @${defaultRole.name}` : `默认 @${defaultRole.name}`}
             </Badge>
           )}
-          {selectedRoles.map((role) => (
+          {!directMode && selectedRoles.map((role) => (
             <Badge key={role.id} data-testid="selected-role" variant="secondary">
               @{role.name}
               <button

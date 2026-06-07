@@ -16,6 +16,7 @@ const tableNames = new Set([
   'profiles',
   'workspaces',
   'sessions',
+  'session_participants',
   'role_agents',
   'messages',
   'devices',

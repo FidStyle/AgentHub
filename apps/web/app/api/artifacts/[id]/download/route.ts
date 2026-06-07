@@ -2,6 +2,8 @@ import { createClient } from '@/lib/app-db-client'
 import { createDocxBuffer, createPptxBuffer } from '@/lib/artifacts/rich-artifact-export'
 import { parsePresentationDeck } from '@/lib/artifacts/rich-artifacts'
 import { requireAuth } from '@/lib/auth-guard'
+import { resolveWorkspacePath } from '@/lib/workspace/cloud-workspace-fs'
+import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
 import { NextResponse } from 'next/server'
 
 function downloadName(title: string, type: string) {
@@ -23,10 +25,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const db = await createClient()
   const { data: artifact } = await db.from('artifacts').select('*').eq('id', id).single()
   if (!artifact) return NextResponse.json({ error: '产物不存在' }, { status: 404 })
-  const row = artifact as unknown as { workspace_id: string; title: string; artifact_type: string; content?: string | null; metadata?: Record<string, unknown> | null }
+  const row = artifact as unknown as { workspace_id: string; title: string; artifact_type: string; source_path?: string | null; content?: string | null; metadata?: Record<string, unknown> | null }
   const { data: workspace } = await db
     .from('workspaces')
-    .select('id')
+    .select('id, name, execution_domain, cloud_project_dir')
     .eq('id', row.workspace_id)
     .eq('owner_id', user.id)
     .single()
@@ -41,6 +43,22 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     })
   }
   if (row.artifact_type === 'presentation') {
+    if (row.source_path) {
+      const cloud = await loadCloudWorkspaceRoot(db, workspace as never, user)
+      if (cloud.ok) {
+        const { readFile, stat } = await import('node:fs/promises')
+        const target = resolveWorkspacePath(cloud.root, row.source_path)
+        const info = await stat(target.fullPath).catch(() => null)
+        if (info?.isFile()) {
+          return new Response(await readFile(target.fullPath), {
+            headers: {
+              'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+              'Content-Disposition': contentDisposition(row.title, row.artifact_type),
+            },
+          })
+        }
+      }
+    }
     return new Response(createPptxBuffer(parsePresentationDeck(row.content, row.title)), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

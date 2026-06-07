@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
+import { validateToolsetIds } from '@/lib/role-agents/toolsets'
 
 function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
   return value === 'claude_code' || value === 'codex'
@@ -68,13 +69,15 @@ export async function PATCH(
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
 
   const body = await request.json()
-  const { name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator } = body
+  const { name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator, toolset_ids } = body
   if (runtime_type !== undefined && !isRuntimeType(runtime_type)) {
     return NextResponse.json({ error: 'runtime_type 必须是 claude_code 或 codex' }, { status: 400 })
   }
   if (hasLegacyRuntimeTag(capabilities)) {
     return NextResponse.json({ error: 'capabilities 不能包含 runtime:* 旧标签，请使用 runtime_type' }, { status: 400 })
   }
+  const toolsets = toolset_ids === undefined ? null : validateToolsetIds(toolset_ids)
+  if (toolsets && !toolsets.ok) return NextResponse.json({ error: toolsets.error }, { status: 400 })
 
   const updates: Record<string, unknown> = {}
   if (name !== undefined) updates.name = name
@@ -83,6 +86,7 @@ export async function PATCH(
   if (capabilities !== undefined) updates.capabilities = capabilities
   if (runtime_type !== undefined) updates.runtime_type = runtime_type
   if (is_orchestrator !== undefined) updates.is_orchestrator = is_orchestrator
+  if (toolsets?.ok) updates.toolset_ids = toolsets.ids
 
   const { data, error } = await ctx.db
     .from('role_agents')

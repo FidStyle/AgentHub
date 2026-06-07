@@ -1,0 +1,9 @@
+{"file":"research/contracts/REMAINING-P1-FEATURES-2026-06-05.md","reason":"核对本轮实现没有偏离 P1 剩余功能合同"}
+{"file":"research/contracts/RICH-DOC-PPT-ARTIFACTS-2026-06-03.md","reason":"核对 PPT/文档 artifact 预览和下载没有虚假声明能力"}
+{"file":"research/contracts/ORCHESTRATOR-IM-MARKDOWN-GIT-DIFF-2026-06-03.md","reason":"核对 IM、Git/Diff 和权限确认的用户可见闭环"}
+{"file":"research/workflow/ai-workflow-control.md","reason":"核对任务记录、真实主链路和完成口径"}
+{"file":".trellis/spec/cross-layer/im-conversation-artifact-contract.md","reason":"核对联系人/群聊、工具集、富媒体消息、PPT 和 Diff 应用契约"}
+{"file":".trellis/spec/cross-layer/real-flow-acceptance.md","reason":"核对未把 mock、截图存在或单点 API pass 写成最终验收"}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"核对 approved action dispatch、toolset 和 workspace 边界"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"核对中央 IM、角色消息和右侧工作台交互"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"核对测试门禁、中文文案和 UI 行为要求"}

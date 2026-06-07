@@ -7,6 +7,11 @@ export interface Session {
   lastMessage: string
   updatedAt: string
   status: 'active' | 'archived'
+  kind?: 'contact' | 'group'
+  roleAgentId?: string | null
+  sessionId?: string | null
+  isPinned?: boolean
+  participants?: Array<{ roleAgentId: string; name: string }>
 }
 
 type SessionStatusFilter = 'active' | 'archived'
@@ -165,6 +170,9 @@ interface SessionState {
   archiveSession: (sessionId: string) => Promise<void>
   restoreSession: (sessionId: string) => Promise<void>
   deleteSession: (sessionId: string) => Promise<void>
+  pinSession: (sessionId: string, isPinned: boolean) => Promise<void>
+  openConversation: (conversation: Session) => Promise<void>
+  createGroupConversation: (input: { workspaceId: string; name: string; participantRoleAgentIds: string[] }) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
   setMessagePinned: (messageId: string, isPinned: boolean) => Promise<void>
   sendMessage: (input: { content: string; roleAgentIds?: string[]; attachmentIds?: string[]; permissionMode?: string; signal?: AbortSignal }) => Promise<void>
@@ -206,7 +214,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const { sessionStatusFilter } = get()
     set({ loading: true, error: null })
     try {
-      const res = await fetch(`/api/sessions?workspace_id=${workspaceId}&status=${sessionStatusFilter}`)
+      const res = await fetch(`/api/conversations?workspace_id=${workspaceId}&status=${sessionStatusFilter}`)
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
         set({ error: body.error || res.statusText, loading: false })
@@ -214,11 +222,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
       const data = await res.json()
       let sessions: Session[] = data.map((s: Record<string, unknown>) => ({
-        id: s.id,
-        title: s.name || '未命名会话',
-        lastMessage: (s.last_message as string | undefined) || '',
-        updatedAt: (s.last_message_at as string | undefined) || s.updated_at || s.created_at || '',
+        id: String(s.sessionId ?? s.session_id ?? s.id),
+        title: String(s.title ?? s.name ?? '未命名会话'),
+        lastMessage: (s.lastMessage as string | undefined) || (s.last_message as string | undefined) || '',
+        updatedAt: (s.lastActivityAt as string | undefined) || (s.last_message_at as string | undefined) || s.updated_at || s.created_at || '',
         status: s.status === 'archived' ? 'archived' : 'active',
+        kind: s.kind === 'contact' ? 'contact' : 'group',
+        roleAgentId: (s.roleAgentId as string | null | undefined) ?? null,
+        sessionId: (s.sessionId as string | null | undefined) ?? null,
+        isPinned: Boolean(s.isPinned),
+        participants: Array.isArray(s.participants) ? s.participants as Array<{ roleAgentId: string; name: string }> : [],
       }))
       if (sessions.length === 0 && sessionStatusFilter === 'active') {
         const createRes = await fetch('/api/sessions', {
@@ -241,10 +254,58 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }]
       }
       set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: sessions[0]?.id ?? null, loading: false })
-      if (sessions[0]) await get().fetchMessages(sessions[0].id)
+      if (sessions[0]) await get().openConversation(sessions[0])
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
     }
+  },
+
+  openConversation: async (conversation) => {
+    const workspaceId = get().activeWorkspaceId
+    if (conversation.kind === 'contact' && conversation.roleAgentId && !conversation.sessionId) {
+      if (!workspaceId) return
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          name: conversation.title,
+          chat_kind: 'direct',
+          direct_role_agent_id: conversation.roleAgentId,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        set({ error: body.error || res.statusText })
+        return
+      }
+      const s = await res.json()
+      const sessionId = String(s.id)
+      set((state) => ({
+        sessions: state.sessions.map((item) => item.id === conversation.id ? { ...item, id: sessionId, sessionId } : item),
+        activeSessionId: sessionId,
+        messages: [],
+      }))
+      await get().fetchMessages(sessionId)
+      return
+    }
+    const sessionId = conversation.sessionId ?? conversation.id
+    set({ activeSessionId: sessionId })
+    await get().fetchMessages(sessionId)
+  },
+
+  createGroupConversation: async ({ workspaceId, name, participantRoleAgentIds }) => {
+    const res = await fetch('/api/conversations/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId, name, participant_role_agent_ids: participantRoleAgentIds }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }))
+      set({ error: body.error || res.statusText })
+      return
+    }
+    await get().setSessionStatusFilter('active')
   },
 
   createSession: async (workspaceId) => {
@@ -353,6 +414,27 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         messages: previous.messages,
         error: (e as Error).message,
       })
+      throw e
+    }
+  },
+
+  pinSession: async (sessionId, isPinned) => {
+    const previous = get().sessions
+    set({ sessions: previous.map((session) => session.id === sessionId || session.sessionId === sessionId ? { ...session, isPinned } : session) })
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_pinned: isPinned }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body.error || res.statusText)
+      }
+      const workspaceId = get().activeWorkspaceId
+      if (workspaceId) await get().fetchSessions(workspaceId)
+    } catch (e) {
+      set({ sessions: previous, error: (e as Error).message })
       throw e
     }
   },

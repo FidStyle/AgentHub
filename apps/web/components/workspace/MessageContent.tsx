@@ -2,8 +2,9 @@
 
 import React from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Badge, Button } from '@agenthub/ui'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Download, ExternalLink, FileText, Maximize2, Paperclip, Rocket } from 'lucide-react'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 import { MessageMarkdown } from './MessageMarkdown'
 import { useSessionStore } from '@/store/session-store'
@@ -177,6 +178,30 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
 }
 
 function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
+  const [expanded, setExpanded] = useState(false)
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const activeWorkspaceId = useSessionStore((state) => state.activeWorkspaceId)
+  const [applyState, setApplyState] = useState<'idle' | 'creating' | 'created' | 'error'>('idle')
+  const expandedNode = expanded ? (
+    <div data-testid="message-fullscreen-preview" className="fixed inset-0 z-50 bg-background/95 p-4">
+      <div className="flex h-full flex-col rounded-md border border-border bg-background shadow-lg">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0 text-sm font-medium">{part.type === 'artifact' ? part.title : part.type === 'web_preview' ? part.title : part.type}</div>
+          <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>关闭</Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          {part.type === 'web_preview' && part.iframeUrl ? (
+            <iframe title={part.title} src={part.iframeUrl} className="h-full min-h-[480px] w-full rounded-md border border-border bg-white" />
+          ) : part.type === 'diff' ? (
+            <pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">{part.diff}</pre>
+          ) : (
+            <PartPreview value={part} />
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null
+
   if (part.type === 'tool') {
     return (
       <div data-testid="message-tool-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
@@ -204,20 +229,90 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
     )
   }
   if (part.type === 'diff') {
+    const applyDiff = async () => {
+      if (!activeWorkspaceId || !activeSessionId) return
+      setApplyState('creating')
+      try {
+        const res = await fetch(`/api/workspaces/${activeWorkspaceId}/diff/apply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: activeSessionId, diff: part.diff }),
+        })
+        if (!res.ok) throw new Error('创建 Diff 应用审批失败')
+        setApplyState('created')
+      } catch {
+        setApplyState('error')
+      }
+    }
     return (
       <div data-testid="message-diff-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
-        <div className="font-medium">{part.path ? `Diff：${part.path}` : 'Diff'}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-medium">{part.path ? `Diff：${part.path}` : 'Diff'}</div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={() => setExpanded(true)}><Maximize2 className="mr-1 h-3.5 w-3.5" />展开</Button>
+            {(part.applicable ?? part.applyable ?? /^--- .+\n\+\+\+ .+\n@@ /m.test(part.diff)) && (
+              <Button size="sm" disabled={applyState === 'creating' || applyState === 'created'} onClick={() => void applyDiff()}>
+                {applyState === 'created' ? '已创建审批' : '应用 Diff'}
+              </Button>
+            )}
+          </div>
+        </div>
         <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-2">{part.diff}</pre>
+        {applyState === 'error' && <p className="mt-1 text-destructive">创建审批失败，请刷新后重试。</p>}
+        {expandedNode && createPortal(expandedNode, document.body)}
+      </div>
+    )
+  }
+  if (part.type === 'attachment') {
+    return (
+      <div data-testid="message-attachment-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5 font-medium"><Paperclip className="h-3.5 w-3.5" /><span className="truncate">{part.name}</span></span>
+          {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
+        </div>
+        <p className="mt-1 text-muted-foreground">{part.mime ?? '文件'}{part.size ? ` · ${part.size} bytes` : ''}</p>
+      </div>
+    )
+  }
+  if (part.type === 'web_preview') {
+    return (
+      <div data-testid="message-web-preview-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">{part.title}</span>
+          <div className="flex gap-1">
+            {part.url && <a href={part.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><ExternalLink className="h-3.5 w-3.5" />打开</a>}
+            {part.iframeUrl && <Button size="sm" variant="outline" onClick={() => setExpanded(true)}><Maximize2 className="mr-1 h-3.5 w-3.5" />预览</Button>}
+          </div>
+        </div>
+        {part.description && <p className="mt-1 text-muted-foreground">{part.description}</p>}
+        {expandedNode && createPortal(expandedNode, document.body)}
+      </div>
+    )
+  }
+  if (part.type === 'publish_status') {
+    return (
+      <div data-testid="message-publish-status-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 font-medium"><Rocket className="h-3.5 w-3.5" />{part.title}</span>
+          <Badge variant={part.status === 'running' ? 'success' : part.status === 'failed' ? 'destructive' : 'secondary'}>{part.status === 'running' ? '运行中' : part.status === 'failed' ? '失败' : part.status === 'stopped' ? '已停止' : '待处理'}</Badge>
+        </div>
+        {part.message && <p className="mt-1 text-muted-foreground">{part.message}</p>}
+        {part.url && <a href={part.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-primary"><ExternalLink className="h-3.5 w-3.5" />发布访问</a>}
       </div>
     )
   }
   return (
     <div data-testid="message-artifact-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium">{part.title}</span>
-        <Badge variant="secondary">{part.artifactType}</Badge>
+        <span className="flex min-w-0 items-center gap-1.5 font-medium"><FileText className="h-3.5 w-3.5" /><span className="truncate">{part.title}</span></span>
+        <div className="flex items-center gap-1">
+          <Badge variant="secondary">{part.artifactType}</Badge>
+          {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
+          <Button size="sm" variant="outline" onClick={() => setExpanded(true)}><Maximize2 className="mr-1 h-3.5 w-3.5" />展开</Button>
+        </div>
       </div>
       {part.sourcePath && <p className="mt-1 text-muted-foreground">来源：{part.sourcePath}</p>}
+      {expandedNode && createPortal(expandedNode, document.body)}
     </div>
   )
 }

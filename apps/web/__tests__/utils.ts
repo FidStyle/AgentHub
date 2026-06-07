@@ -33,6 +33,13 @@ export const mockSession = {
   workspace_id: 'ws-001',
   name: '测试会话',
   status: 'active',
+  chat_kind: 'group',
+  direct_role_agent_id: null,
+  participant_role_agent_ids: [],
+  metadata: {},
+  is_pinned: false,
+  pinned_at: null,
+  last_activity_at: '2026-01-01T00:00:00.000Z',
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 }
@@ -61,6 +68,7 @@ export const mockRoleAgent = {
   capabilities: [],
   runtime_type: 'claude_code',
   is_orchestrator: false,
+  toolset_ids: [],
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 }
@@ -266,6 +274,12 @@ export function createPostgresChain(
           delete: () => ({ eq: () => chain(null, null) }),
         }
       }
+      if (table === 'session_participants') {
+        return {
+          select: () => ({ eq: () => ({ order: () => chain([], null) }) }),
+          insert: (vals: Record<string, unknown> | Record<string, unknown>[]) => chain(vals, null),
+        }
+      }
       if (table === 'messages') {
         return {
           select: () => ({
@@ -385,6 +399,26 @@ export function createPostgresChain(
             }),
           }),
           delete: () => ({ eq: () => chain(null, null) }),
+        }
+      }
+      if (table === 'actions') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: () => chain(null, { message: 'Not found' }),
+              }),
+              order: () => chain([], null),
+              single: () => chain(null, { message: 'Not found' }),
+            }),
+            order: () => chain([], null),
+          }),
+          insert: (vals: Record<string, unknown>) => ({
+            select: () => ({
+              single: () => chain({ id: 'action-new', ...vals, created_at: '2026-01-01T00:00:00.000Z' }, null),
+            }),
+          }),
+          update: makeUpdateChain({ id: 'action-new' }),
         }
       }
       return chain(null, { message: `Unknown table: ${table}` })

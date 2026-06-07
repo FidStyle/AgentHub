@@ -37,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (authError) return authError
 
   const body = await request.json()
-  const { name, status } = body
+  const { name, status, is_pinned } = body
 
   if (status && !['active', 'archived'].includes(status)) {
     return NextResponse.json({ error: '无效的会话状态' }, { status: 400 })
@@ -58,9 +58,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .single()
   if (!ws) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  const now = new Date().toISOString()
+  const update: Record<string, unknown> = { updated_at: now, last_activity_at: now }
   if (name) update.name = name
   if (status) update.status = status
+  if (typeof is_pinned === 'boolean') {
+    update.is_pinned = is_pinned
+    update.pinned_at = is_pinned ? now : null
+  }
 
   const { data, error } = await db
     .from('sessions')

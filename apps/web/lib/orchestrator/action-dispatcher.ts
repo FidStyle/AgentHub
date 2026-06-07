@@ -7,6 +7,8 @@ import type { AgentMailboxItem } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { createSession, resolveEndpoint } from '@/lib/runtime/gateway'
 import { enqueue, isWorkerAlive, type RuntimeJob } from '@/lib/runtime/redis-client'
+import { assertRoleAgentToolset, loadRoleAgentForToolset } from '@/lib/role-agents/toolsets'
+import type { RoleAgentToolsetId } from '@agenthub/shared'
 
 type AppDb = Awaited<ReturnType<typeof createClient>>
 
@@ -81,6 +83,25 @@ function stringValue(value: unknown): string | null {
 
 function stringArrayValue(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
+}
+
+function requiredToolsetForAction(actionType: string): RoleAgentToolsetId | null {
+  if (actionType === 'deploy') return 'publish'
+  if (actionType === 'apply_diff') return 'file_write'
+  if (actionType.startsWith('git_')) return 'git'
+  if (actionType === 'file_write' || actionType === 'write_file') return 'file_write'
+  if (actionType === 'read_file') return 'file_read'
+  if (actionType === 'shell' || actionType === 'shell_command' || actionType === 'destructive_command') return 'shell'
+  if (actionType === 'network_request') return 'web_fetch'
+  if (actionType === 'presentation_generate' || actionType === 'ppt_generation') return 'ppt_generation'
+  return null
+}
+
+async function assertActionToolset(db: AppDb, action: ActionRecordForDispatch) {
+  const required = requiredToolsetForAction(action.action_type)
+  if (!required || !action.role_agent_id) return { ok: true as const }
+  const role = await loadRoleAgentForToolset(db, action.role_agent_id)
+  return assertRoleAgentToolset(role, required)
 }
 
 function runtimePermissionBrokerResult(action: ActionRecordForDispatch): RuntimePermissionBrokerResult | null {
@@ -608,10 +629,46 @@ async function dispatchDeployAction(
   return { status: 'completed' }
 }
 
+async function dispatchApplyDiffAction(
+  db: AppDb,
+  action: ActionRecordForDispatch,
+  workspaceRoot: string,
+): Promise<ActionDispatchResult> {
+  const result = objectValue(action.result)
+  const diff = typeof result?.diff === 'string' ? result.diff : ''
+  if (!diff.trim()) return recordDispatchFailure(db, action, 'unavailable', 'Diff 内容缺失，无法应用。')
+  await fs.writeFile(path.join(workspaceRoot, '.agenthub-last-apply.patch'), diff, 'utf8')
+  try {
+    await execShell('git apply --check .agenthub-last-apply.patch && git apply .agenthub-last-apply.patch', workspaceRoot)
+  } catch (error) {
+    return recordDispatchFailure(db, action, 'unavailable', `应用 Diff 失败：${error instanceof Error ? error.message : String(error)}`)
+  }
+  const now = new Date().toISOString()
+  const nextResult = dispatchResult(action, { dispatch: 'completed', appliedAt: now })
+  await db.from('actions').update({ status: 'completed', executed_at: now, result: nextResult }).eq('id', action.id)
+  await db.from('messages').insert({
+    session_id: action.session_id,
+    content: '已应用 Diff。请在 Git 面板查看变更并决定是否提交。',
+    sender_type: 'agent',
+    role_agent_id: action.role_agent_id ?? null,
+    message_type: 'system_event',
+    metadata: {
+      visibleStatus: '已完成',
+      actionDecision: { actionId: action.id, status: 'completed' },
+    },
+  })
+  return { status: 'completed' }
+}
+
 export async function dispatchApprovedAction(
   db: AppDb,
   action: ActionRecordForDispatch,
 ): Promise<ActionDispatchResult> {
+  const toolset = await assertActionToolset(db, action)
+  if (!toolset.ok) {
+    return recordDispatchFailure(db, action, 'unsupported', toolset.error)
+  }
+
   if (action.action_type.startsWith('git_')) {
     const now = new Date().toISOString()
     await db.from('actions').update({
@@ -655,6 +712,9 @@ export async function dispatchApprovedAction(
   }
   if (action.action_type === 'deploy') {
     return dispatchDeployAction(db, action, workspace.id, workspaceRoot)
+  }
+  if (action.action_type === 'apply_diff') {
+    return dispatchApplyDiffAction(db, action, workspaceRoot)
   }
 
   const endpoint = await resolveEndpoint({

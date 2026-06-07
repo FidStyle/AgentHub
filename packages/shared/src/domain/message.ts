@@ -18,8 +18,11 @@ export type RuntimeMessagePart =
     commandPreview?: string
   }
   | { id: string; type: 'question'; status: 'pending'; questionId?: string; title?: string; content: string }
-  | { id: string; type: 'diff'; status: 'created'; path?: string; diff: string }
-  | { id: string; type: 'artifact'; status: 'created'; artifactId?: string; artifactType: string; title: string; sourcePath?: string; contentRef?: string }
+  | { id: string; type: 'diff'; status: 'created'; path?: string; diff: string; applicable?: boolean; applyable?: boolean; actionId?: string }
+  | { id: string; type: 'artifact'; status: 'created'; artifactId?: string; artifactType: string; title: string; sourcePath?: string; contentRef?: string; previewUrl?: string; downloadUrl?: string }
+  | { id: string; type: 'attachment'; status: 'created'; attachmentId?: string; name: string; mime?: string; size?: number; contentRef?: string; downloadUrl?: string }
+  | { id: string; type: 'web_preview'; status: 'created' | 'unavailable'; title: string; url?: string; description?: string; iframeUrl?: string }
+  | { id: string; type: 'publish_status'; status: 'pending' | 'running' | 'stopped' | 'failed'; artifactId?: string; title: string; url?: string; message?: string }
 
 export interface Message {
   id: string

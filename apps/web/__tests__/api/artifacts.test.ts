@@ -1,12 +1,18 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   createPostgresChain,
   resetMockAuth,
   resetMockClient,
   mockArtifact,
+  mockWorkspace,
   setupMockAuth,
   setupMockClient,
 } from '../utils'
+
+let tmpDirs: string[] = []
 
 async function callRoute<T>(
   handler: (request: Request) => Promise<Response>,
@@ -44,6 +50,11 @@ describe('/api/artifacts', () => {
     resetMockAuth()
     setupMockAuth()
     setupMockClient(createPostgresChain())
+  })
+
+  afterEach(async () => {
+    await Promise.all(tmpDirs.map((dir) => rm(dir, { recursive: true, force: true })))
+    tmpDirs = []
   })
 
   it('lists durable artifacts by workspace and session with ownership checks', async () => {
@@ -161,6 +172,31 @@ describe('/api/artifacts', () => {
     expect(presentationResult.response.headers.get('Content-Type')).toContain('presentationml.presentation')
     const pptxBytes = Buffer.from(await presentationResult.response.arrayBuffer())
     expect(pptxBytes.subarray(0, 4).toString('hex')).toBe('504b0304')
+  })
+
+  it('downloads generated presentation artifacts from the workspace source file when present', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'agenthub-pptx-artifact-'))
+    tmpDirs.push(root)
+    await mkdir(path.join(root, 'artifacts', 'deck'), { recursive: true })
+    const sourceBytes = Buffer.from('PK\u0003\u0004source-pptx')
+    await writeFile(path.join(root, 'artifacts', 'deck', 'deck.pptx'), sourceBytes)
+    setupMockClient(createPostgresChain(undefined, [{ ...mockWorkspace, cloud_project_dir: root }], undefined, undefined, undefined, [
+      {
+        ...mockArtifact,
+        artifact_type: 'presentation',
+        title: '源文件演示稿',
+        source_path: 'artifacts/deck/deck.pptx',
+        content: JSON.stringify({ version: 1, title: '不会用于下载', slides: [{ title: 'JSON', body: ['fallback'] }] }),
+      },
+    ]))
+
+    const { GET } = await import('@/app/api/artifacts/[id]/download/route')
+    const result = await callArtifactRoute<unknown>(GET, 'GET', 'artifact-001')
+    const bytes = Buffer.from(await result.response.arrayBuffer())
+
+    expect(result.status).toBe(200)
+    expect(result.response.headers.get('Content-Type')).toContain('presentationml.presentation')
+    expect(bytes.equals(sourceBytes)).toBe(true)
   })
 
   it('rejects artifact creation without workspace_id', async () => {

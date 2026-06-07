@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   if (authError) return authError
 
   const body = await request.json()
-  const { workspace_id, name } = body
+  const { workspace_id, name, chat_kind, direct_role_agent_id } = body
 
   if (!workspace_id) return NextResponse.json({ error: '缺少 workspace_id' }, { status: 400 })
 
@@ -71,9 +71,27 @@ export async function POST(request: Request) {
 
   if (!ws) return NextResponse.json({ error: '工作区不存在或无权限' }, { status: 403 })
 
+  if (direct_role_agent_id) {
+    const { data: role } = await db
+      .from('role_agents')
+      .select('id')
+      .eq('workspace_id', workspace_id)
+      .eq('id', direct_role_agent_id)
+      .single()
+    if (!role) return NextResponse.json({ error: '联系人不存在或无权限' }, { status: 403 })
+  }
+
+  const now = new Date().toISOString()
   const { data, error } = await db
     .from('sessions')
-    .insert({ workspace_id, name: name || '新会话' })
+    .insert({
+      workspace_id,
+      name: name || '新会话',
+      chat_kind: chat_kind === 'direct' ? 'direct' : 'group',
+      direct_role_agent_id: typeof direct_role_agent_id === 'string' ? direct_role_agent_id : null,
+      last_activity_at: now,
+      updated_at: now,
+    })
     .select()
     .single()
 

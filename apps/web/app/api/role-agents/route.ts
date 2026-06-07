@@ -2,6 +2,7 @@ import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
+import { validateToolsetIds } from '@/lib/role-agents/toolsets'
 
 function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
   return value === 'claude_code' || value === 'codex'
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   if (authError) return authError
 
   const body = await request.json()
-  const { workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator } = body
+  const { workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator, toolset_ids } = body
 
   if (!workspace_id) return NextResponse.json({ error: '缺少 workspace_id' }, { status: 400 })
   if (!name) return NextResponse.json({ error: '缺少 name' }, { status: 400 })
@@ -64,6 +65,8 @@ export async function POST(request: Request) {
   if (hasLegacyRuntimeTag(capabilities)) {
     return NextResponse.json({ error: 'capabilities 不能包含 runtime:* 旧标签，请使用 runtime_type' }, { status: 400 })
   }
+  const toolsets = validateToolsetIds(toolset_ids)
+  if (!toolsets.ok) return NextResponse.json({ error: toolsets.error }, { status: 400 })
 
   // 验证 workspace 归属
   const { data: ws } = await db
@@ -83,6 +86,7 @@ export async function POST(request: Request) {
       role_type: role_type || 'engineer',
       system_prompt: system_prompt || '',
       capabilities: capabilities || [],
+      toolset_ids: toolsets.ids,
       runtime_type: runtime_type || 'claude_code',
       is_orchestrator: is_orchestrator || false,
     })
