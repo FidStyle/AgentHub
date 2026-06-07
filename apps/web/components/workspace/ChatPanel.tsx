@@ -188,14 +188,20 @@ function MessageList({
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
 
-  if (loading) return <StateCard variant="loading" />
-  if (error) return <StateCard variant="error" />
-  if (!activeSessionId) return <StateCard variant="empty" />
+  const emptyFrame = (node: React.ReactNode) => (
+    <div data-testid="message-list-empty-frame" className="min-h-0 flex-1 overflow-y-auto p-4">
+      {node}
+    </div>
+  )
+
+  if (loading) return emptyFrame(<StateCard variant="loading" />)
+  if (error) return emptyFrame(<StateCard variant="error" />)
+  if (!activeSessionId) return emptyFrame(<StateCard variant="empty" />)
 
   const sessionMessages = messages.filter((m) => m.sessionId === activeSessionId)
   const pinnedMessages = sessionMessages.filter((m) => m.isPinned)
 
-  if (sessionMessages.length === 0) return <StateCard variant="empty" />
+  if (sessionMessages.length === 0) return emptyFrame(<StateCard variant="empty" />)
 
   const roleName = (id: string | null) => roleAgents.find((r) => r.id === id)?.name
   const messageAuthor = (msg: Message) => {

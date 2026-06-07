@@ -347,8 +347,8 @@ describe('ArtifactPanel frontend contract', () => {
   it('keeps the right workbench split into orchestration, files, Git and user-facing publish artifacts', () => {
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
 
-    expect(source).toContain("const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物', '部署'] as const")
-    expect(source).toContain("'artifact-deployment-timeline' : 'artifact-process-timeline'")
+    expect(source).toContain("const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物'] as const")
+    expect(source).toContain('data-testid="artifact-process-timeline"')
     expect(source).toContain('/api/sessions/${activeSessionId}/timeline')
     expect(source).toContain('data-testid="artifact-orchestration"')
     expect(source).toContain('data-testid="artifact-git"')
@@ -389,7 +389,11 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).toContain('workspace-git-folder-stage-button')
     expect(source).toContain('workspace-git-folder-unstage-button')
     expect(source).toContain('workspace-git-unstage-root-button')
-    expect(source).toContain('正式部署请进入「部署」页签')
+    expect(source).toContain('停止发布会关闭当前访问服务')
+    expect(source).not.toContain("tab === '部署'")
+    expect(source).not.toContain("activeTab === '部署'")
+    expect(source).not.toContain('artifact-deployment-timeline')
+    expect(source).not.toContain('正式部署请进入')
     expect(source).not.toContain("activeTab === '变更'")
     expect(source).not.toContain('data-testid="artifact-changes"')
     expect(source).not.toContain('data-testid="artifact-launch-panel"')
@@ -434,6 +438,8 @@ describe('ArtifactPanel frontend contract', () => {
     expect(artifactSource).toContain('roleBadgeColorClass')
     expect(artifactSource).toContain('roleMessageColorClass')
     expect(artifactSource).toContain('已引用 ${ref.preview}')
+    expect(chatSource).toContain('data-testid="message-list-empty-frame"')
+    expect(chatSource).toContain('min-h-0 flex-1 overflow-y-auto p-4')
   })
 
   it('adds a publish API that starts and stops runnable artifacts behind the UI buttons', () => {

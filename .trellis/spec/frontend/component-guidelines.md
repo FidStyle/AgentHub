@@ -187,7 +187,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - `GET /api/sessions/:sessionId/timeline`
   - Response: `{ sessionId, workspaceId, items: TimelineItem[] }`.
   - `TimelineItem.kind`: `message | plan | plan_node | attempt | mailbox | runtime | action | artifact | deployment`.
-  - The right workbench must use this read model for the user-visible `过程` tab and deployment-only filtered `部署` tab.
+  - The right workbench must use this read model for the user-visible `过程` tab. Deployment/release history is not a first-class P1 tab unless a future P2 deployment task explicitly reintroduces it.
 - Git workbench:
   - `GET /api/workspaces/:id/git/status`
   - `GET /api/workspaces/:id/git/diff?path=<path>&staged=<bool>`
@@ -232,7 +232,6 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - `Git` shows only Git status, staged/unstaged groups, selected-file diff, stage/unstage/discard, and commit history.
   - `文件` shows file tree, preview, selection capture, code/reference actions, and IM quote-to-edit actions.
   - `产物` shows durable artifacts and publish/download/edit actions.
-  - `部署` shows deployment action, manifest path, preview path and deployment artifact references, filtered from the same session timeline.
   - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
 - Git progressive disclosure:
   - First level: VSCode-like file tree with staged/unstaged grouping, folder rows, file path and status badge.
@@ -251,6 +250,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - File trees default to 0 expanded directories. Selecting or creating a deep file must still automatically expand its ancestor directories so the active file is visible.
   - File viewer should be a single content surface. For editable text/code, selecting text should reveal an inline `引用内容` affordance that quotes file path, line range, character count, and original snippet into IM. Do not add a separate mini-IDE form for user-written patch text in the viewer.
   - Text-like files (`html`, `markdown`, `code`, `text`) are directly editable in the right viewer through a single content editor and a visible save action. Binary, image, document and presentation previews are read/download only.
+  - Extensionless files must be classified by content before falling back to binary. For example `.gitignore` should preview and edit as text, while files with NUL bytes remain binary.
   - Directory rows must expose direct zip download using the workspace file download API; users should not need to manually copy a folder path.
   - Opening a file or Git diff should request a wide right workbench; the wide surface uses a left tree and right viewer/diff layout instead of squeezing content into a narrow single column.
   - Wide mode must be reversible and must not hide or block the central chat composer.
@@ -258,7 +258,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - A runnable artifact must not depend on only the current preview iframe.
   - The artifact card must let the user click `启动发布` to start the service and receive a link, then click `停止发布` to stop that service.
   - `发布访问` belongs at the top of the artifact card. It is a local temporary access link for previewing the current artifact.
-  - `部署` is the formal deployment flow: deployment tab, approval, manifest path, preview path, and deployment artifact records. Artifact publish must explain that formal deployment lives in the `部署` tab.
+  - P1 user-facing publish is current-state access, not release history. Do not add a separate `部署`/release-history tab or rollback concept unless a future P2 deployment task explicitly requires it.
   - Artifact iteration belongs in the main IM transcript. The artifact card may expose `引用产物`, but must not include a separate free-form AI instruction box such as `二次交互编辑`, `二次交互迭代`, or `记录迭代说明`.
   - The UI should hide raw commands from the main path. A generated workspace script may exist internally or in metadata, but the user-facing completion path is link-based.
   - Leaving the AgentHub page may stop a preview process; the artifact metadata should still record the last publish status/link/script evidence for readback.
@@ -277,7 +277,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
 | Permission approved | buttons replaced by `已允许`/`已审批` badge | badge says `执行中` as approval status |
 | Tool still running after approval | separate tool/process card shows running/waiting | permission card alone claims execution status |
 | User opens Process tab | sees same-session timeline from real DB/API | only deployment approval/result cards are visible |
-| User opens Deploy tab | sees deploy action + manifest/artifact refs for same session | lists every artifact or every file as deployment result |
+| User opens Artifact tab | sees current artifact publish access, start/stop controls, and durable artifact metadata | release history, rollback, or a separate deployment tab is required for P1 |
 | User opens Git tab | sees staged/unstaged file list first | starts with mixed approval/runtime/Git records |
 | User clicks a Git file | selected diff appears for that file | all diffs expanded by default |
 | User creates a deep file | parent folders expand and the file is selected/open | file is created but remains hidden in collapsed tree |
@@ -314,7 +314,6 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - send or seed a session with role acknowledgements/process messages and assert the transcript shows them after reload.
   - open `过程` and assert same-session message/plan/node/runtime/action/artifact timeline items are visible.
   - drag the right panel resize handle, assert width changes within bounds, middle chat/composer remains usable, then reload and assert width persists.
-  - open `部署` and assert only deploy action/manifest/artifact refs are visible.
   - open `编排` and assert plan/action cards are present without Git diff content.
   - open `Git` and assert file names are visible before diff; click one file and assert diff appears.
   - create a nested file from the `文件` tab and assert the tree expands to the new file, the viewer opens it, and wide mode is active.

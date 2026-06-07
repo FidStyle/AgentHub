@@ -11,7 +11,7 @@ import { useSessionStore } from '@/store/session-store'
 import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
 import { roleAvatarColorClass, roleBadgeColorClass, roleMessageColorClass } from '@/lib/role-colors'
 
-const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物', '部署'] as const
+const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物'] as const
 
 const ROLE_TYPE_LABELS: Record<string, string> = {
   orchestrator: '编排者',
@@ -204,10 +204,6 @@ function timelineStatusVariant(status: string): 'secondary' | 'default' | 'warni
   if (['running', 'queued', 'pending', 'pending_confirm', 'waiting'].includes(status)) return 'warning'
   if (['failed', 'rejected', 'blocked', 'cancelled', 'unavailable'].includes(status)) return 'destructive'
   return 'secondary'
-}
-
-function isDeploymentItem(item: TimelineItem) {
-  return item.kind === 'deployment' || item.kind === 'action' && item.refs?.actionId && item.title.includes('部署')
 }
 
 function ancestorDirectoryPaths(filePath: string) {
@@ -672,7 +668,7 @@ function OrchestrationTab() {
   )
 }
 
-function TimelineTab({ deploymentsOnly = false }: { deploymentsOnly?: boolean }) {
+function TimelineTab() {
   const { activeSessionId } = useSessionStore()
   const [items, setItems] = useState<TimelineItem[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -687,7 +683,7 @@ function TimelineTab({ deploymentsOnly = false }: { deploymentsOnly?: boolean })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((body as { error?: string }).error || `读取过程失败（${res.status}）`)
       const rows = Array.isArray((body as { items?: unknown }).items) ? (body as { items: TimelineItem[] }).items : []
-      setItems(deploymentsOnly ? rows.filter(isDeploymentItem) : rows)
+      setItems(rows)
     } catch (e) {
       setError(e instanceof Error ? e.message : '读取过程失败')
     } finally {
@@ -706,16 +702,16 @@ function TimelineTab({ deploymentsOnly = false }: { deploymentsOnly?: boolean })
       window.removeEventListener('artifacts:changed', onChanged)
       window.removeEventListener('messages:changed', onChanged)
     }
-  }, [activeSessionId, deploymentsOnly])
+  }, [activeSessionId])
 
   if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后可查看完整过程记录" />
 
   return (
-    <div data-testid={deploymentsOnly ? 'artifact-deployment-timeline' : 'artifact-process-timeline'} className="space-y-3">
+    <div data-testid="artifact-process-timeline" className="space-y-3">
       <PanelSection
-        icon={deploymentsOnly ? Rocket : Route}
-        title={deploymentsOnly ? '部署记录' : '会话过程'}
-        description={deploymentsOnly ? '只显示当前 session 的部署审批、manifest 和部署产物' : '从真实 DB/API 聚合消息、计划、角色交接、Runtime、权限和产物'}
+        icon={Route}
+        title="会话过程"
+        description="从真实 DB/API 聚合消息、计划、角色交接、Runtime、权限和产物"
         action={(
           <Button size="sm" variant="outline" onClick={() => void load()}>
             <RotateCcw className="mr-1 h-3.5 w-3.5" />
@@ -729,8 +725,8 @@ function TimelineTab({ deploymentsOnly = false }: { deploymentsOnly?: boolean })
         ) : items.length === 0 ? (
           <StateCard
             variant="empty"
-            title={deploymentsOnly ? '暂无部署记录' : '暂无过程记录'}
-            description={deploymentsOnly ? '当前会话还没有部署审批或部署结果' : '当前会话还没有可读回的编排、运行或产物记录'}
+            title="暂无过程记录"
+            description="当前会话还没有可读回的编排、运行或产物记录"
           />
         ) : (
           <div className="space-y-2">
@@ -744,19 +740,6 @@ function TimelineTab({ deploymentsOnly = false }: { deploymentsOnly?: boolean })
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">{item.summary}</p>
                     <p className="mt-1 text-[11px] text-muted-foreground">{formatPanelTime(item.createdAt)}{item.roleName ? ` · @${item.roleName}` : ''}</p>
-                    {deploymentsOnly && item.refs && (
-                      <dl className="mt-2 grid gap-1 rounded-md bg-muted/40 p-2 text-[11px] leading-4">
-                        {(['previewPath', 'manifestPath', 'artifactId'] as const).map((key) => {
-                          const value = item.refs?.[key]
-                          return typeof value === 'string' && value ? (
-                            <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
-                              <dt className="text-muted-foreground">{key}</dt>
-                              <dd className="break-all font-mono">{value}</dd>
-                            </div>
-                          ) : null
-                        })}
-                      </dl>
-                    )}
                   </div>
                   <Badge variant={timelineStatusVariant(item.status)}>{item.status}</Badge>
                 </div>
@@ -2070,11 +2053,11 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
                 打开发布链接
               </a>
             ) : (
-              <p className="text-xs text-muted-foreground">启动发布会生成本地临时访问链接；正式部署请进入「部署」页签完成审批和部署记录。</p>
+              <p className="text-xs text-muted-foreground">启动发布会生成本地临时访问链接；停止发布会关闭当前访问服务。</p>
             )}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">该产物不可发布，可下载或继续编辑；正式部署请进入「部署」页签。</p>
+          <p className="text-xs text-muted-foreground">该产物不可发布，可下载或继续编辑。</p>
         )}
       </div>
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -2295,7 +2278,6 @@ export function ArtifactPanel({
               {tab === '文件' && <FolderTree className="h-3.5 w-3.5" />}
               {tab === 'Git' && <GitBranch className="h-3.5 w-3.5" />}
               {tab === '产物' && <FileText className="h-3.5 w-3.5" />}
-              {tab === '部署' && <Rocket className="h-3.5 w-3.5" />}
               <span>{tab}</span>
             </Button>
           ))}
@@ -2308,7 +2290,6 @@ export function ArtifactPanel({
         {activeTab === '文件' && <FileTreeTab wideMode={wideMode} onRequestWide={onRequestWide} />}
         {activeTab === 'Git' && <GitTab wideMode={wideMode} onRequestWide={onRequestWide} />}
         {activeTab === '产物' && <ArtifactsTab />}
-        {activeTab === '部署' && <TimelineTab deploymentsOnly />}
       </div>
     </aside>
   )

@@ -358,7 +358,7 @@ Expose audited progress states: planning -> executing backend -> executing front
   - Handoff metadata must be persisted on either user or agent messages and exposed by timeline.
 - Web OpenCLI:
   - start from the real chat entry, send the fixed prompt once, then assert the IM transcript contains Orchestrator allocation, at least one assigned role reply, Orchestrator final validation, and artifact recommendation/confirmation.
-  - assert right panel `过程` and `部署` match the same session, but do not count them without transcript assertions.
+  - assert right panel `过程` matches the same session, and `产物` exposes current publish access/start-stop state when a runnable artifact exists. Do not count right-panel evidence without transcript assertions.
   - drag the right sidebar width through `artifact-resize-handle`, verify middle chat/composer remains usable, and reload to confirm `agenthub:right-panel-width` persistence. This must be a real browser/OpenCLI step in the strict product gate, not only a static source assertion.
 - Mobile/PWA OpenCLI:
   - open the same session and assert the lightweight transcript/readback shows the same terminal status and authorization records.
@@ -1488,7 +1488,7 @@ Run verify-unified-product-lines.ts. It re-reads current durable evidence for A-
 - Manual allow must update the original user-facing permission card to an allowed/approved state and continue the original node/mailbox/runtime session.
 - Manual reject must stop side effects, not create the final artifact/deploy, and leave the user with a clear waiting/failed state and next-input path.
 - Manual permission evidence must prove a pre-execution approval boundary. A runtime `runtime_observed_action` or post-execution file-change record is not sufficient for manual allow/reject, because it means the CLI action already ran before AgentHub displayed an approval card. For manual branch UAT, the accepted evidence shape is `approval_requested` SSE/runtime event -> `actions.status='pending'` -> original message `metadata.runtimeParts[].status='pending'` -> approve/reject API -> original card state changes to `running/completed/failed` or `rejected`.
-- Workbench acceptance requires user-visible or API-readable Git, file tree, code references, artifact row, deployment/runtime script, and right-panel width persistence where applicable.
+- Workbench acceptance requires user-visible or API-readable Git, file tree, code references, artifact row, artifact publish/startup script evidence, and right-panel width persistence where applicable.
 - Artifact/product acceptance requires a durable artifact row plus a model recommendation and user confirmation/designation, unless the user explicitly names the artifact as the product.
 - Product acceptance for the calculator must prove add/subtract/multiply/divide, divide-by-zero guard, invalid input/operator guard, SQLite-backed history persistence, refresh/readback, and generated app startup from the workspace.
 - Overall status is fail-closed: any `partial`, `blocked`, `not-run`, or `failed` P0/P1 line means the Bytedance P0/P1 standard has not fully passed.
@@ -1529,7 +1529,7 @@ Run verify-unified-product-lines.ts. It re-reads current durable evidence for A-
   - Manual allow: require a pre-execution `approval_requested` event and pending action, click allow, assert original card status, action row, node/mailbox/runtime continuation, and resulting side effect.
   - Manual reject: require a pre-execution `approval_requested` event and pending action, click reject, assert no side effect, no final artifact/deploy, rejected original card, and clear waiting/failed IM state.
 - Workbench tests:
-  - Verify Git state, file tree refresh, file readback, code references, right-panel resize persistence, artifacts, deployment scripts, and product startup path.
+  - Verify Git state, file tree refresh, file readback, code references, right-panel resize persistence, artifacts, artifact publish/startup scripts, and product startup path.
 - Tri-surface tests:
   - Web OpenCLI or Playwright evidence for the fresh session.
   - Mobile/PWA OpenCLI or Playwright evidence for the same session.

@@ -92,6 +92,28 @@ describe('workspace file preview and artifact bundle helpers', () => {
     expect(folder.content).toContain('site/index.html')
   })
 
+  it('detects extensionless text files by content instead of treating them as binary', async () => {
+    const root = await makeWorkspace()
+    await writeFile(path.join(root, '.gitignore'), 'node_modules\n.env\n')
+    await writeFile(path.join(root, 'binary-data'), Buffer.from([0, 1, 2, 3, 4, 5]))
+
+    const gitignore = await readCloudWorkspacePreview(root, '.gitignore')
+    expect(gitignore.previewKind).toBe('text')
+    expect(gitignore.mime).toBe('text/plain; charset=utf-8')
+    expect(gitignore.content).toContain('node_modules')
+
+    const binary = await readCloudWorkspacePreview(root, 'binary-data')
+    expect(binary.previewKind).toBe('binary')
+    expect(binary.content).toBeNull()
+
+    const bigText = `${'allow-text-preview\n'.repeat(16 * 1024)}tail`
+    await writeFile(path.join(root, 'big-ignore'), bigText)
+    const bigPreview = await readCloudWorkspacePreview(root, 'big-ignore')
+    expect(bigPreview.previewKind).toBe('text')
+    expect(bigPreview.truncated).toBe(true)
+    expect(bigPreview.content).toContain('allow-text-preview')
+  })
+
   it('rejects paths outside the workspace root', async () => {
     const root = await makeWorkspace()
     expect(() => resolveWorkspacePath(root, '../outside.txt')).toThrow('路径超出工作区范围')

@@ -1,7 +1,8 @@
-import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import os from 'node:os'
+import { TextDecoder } from 'node:util'
 import { artifactTypeForPath } from '@/lib/artifacts/rich-artifacts'
 
 export type CloudWorkspaceOwner = {
@@ -213,6 +214,40 @@ export function previewKindForPath(filePath: string, mime = mimeForPath(filePath
   return 'binary'
 }
 
+function isLikelyUtf8Text(buffer: Buffer) {
+  if (buffer.length === 0) return true
+  if (buffer.includes(0)) return false
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+  } catch {
+    return false
+  }
+  let control = 0
+  for (const byte of buffer) {
+    if (byte === 9 || byte === 10 || byte === 13) continue
+    if (byte < 32 || byte === 127) control += 1
+  }
+  return control / buffer.length <= 0.05
+}
+
+function contentAwarePreviewKind(filePath: string, mime: string, buffer: Buffer): { mime: string; previewKind: WorkspacePreviewKind } {
+  const previewKind = previewKindForPath(filePath, mime)
+  if (previewKind !== 'binary') return { mime, previewKind }
+  if (!isLikelyUtf8Text(buffer.subarray(0, Math.min(buffer.length, 8192)))) return { mime, previewKind }
+  return { mime: 'text/plain; charset=utf-8', previewKind: 'text' }
+}
+
+async function readFilePrefix(fullPath: string, maxBytes: number) {
+  const handle = await open(fullPath, 'r')
+  try {
+    const buffer = Buffer.alloc(maxBytes)
+    const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0)
+    return buffer.subarray(0, bytesRead)
+  } finally {
+    await handle.close()
+  }
+}
+
 export async function readCloudWorkspacePreview(rootDir: string, relativePath: string): Promise<WorkspaceFilePreview> {
   const { relativePath: rel, fullPath } = resolveWorkspacePath(rootDir, relativePath)
   const info = await stat(fullPath).catch(() => null)
@@ -230,15 +265,22 @@ export async function readCloudWorkspacePreview(rootDir: string, relativePath: s
     }
   }
   if (!info.isFile()) throw new Error('仅支持预览普通文件或文件夹')
-  const mime = mimeForPath(rel)
-  const previewKind = previewKindForPath(rel, mime)
+  let mime = mimeForPath(rel)
+  let previewKind = previewKindForPath(rel, mime)
+  let buffer: Buffer | null = null
+  if (previewKind === 'binary') {
+    buffer = await readFilePrefix(fullPath, Math.min(info.size, MAX_PREVIEW_BYTES))
+    const contentAware = contentAwarePreviewKind(rel, mime, buffer)
+    mime = contentAware.mime
+    previewKind = contentAware.previewKind
+  }
   const canInlineText = previewKind !== 'binary' && previewKind !== 'image'
   let content: string | null = null
   let truncated = false
   if (canInlineText) {
-    const buffer = await readFile(fullPath)
-    truncated = buffer.length > MAX_PREVIEW_BYTES
-    content = buffer.subarray(0, MAX_PREVIEW_BYTES).toString('utf8')
+    buffer ??= await readFilePrefix(fullPath, Math.min(info.size, MAX_PREVIEW_BYTES))
+    truncated = info.size > buffer.length
+    content = buffer.toString('utf8')
   }
   return {
     path: rel,
@@ -564,7 +606,10 @@ async function readEditableWorkspaceFile(rootDir: string, relativePath: string) 
   if (!info) throw new Error('文件不存在')
   if (!info.isFile()) throw new Error('仅支持编辑普通文件')
   if (info.size > MAX_EDIT_BYTES) throw new Error('文件超过 256KB，暂不支持在线编辑')
-  if (previewKindForPath(rel) === 'binary' || previewKindForPath(rel) === 'image') throw new Error('该文件类型暂不支持在线编辑')
+  const preview = await readCloudWorkspacePreview(rootDir, rel)
+  if (preview.content === null || ['binary', 'image', 'folder', 'document', 'presentation'].includes(preview.previewKind)) {
+    throw new Error('该文件类型暂不支持在线编辑')
+  }
   return { relativePath: rel, content: await readFile(fullPath, 'utf8') }
 }
 
