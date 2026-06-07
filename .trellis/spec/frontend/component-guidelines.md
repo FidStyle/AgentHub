@@ -236,6 +236,7 @@ P0 UI 任务优先围绕以下组件复用或抽取：
   - Do not mix permission approvals, runtime records, and Git file changes in one generic `变更` tab.
 - Git progressive disclosure:
   - First level: VSCode-like file tree with staged/unstaged grouping, folder rows, file path and status badge.
+  - Git tree ordering must match the file tree: directories before files, then same-level items sorted by name.
   - Git tree defaults to 0 expanded directories: show only root-level rows until the user expands folders.
   - The unstaged group header exposes a root-level `+` quick action that stages all unstaged workspace-root changes, equivalent to `git add .` inside the selected workspace root.
   - The staged group header exposes a root-level `-` quick action that unstages all staged workspace-root changes. This must work before the first commit by falling back from `git restore --staged` to `git rm --cached` when HEAD does not exist.

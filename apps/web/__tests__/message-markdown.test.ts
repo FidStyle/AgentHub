@@ -508,6 +508,8 @@ describe('ArtifactPanel frontend contract', () => {
     expect(source).toContain("onQuickAction(group === 'staged' ? 'unstage' : 'stage', node.change!)")
     expect(source).toContain('ancestorDirectoryPaths')
     expect(source).toContain('buildGitChangeTree')
+    expect(source).toContain('sortGitChangeTree')
+    expect(source).toContain("a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1")
     expect(source).toContain('onRequestWide(true)')
     expect(source).toContain('左侧只显示文件名和状态，点击后才读取具体变更内容')
     expect(source).toContain('current.size > 0 ? current : new Set()')

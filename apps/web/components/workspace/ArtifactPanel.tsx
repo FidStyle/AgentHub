@@ -239,7 +239,15 @@ function buildGitChangeTree(changes: GitChangeRow[], group: 'staged' | 'unstaged
       siblings = dir.children ?? []
     }
   }
-  return roots
+  return sortGitChangeTree(roots)
+}
+
+function sortGitChangeTree(nodes: GitChangeTreeNode[]): GitChangeTreeNode[] {
+  return [...nodes]
+    .map((node) => node.type === 'directory' && node.children
+      ? { ...node, children: sortGitChangeTree(node.children) }
+      : node)
+    .sort((a, b) => a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1)
 }
 
 function PreviewBlock({
