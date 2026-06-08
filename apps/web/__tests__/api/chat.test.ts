@@ -1122,7 +1122,7 @@ describe('POST /api/chat — role-chat-core', () => {
   it('persists a runtime question part even when execution stops to wait for user input', async () => {
     setAdapterEvents([
       { type: 'question', questionId: 'toolu-question-1', title: '实现范围', content: '实现范围：请选择历史记录保存方式' },
-      { type: 'runtime_failed', error: 'Runtime 等待用户补充确认，未继续执行。' },
+      { type: 'runtime_waiting', reason: 'Runtime 等待用户补充确认，未继续执行。', waitingFor: 'question' },
     ])
     setupMockClient(chainCapturingInserts())
     const { status, text } = await callChat({ sessionId: 'session-001', content: 'hi', roleAgentId: 'agent-001' })

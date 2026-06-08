@@ -8,6 +8,7 @@ Runtime Gateway specs are split by responsibility. This file is only the index a
 | --- | --- |
 | Gateway routing and endpoint selection | `runtime-gateway-routing.md` |
 | Worker liveness, queue, runtime logs | `runtime-gateway-worker.md` |
+| Permission wait boundaries | `runtime-gateway-permission-wait.md` |
 | Role runtime binding and handoff context | `runtime-gateway-role-runtime.md` |
 | Native session resume and plan recovery | `runtime-gateway-plan-recovery.md` |
 
@@ -17,11 +18,13 @@ Runtime Gateway specs are split by responsibility. This file is only the index a
 - Runtime type comes from `role_agents.runtime_type`, not tags or tools.
 - Gateway unavailable states are explicit failures, not successful assistant messages.
 - Runtime jobs must write durable `runtime_sessions` and `runtime_logs` when execution is attempted.
+- Non-full-control permission boundaries must end the stream with `runtime_waiting`, not `runtime_failed`.
 - Root-cause fixes only: do not patch markdown, runtime, or session bugs by hiding symptoms in UI.
 
 ## Tests Required
 
 - Endpoint selection tests for cloud/local domains.
 - Worker liveness tests for queue unavailable behavior.
+- Permission wait tests for `approval_requested` + `runtime_waiting`, no `runtime_failed`, and durable waiting rows.
 - Role binding tests proving `runtime_type` wins over tags/tools.
 - Plan recovery tests proving terminal state and native session refs are durable.

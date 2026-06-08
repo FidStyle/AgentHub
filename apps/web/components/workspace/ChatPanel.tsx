@@ -47,8 +47,8 @@ const GAP = 4
 const ROLE_PICKER_MAX_WIDTH = 320
 const PERMISSION_MODES = [
   { value: 'sandbox', label: '沙箱', description: '写入和高风险动作需要授权' },
-  { value: 'standard', label: '标准', description: '常规读写和构建可执行' },
-  { value: 'auto', label: '自动执行', description: '本 Session 常规动作自动继续' },
+  { value: 'standard', label: '标准', description: '工具执行前需要授权确认' },
+  { value: 'auto', label: '自动规划', description: '按流程推进，工具执行仍需授权' },
   { value: 'full_control', label: '完全控制', description: '最大授权，保留审计和安全阻断' },
 ] as const
 const SLASH_COMMANDS = [

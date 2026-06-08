@@ -49,6 +49,7 @@ export function createExecutor(job?: RuntimeJob): RuntimeExecutor {
 }
 
 type Terminal = 'completed' | 'cancelled' | 'failed'
+type ProcessJobResult = Terminal | 'waiting'
 type PlanNodeTerminalStatus = 'completed' | 'failed' | 'waiting'
 type AttemptStatus = ReturnType<typeof terminalToMailboxStatus> | 'waiting'
 
@@ -255,7 +256,14 @@ function toolRequestDescription(tool: NativeCliToolRequest, workspaceRoot: strin
 }
 
 function isAutomaticPermissionMode(mode?: string | null): boolean {
-  return mode === 'auto' || mode === 'full_control' || mode === 'dangerous_bypass'
+  return mode === 'full_control' || mode === 'dangerous_bypass'
+}
+
+function waitingForBoundaryError(error: string): 'approval' | 'question' | 'continuation' | null {
+  if (isApprovalBoundaryError(error)) return 'approval'
+  if (isQuestionBoundaryError(error)) return 'question'
+  if (isAutoContinuationBoundaryError(error)) return 'continuation'
+  return null
 }
 
 function permissionPartFromToolRequest(input: {
@@ -539,6 +547,7 @@ async function markActionTerminal(
   options: {
     actionTerminal?: Terminal
     actionError?: string | null
+    resultTerminal?: Terminal | 'waiting'
     planNodeStatus?: PlanNodeTerminalStatus
     attemptStatus?: AttemptStatus
     attemptError?: string | null
@@ -549,13 +558,18 @@ async function markActionTerminal(
   const actionTerminal = options.actionTerminal ?? terminal
   const actionStatus = actionTerminal === 'completed' ? 'completed' : 'failed'
   const resultError = options.actionError === null ? undefined : options.actionError ?? error
-  const result = {
+  const resultTerminal = options.resultTerminal ?? actionTerminal
+  const actionResult = {
     ...(job.actionResult ?? {}),
     terminal: actionTerminal,
     runtimeSessionId: job.runtimeSessionId,
     output: output.slice(-20_000),
     error: resultError,
     at: now,
+  }
+  const result = {
+    ...actionResult,
+    terminal: resultTerminal,
   }
   const mailboxStatus = options.attemptStatus ?? terminalToMailboxStatus(terminal)
   const attemptError = options.attemptError === null ? null : options.attemptError ?? error ?? null
@@ -575,7 +589,7 @@ async function markActionTerminal(
     }).eq('id', job.mailboxItemId)
   }
   if (job.actionId) {
-    await db.from('actions').update({ status: actionStatus, result }).eq('id', job.actionId)
+    await db.from('actions').update({ status: actionStatus, result: actionResult }).eq('id', job.actionId)
     await updateInlinePermissionParts(db, job, actionStatus)
   }
   if (job.planNodeId) {
@@ -712,7 +726,7 @@ async function closeCompletedPlanNodeWaitingQueue(
 
 // Single job lifecycle: running → stream chunks (cancellable) → completed/cancelled/failed.
 // Each step persists to runtime_logs (seq) + publishes to redis for gateway relay. Exported for tests.
-export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Promise<Terminal> {
+export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Promise<ProcessJobResult> {
   const id = job.runtimeSessionId
   let seq = 0
   let outputSeq = 0
@@ -855,32 +869,36 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
   } catch (err) {
     clearInterval(heartbeatInterval)
     const error = err instanceof Error ? err.message : String(err)
-    await setStatus(id, 'failed', true)
-    await clearHeartbeat(id)
     if (isAutoContinuationBoundaryError(error)) {
+      await setStatus(id, 'waiting')
+      await clearHeartbeat(id)
       await completeCurrentActionBeforeAutoContinuation(job, output)
       await markAutoContinuationBoundary(job, error)
-      await emit({ type: 'runtime_failed', endpointId: job.endpointId, error })
-      return 'failed'
+      await emit({ type: 'runtime_waiting', endpointId: job.endpointId, reason: error, waitingFor: 'continuation' })
+      return 'waiting'
     }
     const actionCompletedAtBoundary = shouldCompleteApprovedActionAtBoundary(job, error, output)
-    const isWaitingBoundary = isApprovalBoundaryError(error)
-      || isAutoContinuationBoundaryError(error)
-      || (isQuestionBoundaryError(error) && actionCompletedAtBoundary)
+    const waitingFor = waitingForBoundaryError(error)
+    const isWaitingBoundary = waitingFor === 'approval'
+      || (waitingFor === 'question' && (actionCompletedAtBoundary || !job.actionId))
     const boundaryOptions: {
       actionTerminal?: Terminal
       actionError?: string | null
+      resultTerminal?: Terminal | 'waiting'
       planNodeStatus?: PlanNodeTerminalStatus
       attemptStatus?: AttemptStatus
       attemptError?: string | null
     } = isWaitingBoundary
       ? {
           ...(actionCompletedAtBoundary ? { actionTerminal: 'completed' as const, actionError: null } : {}),
+          resultTerminal: 'waiting' as const,
           planNodeStatus: 'waiting' as const,
           attemptStatus: 'waiting' as const,
           attemptError: error,
         }
       : {}
+    await setStatus(id, isWaitingBoundary ? 'waiting' : 'failed', !isWaitingBoundary)
+    await clearHeartbeat(id)
     await markActionTerminal(job, 'failed', output, error, boundaryOptions)
     await persistActionContinuationTerminal(job, {
       terminal: 'failed',
@@ -889,6 +907,10 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
       actionStatus: actionCompletedAtBoundary ? 'completed' : 'failed',
       planNodeStatus: boundaryOptions.planNodeStatus,
     })
+    if (isWaitingBoundary) {
+      await emit({ type: 'runtime_waiting', endpointId: job.endpointId, reason: error, waitingFor: waitingFor ?? 'approval' })
+      return 'waiting'
+    }
     await emit({ type: 'runtime_failed', endpointId: job.endpointId, error })
     return 'failed'
   }

@@ -593,6 +593,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         local_runtime_offline: '⚠️ 本地 Desktop 运行时离线，未收到回复',
         tunnel_disconnected: '⚠️ 本地运行时连接已断开，未收到回复',
         runtime_failed: '⚠️ 运行时执行失败，未收到回复',
+        runtime_waiting: '',
       }
       const showSystemNotice = (text: string) => {
         set((state) => ({

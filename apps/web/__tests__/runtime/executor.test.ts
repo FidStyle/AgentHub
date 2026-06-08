@@ -85,6 +85,8 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       '--output-format',
       'stream-json',
       '--include-partial-messages',
+      '--permission-mode',
+      'default',
       'hello',
     ])
     expect(cliArgs('claude_code', 'hello again', 'session-123')).toEqual([
@@ -93,6 +95,8 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       '--output-format',
       'stream-json',
       '--include-partial-messages',
+      '--permission-mode',
+      'default',
       '--resume',
       'session-123',
       'hello again',
@@ -114,7 +118,7 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       'stream-json',
       '--include-partial-messages',
       '--permission-mode',
-      'auto',
+      'default',
       '--resume',
       'session-123',
       'hello again',
@@ -123,6 +127,8 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
 
   it('builds Codex exec commands with skip-git-repo-check for sandbox-compatible UAT', () => {
     expect(cliArgs('codex', 'hello')).toEqual([
+      '-a',
+      'on-request',
       'exec',
       '--json',
       '-s',
@@ -133,6 +139,8 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       'hello',
     ])
     expect(cliArgs('codex', 'hello', null, '/workspace')).toEqual([
+      '-a',
+      'on-request',
       'exec',
       '--json',
       '-s',
@@ -145,6 +153,8 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       'hello',
     ])
     expect(cliArgs('codex', 'hello again', 'thread-123')).toEqual([
+      '-a',
+      'on-request',
       'exec',
       'resume',
       '--json',
@@ -800,7 +810,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
@@ -833,11 +843,13 @@ describe('processJob — FakeExecutor regression', () => {
       }),
       expect.objectContaining({
         event: expect.objectContaining({
-          type: 'runtime_failed',
-          error: 'Runtime 工具已进入权限审批，未执行该操作。',
+          type: 'runtime_waiting',
+          reason: 'Runtime 工具已进入权限审批，未执行该操作。',
+          waitingFor: 'approval',
         }),
       }),
     ]))
+    expect(published.some((p) => p.event.type === 'runtime_failed')).toBe(false)
     expect(published.some((p) => p.event.type === 'runtime_output')).toBe(false)
     expect(dbUpdates).toEqual(expect.arrayContaining([
       expect.objectContaining({ status: 'waiting', runtime_session_id: 'runtime-tool-approval', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
@@ -846,7 +858,7 @@ describe('processJob — FakeExecutor regression', () => {
         status: 'waiting',
         completed_at: null,
         result: expect.objectContaining({
-          terminal: 'failed',
+          terminal: 'waiting',
           runtimeSessionId: 'runtime-tool-approval',
           error: 'Runtime 工具已进入权限审批，未执行该操作。',
         }),
@@ -989,7 +1001,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
@@ -1056,7 +1068,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
@@ -1103,7 +1115,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts.some((insert) => insert.table === 'actions')).toBe(false)
     expect(dbInserts.some((insert) => insert.table === 'notifications')).toBe(false)
     expect(published).toEqual(expect.arrayContaining([
@@ -1117,11 +1129,13 @@ describe('processJob — FakeExecutor regression', () => {
       }),
       expect.objectContaining({
         event: expect.objectContaining({
-          type: 'runtime_failed',
-          error: 'Runtime 等待用户补充确认，未继续执行。',
+          type: 'runtime_waiting',
+          reason: 'Runtime 等待用户补充确认，未继续执行。',
+          waitingFor: 'question',
         }),
       }),
     ]))
+    expect(published.some((p) => p.event.type === 'runtime_failed')).toBe(false)
     expect(published.some((p) => p.event.type === 'approval_requested')).toBe(false)
   })
 
@@ -1140,6 +1154,7 @@ describe('processJob — FakeExecutor regression', () => {
       expect.objectContaining({ status: 'running', executed_at: expect.any(String) }),
       expect.objectContaining({ status: 'running', started_at: expect.any(String) }),
       expect.objectContaining({
+        table: 'actions',
         status: 'completed',
         result: expect.objectContaining({
           terminal: 'completed',
@@ -1148,6 +1163,7 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
       expect.objectContaining({
+        table: 'plan_nodes',
         status: 'completed',
         completed_at: expect.any(String),
         result: expect.objectContaining({
@@ -1220,6 +1236,7 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
       expect.objectContaining({
+        table: 'actions',
         status: 'completed',
         result: expect.objectContaining({
           source: 'runtime_permission_broker',
@@ -1434,7 +1451,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
@@ -1500,7 +1517,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
@@ -1529,11 +1546,12 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
       expect.objectContaining({
+        table: 'plan_nodes',
         status: 'waiting',
         completed_at: null,
         result: expect.objectContaining({
           source: 'runtime_permission_broker',
-          terminal: 'completed',
+          terminal: 'waiting',
           runtimeSessionId: 'runtime-approved-next-permission',
         }),
       }),
@@ -1585,7 +1603,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
@@ -1605,6 +1623,7 @@ describe('processJob — FakeExecutor regression', () => {
       expect.objectContaining({ status: 'waiting', runtime_session_id: 'runtime-approved-shell-next-permission', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
       expect.objectContaining({ status: 'waiting', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
       expect.objectContaining({
+        table: 'actions',
         status: 'completed',
         result: expect.objectContaining({
           source: 'runtime_permission_broker',
@@ -1615,11 +1634,12 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
       expect.objectContaining({
+        table: 'plan_nodes',
         status: 'waiting',
         completed_at: null,
         result: expect.objectContaining({
           source: 'runtime_permission_broker',
-          terminal: 'completed',
+          terminal: 'waiting',
           runtimeSessionId: 'runtime-approved-shell-next-permission',
         }),
       }),
@@ -1674,7 +1694,7 @@ describe('processJob — FakeExecutor regression', () => {
 
     const result = await processJob(job, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('waiting')
     expect(dbInserts.some((insert) => insert.table === 'actions')).toBe(false)
     expect(published).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -1685,15 +1705,18 @@ describe('processJob — FakeExecutor regression', () => {
       }),
       expect.objectContaining({
         event: expect.objectContaining({
-          type: 'runtime_failed',
-          error: 'Runtime 等待用户补充确认，未继续执行。',
+          type: 'runtime_waiting',
+          reason: 'Runtime 等待用户补充确认，未继续执行。',
+          waitingFor: 'question',
         }),
       }),
     ]))
+    expect(published.some((p) => p.event.type === 'runtime_failed')).toBe(false)
     expect(dbUpdates).toEqual(expect.arrayContaining([
       expect.objectContaining({ status: 'waiting', runtime_session_id: 'runtime-approved-question-boundary', error: 'Runtime 等待用户补充确认，未继续执行。' }),
       expect.objectContaining({ status: 'waiting', error: 'Runtime 等待用户补充确认，未继续执行。' }),
       expect.objectContaining({
+        table: 'actions',
         status: 'completed',
         result: expect.objectContaining({
           source: 'runtime_permission_broker',
@@ -1703,11 +1726,12 @@ describe('processJob — FakeExecutor regression', () => {
         }),
       }),
       expect.objectContaining({
+        table: 'plan_nodes',
         status: 'waiting',
         completed_at: null,
         result: expect.objectContaining({
           source: 'runtime_permission_broker',
-          terminal: 'completed',
+          terminal: 'waiting',
           runtimeSessionId: 'runtime-approved-question-boundary',
         }),
       }),

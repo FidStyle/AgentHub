@@ -53,6 +53,7 @@ export type RuntimeGatewayEvent =
   | { type: 'question'; questionId?: string; title?: string; content: string; endpointId?: string }
   | { type: 'diff_created'; path?: string; diff: string; endpointId?: string }
   | { type: 'artifact_created'; artifactId?: string; artifactType: string; title: string; sourcePath?: string; contentRef?: string; endpointId?: string }
+  | { type: 'runtime_waiting'; endpointId?: string; reason: string; waitingFor?: 'approval' | 'question' | 'continuation' }
   | { type: 'runtime_completed'; endpointId?: string; summary?: string }
   | { type: 'runtime_failed'; endpointId?: string; error: string }
   | { type: 'runtime_cancelled'; endpointId?: string; reason?: string }

@@ -1,0 +1,57 @@
+# Runtime Gateway Permission Wait Contract
+
+## Scenario: Non-Full-Control Runtime Permission Boundary
+
+### 1. Scope / Trigger
+
+- Trigger: modifying Runtime permission modes, native CLI tool approval, `subscribeEvents`, `/api/chat` streaming, action approval, plan node waiting state, or frontend permission cards.
+
+### 2. Signatures
+
+- Runtime job input: `RuntimeJob.permissionMode?: string | null`.
+- Waiting event: `{ type: "runtime_waiting", reason: string, waitingFor: "approval" | "question" | "continuation" }`.
+- Approval event: `{ type: "approval_requested", actionId, description, riskLevel, actionKind, workspaceRoot, cwd, targetPaths, commandPreview }`.
+- Durable rows: `actions.status="pending"`, `plan_nodes.status="waiting"`, `plan_node_attempts.status="waiting"`, `agent_mailbox_items.status="waiting"`, `runtime_sessions.status="waiting"`.
+
+### 3. Contracts
+
+- Only `permissionMode="full_control"` and `permissionMode="dangerous_bypass"` may auto-approve native CLI tool execution.
+- `standard`, `sandbox`, `auto`, null, and unknown modes must create a pending action and visible permission card before side effects execute.
+- A permission or user-question boundary is not a runtime failure. Emit `approval_requested` or `question`, then emit `runtime_waiting` so Redis/SSE subscribers terminate without timeout.
+- Do not emit `runtime_failed` for permission wait boundaries. Real unavailable, timeout, path escape, and executor errors must still emit `runtime_failed`.
+- Approved continuations must preserve original action/runtime metadata. If the continuation hits a second permission or question, the approved action remains `completed` while the plan node/attempt/mailbox return to `waiting`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Non-full-control tool request | Persist pending action, emit `approval_requested`, mark rows waiting, emit `runtime_waiting` |
+| User question request | Emit `question`, mark rows waiting, emit `runtime_waiting` |
+| Full-control tool request | Persist completed auto-approved action and continue inline |
+| Runtime CLI missing or times out | Emit `runtime_failed`, mark runtime/session rows failed |
+| Approved continuation reaches next permission | Previous action stays completed; new action pending; node waits |
+
+### 5. Good/Base/Bad Cases
+
+- Good: Standard mode shows `message-permission-card`; refresh/API readback shows the same pending action and waiting node.
+- Base: Full-control canonical product delivery has no manual pending permission card and still has action audit rows.
+- Bad: `approval_requested` is followed by `runtime_failed` and the UI displays "运行时执行失败".
+- Bad: Redis subscription times out after a permission card because no terminal wait event was emitted.
+
+### 6. Tests Required
+
+- Worker unit test: non-full-control tool request returns `waiting`, emits `approval_requested` + `runtime_waiting`, not `runtime_failed`.
+- Redis unit test: `runtime_waiting` is a terminal subscription boundary and does not produce timeout failure.
+- API chat test: question/permission wait persists message parts and visible status `等待授权`.
+- Store/component test: permission cards render without duplicate cards and without a failure notice.
+- Full-control regression: auto-approved actions continue and complete product delivery path.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+`approval_requested` is emitted, the worker throws, marks `runtime_sessions.status="failed"`, and emits `runtime_failed`.
+
+#### Correct
+
+`approval_requested` is emitted, durable queue rows become `waiting`, `runtime_sessions.status="waiting"`, and the stream ends with `runtime_waiting`.

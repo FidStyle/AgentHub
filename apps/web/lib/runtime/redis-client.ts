@@ -94,7 +94,7 @@ export async function* subscribeEvents(
     const e = JSON.parse(msg) as { type?: string }
     if (isEffectiveRuntimeProgressEvent(e)) lastProgressAt = Date.now()
     queue.push(e)
-    if (e.type === 'runtime_completed' || e.type === 'runtime_failed' || e.type === 'runtime_cancelled') done = true
+    if (e.type === 'runtime_completed' || e.type === 'runtime_failed' || e.type === 'runtime_cancelled' || e.type === 'runtime_waiting') done = true
     wake()
   })
   await onSubscribed?.()

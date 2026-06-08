@@ -141,16 +141,14 @@ export function detectCliRuntimeCapabilities(): CliRuntimeCapability[] {
 }
 
 function codexApprovalArgs(permissionMode?: string | null) {
-  return permissionMode === 'auto' || permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
-    ? ['-a', 'never']
-    : []
+  if (permissionMode === 'full_control' || permissionMode === 'dangerous_bypass') return ['-a', 'never']
+  return ['-a', 'on-request']
 }
 
 function claudePermissionArgs(permissionMode?: string | null) {
   if (permissionMode === 'full_control') return ['--permission-mode', 'bypassPermissions']
   if (permissionMode === 'dangerous_bypass') return ['--dangerously-skip-permissions']
-  if (permissionMode === 'auto') return ['--permission-mode', 'auto']
-  return []
+  return ['--permission-mode', 'default']
 }
 
 export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessionId?: string | null, cwd?: string, permissionMode?: string | null) {

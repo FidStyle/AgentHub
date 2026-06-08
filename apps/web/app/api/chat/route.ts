@@ -496,7 +496,7 @@ async function persistProcessEvent(input: ProcessEventInput) {
 }
 
 function isFullAutoDeliveryIntent(content: string, permissionMode?: string | null) {
-  const mode = permissionMode === 'auto' || permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
+  const mode = permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
   if (!mode) return false
   const explicitDelivery = /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(content)
   const canonicalProductPrompt = /(加减乘除|计算器)/.test(content) && /sqlite|SQLite|历史记录/.test(content) && /网站|页面|应用/.test(content)
@@ -1303,6 +1303,7 @@ export async function POST(req: NextRequest) {
           let runtimeParts: RuntimeMessagePart[] = []
           let completed = false
           let terminalError: string | null = null
+          let waitingReason: string | null = null
           let autoContinuationDispatched = false
           const receivedHandoffs = handoffs
             .filter((handoff) => handoff.toRoleAgentId === currentRoleAgentId)
@@ -1458,6 +1459,7 @@ export async function POST(req: NextRequest) {
             }
             if (evt.type === 'runtime_completed') completed = true
             if (evt.type === 'runtime_failed') terminalError = evt.error
+            if (evt.type === 'runtime_waiting') waitingReason = evt.reason
             controller.enqueue(encode(evt))
           }
           const latestRuntimeSession = await latestRuntimeSessionForTarget({
@@ -1566,7 +1568,7 @@ export async function POST(req: NextRequest) {
             }
             return 'completed'
           }
-          const waitingBoundary = isRuntimeWaitingBoundary(terminalError, runtimeParts)
+          const waitingBoundary = Boolean(waitingReason) || isRuntimeWaitingBoundary(terminalError, runtimeParts)
           if (hasWaitingPart) {
             completedReplies.push({
               nodeId: target.nodeId,
@@ -1643,7 +1645,7 @@ export async function POST(req: NextRequest) {
             if (!autoContinuationDispatched) {
               const patch: Record<string, unknown> = {
                 status: waitingBoundary ? 'waiting' : 'failed',
-                result: { error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过', runtimeParts },
+                result: { error: waitingReason ?? terminalError ?? 'Runtime 未完成或没有产出，节点未通过', runtimeParts },
               }
               if (waitingBoundary) {
                 patch.completed_at = null
@@ -1661,7 +1663,7 @@ export async function POST(req: NextRequest) {
               evidence,
               runtimeSessionId: latestRuntimeSession?.id,
               status: waitingBoundary ? 'waiting' : 'failed',
-              error: terminalError ?? 'Runtime 未完成或没有产出，节点未通过',
+              error: waitingReason ?? terminalError ?? 'Runtime 未完成或没有产出，节点未通过',
             })
           }
           return waitingBoundary ? 'waiting' : 'failed'

@@ -7,6 +7,7 @@ export type RuntimeEventType =
   | 'tool_completed'
   | 'approval_requested'
   | 'artifact_created'
+  | 'waiting'
   | 'completed'
   | 'failed'
   | 'cancelled'

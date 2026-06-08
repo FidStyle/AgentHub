@@ -45,6 +45,21 @@
 | **关闭条件** | Root Web entry opens app without runtime overlay; fresh full-control single-prompt run completes with durable plan/nodes/runtime_sessions/artifact/product files; Web workspace lists and opens the fresh session and displays messages/status; Mobile/PWA displays same-session messages/status; Desktop/Electron has current-run evidence through adapter or accepted fallback; manual allow/reject fresh branches pass; report/tracker/governance updated and committed. |
 | **下一步** | 已关闭。后续任何新 Bytedance P0/P1 product-pass claim 必须继续跑 fresh full-control + manual allow/reject，并在任一 P0/P1 行为 `partial/blocked/not-run/failed` 时失败关闭。 |
 
+### REG-20260609-001 — 非完全权限 Runtime 等待授权被误判为失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | P0 blocker / runtime-permission-regression / acceptance-coverage-gap |
+| **优先级** | P0 |
+| **状态** | `fixed_pending_verify`（2026-06-09，代码修复与聚焦测试已通过；等待 fresh full-control + manual allow/reject + standard/sandbox/auto 实跑复验后关闭） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-UI-001, FR-ARTIFACT-001 |
+| **关联任务/合同** | `.trellis/tasks/06-09-standard-permission-approval-card`；`.trellis/spec/cross-layer/runtime-gateway-permission-wait.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
+| **影响功能面** | Web IM runtime 执行、权限模式、授权卡、计划节点等待/续跑、Redis/SSE 订阅、Bytedance single-prompt product delivery 完整验收 |
+| **发现方式** | 用户实测：标准权限下 Runtime 已连接但无授权卡，反复 `runtime_status=running` 后 `Runtime 输出空闲超时，已终止。`；完全权限下同一链路可继续输出。用户进一步明确：不只是标准权限，所有非完全权限都必须有询问/授权卡，并纳入完整流程验收。 |
+| **证据** | 原失败 SSE 包含 `runtime_status` 多次后 `runtime_failed: Runtime 输出空闲超时，已终止。`，聊天显示“运行时执行失败，未收到回复”；无 `message-permission-card`。本轮修复新增 `runtime_waiting` 事件，`standard/sandbox/auto/null/unknown` 非完全权限创建 pending action 并等待授权，只有 `full_control/dangerous_bypass` 自动授权。聚焦测试：`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/runtime/subscribe-timeout.test.ts __tests__/api/chat.test.ts __tests__/session-store.test.ts` PASS（88/88）；`type-check` PASS；`lint` PASS；`git diff --check` PASS。 |
+| **关闭条件** | Fresh UAT 证明：standard/sandbox/auto 模式触发工具请求时出现 `message-permission-card`，API/DB 读回 `actions.status=pending`、plan/attempt/mailbox/runtime waiting，SSE 无误导性 `runtime_failed`；允许后从同一节点续跑并写入副作用；拒绝后无副作用且状态可读回；full-control 仍可完成 canonical calculator+SQLite 产物并生成 artifact/result card；Web/Mobile/Desktop 读回一致。 |
+| **下一步** | 跑 fresh full-control product delivery gate + fresh manual allow/reject gate，并追加标准/沙箱/自动规划三种非完全权限实跑证据；通过后更新 tracker/report 并关闭本项。 |
+
 ### REG-20260606-001 — Web 工作台前端没有完整呈现开发过程、Git、代码引用和可启动产物
 
 | 字段 | 内容 |

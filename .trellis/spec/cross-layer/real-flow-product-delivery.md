@@ -4,18 +4,19 @@
 
 ### 1. Scope / Trigger
 
-- Trigger: claiming a user can send one prompt and receive a generated runnable product under automatic/full-control permission mode.
+- Trigger: claiming a user can send one prompt and receive a generated runnable product under full-control permission mode.
 
 ### 2. Signatures
 
-- `POST /api/chat` with `permissionMode="auto" | "full_control"`.
+- `POST /api/chat` with `permissionMode="full_control"` or `"dangerous_bypass"`.
 - Durable readback: messages, plans, plan nodes, attempts, mailbox items, actions, runtime sessions/logs, artifacts, workspace files, Git state.
 
 ### 3. Contracts
 
 - Orchestrator allocation, assigned role replies, role handoff, Orchestrator validation, and artifact recommendation must appear in the central IM transcript.
 - Full-control mode continues until durable `completed` or durable visible `failed/interrupted`.
-- The canonical Bytedance product prompt `做一个加减乘除的简单网站，使用sqlite存储历史记录` counts as full product-delivery intent when `permissionMode` is `auto` or `full_control`; do not require extra magic words such as `全自动` or `交付产物` before creating the final artifact recommendation.
+- The canonical Bytedance product prompt `做一个加减乘除的简单网站，使用sqlite存储历史记录` counts as full product-delivery intent when `permissionMode` is `full_control` or `dangerous_bypass`; do not require extra magic words such as `全自动` or `交付产物` before creating the final artifact recommendation.
+- `permissionMode="auto"` is not full-control. It may continue planning, but native CLI side effects still require a visible permission card and manual allow/reject before completion.
 - After a completed full-control product plan, if `public/index.html` exists, create exactly one final product candidate artifact row for that path and one `result_card` message with both `artifactRecommendation` and `artifactConfirmation` metadata. The confirmation source is the full-control product-delivery flow, not a claim that the user explicitly typed artifact-confirmation wording.
 - Backend correctness is insufficient; frontend files must be visible and browser-exercised.
 - Product tests run from the generated workspace. Dependencies, DB files, logs, and cleanup stay inside that workspace.

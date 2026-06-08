@@ -90,6 +90,27 @@ describe('subscribeEvents — dual timeout', () => {
     expect(events.some((e) => e.type === 'runtime_failed')).toBe(false)
   })
 
+  it('treats runtime_waiting as a terminal subscription boundary without failure', async () => {
+    process.env.RUNTIME_SUB_IDLE_TIMEOUT_MS = '500'
+    process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS = '1000'
+    vi.resetModules()
+    const { subscribeEvents } = await import('../../lib/runtime/redis-client')
+
+    const events: Array<{ type?: string; reason?: string }> = []
+    const gen = subscribeEvents('wait1') as AsyncGenerator<{ type?: string; reason?: string }>
+    void (async () => {
+      while (!subscribers.has('agenthub:runtime:events:wait1')) {
+        await new Promise((r) => setTimeout(r, 1))
+      }
+      emit('wait1', { type: 'approval_requested', actionId: 'action-1', description: '写入文件' })
+      emit('wait1', { type: 'runtime_waiting', reason: 'Runtime 工具已进入权限审批，未执行该操作。', waitingFor: 'approval' })
+    })()
+    for await (const e of gen) events.push(e)
+
+    expect(events.some((e) => e.type === 'runtime_waiting')).toBe(true)
+    expect(events.some((e) => e.type === 'runtime_failed')).toBe(false)
+  })
+
   it('treats runtime_status heartbeats as non-progress and cancels the stalled runtime', async () => {
     process.env.RUNTIME_SUB_IDLE_TIMEOUT_MS = '500'
     process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS = '35'
