@@ -9,6 +9,7 @@ import {
   cloudWorkspaceDir,
   cloudWorkspaceRoot,
   createWorkspaceArtifactLaunchScript,
+  detectWorkspaceRunnablePackage,
   commitWorkspaceGit,
   createWorkspaceSelectionPatchDraft,
   deleteWorkspaceEntry,
@@ -147,6 +148,70 @@ describe('workspace file preview and artifact bundle helpers', () => {
     expect(scriptPreview.content).toContain('npx --yes http-server')
     expect(scriptPreview.content).toContain("SOURCE_PATH='public/index.html'")
     expect(scriptPreview.content).toContain('cd "$(dirname "$0")/.."')
+  })
+
+  it('creates a persistent launch script for package-script service artifacts', async () => {
+    const root = await makeWorkspace()
+    await mkdir(path.join(root, 'src'), { recursive: true })
+    await writeFile(path.join(root, 'src/server.js'), 'console.log("service")')
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({
+      scripts: {
+        start: 'node src/server.js',
+        dev: 'vite --host 127.0.0.1',
+      },
+    }))
+
+    const runnable = await detectWorkspaceRunnablePackage(root)
+    expect(runnable).toEqual({
+      sourcePath: 'package.json',
+      packageScript: 'start',
+      command: 'npm run start',
+    })
+
+    const launch = await createWorkspaceArtifactLaunchScript(root, 'artifact-service-long-id', {
+      sourcePath: 'package.json',
+      packageScript: 'start',
+    })
+    const scriptPreview = await readCloudWorkspacePreview(root, launch.scriptPath)
+
+    expect(launch).toEqual({
+      scriptPath: '.agenthub/run-artifact-artifact-ser.sh',
+      command: 'bash .agenthub/run-artifact-artifact-ser.sh',
+      sourcePath: 'package.json',
+      packageScript: 'start',
+    })
+    expect(scriptPreview.content).toContain("SOURCE_PATH='package.json'")
+    expect(scriptPreview.content).toContain("PACKAGE_SCRIPT='start'")
+    expect(scriptPreview.content).toContain('npm run "$PACKAGE_SCRIPT" -- --host 127.0.0.1 --port "$PORT"')
+  })
+
+  it('wraps an architect-authored start script for delivery manifest artifacts', async () => {
+    const root = await makeWorkspace()
+    await mkdir(path.join(root, '.agenthub'), { recursive: true })
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ scripts: { start: 'node src/server.js' } }))
+    await writeFile(path.join(root, '.agenthub/start.sh'), [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'PORT="${PORT:-3000}"',
+      'npm run start -- --port "$PORT"',
+      '',
+    ].join('\n'))
+
+    const launch = await createWorkspaceArtifactLaunchScript(root, 'artifact-manifest-long-id', {
+      sourcePath: 'package.json',
+      startCommand: 'bash .agenthub/start.sh',
+    })
+    const scriptPreview = await readCloudWorkspacePreview(root, launch.scriptPath)
+
+    expect(launch).toEqual({
+      scriptPath: '.agenthub/run-artifact-artifact-man.sh',
+      command: 'bash .agenthub/run-artifact-artifact-man.sh',
+      sourcePath: 'package.json',
+      packageScript: 'start',
+      startCommand: 'bash .agenthub/start.sh',
+    })
+    expect(scriptPreview.content).toContain("AGENTHUB_START_SCRIPT='.agenthub/start.sh'")
+    expect(scriptPreview.content).toContain('bash "$AGENTHUB_START_SCRIPT"')
   })
 
   it('rejects launch scripts for source paths outside the workspace', async () => {

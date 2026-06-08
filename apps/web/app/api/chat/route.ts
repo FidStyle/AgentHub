@@ -13,6 +13,7 @@ import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import { sessionParticipantIds } from '@/lib/conversations'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
+import { detectWorkspaceRunnablePackage } from '@/lib/workspace/cloud-workspace-fs'
 import {
   createArchitectDispatch,
   createRuntimeInvokeInputFromChat,
@@ -77,6 +78,31 @@ type ArtifactRecommendationInput = {
   workspaceRoot: string | null
   runMarker: string | null
   planId: string | null
+}
+
+type DeliveredArtifactCandidate = {
+  sourcePath: string
+  artifactType: 'html' | 'folder' | 'generic_file' | 'code'
+  title: string
+  content: string | null
+  contentRef: string
+  recommendationReason: string
+  metadata: Record<string, unknown>
+  runtimePartTitle: string
+  displaySource: string
+}
+
+type DeliveryManifest = {
+  title?: unknown
+  source_path?: unknown
+  sourcePath?: unknown
+  artifact_type?: unknown
+  artifactType?: unknown
+  start_command?: unknown
+  startCommand?: unknown
+  package_script?: unknown
+  packageScript?: unknown
+  description?: unknown
 }
 
 type AutoContinuationOutcome = {
@@ -505,28 +531,25 @@ function isFullAutoDeliveryIntent(content: string, permissionMode?: string | nul
 
 async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   if (!input.workspaceRoot) return null
-  const sourcePath = 'public/index.html'
-  const fullPath = path.join(input.workspaceRoot, sourcePath)
-  const info = await stat(fullPath).catch(() => null)
-  if (!info?.isFile()) return null
+  const candidate = await findDeliveredArtifactCandidate(input.workspaceRoot, input.workspaceId)
+  if (!candidate) return null
 
   const existing = await input.db
     .from('artifacts')
     .select('id')
     .eq('workspace_id', input.workspaceId)
     .eq('session_id', input.sessionId)
-    .eq('source_path', sourcePath)
+    .eq('source_path', candidate.sourcePath)
     .limit(1)
   const existingId = Array.isArray(existing.data) && existing.data[0]?.id ? String(existing.data[0].id) : null
-  if (existingId) return { artifactId: existingId, sourcePath }
+  if (existingId) return { artifactId: existingId, sourcePath: candidate.sourcePath }
 
   const now = new Date().toISOString()
-  const content = await readFile(fullPath, 'utf8').catch(() => null)
   const recommendation = {
     source: 'model_recommendation',
     recommendedBy: 'Orchestrator',
-    reason: '该文件是本次生成网站的浏览器入口，适合作为最终可交付产物候选。',
-    sourcePath,
+    reason: candidate.recommendationReason,
+    sourcePath: candidate.sourcePath,
     planId: input.planId,
     runMarker: input.runMarker,
     recommendedAt: now,
@@ -534,8 +557,8 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   const confirmation = {
     source: 'full_control_product_delivery',
     confirmedBy: 'permission_mode',
-    reason: '用户使用 full-control 产品交付流程，系统在完成后只确认模型推荐的最终入口候选。',
-    sourcePath,
+    reason: '用户使用 full-control 产品交付流程，系统在完成后只确认模型推荐的最终可运行产物候选。',
+    sourcePath: candidate.sourcePath,
     confirmedAt: now,
   }
 
@@ -546,11 +569,11 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
       session_id: input.sessionId,
       source_message_id: null,
       source_run_id: null,
-      source_path: sourcePath,
-      artifact_type: 'html',
-      title: '加减乘除计算器网站入口',
-      content,
-      content_ref: `workspace-file:${input.workspaceId}:${sourcePath}`,
+      source_path: candidate.sourcePath,
+      artifact_type: candidate.artifactType,
+      title: candidate.title,
+      content: candidate.content,
+      content_ref: candidate.contentRef,
       metadata: {
         kind: 'final_product_candidate',
         runMarker: input.runMarker,
@@ -558,11 +581,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
         artifactRecommendation: recommendation,
         artifactConfirmation: confirmation,
         designationSource: 'auto_confirmed_by_full_control_delivery',
-        source: 'workspace_file',
-        previewKind: 'html',
-        mime: 'text/html; charset=utf-8',
-        size: info.size,
-        downloadUrl: `/api/workspaces/${input.workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
+        ...candidate.metadata,
       },
       created_by: input.userId,
     })
@@ -576,8 +595,8 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     roleAgentId: input.roleAgentId,
     content: [
       '已完成产物推荐与确认。',
-      `推荐产物：${sourcePath}`,
-      '确认依据：本轮使用 full-control 产品交付流程；系统仅把模型推荐的入口文件标记为最终产物候选，没有把整个文件树默认算作产物。',
+      `推荐产物：${candidate.displaySource}`,
+      '确认依据：本轮使用 full-control 产品交付流程；系统仅把模型推荐的可运行入口标记为最终产物候选，没有把整个文件树默认算作产物。',
     ].join('\n'),
     messageType: 'result_card',
     metadata: {
@@ -590,14 +609,137 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
         type: 'artifact',
         status: 'created',
         artifactId: artifact.id,
-        artifactType: 'html',
-        title: '加减乘除计算器网站入口',
-        sourcePath,
-        contentRef: `workspace-file:${input.workspaceId}:${sourcePath}`,
+        artifactType: candidate.artifactType,
+        title: candidate.runtimePartTitle,
+        sourcePath: candidate.sourcePath,
+        contentRef: candidate.contentRef,
       }],
     },
   })
-  return { artifactId: String(artifact.id), sourcePath }
+  return { artifactId: String(artifact.id), sourcePath: candidate.sourcePath }
+}
+
+async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId: string): Promise<DeliveredArtifactCandidate | null> {
+  const manifestCandidate = await findManifestDeliveredArtifactCandidate(workspaceRoot, workspaceId)
+  if (manifestCandidate) return manifestCandidate
+
+  const staticCandidates = [
+    'public/index.html',
+    'index.html',
+    'dist/index.html',
+    'build/index.html',
+    'out/index.html',
+  ]
+  for (const sourcePath of staticCandidates) {
+    const fullPath = path.join(workspaceRoot, sourcePath)
+    const info = await stat(fullPath).catch(() => null)
+    if (!info?.isFile()) continue
+    const content = await readFile(fullPath, 'utf8').catch(() => null)
+    return {
+      sourcePath,
+      artifactType: 'html',
+      title: sourcePath === 'public/index.html' ? '网站入口' : `网站入口：${sourcePath}`,
+      content,
+      contentRef: `workspace-file:${workspaceId}:${sourcePath}`,
+      recommendationReason: '该文件是本次生成产品的浏览器入口，适合作为最终可交付产物候选。',
+      metadata: {
+        source: 'workspace_file',
+        deliveryKind: 'static_entry',
+        previewKind: 'html',
+        mime: 'text/html; charset=utf-8',
+        size: info.size,
+        downloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
+      },
+      runtimePartTitle: '网站入口',
+      displaySource: sourcePath,
+    }
+  }
+
+  const runnable = await detectWorkspaceRunnablePackage(workspaceRoot)
+  if (!runnable) return null
+  const packageFullPath = path.join(workspaceRoot, runnable.sourcePath)
+  const info = await stat(packageFullPath).catch(() => null)
+  const content = await readFile(packageFullPath, 'utf8').catch(() => null)
+  return {
+    sourcePath: runnable.sourcePath,
+    artifactType: 'generic_file',
+    title: '可运行服务产物',
+    content,
+    contentRef: `workspace-file:${workspaceId}:${runnable.sourcePath}`,
+    recommendationReason: `工作区没有发现静态 HTML 入口，但 package.json 提供 ${runnable.command}，适合作为服务型可运行产物候选。`,
+    metadata: {
+      source: 'workspace_file',
+      deliveryKind: 'runnable_service',
+      publishKind: 'package_script',
+      previewKind: 'code',
+      mime: 'application/json; charset=utf-8',
+      size: info?.size ?? null,
+      packageManager: 'npm',
+      packageScript: runnable.packageScript,
+      startCommand: runnable.command,
+      downloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(runnable.sourcePath)}`,
+    },
+    runtimePartTitle: '可运行服务产物',
+    displaySource: `${runnable.sourcePath}（${runnable.command}）`,
+  }
+}
+
+function normalizeArtifactTypeForManifest(value: unknown, sourcePath: string): DeliveredArtifactCandidate['artifactType'] {
+  if (value === 'html' || value === 'folder' || value === 'generic_file' || value === 'code') return value
+  if (sourcePath.endsWith('.html') || sourcePath.endsWith('.htm')) return 'html'
+  if (sourcePath.endsWith('.js') || sourcePath.endsWith('.ts') || sourcePath.endsWith('.json') || sourcePath.endsWith('.sh')) return 'code'
+  return 'generic_file'
+}
+
+function manifestString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+async function findManifestDeliveredArtifactCandidate(workspaceRoot: string, workspaceId: string): Promise<DeliveredArtifactCandidate | null> {
+  const manifestPath = '.agenthub/delivery.json'
+  const fullPath = path.join(workspaceRoot, manifestPath)
+  const info = await stat(fullPath).catch(() => null)
+  if (!info?.isFile()) return null
+  const raw = await readFile(fullPath, 'utf8').catch(() => null)
+  if (!raw) return null
+  let manifest: DeliveryManifest
+  try {
+    manifest = JSON.parse(raw) as DeliveryManifest
+  } catch {
+    return null
+  }
+  const sourcePath = manifestString(manifest.source_path) ?? manifestString(manifest.sourcePath) ?? 'package.json'
+  const sourceFullPath = path.join(workspaceRoot, sourcePath)
+  const sourceInfo = await stat(sourceFullPath).catch(() => null)
+  if (!sourceInfo?.isFile() && !sourceInfo?.isDirectory()) return null
+  const content = sourceInfo.isFile() ? await readFile(sourceFullPath, 'utf8').catch(() => null) : null
+  const startCommand = manifestString(manifest.start_command) ?? manifestString(manifest.startCommand)
+  const packageScript = manifestString(manifest.package_script) ?? manifestString(manifest.packageScript)
+  const artifactType = normalizeArtifactTypeForManifest(manifest.artifact_type ?? manifest.artifactType, sourcePath)
+  const title = manifestString(manifest.title) ?? '最终可运行产物'
+  const description = manifestString(manifest.description)
+  return {
+    sourcePath,
+    artifactType,
+    title,
+    content,
+    contentRef: `workspace-file:${workspaceId}:${sourcePath}`,
+    recommendationReason: description ?? '架构师最终验收节点已生成交付清单，明确该入口为本轮最终可运行产物。',
+    metadata: {
+      source: 'delivery_manifest',
+      deliveryKind: 'architect_selected',
+      publishKind: startCommand ? 'agent_start_script' : packageScript ? 'package_script' : 'workspace_entry',
+      previewKind: artifactType === 'html' ? 'html' : artifactType === 'folder' ? 'folder' : 'code',
+      mime: artifactType === 'html' ? 'text/html; charset=utf-8' : 'application/octet-stream',
+      size: sourceInfo.size,
+      manifestPath,
+      ...(startCommand ? { startCommand } : {}),
+      ...(packageScript ? { packageScript } : {}),
+      downloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
+    },
+    runtimePartTitle: title,
+    displaySource: startCommand ? `${sourcePath}（${startCommand}）` : sourcePath,
+  }
 }
 
 function stringFromRecord(value: unknown, key: string) {
@@ -970,11 +1112,16 @@ export async function POST(req: NextRequest) {
     if (phase === 'summarizing') {
       return [
         '当前是架构师最终验收节点。',
-        '禁止在本节点创建或编辑产品文件。',
+        '禁止在本节点修改业务产品文件；但如果本轮是 full-control 自动交付，必须创建或更新 AgentHub 交付文件 `.agenthub/start.sh` 和 `.agenthub/delivery.json`。',
         fullAutoDelivery
-          ? '固定样本严格验收由 AgentHub strict gate 统一执行；本节点只基于上游 handoff 总结产物候选、文件引用和后续验收口径，不要运行命令、不要启动服务、不要重新测试。'
+          ? [
+              '本节点必须选择最终产物并写入交付清单，不要让用户手动选择文件。',
+              '`.agenthub/start.sh` 必须是可执行启动脚本，使用 `PORT="${PORT:-3000}"` 并在 127.0.0.1:$PORT 启动最终应用；可调用 npm run start/dev、node server、前后端组合脚本或其他 workspace 内命令。',
+              '`.agenthub/delivery.json` 必须是 JSON，至少包含：`title`、`source_path`、`start_command`、`artifact_type`、`description`；`start_command` 推荐写 `bash .agenthub/start.sh`。',
+              '可用已有证据总结验收结论；如需轻量验证启动脚本，必须用临时端口/临时进程完成后退出，不要留下长驻进程。',
+            ].join('\n')
           : null,
-        '只检查已有证据并总结是否完成：计划节点、权限续跑、后端 API/SQLite、前端文件、产物推荐确认。',
+        '只检查已有证据并总结是否完成：计划节点、权限续跑、后端 API/SQLite、前端/服务入口、启动脚本、产物推荐确认。',
       ].filter(Boolean).join('\n')
     }
     if (role && /前端|front|ui|web/i.test(role.name)) {
@@ -1738,15 +1885,15 @@ export async function POST(req: NextRequest) {
                   sessionId,
                   roleAgentId: primaryRoleAgentId,
                   content: [
-                    '执行失败：计划已到终态，但未发现可交付的前端入口文件 public/index.html。',
-                    '因此本轮不会把任何文件标记为最终产物；请继续生成真实前端产物后再验收。',
+                    '执行失败：计划已到终态，但未发现架构师交付清单、静态入口或可运行服务入口。',
+                    'full-control 自动交付应由最终架构师生成 .agenthub/delivery.json 和 .agenthub/start.sh；系统也会兼容识别 public/index.html、index.html、dist/build/out 入口，或 package.json 中的 start/dev/preview/serve 脚本。',
                   ].join('\n'),
                   metadata: {
                     runMarker: requestRunMarker,
                     planId,
                     visibleStatus: '执行失败',
                     artifactRecommendationMissing: true,
-                    expectedSourcePath: 'public/index.html',
+                    expectedArtifactEntry: ['.agenthub/delivery.json', '.agenthub/start.sh', 'public/index.html', 'index.html', 'dist/index.html', 'build/index.html', 'out/index.html', 'package.json scripts.start/dev/preview/serve'],
                   },
                   emit: emitProcess,
                 })

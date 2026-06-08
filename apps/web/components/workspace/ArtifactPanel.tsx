@@ -139,6 +139,13 @@ export function artifactPreviewLabel(artifact: Pick<ArtifactRow, 'artifact_type'
   return hasInlinePreview ? '可预览' : '需下载'
 }
 
+function artifactStartCommand(artifact: Pick<ArtifactRow, 'metadata'>) {
+  const command = typeof artifact.metadata?.startCommand === 'string' ? artifact.metadata.startCommand.trim() : ''
+  if (command) return command
+  const packageScript = typeof artifact.metadata?.packageScript === 'string' ? artifact.metadata.packageScript.trim() : ''
+  return packageScript ? `npm run ${packageScript}` : null
+}
+
 function roleTypeLabel(agent: Pick<RoleAgentRow, 'role_type' | 'is_orchestrator'>) {
   if (agent.is_orchestrator) return '编排者'
   return ROLE_TYPE_LABELS[agent.role_type] ?? agent.role_type
@@ -2004,7 +2011,8 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
     typeof artifact.metadata?.publishUrl === 'string' ? artifact.metadata.publishUrl : null,
   )
   const editable = ['document', 'presentation', 'markdown', 'html', 'code'].includes(artifact.artifact_type)
-  const runnable = ['html', 'folder', 'generic_file', 'code'].includes(artifact.artifact_type) && Boolean(artifact.source_path)
+  const startCommand = artifactStartCommand(artifact)
+  const runnable = ['html', 'folder', 'generic_file', 'code'].includes(artifact.artifact_type) && (Boolean(artifact.source_path) || Boolean(startCommand))
 
   useEffect(() => {
     setTitle(artifact.title)
@@ -2077,7 +2085,7 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
   }
 
   function quoteArtifactToComposer() {
-    const source = artifact.source_path ? `来源文件：${artifact.source_path}` : `产物 ID：${artifact.id}`
+    const source = artifact.source_path ? `来源文件：${artifact.source_path}` : startCommand ? `启动命令：${startCommand}` : `产物 ID：${artifact.id}`
     const inlineContent = artifactEditableContent(artifact).trim()
     const summary = [
       `类型：${typeLabel}`,
@@ -2155,7 +2163,8 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
             <span className="truncate text-sm font-medium">{artifact.title}</span>
           </div>
           <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-            <p className="truncate">{artifact.source_path ? `来源文件：${artifact.source_path}` : `产物 ID：${artifact.id}`}</p>
+            <p className="truncate">{artifact.source_path ? `来源文件：${artifact.source_path}` : startCommand ? `启动命令：${startCommand}` : `产物 ID：${artifact.id}`}</p>
+            {artifact.source_path && startCommand ? <p className="truncate">启动命令：{startCommand}</p> : null}
             <p className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
               创建时间：{formatPanelTime(artifact.created_at)}

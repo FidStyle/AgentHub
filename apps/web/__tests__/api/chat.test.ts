@@ -229,6 +229,9 @@ describe('POST /api/chat — role-chat-core', () => {
 
   afterEach(async () => {
     await rm(path.join(mockWorkspaceRoot, 'public'), { recursive: true, force: true })
+    await rm(path.join(mockWorkspaceRoot, 'src'), { recursive: true, force: true })
+    await rm(path.join(mockWorkspaceRoot, '.agenthub'), { recursive: true, force: true })
+    await rm(path.join(mockWorkspaceRoot, 'package.json'), { force: true })
   })
 
   it('renames the default new chat from the first user message and streams the title update', async () => {
@@ -968,6 +971,379 @@ describe('POST /api/chat — role-chat-core', () => {
     })
     expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('public/index.html')
     expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('src/server.js')
+  })
+
+  it('recommends a runnable service artifact when no static html entry exists', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    const base = chainCapturingInsertsWithRoles([
+      {
+        id: 'agent-orch',
+        workspace_id: 'ws-001',
+        name: '架构师',
+        role_type: 'orchestrator',
+        system_prompt: '负责协调',
+        capability_tags: ['规划'],
+        runtime_type: 'claude_code',
+        is_orchestrator: true,
+      },
+      {
+        id: 'agent-fe',
+        workspace_id: 'ws-001',
+        name: '前端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责前端',
+        capability_tags: ['前端'],
+        runtime_type: 'claude_code',
+        is_orchestrator: false,
+      },
+      {
+        id: 'agent-be',
+        workspace_id: 'ws-001',
+        name: '后端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责后端',
+        capability_tags: ['后端', '数据库'],
+        runtime_type: 'codex',
+        is_orchestrator: false,
+      },
+    ])
+    setupMockClient(vi.fn(() => {
+      const client = base()
+      const origFrom = client.from
+      client.from = vi.fn((table: string) => {
+        if (table === 'plans') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              insertedPlans.push(vals)
+              return { select: () => ({ single: () => ({ data: { id: 'plan-001', ...vals }, error: null }) }) }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        if (table === 'plan_nodes') {
+          return {
+            insert: (vals: Record<string, unknown> | Record<string, unknown>[]) => {
+              insertedPlanNodes.push(...(Array.isArray(vals) ? vals : [vals]))
+              return { data: null, error: null }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        if (table === 'plan_node_attempts') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `attempt-${insertedAttempts.length + 1}`, ...vals }
+              insertedAttempts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedAttempts.find((attempt) => attempt.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'agent_mailbox_items') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `mailbox-${insertedMailboxItems.length + 1}`, ...vals }
+              insertedMailboxItems.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedMailboxItems.find((mailbox) => mailbox.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'runtime_sessions') {
+          const runtimeRows = [{ id: 'runtime-latest', native_session_id: 'native-latest' }]
+          const runtimeChain = {
+            eq: () => runtimeChain,
+            is: () => runtimeChain,
+            order: () => ({ limit: () => ({ data: runtimeRows, error: null }) }),
+          }
+          return {
+            select: () => runtimeChain,
+          }
+        }
+        if (table === 'actions') {
+          const actionChain = {
+            eq: (_field: string, planNodeId: string) => ({
+              order: () => ({
+                data: [
+                  ...insertedActions.filter((action) => action.plan_node_id === planNodeId),
+                  ...strictDeliveryActionEvidenceForNode(planNodeId),
+                ],
+                error: null,
+              }),
+            }),
+          }
+          return {
+            select: () => actionChain,
+          }
+        }
+        if (table === 'artifacts') {
+          return {
+            select: () => {
+              const chain = {
+                eq: (_field: string, _value: string) => chain,
+                limit: () => ({ data: [], error: null }),
+              }
+              return chain
+            },
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `artifact-${insertedArtifacts.length + 1}`, ...vals }
+              insertedArtifacts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+          }
+        }
+        const t = origFrom(table)
+        if (table === 'messages') {
+          const origInsert = t.insert
+          t.insert = (vals: Record<string, unknown>) => {
+            insertedMessages.push(vals)
+            return origInsert(vals)
+          }
+        }
+        return t
+      })
+      return client
+    }))
+    await mkdir(path.join(mockWorkspaceRoot, 'src'), { recursive: true })
+    await writeFile(path.join(mockWorkspaceRoot, 'src/server.js'), 'console.log("server")\n', 'utf8')
+    await writeFile(path.join(mockWorkspaceRoot, 'package.json'), JSON.stringify({
+      scripts: { start: 'node src/server.js' },
+      dependencies: { express: '^4.18.0' },
+    }), 'utf8')
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '全自动做一个加减乘除的简单网站，使用sqlite存储历史记录',
+      permissionMode: 'full_control',
+      runMarker: 'SERVICE-SPD-UNIT',
+    })
+
+    expect(status).toBe(200)
+    const finalArtifact = insertedArtifacts.find((artifact) => artifact.source_path === 'package.json')
+    expect(finalArtifact).toMatchObject({
+      workspace_id: 'ws-001',
+      session_id: 'session-001',
+      source_path: 'package.json',
+      artifact_type: 'generic_file',
+      title: '可运行服务产物',
+      metadata: expect.objectContaining({
+        kind: 'final_product_candidate',
+        deliveryKind: 'runnable_service',
+        publishKind: 'package_script',
+        packageScript: 'start',
+        startCommand: 'npm run start',
+        artifactRecommendation: expect.objectContaining({ sourcePath: 'package.json' }),
+        artifactConfirmation: expect.objectContaining({
+          source: 'full_control_product_delivery',
+          sourcePath: 'package.json',
+        }),
+      }),
+    })
+    const artifactResultMessage = insertedMessages.find((message) => (
+      message.message_type === 'result_card'
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactRecommendation)
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
+    ))
+    expect(artifactResultMessage?.content).toContain('推荐产物：package.json（npm run start）')
+  })
+
+  it('uses the architect delivery manifest as the final artifact source before fallback scanning', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    const base = chainCapturingInsertsWithRoles([
+      {
+        id: 'agent-orch',
+        workspace_id: 'ws-001',
+        name: '架构师',
+        role_type: 'orchestrator',
+        system_prompt: '负责协调',
+        capability_tags: ['规划'],
+        runtime_type: 'claude_code',
+        is_orchestrator: true,
+      },
+      {
+        id: 'agent-fe',
+        workspace_id: 'ws-001',
+        name: '前端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责前端',
+        capability_tags: ['前端'],
+        runtime_type: 'claude_code',
+        is_orchestrator: false,
+      },
+      {
+        id: 'agent-be',
+        workspace_id: 'ws-001',
+        name: '后端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责后端',
+        capability_tags: ['后端', '数据库'],
+        runtime_type: 'codex',
+        is_orchestrator: false,
+      },
+    ])
+    setupMockClient(vi.fn(() => {
+      const client = base()
+      const origFrom = client.from
+      client.from = vi.fn((table: string) => {
+        if (table === 'plans') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              insertedPlans.push(vals)
+              return { select: () => ({ single: () => ({ data: { id: 'plan-001', ...vals }, error: null }) }) }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        if (table === 'plan_nodes') {
+          return {
+            insert: (vals: Record<string, unknown> | Record<string, unknown>[]) => {
+              insertedPlanNodes.push(...(Array.isArray(vals) ? vals : [vals]))
+              return { data: null, error: null }
+            },
+            update: () => ({ eq: () => ({ data: null, error: null }) }),
+          }
+        }
+        if (table === 'plan_node_attempts') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `attempt-${insertedAttempts.length + 1}`, ...vals }
+              insertedAttempts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedAttempts.find((attempt) => attempt.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'agent_mailbox_items') {
+          return {
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `mailbox-${insertedMailboxItems.length + 1}`, ...vals }
+              insertedMailboxItems.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+            update: (vals: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                const row = insertedMailboxItems.find((mailbox) => mailbox.id === id)
+                if (row) Object.assign(row, vals)
+                return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+              },
+            }),
+          }
+        }
+        if (table === 'runtime_sessions') {
+          const runtimeRows = [{ id: 'runtime-latest', native_session_id: 'native-latest' }]
+          const runtimeChain = {
+            eq: () => runtimeChain,
+            is: () => runtimeChain,
+            order: () => ({ limit: () => ({ data: runtimeRows, error: null }) }),
+          }
+          return {
+            select: () => runtimeChain,
+          }
+        }
+        if (table === 'actions') {
+          const actionChain = {
+            eq: (_field: string, planNodeId: string) => ({
+              order: () => ({
+                data: [
+                  ...insertedActions.filter((action) => action.plan_node_id === planNodeId),
+                  ...strictDeliveryActionEvidenceForNode(planNodeId),
+                ],
+                error: null,
+              }),
+            }),
+          }
+          return {
+            select: () => actionChain,
+          }
+        }
+        if (table === 'artifacts') {
+          return {
+            select: () => {
+              const chain = {
+                eq: (_field: string, _value: string) => chain,
+                limit: () => ({ data: [], error: null }),
+              }
+              return chain
+            },
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `artifact-${insertedArtifacts.length + 1}`, ...vals }
+              insertedArtifacts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+          }
+        }
+        const t = origFrom(table)
+        if (table === 'messages') {
+          const origInsert = t.insert
+          t.insert = (vals: Record<string, unknown>) => {
+            insertedMessages.push(vals)
+            return origInsert(vals)
+          }
+        }
+        return t
+      })
+      return client
+    }))
+    await mkdir(path.join(mockWorkspaceRoot, '.agenthub'), { recursive: true })
+    await writeFile(path.join(mockWorkspaceRoot, 'package.json'), JSON.stringify({ scripts: { start: 'node src/server.js' } }), 'utf8')
+    await writeFile(path.join(mockWorkspaceRoot, '.agenthub/start.sh'), 'PORT="${PORT:-3000}"\nnpm run start -- --port "$PORT"\n', 'utf8')
+    await writeFile(path.join(mockWorkspaceRoot, '.agenthub/delivery.json'), JSON.stringify({
+      title: '姓名生成服务',
+      source_path: 'package.json',
+      artifact_type: 'generic_file',
+      start_command: 'bash .agenthub/start.sh',
+      description: '架构师选择 package.json + .agenthub/start.sh 作为最终可运行服务产物。',
+    }), 'utf8')
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '全自动做一个加减乘除的简单网站，使用sqlite存储历史记录',
+      permissionMode: 'full_control',
+      runMarker: 'MANIFEST-SPD-UNIT',
+    })
+
+    expect(status).toBe(200)
+    const finalArtifact = insertedArtifacts.find((artifact) => artifact.source_path === 'package.json')
+    expect(finalArtifact).toMatchObject({
+      title: '姓名生成服务',
+      metadata: expect.objectContaining({
+        source: 'delivery_manifest',
+        deliveryKind: 'architect_selected',
+        publishKind: 'agent_start_script',
+        startCommand: 'bash .agenthub/start.sh',
+        manifestPath: '.agenthub/delivery.json',
+      }),
+    })
+    const artifactResultMessage = insertedMessages.find((message) => (
+      message.message_type === 'result_card'
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactRecommendation)
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
+    ))
+    expect(artifactResultMessage?.content).toContain('推荐产物：package.json（bash .agenthub/start.sh）')
   })
 
   it('AT-003 [high]: no roleAgentId uses the default orchestrator role instead of appending @ text', async () => {

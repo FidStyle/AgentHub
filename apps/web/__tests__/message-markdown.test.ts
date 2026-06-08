@@ -450,7 +450,9 @@ describe('ArtifactPanel frontend contract', () => {
 
     expect(source).toContain("const action = body.action === 'stop' ? 'stop' : 'start'")
     expect(source).toContain("RUNNABLE_ARTIFACT_TYPES.has(row.artifact_type ?? '')")
-    expect(source).toContain('createWorkspaceArtifactLaunchScript(workspaceRoot, row.id, row.source_path)')
+    expect(source).toContain('const launchSource = artifactLaunchSource(row)')
+    expect(source).toContain('createWorkspaceArtifactLaunchScript(workspaceRoot, row.id, launchSource)')
+    expect(source).toContain("publishKind: 'package_script'")
     expect(source).toContain('if (!scriptFullPath.startsWith(`${workspaceRoot}${path.sep}`))')
     expect(source).toContain("stdio: ['ignore', 'ignore', 'ignore']")
     expect(source).toContain("publishStatus: 'running'")

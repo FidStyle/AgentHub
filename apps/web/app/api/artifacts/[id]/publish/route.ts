@@ -88,6 +88,25 @@ async function artifactRow(db: Awaited<ReturnType<typeof createClient>>, id: str
   } | null
 }
 
+function packageScriptFromMetadata(metadata: Record<string, unknown> | null | undefined) {
+  const script = typeof metadata?.packageScript === 'string' ? metadata.packageScript.trim() : ''
+  return script || null
+}
+
+function startCommandFromMetadata(metadata: Record<string, unknown> | null | undefined) {
+  const command = typeof metadata?.startCommand === 'string' ? metadata.startCommand.trim() : ''
+  return command || null
+}
+
+function artifactLaunchSource(row: { source_path?: string | null; metadata?: Record<string, unknown> | null }) {
+  const startCommand = startCommandFromMetadata(row.metadata)
+  const packageScript = packageScriptFromMetadata(row.metadata)
+  if (startCommand) return { sourcePath: row.source_path ?? 'package.json', startCommand, packageScript }
+  if (packageScript) return { sourcePath: row.source_path ?? 'package.json', packageScript }
+  if (row.source_path) return row.source_path
+  return null
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { user, error: authError } = await requireAuth()
@@ -118,7 +137,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ status: 'stopped', pid: stoppedPid })
   }
 
-  if (!row.source_path) return NextResponse.json({ error: '产物缺少来源文件，无法发布' }, { status: 400 })
+  const launchSource = artifactLaunchSource(row)
+  if (!launchSource) return NextResponse.json({ error: '产物缺少来源文件或启动脚本，无法发布' }, { status: 400 })
   if (!RUNNABLE_ARTIFACT_TYPES.has(row.artifact_type ?? '')) {
     return NextResponse.json({ error: '该产物类型不支持发布' }, { status: 409 })
   }
@@ -130,7 +150,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const workspaceRoot = path.resolve(cloud.root)
-    const launch = await createWorkspaceArtifactLaunchScript(workspaceRoot, row.id, row.source_path)
+    const launch = await createWorkspaceArtifactLaunchScript(workspaceRoot, row.id, launchSource)
     const port = await freePort()
     const scriptFullPath = path.resolve(workspaceRoot, launch.scriptPath)
     if (!scriptFullPath.startsWith(`${workspaceRoot}${path.sep}`)) {
@@ -167,8 +187,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const metadata = {
       ...(row.metadata && typeof row.metadata === 'object' ? row.metadata : {}),
       startScriptPath: launch.scriptPath,
-      startCommand: launch.command,
+      startCommand: launch.startCommand ?? startCommandFromMetadata(row.metadata) ?? launch.command,
+      launchCommand: launch.command,
       launchSourcePath: launch.sourcePath,
+      ...(launch.packageScript ? { packageScript: launch.packageScript, publishKind: 'package_script' } : {}),
       publishStatus: 'running',
       publishUrl: url,
       publishPid: child.pid ?? null,

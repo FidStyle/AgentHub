@@ -108,7 +108,24 @@ export type WorkspaceArtifactLaunchScript = {
   scriptPath: string
   command: string
   sourcePath: string
+  packageScript?: string | null
+  startCommand?: string | null
 }
+
+export type WorkspaceRunnablePackage = {
+  sourcePath: string
+  packageScript: string
+  command: string
+}
+
+export type WorkspaceArtifactLaunchSource = string | {
+  sourcePath?: string | null
+  packageScript?: string | null
+  startCommand?: string | null
+}
+
+const RUNNABLE_PACKAGE_SCRIPT_NAMES = ['start', 'dev', 'preview', 'serve'] as const
+const RUNNABLE_PACKAGE_SCRIPT_SET = new Set<string>(RUNNABLE_PACKAGE_SCRIPT_NAMES)
 
 function slug(value: string, fallback: string) {
   const normalized = value
@@ -549,14 +566,83 @@ function shellSingleQuote(value: string) {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+function scriptPathFromStartCommand(startCommand: string) {
+  const trimmed = startCommand.trim().replace(/\s+/g, ' ')
+  const match = /^(?:bash|sh)\s+(\.agenthub\/[A-Za-z0-9._/-]+\.sh)$/.exec(trimmed)
+  if (!match?.[1] || match[1].includes('..')) throw new Error('启动命令必须指向 .agenthub 内的脚本')
+  return { command: trimmed, scriptPath: match[1] }
+}
+
+function packageScriptsFromContent(content: string) {
+  const parsed = JSON.parse(content) as { scripts?: unknown }
+  if (!parsed.scripts || typeof parsed.scripts !== 'object' || Array.isArray(parsed.scripts)) return {}
+  return parsed.scripts as Record<string, unknown>
+}
+
+function preferredRunnablePackageScript(scripts: Record<string, unknown>, requested?: string | null) {
+  if (requested) {
+    if (!RUNNABLE_PACKAGE_SCRIPT_SET.has(requested)) throw new Error('不支持的启动脚本')
+    if (typeof scripts[requested] !== 'string' || !String(scripts[requested]).trim()) {
+      throw new Error(`package.json 缺少 ${requested} 脚本`)
+    }
+    return requested
+  }
+  return RUNNABLE_PACKAGE_SCRIPT_NAMES.find((script) => (
+    typeof scripts[script] === 'string' && String(scripts[script]).trim()
+  )) ?? null
+}
+
+export async function detectWorkspaceRunnablePackage(rootDir: string, packagePath = 'package.json'): Promise<WorkspaceRunnablePackage | null> {
+  const source = resolveWorkspacePath(rootDir, packagePath)
+  const info = await stat(source.fullPath).catch(() => null)
+  if (!info?.isFile()) return null
+  const content = await readFile(source.fullPath, 'utf8').catch(() => null)
+  if (!content) return null
+  try {
+    const packageScript = preferredRunnablePackageScript(packageScriptsFromContent(content))
+    if (!packageScript) return null
+    return {
+      sourcePath: source.relativePath,
+      packageScript,
+      command: `npm run ${packageScript}`,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function createWorkspaceArtifactLaunchScript(
   rootDir: string,
   artifactId: string,
-  sourcePath: string,
+  launchSource: WorkspaceArtifactLaunchSource,
 ): Promise<WorkspaceArtifactLaunchScript> {
+  const requestedSourcePath = typeof launchSource === 'string' ? launchSource : launchSource.sourcePath
+  const requestedPackageScript = typeof launchSource === 'string' ? null : launchSource.packageScript
+  const requestedStartCommand = typeof launchSource === 'string' ? null : launchSource.startCommand
+  const sourcePath = requestedSourcePath || 'package.json'
   const source = resolveWorkspacePath(rootDir, sourcePath)
   const info = await stat(source.fullPath).catch(() => null)
   if (!info) throw new Error('产物来源不存在')
+  const agentLaunch = requestedStartCommand ? scriptPathFromStartCommand(requestedStartCommand) : null
+  if (agentLaunch) {
+    const agentScript = resolveWorkspacePath(rootDir, agentLaunch.scriptPath)
+    const agentScriptInfo = await stat(agentScript.fullPath).catch(() => null)
+    if (!agentScriptInfo?.isFile()) throw new Error('启动脚本不存在')
+  }
+  let packageScript: string | null = null
+  const packageJson = resolveWorkspacePath(rootDir, 'package.json')
+  const packageInfo = await stat(packageJson.fullPath).catch(() => null)
+  if (packageInfo?.isFile()) {
+    const packageContent = await readFile(packageJson.fullPath, 'utf8')
+    try {
+      packageScript = preferredRunnablePackageScript(packageScriptsFromContent(packageContent), requestedPackageScript)
+    } catch (error) {
+      if (requestedPackageScript) throw error
+      packageScript = null
+    }
+  } else if (requestedPackageScript) {
+    throw new Error('package.json 不存在，无法使用启动脚本')
+  }
   const scriptId = slug(artifactId.slice(0, 12), 'artifact')
   const scriptPath = `.agenthub/run-artifact-${scriptId}.sh`
   const sourceDir = info.isDirectory() ? source.relativePath : path.posix.dirname(source.relativePath)
@@ -570,10 +656,21 @@ export async function createWorkspaceArtifactLaunchScript(
     'export PORT',
     `SOURCE_PATH=${shellSingleQuote(source.relativePath)}`,
     `SERVE_PATH=${shellSingleQuote(servingPath)}`,
+    packageScript ? `PACKAGE_SCRIPT=${shellSingleQuote(packageScript)}` : 'PACKAGE_SCRIPT=""',
+    agentLaunch ? `AGENTHUB_START_SCRIPT=${shellSingleQuote(agentLaunch.scriptPath)}` : 'AGENTHUB_START_SCRIPT=""',
+    '',
+    'if [ -n "$AGENTHUB_START_SCRIPT" ]; then',
+    '  bash "$AGENTHUB_START_SCRIPT"',
+    '  exit 0',
+    'fi',
     '',
     'if [ -f package.json ]; then',
     '  if [ ! -d node_modules ]; then',
     '    npm install',
+    '  fi',
+    '  if [ -n "$PACKAGE_SCRIPT" ]; then',
+    '    npm run "$PACKAGE_SCRIPT" -- --host 127.0.0.1 --port "$PORT"',
+    '    exit 0',
     '  fi',
     '  if npm run | grep -qE "^  start$|^  dev$| start$| dev$"; then',
     '    if npm run | grep -qE "^  start$| start$"; then',
@@ -597,6 +694,8 @@ export async function createWorkspaceArtifactLaunchScript(
     scriptPath: written,
     command: `bash ${written}`,
     sourcePath: source.relativePath,
+    ...(packageScript ? { packageScript } : {}),
+    ...(agentLaunch ? { startCommand: agentLaunch.command } : {}),
   }
 }
 
