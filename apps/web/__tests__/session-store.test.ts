@@ -31,12 +31,34 @@ afterEach(() => {
     activeWorkspaceId: null,
     sessionStatusFilter: 'active',
     messages: [],
+    messagesRevision: 0,
     loading: false,
     error: null,
   })
 })
 
 describe('session store message pinning', () => {
+  it('increments the message refresh revision after every successful readback', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => jsonResponse([
+      {
+        id: 'msg-001',
+        session_id: 'session-001',
+        sender_type: 'user',
+        content: '同一条消息',
+        created_at: '2026-06-01T00:00:00.000Z',
+        role_agent_id: null,
+        metadata: null,
+        is_pinned: false,
+      },
+    ]))
+
+    await useSessionStore.getState().fetchMessages('session-001')
+    await useSessionStore.getState().fetchMessages('session-001')
+
+    expect(useSessionStore.getState().messagesRevision).toBe(2)
+    expect(useSessionStore.getState().messages).toHaveLength(1)
+  })
+
   it('maps DB is_pinned rows into UI message state', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([
       {

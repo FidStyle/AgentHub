@@ -86,6 +86,24 @@ export function quotedContent(input: string, quoted: QuotedMessage | null) {
   return `> 引用 ${quoted.author}：${quoted.preview}${block}\n\n${body}`
 }
 
+export function messageAutoScrollSignature(messages: Message[]) {
+  return messages
+    .map((message) => [
+      message.id,
+      message.content.length,
+      message.visibleStatus ?? '',
+      message.streaming === true ? 'streaming' : '',
+      message.parts?.map((part) => {
+        if (part.type === 'permission') return `${part.type}:${part.actionId ?? ''}:${part.status}`
+        if (part.type === 'publish_status') return `${part.type}:${part.status ?? ''}:${part.url ?? ''}`
+        if (part.type === 'artifact') return `${part.type}:${part.artifactId ?? ''}:${part.status ?? ''}`
+        if (part.type === 'diff') return `${part.type}:${part.actionId ?? ''}:${part.status ?? ''}`
+        return part.type
+      }).join('|') ?? '',
+    ].join(':'))
+    .join(';')
+}
+
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
 // 语义默认向上展开（对齐裸 absolute 的 bottom-full）；上方空间不足时翻下方；宽度对齐 trigger 与上限取大并 clamp；
 // 高度受可用空间与视口 60% 双重 clamp，长列表内部滚动而非撑高页面。
@@ -183,10 +201,19 @@ function MessageList({
   roleAgents: RoleAgent[]
   onQuote: (message: QuotedMessage) => void
 }) {
-  const { activeSessionId, messages, loading, error, setMessagePinned } = useSessionStore()
+  const { activeSessionId, messages, messagesRevision, loading, error, setMessagePinned } = useSessionStore()
   const [pinningId, setPinningId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const sessionMessages = activeSessionId ? messages.filter((m) => m.sessionId === activeSessionId) : []
+  const pinnedMessages = sessionMessages.filter((m) => m.isPinned)
+  const scrollSignature = messageAutoScrollSignature(sessionMessages)
+
+  useEffect(() => {
+    if (sessionMessages.length === 0 || focusedMessageId) return
+    bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+  }, [focusedMessageId, messagesRevision, scrollSignature, sessionMessages.length])
 
   const emptyFrame = (node: React.ReactNode) => (
     <div data-testid="message-list-empty-frame" className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -197,9 +224,6 @@ function MessageList({
   if (loading) return emptyFrame(<StateCard variant="loading" />)
   if (error) return emptyFrame(<StateCard variant="error" />)
   if (!activeSessionId) return emptyFrame(<StateCard variant="empty" />)
-
-  const sessionMessages = messages.filter((m) => m.sessionId === activeSessionId)
-  const pinnedMessages = sessionMessages.filter((m) => m.isPinned)
 
   if (sessionMessages.length === 0) return emptyFrame(<StateCard variant="empty" />)
 
@@ -220,7 +244,7 @@ function MessageList({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+    <div data-testid="message-list-scroll" className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
       <PinnedContextPanel pinnedMessages={pinnedMessages} roleName={roleName} onJumpToMessage={jumpToMessage} />
       {sessionMessages.map((msg) => {
         const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : undefined
@@ -302,6 +326,7 @@ function MessageList({
           </div>
         )
       })}
+      <div ref={bottomRef} data-testid="message-list-bottom" aria-hidden="true" />
     </div>
   )
 }

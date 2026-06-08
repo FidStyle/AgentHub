@@ -160,6 +160,7 @@ interface SessionState {
   activeWorkspaceId: string | null
   sessionStatusFilter: SessionStatusFilter
   messages: Message[]
+  messagesRevision: number
   loading: boolean
   error: string | null
   setActiveSession: (id: string) => void
@@ -184,6 +185,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   activeWorkspaceId: null,
   sessionStatusFilter: 'active',
   messages: [],
+  messagesRevision: 0,
   loading: false,
   error: null,
 
@@ -462,7 +464,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           visibleStatus: visibleStatusFromMetadata(m.metadata),
           parts: partsFromMetadata(m.metadata),
         }))
-      set({ messages, loading: false })
+      set((state) => ({ messages, messagesRevision: state.messagesRevision + 1, loading: false }))
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
     }
