@@ -29,9 +29,11 @@ function clampRightPanelWidth(width: number, wideMode: boolean) {
 export function WorkspaceShell({
   workspaceId,
   requestedMode = 'read-only',
+  requestedSessionId,
 }: {
   workspaceId?: string
   requestedMode?: WorkspaceMode
+  requestedSessionId?: string
 }) {
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [rightPanelWidth, setRightPanelWidth] = useState(RIGHT_PANEL_DEFAULT_WIDTH)
@@ -39,7 +41,7 @@ export function WorkspaceShell({
   const [resizingRightPanel, setResizingRightPanel] = useState(false)
   const [leftPanelOpen, setLeftPanelOpen] = useState(false)
   const [executionDomain, setExecutionDomain] = useState<'cloud' | 'local_desktop' | null>(null)
-  const { activeWorkspaceId, setActiveWorkspace, fetchSessions } = useSessionStore()
+  const { activeWorkspaceId, setActiveWorkspace, setActiveSession, fetchSessions } = useSessionStore()
   const runtimeStatus = useWorkspaceRuntimeStatus()
   const userLabel = runtimeStatus.status?.user.name ?? runtimeStatus.status?.user.email ?? '未登录'
   const desktopConnected = runtimeStatus.status?.desktop.connected ?? false
@@ -53,8 +55,17 @@ export function WorkspaceShell({
   useEffect(() => {
     if (!workspaceId || activeWorkspaceId === workspaceId) return
     setActiveWorkspace(workspaceId)
-    fetchSessions(workspaceId)
-  }, [activeWorkspaceId, fetchSessions, setActiveWorkspace, workspaceId])
+    void fetchSessions(workspaceId).then(() => {
+      if (useSessionStore.getState().activeWorkspaceId === workspaceId && requestedSessionId) {
+        setActiveSession(requestedSessionId)
+      }
+    })
+  }, [activeWorkspaceId, fetchSessions, requestedSessionId, setActiveSession, setActiveWorkspace, workspaceId])
+
+  useEffect(() => {
+    if (!workspaceId || activeWorkspaceId !== workspaceId || !requestedSessionId) return
+    setActiveSession(requestedSessionId)
+  }, [activeWorkspaceId, requestedSessionId, setActiveSession, workspaceId])
 
   useEffect(() => {
     if (!workspaceId) {

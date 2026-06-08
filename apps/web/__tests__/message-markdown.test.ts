@@ -336,10 +336,18 @@ describe('MessageContent', () => {
       parts: [{ ...base, status: 'completed' }],
       streaming: false,
     }))
+    const autoHtml = renderToStaticMarkup(createElement(MessageContent, {
+      content: '',
+      parts: [{ ...base, status: 'completed', autoApproved: true, permissionMode: 'full_control' }],
+      streaming: false,
+    }))
 
     expect(runningHtml).toContain('审批状态：已允许')
     expect(runningHtml).not.toContain('审批状态：执行中')
     expect(completedHtml).toContain('审批状态：已执行')
+    expect(autoHtml).toContain('审批状态：已自动通过并执行')
+    expect(autoHtml).toContain('权限模式')
+    expect(autoHtml).toContain('full_control')
   })
 })
 
@@ -540,11 +548,11 @@ describe('ArtifactPanel frontend contract', () => {
     const source = readFileSync(fileURLToPath(new URL('../scripts/verify-strict-single-prompt-product-delivery.ts', import.meta.url)), 'utf8')
 
     expect(source).toContain('verifyWebRightPanelResize')
-    expect(source).toContain('const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}`)')
-    expect(source).toContain('opencliAuthenticatedUrl(`/workspace/${workspaceId}`)')
+    expect(source).toContain('const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}?session_id=${sessionId}`)')
+    expect(source).toContain('opencliAuthenticatedUrl(`/workspace/${workspaceId}?session_id=${sessionId}`)')
     expect(source).toContain("url.searchParams.set('uat_auth', token)")
     expect(source).not.toMatch(/const workspaceUrl = `\$\{BASE_URL\}\/workspaces\/\$\{workspaceId\}`/)
-    expect(source).toContain("['browser', 'agenthub-strict', 'open', opencliAuthenticatedUrl(`/workspace/${workspaceId}`)]")
+    expect(source).toContain("['browser', 'agenthub-strict', 'open', opencliAuthenticatedUrl(`/workspace/${workspaceId}?session_id=${sessionId}`)]")
     expect(source).not.toContain("['browser', 'agenthub-strict', 'open', `${BASE_URL}/workspaces/${workspaceId}`]")
     expect(source).toContain("opencli-web-right-panel-resize-drag.txt")
     expect(source).toContain("opencli-web-right-panel-resize-persisted.txt")
@@ -629,6 +637,22 @@ describe('MobileActionCard', () => {
     expect(html).toContain('/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2')
     expect(html).not.toContain('允许</button>')
     expect(html).not.toContain('拒绝</button>')
+
+    const autoAction: MobilePermissionAction = {
+      ...action,
+      id: 'action-auto-1',
+      status: 'completed',
+      requires_approval: false,
+      result: {
+        ...action.result,
+        autoApproved: true,
+        permissionMode: 'full_control',
+      },
+    }
+    expect(mobileActionStatusText(autoAction)).toBe('已自动通过并执行')
+    expect(mobileActionDetailRows(autoAction)).toEqual(expect.arrayContaining([
+      ['权限模式', 'full_control'],
+    ]))
   })
 
   it('keeps pending durable actions actionable on Mobile/PWA', () => {

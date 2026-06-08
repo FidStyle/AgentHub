@@ -32,6 +32,7 @@ export interface Message {
 
 type StreamEvent = {
   type?: string
+  status?: string
   delta?: string
   mode?: RuntimeOutputEvent['mode']
   seq?: number
@@ -44,6 +45,13 @@ type StreamEvent = {
   title?: string
   description?: string
   riskLevel?: string
+  actionKind?: string
+  workspaceRoot?: string
+  cwd?: string
+  targetPaths?: string[]
+  commandPreview?: string
+  permissionMode?: string | null
+  autoApproved?: boolean
   questionId?: string
   content?: string
   path?: string
@@ -91,6 +99,11 @@ function partId(prefix: string, evt: StreamEvent) {
   return String(evt.toolCallId || evt.actionId || evt.questionId || evt.artifactId || `${prefix}-${Date.now()}`)
 }
 
+function isAutomaticPermissionMode(mode?: string | null) {
+  const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : ''
+  return normalized === 'full_control' || normalized === 'dangerous_bypass'
+}
+
 function reduceRuntimeParts(parts: RuntimeMessagePart[], evt: StreamEvent): RuntimeMessagePart[] {
   if (evt.type === 'tool_started' && evt.toolName) {
     const id = partId(`tool-${evt.toolName}`, evt)
@@ -119,7 +132,57 @@ function reduceRuntimeParts(parts: RuntimeMessagePart[], evt: StreamEvent): Runt
     return [...parts.filter((part) => part.id !== id), next]
   }
   if (evt.type === 'approval_requested' && evt.description) {
-    return [...parts, { id: partId('approval', evt), type: 'permission', status: 'pending', actionId: evt.actionId, title: evt.title, description: evt.description, riskLevel: evt.riskLevel }]
+    return [...parts, {
+      id: partId('approval', evt),
+      type: 'permission',
+      status: 'pending',
+      actionId: evt.actionId,
+      title: evt.title,
+      description: evt.description,
+      riskLevel: evt.riskLevel,
+      actionKind: evt.actionKind,
+      workspaceRoot: evt.workspaceRoot,
+      cwd: evt.cwd,
+      targetPaths: evt.targetPaths,
+      commandPreview: evt.commandPreview,
+    }]
+  }
+  if (evt.type === 'approval_auto_approved') {
+    return [...parts, {
+      id: partId('approval-auto', evt),
+      type: 'permission',
+      status: 'completed',
+      actionId: evt.actionId,
+      title: evt.title ?? 'Runtime 工具已自动通过',
+      description: evt.description ?? '当前权限模式已自动允许本次 Runtime 工具操作。',
+      riskLevel: evt.riskLevel,
+      actionKind: evt.actionKind,
+      workspaceRoot: evt.workspaceRoot,
+      cwd: evt.cwd,
+      targetPaths: evt.targetPaths,
+      commandPreview: evt.commandPreview,
+      autoApproved: true,
+      permissionMode: evt.permissionMode ?? undefined,
+    }]
+  }
+  if (evt.type === 'runtime_observed_action' && evt.status && evt.status !== 'running') {
+    const autoApproved = evt.autoApproved === true || isAutomaticPermissionMode(evt.permissionMode) || Boolean(evt.actionId)
+    return [...parts, {
+      id: partId('observed-action', evt),
+      type: 'permission',
+      status: evt.status === 'failed' ? 'failed' : 'completed',
+      actionId: evt.actionId ?? undefined,
+      title: evt.status === 'failed' ? 'Runtime 工具自动执行失败' : 'Runtime 工具已自动执行',
+      description: '当前权限模式自动允许并记录了 Runtime 观测到的工具操作。',
+      riskLevel: 'low',
+      actionKind: evt.actionKind,
+      workspaceRoot: evt.workspaceRoot,
+      cwd: evt.cwd,
+      targetPaths: evt.targetPaths,
+      commandPreview: evt.commandPreview,
+      autoApproved,
+      permissionMode: evt.permissionMode ?? undefined,
+    }]
   }
   if (evt.type === 'question' && evt.content) {
     return [...parts, { id: partId('question', evt), type: 'question', status: 'pending', questionId: evt.questionId, title: evt.title, content: evt.content }]
@@ -682,7 +745,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             })
             continue
           }
-          if (evt.type === 'approval_requested' && evt.actionId && processPermissionActionIds.has(evt.actionId)) {
+          if ((evt.type === 'approval_requested' || evt.type === 'approval_auto_approved') && evt.actionId && processPermissionActionIds.has(evt.actionId)) {
             continue
           }
           if (evt.type === 'runtime_status' && !replyCreated) {

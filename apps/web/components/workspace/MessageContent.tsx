@@ -75,7 +75,8 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
   const refreshTimersRef = useRef<number[]>([])
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
   const fetchMessages = useSessionStore((state) => state.fetchMessages)
-  const canDecide = part.status === 'pending' && Boolean(part.actionId) && decision === 'idle'
+  const autoApproved = part.autoApproved === true
+  const canDecide = !autoApproved && part.status === 'pending' && Boolean(part.actionId) && decision === 'idle'
   useEffect(() => () => {
     refreshTimersRef.current.forEach((timer) => window.clearTimeout(timer))
     refreshTimersRef.current = []
@@ -113,7 +114,14 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
       setDecision('error')
     }
   }
-  const statusText = part.status !== 'pending' ? {
+  const statusText = autoApproved ? {
+    approved: '已自动通过',
+    running: '已自动通过',
+    completed: '已自动通过并执行',
+    failed: '自动执行失败',
+    rejected: '已拒绝',
+    pending: '自动通过中',
+  }[part.status] ?? '已自动通过' : part.status !== 'pending' ? {
     approved: '已允许',
     rejected: '已拒绝',
     running: '已允许',
@@ -128,6 +136,7 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
     error: '处理失败',
   }[decision]
   const detailRows = [
+    part.permissionMode ? ['权限模式', part.permissionMode] : null,
     part.actionKind ? ['动作', part.actionKind] : null,
     part.commandPreview ? ['命令', part.commandPreview] : null,
     part.cwd ? ['目录', part.cwd] : null,
@@ -166,8 +175,8 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
               拒绝
             </Button>
           </div>
-        ) : part.actionId ? (
-          <Badge variant={statusText === '已拒绝' || statusText === '执行失败' ? 'destructive' : 'success'}>{statusText}</Badge>
+        ) : part.actionId || autoApproved ? (
+          <Badge variant={statusText === '已拒绝' || statusText.includes('失败') ? 'destructive' : 'success'}>{statusText}</Badge>
         ) : (
           <span className="text-muted-foreground">缺少动作编号，无法在此处授权</span>
         )}

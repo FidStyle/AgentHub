@@ -340,6 +340,58 @@ describe('session store streaming replies', () => {
       message.parts?.some((part) => part.type === 'permission' && part.actionId === 'action-001')
     ))).toHaveLength(1)
   })
+
+  it('keeps full-control auto approvals as completed permission cards', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
+      {
+        type: 'approval_auto_approved',
+        actionId: 'action-auto-001',
+        title: 'Runtime 工具已自动通过',
+        description: '按 full-control 自动执行',
+        riskLevel: 'medium',
+        actionKind: 'write_file',
+        commandPreview: 'write public/index.html',
+        permissionMode: 'full_control',
+      },
+      {
+        type: 'runtime_observed_action',
+        actionId: 'action-observed-001',
+        status: 'completed',
+        actionKind: 'shell_command',
+        commandPreview: 'npm test',
+        autoApproved: true,
+        permissionMode: 'full_control',
+      },
+      { type: 'done' },
+    ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+    })
+
+    await useSessionStore.getState().sendMessage({ content: '开始', roleAgentIds: ['agent-fe'] })
+
+    const permission = useSessionStore.getState().messages
+      .flatMap((message) => message.parts ?? [])
+      .find((part) => part.type === 'permission' && part.actionId === 'action-auto-001')
+    expect(permission).toMatchObject({
+      type: 'permission',
+      status: 'completed',
+      autoApproved: true,
+      permissionMode: 'full_control',
+      commandPreview: 'write public/index.html',
+    })
+    const observed = useSessionStore.getState().messages
+      .flatMap((message) => message.parts ?? [])
+      .find((part) => part.type === 'permission' && part.actionId === 'action-observed-001')
+    expect(observed).toMatchObject({
+      type: 'permission',
+      status: 'completed',
+      autoApproved: true,
+      permissionMode: 'full_control',
+      commandPreview: 'npm test',
+    })
+  })
 })
 
 describe('session store lifecycle actions', () => {

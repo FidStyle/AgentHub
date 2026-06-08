@@ -17,6 +17,7 @@
 
 - Only `permissionMode="full_control"` and `permissionMode="dangerous_bypass"` may auto-approve native CLI tool execution.
 - `standard`, `sandbox`, `auto`, null, and unknown modes must create a pending action and visible permission card before side effects execute.
+- Full-control auto-approved native CLI activity must still produce durable IM permission parts with `autoApproved: true`, `status: "completed"` or `"failed"`, and `permissionMode`, so Web/Mobile refresh readback shows the audit card instead of hiding the action in backend logs.
 - A permission or user-question boundary is not a runtime failure. Emit `approval_requested` or `question`, then emit `runtime_waiting` so Redis/SSE subscribers terminate without timeout.
 - Do not emit `runtime_failed` for permission wait boundaries. Real unavailable, timeout, path escape, and executor errors must still emit `runtime_failed`.
 - Approved continuations must preserve original action/runtime metadata. If the continuation hits a second permission or question, the approved action remains `completed` while the plan node/attempt/mailbox return to `waiting`.
@@ -27,14 +28,15 @@
 | --- | --- |
 | Non-full-control tool request | Persist pending action, emit `approval_requested`, mark rows waiting, emit `runtime_waiting` |
 | User question request | Emit `question`, mark rows waiting, emit `runtime_waiting` |
-| Full-control tool request | Persist completed auto-approved action and continue inline |
+| Full-control tool request | Persist completed auto-approved action, emit durable IM auto-approval card, and continue inline |
+| Full-control observed CLI action | Persist completed/failed audit action and runtime permission part with `autoApproved: true` |
 | Runtime CLI missing or times out | Emit `runtime_failed`, mark runtime/session rows failed |
 | Approved continuation reaches next permission | Previous action stays completed; new action pending; node waits |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: Standard mode shows `message-permission-card`; refresh/API readback shows the same pending action and waiting node.
-- Base: Full-control canonical product delivery has no manual pending permission card and still has action audit rows.
+- Base: Full-control canonical product delivery has no manual pending permission card and still has action audit rows plus auto-approved IM permission cards.
 - Bad: `approval_requested` is followed by `runtime_failed` and the UI displays "运行时执行失败".
 - Bad: Redis subscription times out after a permission card because no terminal wait event was emitted.
 
@@ -44,7 +46,7 @@
 - Redis unit test: `runtime_waiting` is a terminal subscription boundary and does not produce timeout failure.
 - API chat test: question/permission wait persists message parts and visible status `等待授权`.
 - Store/component test: permission cards render without duplicate cards and without a failure notice.
-- Full-control regression: auto-approved actions continue and complete product delivery path.
+- Full-control regression: auto-approved actions continue, durable IM cards have `autoApproved: true`, and the product delivery path completes.
 
 ### 7. Wrong vs Correct
 

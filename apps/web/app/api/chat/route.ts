@@ -1235,6 +1235,10 @@ export async function POST(req: NextRequest) {
     const record = evt as Record<string, unknown>
     return String(record.toolCallId || record.actionId || record.questionId || record.artifactId || `${prefix}-${Date.now()}`)
   }
+  const isAutomaticPermissionMode = (mode?: string | null) => {
+    const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : ''
+    return normalized === 'full_control' || normalized === 'dangerous_bypass'
+  }
   const reduceRuntimeParts = (parts: RuntimeMessagePart[], evt: RuntimeGatewayEvent): RuntimeMessagePart[] => {
     if (evt.type === 'tool_started') {
       const id = partId(`tool-${evt.toolName}`, evt)
@@ -1278,6 +1282,43 @@ export async function POST(req: NextRequest) {
         cwd: evt.cwd,
         targetPaths: evt.targetPaths,
         commandPreview: evt.commandPreview,
+      }]
+    }
+    if (evt.type === 'approval_auto_approved') {
+      return [...parts, {
+        id: partId('approval-auto', evt),
+        type: 'permission',
+        status: 'completed',
+        actionId: evt.actionId ?? undefined,
+        title: evt.title ?? 'Runtime 工具已自动通过',
+        description: evt.description ?? '当前权限模式已自动允许本次 Runtime 工具操作。',
+        riskLevel: evt.riskLevel,
+        actionKind: evt.actionKind,
+        workspaceRoot: evt.workspaceRoot,
+        cwd: evt.cwd,
+        targetPaths: evt.targetPaths,
+        commandPreview: evt.commandPreview,
+        autoApproved: true,
+        permissionMode: evt.permissionMode ?? undefined,
+      }]
+    }
+    if (evt.type === 'runtime_observed_action' && evt.status && evt.status !== 'running') {
+      const autoApproved = evt.autoApproved === true || isAutomaticPermissionMode(evt.permissionMode) || isAutomaticPermissionMode(permissionMode) || Boolean(evt.actionId)
+      return [...parts, {
+        id: partId('observed-action', evt),
+        type: 'permission',
+        status: evt.status === 'failed' ? 'failed' : 'completed',
+        actionId: evt.actionId ?? undefined,
+        title: evt.status === 'failed' ? 'Runtime 工具自动执行失败' : 'Runtime 工具已自动执行',
+        description: '当前权限模式自动允许并记录了 Runtime 观测到的工具操作。',
+        riskLevel: 'low',
+        actionKind: evt.actionKind,
+        workspaceRoot: evt.workspaceRoot ?? undefined,
+        cwd: evt.cwd ?? undefined,
+        targetPaths: evt.targetPaths,
+        commandPreview: evt.commandPreview,
+        autoApproved,
+        permissionMode: evt.permissionMode ?? undefined,
       }]
     }
     if (evt.type === 'question') {
@@ -1581,7 +1622,30 @@ export async function POST(req: NextRequest) {
           for await (const evt of eventStream()) {
             if (evt.type === 'runtime_output' && evt.delta) reply = replyAccumulator.append(evt)
             runtimeParts = reduceRuntimeParts(runtimeParts, evt)
-            if ((evt as unknown as { type?: string }).type === 'approval_auto_approved') autoContinuationDispatched = true
+            if (evt.type === 'approval_auto_approved') {
+              autoContinuationDispatched = true
+              await persistProcessEvent({
+                db,
+                sessionId,
+                roleAgentId: currentRoleAgentId,
+                content: [
+                  `已自动通过：@${currentRoleName} 的工具操作已按 full-control 自动允许并执行。`,
+                  evt.title ? `授权项：${evt.title}` : null,
+                  evt.commandPreview ? `命令：${evt.commandPreview}` : null,
+                ].filter(Boolean).join('\n'),
+                metadata: {
+                  runMarker: requestRunMarker,
+                  planId,
+                  planNodeId: target.nodeId,
+                  roleName: currentRoleName,
+                  phase: target.phase,
+                  visibleStatus: '已自动通过',
+                  runtimeParts: reduceRuntimeParts([], evt),
+                  autoPermissionApproved: true,
+                },
+                emit: emitProcess,
+              })
+            }
             if (evt.type === 'approval_requested') {
               await persistProcessEvent({
                 db,

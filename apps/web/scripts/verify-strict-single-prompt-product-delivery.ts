@@ -246,6 +246,11 @@ function objectRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
+function runtimePartsFromMetadata(metadata: Record<string, unknown> | null | undefined): Record<string, unknown>[] {
+  const parts = Array.isArray(metadata?.runtimeParts) ? metadata.runtimeParts : []
+  return parts.map(objectRecord).filter((part): part is Record<string, unknown> => Boolean(part))
+}
+
 function numericResultFrom(body: Record<string, unknown>, paths: string[][]) {
   for (const segments of paths) {
     let current: unknown = body
@@ -421,28 +426,28 @@ async function verifyCalculatorProduct(root: string) {
       {
         name: 'leftOperand/operator/rightOperand',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ leftOperand, operator, rightOperand }),
-        result: (body: Record<string, unknown>) => numericResultFrom(body, [['calculation', 'result'], ['result'], ['data', 'result']]),
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['calculation', 'result'], ['item', 'result'], ['result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
         historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['calculations', 'history', 'items', 'records']),
       },
       {
         name: 'left/operator/right',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ left: leftOperand, operator, right: rightOperand }),
-        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['record', 'result'], ['data', 'result']]),
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['item', 'result'], ['calculation', 'result'], ['record', 'result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
         historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['history', 'calculations', 'items', 'records']),
       },
       {
         name: 'a/operator/b',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ a: leftOperand, operator, b: rightOperand }),
-        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['item', 'result'], ['calculation', 'result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.operator === 'string' ? item.operator : null,
         historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['history', 'calculations', 'items', 'records']),
       },
       {
         name: 'a/op/b',
         payload: (leftOperand: number | string, operator: string, rightOperand: number | string) => ({ a: leftOperand, op: operator, b: rightOperand }),
-        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['item', 'result'], ['calculation', 'result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : typeof item.operator === 'string' ? item.operator : null,
         historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['items', 'history', 'calculations', 'records']),
       },
@@ -452,7 +457,7 @@ async function verifyCalculatorProduct(root: string) {
           const op = operator === '+' ? 'add' : operator === '-' ? 'sub' : operator === '*' ? 'mul' : operator === '/' ? 'div' : operator
           return { a: leftOperand, op, b: rightOperand }
         },
-        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['calculation', 'result'], ['data', 'result']]),
+        result: (body: Record<string, unknown>) => numericResultFrom(body, [['result'], ['item', 'result'], ['calculation', 'result'], ['data', 'result']]),
         historyOperator: (item: Record<string, unknown>) => typeof item.op === 'string' ? item.op : typeof item.operator === 'string' ? item.operator : null,
         historyItems: (body: Record<string, unknown> | unknown[]) => arrayFromAny(body, ['items', 'history', 'calculations', 'records']),
       },
@@ -558,9 +563,9 @@ function opencliAuthenticatedUrl(pathname: string) {
   return url.toString()
 }
 
-async function verifyWebRightPanelResize(workspaceId: string) {
+async function verifyWebRightPanelResize(workspaceId: string, sessionId: string) {
   const session = 'agenthub-strict'
-  const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}`)
+  const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}?session_id=${sessionId}`)
   const dragScript = String.raw`
     (async () => {
       window.localStorage.removeItem('agenthub:right-panel-width')
@@ -712,9 +717,9 @@ async function verifyTriSurface(sessionId: string, workspaceId: string, artifact
   }
 
   if (opencliAvailable()) {
-    record(runOpencli(['browser', 'agenthub-strict', 'open', opencliAuthenticatedUrl(`/workspace/${workspaceId}`)], 'opencli-web-open.txt'))
+    record(runOpencli(['browser', 'agenthub-strict', 'open', opencliAuthenticatedUrl(`/workspace/${workspaceId}?session_id=${sessionId}`)], 'opencli-web-open.txt'))
     record(runOpencliEval('agenthub-strict', webTranscriptAssertionScript(RUN_MARKER), 'opencli-web-transcript-readback.txt', 'Web 中央 IM 同 session 展示真实角色过程/验收/产物'))
-    await verifyWebRightPanelResize(workspaceId)
+    await verifyWebRightPanelResize(workspaceId, sessionId)
     record(runOpencli(['browser', 'agenthub-strict', 'screenshot', path.join(ARTIFACT_DIR, 'web-workspace.png')], 'opencli-web-screenshot.txt'))
     record(runOpencli(['browser', 'agenthub-strict-mobile', 'open', opencliAuthenticatedUrl(`/m/sessions/${sessionId}`)], 'opencli-mobile-open.txt'))
     record(runOpencliEval('agenthub-strict-mobile', mobileTranscriptAssertionScript(), 'opencli-mobile-transcript-readback.txt', 'Mobile/PWA 同 session 展示角色过程/状态/文件引用'))
@@ -917,6 +922,11 @@ async function main() {
       [sessionId],
     )
     fs.writeFileSync(path.join(ARTIFACT_DIR, 'db-messages.json'), JSON.stringify(messages, null, 2))
+    const permissionParts = messages.flatMap((message) => runtimePartsFromMetadata(message.metadata).filter((part) => part.type === 'permission'))
+    const autoApprovalParts = permissionParts.filter((part) => part.autoApproved === true || String(part.title ?? '').includes('自动'))
+    record(autoApprovalParts.some((part) => part.status === 'completed' && part.autoApproved === true)
+      ? ok('full-control IM 持久化自动通过权限卡', JSON.stringify(autoApprovalParts.map((part) => ({ actionId: part.actionId, status: part.status, title: part.title }))))
+      : fail('full-control IM 持久化自动通过权限卡', JSON.stringify(permissionParts)))
     const messageText = messages.map((message) => `${message.name ?? ''}\n${message.message_type}\n${message.content}`).join('\n')
     const firstProcess = messages.find((message) => message.message_type !== 'text' || message.name)
     record(firstProcess && includesAny(`${firstProcess.name ?? ''}\n${firstProcess.content}`, [/架构师|Orchestrator/])
@@ -999,13 +1009,32 @@ async function main() {
       [workspaceId, sessionId],
     )
     fs.writeFileSync(path.join(ARTIFACT_DIR, 'db-artifacts.json'), JSON.stringify(artifacts, null, 2))
-    const finalArtifact = artifacts.find((artifact) => artifact.source_path === 'public/index.html')
+    const finalArtifact = artifacts.find((artifact) => (
+      artifact.metadata?.kind === 'final_product_candidate'
+      && Boolean(artifact.metadata?.artifactRecommendation)
+      && Boolean(artifact.metadata?.artifactConfirmation)
+    ))
     finalArtifactId = finalArtifact?.id ?? null
-    record(finalArtifact ? ok('最终产物候选 artifact row 存在', finalArtifact.id) : fail('最终产物候选 artifact row 存在', JSON.stringify(artifacts)))
+    record(finalArtifact ? ok('最终产物候选 artifact row 存在', `${finalArtifact.id}:${finalArtifact.source_path}`) : fail('最终产物候选 artifact row 存在', JSON.stringify(artifacts)))
     record(
       Boolean(finalArtifact?.metadata?.artifactRecommendation && finalArtifact.metadata.artifactConfirmation)
         ? ok('artifact metadata 包含模型推荐 + 用户确认/指定语义')
         : fail('artifact metadata 包含模型推荐 + 用户确认/指定语义', JSON.stringify(finalArtifact?.metadata)),
+    )
+    record(
+      Boolean(
+        finalArtifact?.metadata?.manifestPath
+        || finalArtifact?.metadata?.startCommand
+        || finalArtifact?.metadata?.packageScript
+        || finalArtifact?.source_path?.endsWith('.html'),
+      )
+        ? ok('artifact metadata/source_path 包含可启动或可预览入口', JSON.stringify({
+          sourcePath: finalArtifact?.source_path,
+          manifestPath: finalArtifact?.metadata?.manifestPath,
+          startCommand: finalArtifact?.metadata?.startCommand,
+          packageScript: finalArtifact?.metadata?.packageScript,
+        }))
+        : fail('artifact metadata/source_path 包含可启动或可预览入口', JSON.stringify(finalArtifact)),
     )
     record(artifacts.length <= 3 ? ok('未把整个文件树默认标成产物', `${artifacts.length} artifacts`) : fail('未把整个文件树默认标成产物', `${artifacts.length} artifacts`))
 

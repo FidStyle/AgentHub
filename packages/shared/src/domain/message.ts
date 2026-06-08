@@ -16,6 +16,8 @@ export type RuntimeMessagePart =
     cwd?: string
     targetPaths?: string[]
     commandPreview?: string
+    autoApproved?: boolean
+    permissionMode?: string
   }
   | { id: string; type: 'question'; status: 'pending'; questionId?: string; title?: string; content: string }
   | { id: string; type: 'diff'; status: 'created'; path?: string; diff: string; applicable?: boolean; applyable?: boolean; actionId?: string }

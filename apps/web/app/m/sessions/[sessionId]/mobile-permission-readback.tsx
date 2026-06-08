@@ -54,6 +54,11 @@ const actionStatusVariant: Record<string, 'secondary' | 'default' | 'warning' | 
 }
 
 export function mobileActionStatusText(action: MobilePermissionAction): string {
+  if (action.result?.autoApproved === true) {
+    if (action.status === 'failed') return '自动执行失败'
+    if (action.status === 'completed' || action.status === 'succeeded') return '已自动通过并执行'
+    return '已自动通过'
+  }
   return actionStatusLabel[action.status] ?? action.status
 }
 
@@ -63,6 +68,7 @@ export function mobileActionDetailRows(action: MobilePermissionAction): Array<[s
   return [
     ['动作', stringValue(result?.actionKind) ?? action.action_type],
     ['命令', action.command],
+    ['权限模式', stringValue(result?.permissionMode)],
     ['目录', stringValue(result?.cwd) ?? stringValue(action.cwd)],
     ['Workspace', stringValue(result?.workspaceRoot)],
     ['路径', targetPaths.length > 0 ? targetPaths.join('\n') : null],

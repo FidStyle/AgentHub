@@ -265,7 +265,7 @@ async function verifyOpencliReadback(kind: BranchKind, sessionId: string, worksp
     return
   }
   const browser = `agenthub-permission-${kind}`
-  const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}`)
+  const workspaceUrl = opencliAuthenticatedUrl(`/workspace/${workspaceId}?session_id=${sessionId}`)
   const mobileUrl = opencliAuthenticatedUrl(`/m/sessions/${sessionId}`)
   record(runOpencli(['browser', browser, 'open', workspaceUrl], path.join(ARTIFACT_DIR, `${kind}-opencli-web-open.txt`)))
   record(runOpencliEval(browser, String.raw`

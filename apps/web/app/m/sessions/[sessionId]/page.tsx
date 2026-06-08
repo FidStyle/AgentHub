@@ -47,9 +47,15 @@ function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
     )
   }
   if (part.type === 'permission') {
+    const statusText = part.autoApproved
+      ? part.status === 'completed' ? '已自动通过并执行' : '已自动通过'
+      : part.status === 'pending' ? '需要授权' : part.status === 'rejected' ? '已拒绝' : part.status === 'failed' ? '执行失败' : '已允许'
     return (
       <div data-testid="mobile-permission-card" className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs">
-        <div className="font-medium">{part.title ?? '需要授权'}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-medium">{part.title ?? '需要授权'}</div>
+          <Badge variant={statusText.includes('失败') || statusText === '已拒绝' ? 'destructive' : part.status === 'pending' ? 'warning' : 'success'}>{statusText}</Badge>
+        </div>
         <p className="mt-1 text-muted-foreground">{part.description}</p>
       </div>
     )

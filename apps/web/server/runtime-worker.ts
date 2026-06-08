@@ -255,8 +255,14 @@ function toolRequestDescription(tool: NativeCliToolRequest, workspaceRoot: strin
   ].filter(Boolean).join('\n')
 }
 
+function normalizePermissionMode(mode?: string | null): string | null {
+  const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : ''
+  return normalized.length > 0 ? normalized : null
+}
+
 function isAutomaticPermissionMode(mode?: string | null): boolean {
-  return mode === 'full_control' || mode === 'dangerous_bypass'
+  const normalized = normalizePermissionMode(mode)
+  return normalized === 'full_control' || normalized === 'dangerous_bypass'
 }
 
 function waitingForBoundaryError(error: string): 'approval' | 'question' | 'continuation' | null {
@@ -328,10 +334,10 @@ function observedActionCommandLabel(action: NativeCliObservedAction): string {
   return `${action.toolName} (${action.actionKind})`
 }
 
-async function persistObservedAutomaticAction(job: RuntimeJob, action: NativeCliObservedAction, nativeSessionId?: string | null): Promise<void> {
-  if (!job.sessionId || !job.ownerId) return
-  if (!isAutomaticPermissionMode(job.permissionMode)) return
-  if (action.status === 'running') return
+async function persistObservedAutomaticAction(job: RuntimeJob, action: NativeCliObservedAction, nativeSessionId?: string | null): Promise<string | null> {
+  if (!job.sessionId || !job.ownerId) return null
+  if (!isAutomaticPermissionMode(job.permissionMode)) return null
+  if (action.status === 'running') return null
   const db = await createClient()
   const now = new Date().toISOString()
   const command = observedActionCommandLabel(action)
@@ -358,20 +364,23 @@ async function persistObservedAutomaticAction(job: RuntimeJob, action: NativeCli
     at: now,
   }
   const status = action.status === 'completed' ? 'completed' : 'failed'
-  await db.from('actions').insert({
-    session_id: job.sessionId,
-    plan_node_id: job.planNodeId ?? null,
-    owner_id: job.ownerId,
-    action_type: action.actionKind,
-    command,
-    cwd: action.cwd ?? job.cwd ?? null,
-    risk_level: 'low',
-    status,
-    requires_approval: false,
-    approved_at: now,
-    executed_at: now,
-    result,
-  })
+  const { data } = await db.from('actions').insert({
+      session_id: job.sessionId,
+      plan_node_id: job.planNodeId ?? null,
+      owner_id: job.ownerId,
+      action_type: action.actionKind,
+      command,
+      cwd: action.cwd ?? job.cwd ?? null,
+      risk_level: 'low',
+      status,
+      requires_approval: false,
+      approved_at: now,
+      executed_at: now,
+      result,
+    })
+    .select('id')
+    .single()
+  return typeof data?.id === 'string' ? data.id : null
 }
 
 async function persistAutoApprovedToolRequest(input: {
@@ -785,15 +794,20 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         throw new Error('Runtime 等待用户补充确认，未继续执行。')
       }
       if (chunk.observedAction) {
-        await persistObservedAutomaticAction(job, chunk.observedAction, lastNativeSessionId)
+        const actionId = await persistObservedAutomaticAction(job, chunk.observedAction, lastNativeSessionId)
         await emit({
           type: 'runtime_observed_action',
+          actionId,
           endpointId: job.endpointId,
           toolName: chunk.observedAction.toolName,
           actionKind: chunk.observedAction.actionKind,
           status: chunk.observedAction.status,
           commandPreview: chunk.observedAction.commandPreview,
+          cwd: chunk.observedAction.cwd ?? job.cwd ?? null,
+          workspaceRoot: job.workspaceRoot ?? null,
           targetPaths: chunk.observedAction.targetPaths ?? [],
+          permissionMode: job.permissionMode ?? null,
+          autoApproved: isAutomaticPermissionMode(job.permissionMode) && chunk.observedAction.status !== 'running',
         })
         continue
       }
@@ -837,9 +851,15 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
             type: 'approval_auto_approved',
             actionId,
             title: 'Runtime 工具已按当前权限模式自动执行',
+            description: toolRequestDescription(chunk.toolRequest, job.workspaceRoot),
             riskLevel,
             endpointId: job.endpointId,
             actionKind: toolCall.actionKind,
+            workspaceRoot: job.workspaceRoot,
+            cwd: toolCall.cwd,
+            targetPaths: toolCall.targetPaths ?? [],
+            commandPreview: toolCall.commandPreview,
+            permissionMode: job.permissionMode ?? null,
             inline: true,
           })
           continue

@@ -38,6 +38,20 @@ export type RuntimeGatewayEvent =
   | { type: 'tool_delta'; toolCallId?: string; toolName?: string; delta: string; endpointId?: string }
   | { type: 'tool_completed'; toolCallId?: string; toolName: string; result?: unknown; endpointId?: string }
   | {
+    type: 'runtime_observed_action'
+    actionId?: string | null
+    toolName?: string
+    actionKind?: string
+    status?: 'running' | 'completed' | 'failed' | string
+    commandPreview?: string
+    endpointId?: string
+    workspaceRoot?: string | null
+    cwd?: string | null
+    targetPaths?: string[]
+    permissionMode?: string | null
+    autoApproved?: boolean
+  }
+  | {
     type: 'approval_requested'
     actionId?: string
     title?: string
@@ -49,6 +63,21 @@ export type RuntimeGatewayEvent =
     cwd?: string
     targetPaths?: string[]
     commandPreview?: string
+  }
+  | {
+    type: 'approval_auto_approved'
+    actionId?: string | null
+    title?: string
+    description?: string
+    riskLevel?: string
+    endpointId?: string
+    actionKind?: string
+    workspaceRoot?: string
+    cwd?: string
+    targetPaths?: string[]
+    commandPreview?: string
+    permissionMode?: string | null
+    inline?: boolean
   }
   | { type: 'question'; questionId?: string; title?: string; content: string; endpointId?: string }
   | { type: 'diff_created'; path?: string; diff: string; endpointId?: string }

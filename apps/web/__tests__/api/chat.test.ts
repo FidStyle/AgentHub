@@ -1529,6 +1529,8 @@ describe('POST /api/chat — role-chat-core', () => {
       { type: 'tool_delta', toolCallId: 'tool-1', delta: 'running' },
       { type: 'tool_completed', toolCallId: 'tool-1', toolName: 'shell', result: { ok: true } },
       { type: 'approval_requested', actionId: 'action-1', description: '运行高风险命令', riskLevel: 'high' },
+      { type: 'approval_auto_approved', actionId: 'action-auto-1', title: 'Runtime 工具已自动通过', description: '按 full-control 自动执行', riskLevel: 'medium', actionKind: 'write_file', permissionMode: 'full_control' },
+      { type: 'runtime_observed_action', actionId: 'action-observed-1', status: 'completed', actionKind: 'shell_command', commandPreview: 'npm test', autoApproved: true, permissionMode: 'full_control' },
       { type: 'diff_created', path: 'app.ts', diff: 'diff --git a/app.ts b/app.ts' },
       { type: 'artifact_created', artifactId: 'artifact-1', artifactType: 'markdown', title: '报告', sourcePath: 'report.md' },
       { type: 'runtime_completed' },
@@ -1543,6 +1545,8 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(parts).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'tool', status: 'completed', toolName: 'shell' }),
       expect.objectContaining({ type: 'permission', actionId: 'action-1', riskLevel: 'high' }),
+      expect.objectContaining({ type: 'permission', actionId: 'action-auto-1', status: 'completed', autoApproved: true, permissionMode: 'full_control' }),
+      expect.objectContaining({ type: 'permission', actionId: 'action-observed-1', status: 'completed', autoApproved: true, commandPreview: 'npm test' }),
       expect.objectContaining({ type: 'diff', path: 'app.ts' }),
       expect.objectContaining({ type: 'artifact', artifactId: 'artifact-1', artifactType: 'markdown' }),
     ]))
