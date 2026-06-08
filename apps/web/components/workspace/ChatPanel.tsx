@@ -744,6 +744,16 @@ export function ChatPanel({
     return () => window.removeEventListener('agenthub:quote-to-composer', onQuote)
   }, [])
 
+  if (!activeSessionId) {
+    return (
+      <div data-testid="chat-panel" className="flex h-full min-h-0 border-r border-border">
+        <div data-testid="chat-empty-selection" className="flex min-h-0 flex-1 items-center justify-center p-8">
+          <p className="text-center text-xl font-medium text-muted-foreground">请选择联系人或者群聊</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border">
       <div className="shrink-0 flex items-center justify-between p-4 border-b border-border">

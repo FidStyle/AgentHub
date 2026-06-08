@@ -440,6 +440,8 @@ describe('ArtifactPanel frontend contract', () => {
     expect(artifactSource).toContain('已引用 ${ref.preview}')
     expect(chatSource).toContain('data-testid="message-list-empty-frame"')
     expect(chatSource).toContain('min-h-0 flex-1 overflow-y-auto p-4')
+    expect(chatSource).toContain('data-testid="chat-empty-selection"')
+    expect(chatSource).toContain('请选择联系人或者群聊')
   })
 
   it('adds a publish API that starts and stops runnable artifacts behind the UI buttons', () => {
