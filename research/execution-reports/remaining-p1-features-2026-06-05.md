@@ -152,6 +152,59 @@ pnpm exec playwright test -c e2e/playwright.desktop.config.ts e2e/tests/desktop/
 - Desktop build/test PASS。
 - Electron fallback PASS：21 / 21。
 
+## 2026-06-08 Agent 工具模型收口
+
+本轮按 `.trellis/spec/cross-layer/bytedance-im-agent-artifact-goal.md` 的 P1 Phase 1 决策，把 Role Agent 的展示标签、Runtime 绑定和可请求工具从旧 `capabilities/toolset_ids` 模型中拆开：
+
+- `capability_tags` 只作为显示标签，UI 统一渲染为 `#标签`。
+- `enabled_tool_ids` 改为具体内置工具：`file_read`、`file_write`、`shell`、`git_cli`、`web_search`、`web_fetch`、`browser_preview`、`diff_apply`、`artifact_store`、`publish_service`、`ppt_master`。
+- 新增 `GET /api/tools/catalog`，Role Agent 编辑器从该目录读工具清单并保存具体工具 ID。
+- API 对旧 `capabilities` / `toolset_ids` 输入 fail closed，提示迁移到 `capability_tags` / `enabled_tool_ids`；Runtime ID（如 `codex`）作为工具会被拒绝。
+- Acceptance schema 增加旧列到新列的幂等迁移，避免旧验收库升级时丢失自建 Agent 标签和工具配置。
+- `dispatchApprovedAction` 按具体工具 ID 校验 role-scoped action，权限审批仍由 action broker 决定，启用工具不等于自动执行。
+
+Fresh UAT 复核：
+
+- 首次 full-control 复核 `REAL-TOOLS-UAT-1780891400-FULL` 失败，失败点是固定 prompt 未生成 `public/index.html` 的最终产物候选 artifact row，也未在中央 IM 产生产物推荐/确认 result card。
+- 修复后使用同一 canonical prompt 重新跑 fresh full-control gate：`REAL-TOOLS-UAT-1780892500-FULL` PASS（74 passed / 0 failed / 0 warned）。
+- Fresh workspace：`d3cbf9e1-b2ce-48e9-ac40-6a96b3ec4bc6`。
+- Fresh session：`41ab5f3b-31fd-4c53-a1d1-4b4561b1db58`。
+- Plan：`04bbfa1b-e408-4097-a3da-260e7e7e3bf8`。
+- Final artifact：`68bc13e6-9184-4ec3-be78-9c421a9904f3`。
+- Evidence：`e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-TOOLS-UAT-1780892500-FULL/`。
+- Fresh manual permission gate：`REAL-TOOLS-PERMISSION-UAT-1780892500` PASS（38 passed / 0 failed / 0 warned）。
+- Allow branch：workspace `f39e9b4f-1a9f-4118-bcfa-26ab8d34dbf1`，session `b44807dd-b465-4f2c-9a8f-50406e581b29`，action `20a8620d-230f-4825-9740-ff552df4a4f2`，side-effect file written.
+- Reject branch：workspace `4b8a9d0f-93c1-4c86-af59-ec1b1209c037`，session `3512765a-7adc-4f87-afeb-a6c802c0aabb`，action `4365a754-6857-4816-9de9-4cd23e70f622`，side-effect file absent and plan node remains waiting.
+- Permission evidence：`e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-TOOLS-PERMISSION-UAT-1780892500/`。
+
+本轮自动化验证：
+
+```bash
+pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts
+pnpm --filter @agenthub/shared build
+pnpm --filter @agenthub/web test
+pnpm --filter @agenthub/shared test
+pnpm --filter @agenthub/web type-check
+pnpm --filter @agenthub/shared type-check
+pnpm --filter @agenthub/web lint
+git diff --check
+```
+
+结果：
+
+- Focused Web chat regression PASS：17 tests，覆盖 canonical prompt 在 full-control 下生成最终产物 artifact 和产物推荐/确认 result card。
+- Shared build PASS，并更新 tracked `packages/shared/dist/index.js` / `index.d.ts`。
+- Web Vitest PASS：33 files / 339 tests。
+- Shared Vitest PASS：7 files / 54 tests。
+- Web type-check PASS。
+- Shared type-check PASS。
+- Web lint PASS（仅既有 Next lint deprecation/config warning，0 ESLint errors）。
+- `git diff --check` PASS。
+
+治理门禁状态：
+
+- `bash scripts/verify-governance-gate.sh REMAINING-P1-FEATURES-2026-06-05` 当前未通过，原因是本轮代码和报告尚未提交，脚本要求 clean worktree 且最近 commit 覆盖 report/tracker。提交后需要重跑。
+
 ## 未纳入范围
 
 - 最终 Demo 包：按用户要求不处理。
