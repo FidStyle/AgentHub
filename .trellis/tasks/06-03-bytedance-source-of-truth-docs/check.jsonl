@@ -6,7 +6,7 @@
 {"file":"research/workflow/ai-workflow-control.md","reason":"Verify workflow recovery reads Bytedance source before derived docs."}
 {"file":"research/decision-log.md","reason":"Verify source-of-truth decision is recorded."}
 {"file":".trellis/spec/guides/product-planning-guide.md","reason":"Verify future tasks bind Bytedance source plus derived FR-ID."}
-{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"Verify audits classify source_doc_drift and Bytedance coverage gaps."}
+{"file":".trellis/spec/guides/prd-backtrace-audit-guide.md","reason":"Verify audits classify source_doc_drift and Bytedance coverage gaps."}
 {"file":".trellis/spec/frontend/index.md","reason":"Verify UI tasks require Bytedance source and derived FR-ID."}
 {"file":".trellis/spec/frontend/component-guidelines.md","reason":"Verify components bind to Bytedance source and derived PRD."}
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify frontend quality checklist requires Bytedance source plus FR-ID."}

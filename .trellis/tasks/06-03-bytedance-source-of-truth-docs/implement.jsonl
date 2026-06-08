@@ -9,7 +9,7 @@
 {"file":"research/decision-log.md","reason":"Decision log records Bytedance source-of-truth decision."}
 {"file":"research/architecture/automation-reference-comparison.md","reason":"Automation planning gate updated to bind Bytedance source plus derived FR-ID."}
 {"file":".trellis/spec/guides/product-planning-guide.md","reason":"Trellis planning guide updated for Bytedance source plus FR-ID binding."}
-{"file":".trellis/spec/cross-layer/prd-backtrace-audit.md","reason":"Audit spec updated to detect source_doc_drift and Bytedance coverage gaps."}
+{"file":".trellis/spec/guides/prd-backtrace-audit-guide.md","reason":"Audit guide updated to detect source_doc_drift and Bytedance coverage gaps."}
 {"file":".trellis/spec/frontend/index.md","reason":"Frontend spec index updated to require Bytedance source and derived FR-ID."}
 {"file":".trellis/spec/frontend/component-guidelines.md","reason":"Component guide updated to bind components to Bytedance source and derived PRD."}
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend review checklist updated for Bytedance source plus FR-ID."}

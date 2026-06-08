@@ -208,7 +208,7 @@
 | **优先级** | P0 |
 | **状态** | `closed`（2026-06-02，`P0-ACCEPTANCE-ENV-UAT-CLOSURE` 收口） |
 | **关联 FR/PRD** | FR-AUTH-001, FR-WS-001, FR-DESK-001, FR-MOB-001, FR-CHAT-001, FR-ORCH-001, FR-CTX-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-NOTIFY-001 |
-| **关联任务/合同** | PRD 反查审计：`research/execution-reports/prd-backtrace-gap-audit-2026-06-01.md`；规范：`.trellis/spec/cross-layer/prd-backtrace-audit.md` |
+| **关联任务/合同** | PRD 反查审计：`research/execution-reports/prd-backtrace-gap-audit-2026-06-01.md`；指南：`.trellis/spec/guides/prd-backtrace-audit-guide.md` |
 | **影响功能面** | 本地工作区创建门禁、plans/actions 权限边界、多角色 @、默认 Orchestrator、编排计划调度、pin/handoff/native session、富消息/结果卡/预览、Action 执行、通知/审批、Desktop 旧组件与静态授权记录 |
 | **发现方式** | Codex 从 `research/prd.md` P0 FR 逐项反查实际代码入口/API/UI/测试（2026-06-01），本轮未改产品代码、未重新跑 UAT。 |
 | **证据** | 详见审计报告 PBA-001..PBA-012。关键 P0 证据：`apps/web/app/api/workspaces/route.ts` 未在 `desktop.ok === false` 时阻止 `local_desktop` 创建；`apps/web/app/api/plans/route.ts` 与 `apps/web/app/api/actions/route.ts` 缺 `session_id -> workspace.owner_id` 校验；`ChatPanel`/`session-store` 只支持单 role；`OrchestratorPanel` 只读已有 plan/action，confirm 不调度执行；Desktop `authorizationRecords` 是 zustand 静态 seed；Mobile preview 仍为占位。 |

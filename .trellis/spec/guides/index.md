@@ -27,6 +27,7 @@ These guides help you **ask the right questions before coding**.
 | [End-to-End Contract Planning Guide](./end-to-end-contract-planning.md) | Prevent fake product closure in plans and acceptance criteria | Before planning/reviewing auth, workspace, DB, runtime, E2E, or three-surface flows |
 | [Maestro Command Routing Guide](./maestro-command-routing.md) | Route between `/maestro-ralph`, pipeline commands, and generated command reference | When guiding Maestro/Ralph or choosing a Maestro command |
 | [Product Planning Thinking Guide](./product-planning-guide.md) | Keep AgentHub work bound to PRD FR-IDs and product design | Before implementing AgentHub product slices |
+| [PRD Backtrace Audit Guide](./prd-backtrace-audit-guide.md) | 从 Bytedance 原始 PRD 反查完成声明、证据和过时入口 | Before final acceptance or when historical pass is disputed |
 
 ---
 

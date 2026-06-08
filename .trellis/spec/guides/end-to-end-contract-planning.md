@@ -12,7 +12,7 @@ Plans must not replace product behavior with placeholder code, file-existence ch
 
 For local conversation, remote conversation, `@role`, attachment, and artifact closure, the executable contract is `.trellis/spec/cross-layer/real-flow-acceptance.md`. If a plan cannot satisfy that spec, it must say "deferred" or "not accepted" instead of "passed".
 
-Before broad acceptance or "what is still missing" reviews, run a PRD backtrace using `.trellis/spec/cross-layer/prd-backtrace-audit.md`. The review must find both missing P0 behavior and stale/ghost UI or tests that should be deleted or explicitly downgraded.
+Before broad acceptance or "what is still missing" reviews, run a PRD backtrace using `.trellis/spec/guides/prd-backtrace-audit-guide.md`. The review must find both missing P0 behavior and stale/ghost UI or tests that should be deleted or explicitly downgraded.
 
 ---
 
@@ -51,7 +51,7 @@ Before a plan may execute, review every task against this checklist:
 
 ## Bytedance P0/P1 Real-Step UAT Trigger
 
-When the user asks for Bytedance final acceptance, "全真实验收", "最终验收", "不相信历史 pass", "模拟用户全流程", "每一步验证状态", or "P0/P1 全部完成", use the executable scenario in `.trellis/spec/cross-layer/real-flow-acceptance.md#scenario-bytedance-p0p1-real-step-uat`.
+When the user asks for Bytedance final acceptance, "全真实验收", "最终验收", "不相信历史 pass", "模拟用户全流程", "每一步验证状态", or "P0/P1 全部完成", use `.trellis/spec/cross-layer/real-flow-bytedance-uat.md`.
 
 Planning must explicitly include:
 
