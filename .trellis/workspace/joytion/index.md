@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 27
+- **Total Sessions**: 28
 - **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1024 | Active |
+| `journal-1.md` | ~1058 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 28 | 2026-06-09 | 移除用户可见会话入口 | `5485618`, `75dfa0f` | `AgentHub_new_claude_test` |
 | 27 | 2026-06-09 | 刷新聊天记录后自动置底 | `2cc0df6`, `0f93fe3` | `AgentHub_new_claude_test` |
 | 26 | 2026-06-08 | 收紧会话列表密度 | `a5379f1` | `AgentHub_new_claude_test` |
 | 25 | 2026-06-07 | Bytedance P0/P1 final gate | `832cea7`, `6045da2`, `9349ee7` | `AgentHub_new_claude_test` |

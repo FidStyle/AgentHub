@@ -1022,3 +1022,37 @@ Completed the Bytedance P0/P1 final completion gate, committed the fresh strict 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: 移除用户可见会话入口
+
+**Date**: 2026-06-09
+**Task**: 移除用户可见会话入口
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+移除 Web 左侧重复的会话标题和新建会话入口，收敛到联系人/单聊/群聊；同步聊天文案、单聊发送约束、移动端文案、E2E 入口与视觉截图证据。验证：session-store/api 单测、type-check、lint、git diff --check、session-list-density/role-chat-core/web-workspace-layout/ui-tooltip-position Playwright 回归均通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5485618` | (see git log) |
+| `75dfa0f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
