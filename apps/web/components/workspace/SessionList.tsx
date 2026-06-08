@@ -51,7 +51,7 @@ export function SessionList() {
 
   if (sessions.length === 0) {
     return (
-      <div data-testid="session-list" className="flex h-full flex-col gap-2">
+      <div data-testid="session-list" className="flex h-full min-w-0 flex-col gap-2 overflow-x-hidden">
         <SessionStatusTabs value={sessionStatusFilter} onChange={setSessionStatusFilter} />
         <StateCard variant="empty" />
       </div>
@@ -81,7 +81,7 @@ export function SessionList() {
   }
 
   return (
-    <div data-testid="session-list" className="flex h-full flex-col gap-2">
+    <div data-testid="session-list" className="flex h-full min-w-0 flex-col gap-2 overflow-x-hidden">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-medium">
           <MessageSquareText className="h-3.5 w-3.5 text-muted-foreground" />
@@ -92,11 +92,13 @@ export function SessionList() {
           <button
             type="button"
             aria-label="新建群聊"
+            title="新建群聊"
             data-testid="new-group-conversation"
-            className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="relative rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => setCreatingGroup((value) => !value)}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <UsersRound className="h-3.5 w-3.5" />
+            <Plus className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-background" />
           </button>
         </div>
       </div>
@@ -142,91 +144,96 @@ export function SessionList() {
           className="min-w-0 flex-1 bg-transparent text-xs outline-none"
         />
       </label>
-      <div className="flex flex-1 flex-col gap-1 overflow-y-auto">
+      <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden">
         {filtered.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground">没有匹配的会话</p>}
         {filtered.map((session) => (
           <div
             key={session.id}
-            className={`w-full rounded-md border p-3 text-left transition-colors ${
+            data-testid={`session-list-item-${session.id}`}
+            className={`group w-full rounded-md border px-2 py-1.5 text-left transition-colors ${
               activeSessionId === session.id ? 'border-primary/40 bg-primary/10' : 'border-transparent hover:border-border hover:bg-muted'
             }`}
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-start gap-2">
+              <button
+                type="button"
+                onClick={() => void openConversation(session)}
+                className="mt-0.5 shrink-0 text-muted-foreground"
+                aria-label={`打开 ${session.title}`}
+              >
+                {session.kind === 'contact' ? <UserRound className="h-4 w-4" /> : <UsersRound className="h-4 w-4" />}
+              </button>
               <button
                 type="button"
                 onClick={() => void openConversation(session)}
                 className="min-w-0 flex-1 text-left"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  {session.kind === 'contact' ? <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <UsersRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                  <span className="truncate text-sm font-medium">{session.title}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm font-medium leading-5">{session.title}</span>
                   {session.isPinned && <Badge variant="secondary">置顶</Badge>}
                   {session.status === 'archived' && <Badge variant="secondary">已归档</Badge>}
+                  {activeSessionId === (session.sessionId ?? session.id) && <Badge variant="default">当前</Badge>}
+                </span>
+                <span className="mt-0.5 block truncate text-xs leading-4 text-muted-foreground">
+                  {session.lastMessage || (
+                    session.participants && session.participants.length > 1
+                      ? `成员：${session.participants.map((participant) => participant.name).join('、')}`
+                      : '暂无最新消息'
+                  )}
                 </span>
               </button>
-              <div className="flex shrink-0 items-center gap-1">
-                {activeSessionId === (session.sessionId ?? session.id) && <Badge variant="default">当前</Badge>}
-                {session.sessionId && (
-                  <button
-                    type="button"
-                    aria-label={`${session.isPinned ? '取消置顶' : '置顶'} ${session.title}`}
-                    data-testid={`pin-session-${session.sessionId}`}
-                    className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => void pinSession(session.sessionId ?? session.id, !session.isPinned)}
-                  >
-                    {session.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                  </button>
-                )}
-                {session.kind !== 'contact' && sessionStatusFilter === 'active' ? (
-                  <button
-                    type="button"
-                    aria-label={`归档会话 ${session.title}`}
-                    data-testid={`archive-session-${session.id}`}
-                    className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => handleArchive(session.id, session.title)}
-                  >
-                    <Archive className="h-3.5 w-3.5" />
-                  </button>
-                ) : session.kind !== 'contact' ? (
-                  <button
-                    type="button"
-                    aria-label={`恢复会话 ${session.title}`}
-                    data-testid={`restore-session-${session.id}`}
-                    className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => handleRestore(session.id)}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </button>
-                ) : null}
-                {session.kind !== 'contact' && (
-                  <button
-                    type="button"
-                    aria-label={`删除会话 ${session.title}`}
-                    data-testid={`delete-session-${session.id}`}
-                    className="rounded-sm p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => handleDelete(session.id, session.title)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
+              <div className="flex max-w-[5.5rem] shrink-0 flex-col items-end gap-0.5">
+                <span className="flex items-center gap-1 whitespace-nowrap text-[11px] leading-4 text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {formatSessionTime(session.updatedAt)}
+                </span>
+                <div className="flex items-center gap-0.5">
+                  {session.sessionId && (
+                    <button
+                      type="button"
+                      aria-label={`${session.isPinned ? '取消置顶' : '置顶'} ${session.title}`}
+                      data-testid={`pin-session-${session.sessionId}`}
+                      className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => void pinSession(session.sessionId ?? session.id, !session.isPinned)}
+                    >
+                      {session.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
+                  {session.kind !== 'contact' && sessionStatusFilter === 'active' ? (
+                    <button
+                      type="button"
+                      aria-label={`归档会话 ${session.title}`}
+                      data-testid={`archive-session-${session.id}`}
+                      className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => handleArchive(session.id, session.title)}
+                    >
+                      <Archive className="h-3.5 w-3.5" />
+                    </button>
+                  ) : session.kind !== 'contact' ? (
+                    <button
+                      type="button"
+                      aria-label={`恢复会话 ${session.title}`}
+                      data-testid={`restore-session-${session.id}`}
+                      className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => handleRestore(session.id)}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                  {session.kind !== 'contact' && (
+                    <button
+                      type="button"
+                      aria-label={`删除会话 ${session.title}`}
+                      data-testid={`delete-session-${session.id}`}
+                      className="rounded-sm p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => handleDelete(session.id, session.title)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => void openConversation(session)}
-              className="mt-1 block w-full text-left"
-            >
-              <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{session.lastMessage || '暂无最新消息'}</p>
-              <span className="mt-2 flex items-center gap-1 text-[11px] leading-4 text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                最近活跃：{formatSessionTime(session.updatedAt)}
-              </span>
-              {session.participants && session.participants.length > 1 && (
-                <span className="mt-1 block truncate text-[11px] leading-4 text-muted-foreground">
-                  成员：{session.participants.map((participant) => participant.name).join('、')}
-                </span>
-              )}
-            </button>
           </div>
         ))}
       </div>
