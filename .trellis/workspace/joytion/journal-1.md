@@ -988,3 +988,37 @@ Completed the Bytedance P0/P1 final completion gate, committed the fresh strict 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: 刷新聊天记录后自动置底
+
+**Date**: 2026-06-09
+**Task**: 刷新聊天记录后自动置底
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+修复 Web 聊天在命令/审批后 fetchMessages 全量刷新但停留在旧滚动位置的问题。保留全量读回，用 messagesRevision 处理同内容刷新；MessageList 在消息签名或刷新 revision 变化时置底；补单测和 Playwright 回归截图。验证：chat-im-polish/session-store 单测、type-check、lint、git diff --check、web-desktop E2E 均通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2cc0df6` | (see git log) |
+| `0f93fe3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
