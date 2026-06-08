@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Badge, Button, StateCard } from '@agenthub/ui'
+import { Badge, Button, StateCard, Tooltip } from '@agenthub/ui'
 import { Archive, Clock, MessageSquareText, Pin, PinOff, Plus, RotateCcw, Search, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 
@@ -59,7 +59,7 @@ export function SessionList() {
   }
 
   const handleArchive = async (sessionId: string, title: string) => {
-    if (!confirm(`确定归档会话「${title}」吗？归档后可在归档列表中恢复。`)) return
+    if (!confirm(`确定归档聊天「${title}」吗？归档后可在归档列表中恢复。`)) return
     await archiveSession(sessionId)
   }
 
@@ -68,7 +68,7 @@ export function SessionList() {
   }
 
   const handleDelete = async (sessionId: string, title: string) => {
-    if (!confirm(`确定删除会话「${title}」吗？相关消息、计划和运行记录会一并删除。`)) return
+    if (!confirm(`确定删除聊天「${title}」吗？相关消息、计划和运行记录会一并删除。`)) return
     await deleteSession(sessionId)
   }
   const contacts = sessions.filter((session) => session.kind === 'contact' && session.roleAgentId)
@@ -89,17 +89,18 @@ export function SessionList() {
         </div>
         <div className="flex items-center gap-1">
           <Badge variant="secondary">{filtered.length}/{sessions.length}</Badge>
-          <button
-            type="button"
-            aria-label="新建群聊"
-            title="新建群聊"
-            data-testid="new-group-conversation"
-            className="relative rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={() => setCreatingGroup((value) => !value)}
-          >
-            <UsersRound className="h-3.5 w-3.5" />
-            <Plus className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-background" />
-          </button>
+          <Tooltip content="新建群聊">
+            <button
+              type="button"
+              aria-label="新建群聊"
+              data-testid="new-group-conversation"
+              className="relative rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={() => setCreatingGroup((value) => !value)}
+            >
+              <UsersRound className="h-3.5 w-3.5" />
+              <Plus className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-background" />
+            </button>
+          </Tooltip>
         </div>
       </div>
       {creatingGroup && (
@@ -145,13 +146,13 @@ export function SessionList() {
         />
       </label>
       <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden">
-        {filtered.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground">没有匹配的会话</p>}
+        {filtered.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground">没有匹配的聊天</p>}
         {filtered.map((session) => (
           <div
             key={session.id}
             data-testid={`session-list-item-${session.id}`}
             className={`group w-full rounded-md border px-2 py-1.5 text-left transition-colors ${
-              activeSessionId === session.id ? 'border-primary/40 bg-primary/10' : 'border-transparent hover:border-border hover:bg-muted'
+              activeSessionId === (session.sessionId ?? session.id) ? 'border-primary/40 bg-primary/10' : 'border-transparent hover:border-border hover:bg-muted'
             }`}
           >
             <div className="flex min-w-0 items-start gap-2">
@@ -202,7 +203,7 @@ export function SessionList() {
                   {session.kind !== 'contact' && sessionStatusFilter === 'active' ? (
                     <button
                       type="button"
-                      aria-label={`归档会话 ${session.title}`}
+                      aria-label={`归档聊天 ${session.title}`}
                       data-testid={`archive-session-${session.id}`}
                       className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                       onClick={() => handleArchive(session.id, session.title)}
@@ -212,7 +213,7 @@ export function SessionList() {
                   ) : session.kind !== 'contact' ? (
                     <button
                       type="button"
-                      aria-label={`恢复会话 ${session.title}`}
+                      aria-label={`恢复聊天 ${session.title}`}
                       data-testid={`restore-session-${session.id}`}
                       className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                       onClick={() => handleRestore(session.id)}
@@ -223,7 +224,7 @@ export function SessionList() {
                   {session.kind !== 'contact' && (
                     <button
                       type="button"
-                      aria-label={`删除会话 ${session.title}`}
+                      aria-label={`删除聊天 ${session.title}`}
                       data-testid={`delete-session-${session.id}`}
                       className="rounded-sm p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => handleDelete(session.id, session.title)}

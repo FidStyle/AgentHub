@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll } from '../../helpers/visual-assertions'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 
 test.describe('WORKSPACE-LOCAL-DESKTOP-UAT Web workspace 真实可用性', () => {
   let storageState: string
@@ -36,7 +37,7 @@ test.describe('WORKSPACE-LOCAL-DESKTOP-UAT Web workspace 真实可用性', () =>
     await expect(page.getByTestId('workspace-desktop-status')).toContainText(/Desktop：(已连接|未连接)/)
     await expect(page.getByRole('link', { name: /我的工作区/ }).first()).toHaveAttribute('href', '/workspace')
 
-    await page.getByRole('button', { name: '新建会话' }).click()
+    await openOrchestratorDirectChat(page)
     await expect(page.getByTestId('attachment-btn')).toBeEnabled()
     const attachmentName = `uat-attachment-${ts}.txt`
     const uploadResponsePromise = page.waitForResponse(

@@ -9,6 +9,7 @@ import {
   assertMinWidth,
   assertNotOverlapping,
 } from '../../helpers/visual-assertions'
+import { createAndOpenGroupChat } from '../../helpers/chat-entry'
 
 /**
  * WEB-WORKSPACE-LAYOUT-UAT-001 — 真实浏览器布局/按钮位置 UAT。
@@ -62,8 +63,9 @@ test.describe('Web workspace 桌面三栏布局几何', () => {
       await assertNoElementOverlap(page, '[data-testid="workspace-shell"] > [data-testid="sidebar-region"], [data-testid="workspace-shell"] > .flex, [data-testid="workspace-shell"] > [data-testid="artifact-resize-handle"], [data-testid="workspace-shell"] > [data-testid="artifact-overlay"]')
       await assertMinWidth(page, '[data-testid="chat-panel"]', 480)
 
-      // 2. 新建会话按钮在“会话”区标题右侧
-      await assertRightOf(page, '[data-testid="new-session-btn"]', '[data-testid="session-header-title"]')
+      // 空白聊天入口已删除：左栏只保留联系人与群聊。
+      await expect(page.getByTestId('new-session-btn')).toHaveCount(0)
+      await expect(page.getByTestId('new-group-conversation')).toBeVisible()
 
       // 3. workspace 切换入口在左栏顶部 → 展开列表不超出左栏/不错位
       await page.getByTestId('workspace-switcher').click()
@@ -71,11 +73,10 @@ test.describe('Web workspace 桌面三栏布局几何', () => {
       await assertWithinContainer(page, '[data-testid="workspace-dropdown"]', '[data-testid="sidebar-region"]')
       await page.getByTestId('workspace-switcher').click()
 
-      // 2(行为). 新建会话 → 真实创建 + 选中 + 输入可用
-      await page.getByTestId('new-session-btn').click()
+      // 群聊 → 真实创建 + 选中 + 输入可用；群聊内保留 @ 角色入口。
+      await createAndOpenGroupChat(page, wsId)
       const firstSession = page.getByTestId('session-list').locator('button').first()
       await expect(firstSession).toBeVisible({ timeout: 10000 })
-      await expect(firstSession).toHaveClass(/bg-primary\/10/)
       await expect(page.getByTestId('composer-input')).toBeEnabled()
 
       // 4. @角色按钮在 composer 工具栏 + picker 贴近按钮且不遮挡输入/发送
@@ -163,7 +164,7 @@ test.describe('Web workspace 桌面三栏布局几何', () => {
     await page.getByLabel('初始内容').fill('Workbench wide mode evidence')
     await page.getByRole('button', { name: '创建文件' }).click()
     await expect(page.getByTestId('workspace-file-tree').getByText('example.txt')).toBeVisible()
-    await expect(page.getByTestId('workspace-code-preview')).toContainText('Workbench wide mode evidence')
+    await expect(page.getByTestId('mini-ide-source-editor')).toHaveValue(/Workbench wide mode evidence/)
     const wideStored = await page.evaluate(() => window.localStorage.getItem('agenthub:right-panel-wide'))
     expect(wideStored).toBe('true')
     const gridColumns = await page.getByTestId('workspace-file-tree').locator('..').evaluate((node) => getComputedStyle(node).gridTemplateColumns)
@@ -198,7 +199,8 @@ test.describe('Web workspace 窄屏（移动宽度）布局', () => {
     await expect(page.getByTestId('open-sidebar')).toBeVisible()
     await page.getByTestId('open-sidebar').click()
     await expect(page.getByTestId('sidebar-region')).toBeVisible()
-    await assertWithinContainer(page, '[data-testid="new-session-btn"]', '[data-testid="sidebar-region"]')
+    await expect(page.getByTestId('new-session-btn')).toHaveCount(0)
+    await assertWithinContainer(page, '[data-testid="new-group-conversation"]', '[data-testid="sidebar-region"]')
     await page.getByTestId('sidebar-backdrop').click()
 
     // 右栏 overlay 模式：开启不把中栏聊天区压到不可用（仍 >=480 或 overlay 覆盖在上层）

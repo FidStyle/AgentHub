@@ -231,9 +231,9 @@ describe('POST /api/chat — role-chat-core', () => {
     await rm(path.join(mockWorkspaceRoot, 'public'), { recursive: true, force: true })
   })
 
-  it('renames the default new session from the first user message and streams the title update', async () => {
+  it('renames the default new chat from the first user message and streams the title update', async () => {
     setupMockClient(chainCapturingInsertsWithRoles(undefined, [], [
-      { id: 'session-001', workspace_id: 'ws-001', name: '新会话', status: 'active' },
+      { id: 'session-001', workspace_id: 'ws-001', name: '新聊天', status: 'active' },
     ]))
 
     const { status, text } = await callChat({

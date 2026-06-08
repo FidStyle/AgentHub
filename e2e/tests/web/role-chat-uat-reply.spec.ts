@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/visual-assertions'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 
 /**
  * ROLE-CHAT-UAT-REPLY-001 E2E — 真实 DB + 真实 Redis + 真实 worker(ScriptedRealExecutor)，无主链路 mock。
  *
- * 关闭 ROLE-CHAT-CORE-001 deferred 的 P0 缺口：@Orchestrator 发送后必须出现可见 agent 回复。
- *   1. open /workspace/:id（cloud domain）→ 新建 session → @Orchestrator → 发送
+ * 关闭 ROLE-CHAT-CORE-001 deferred 的 P0 缺口：Orchestrator 单聊发送后必须出现可见 agent 回复。
+ *   1. open /workspace/:id（cloud domain）→ 打开 Orchestrator 单聊 → 发送
  *   2. 等到可见 agent 回复文本（ScriptedRealExecutor 输出，经 redis worker 回流）
  *   3. 回复为非 echo（不等于用户输入 prompt）——证明走通真实投递链路而非测试态回显
  *   4. 回复带 role badge（角色上下文标识）
@@ -30,7 +31,7 @@ test.describe('ROLE-CHAT-UAT-REPLY 可见 agent 回复闭环', () => {
     storageState = await ensureAcceptanceStorageState()
   })
 
-  test('open workspace → @Orchestrator → 发送 → 可见非echo回复 + role badge + 视觉 + reload 双向持久化', async ({ browser }) => {
+  test('open workspace → Orchestrator 单聊 → 发送 → 可见非echo回复 + role badge + 视觉 + reload 双向持久化', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
 
@@ -44,14 +45,7 @@ test.describe('ROLE-CHAT-UAT-REPLY 可见 agent 回复闭环', () => {
     await page.goto(`/workspace/${wsId}`)
     await page.waitForLoadState('domcontentloaded')
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
-
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('session-list')).toBeVisible()
-
-    await page.getByRole('button', { name: '提及角色' }).click()
-    const picker = page.getByTestId('role-picker')
-    await expect(picker).toBeVisible()
-    await picker.getByText('@Orchestrator').click()
+    await openOrchestratorDirectChat(page)
 
     const msg = `UATREPLY-ASK-${ts}`
     await page.getByTestId('composer-input').fill(msg)
@@ -76,6 +70,7 @@ test.describe('ROLE-CHAT-UAT-REPLY 可见 agent 回复闭环', () => {
     // ScriptedRealExecutor 非 echo，故用户气泡(.bg-primary/10)与 agent 回复天然区分。
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
+    await openOrchestratorDirectChat(page)
     await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
     await expect(page.getByTestId('message-role-badge').first()).toBeVisible({ timeout: 10000 })
 

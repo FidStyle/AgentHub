@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 import { assertNoHorizontalScroll } from '../../helpers/visual-assertions'
 
 const hasAuth = !!(process.env.TEST_AUTH_COOKIE || process.env.TEST_AUTH_COOKIE_VALUE || process.env.TEST_AUTH_STORAGE_STATE)
@@ -15,15 +16,14 @@ test.describe('Web 消息 Markdown 真实渲染', () => {
     const workspace = await workspaceResp.json()
 
     const sessionResp = await page.request.post('/api/sessions', {
-      data: { workspace_id: workspace.id, name: 'E2E Markdown 会话' },
+      data: { workspace_id: workspace.id, name: 'E2E Markdown 聊天' },
     })
     expect(sessionResp.ok()).toBeTruthy()
 
     await page.goto(`/workspace/${workspace.id}`)
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('session-list')).toBeVisible()
-    await page.getByTestId('session-list').getByRole('button', { name: 'E2E Markdown 会话', exact: true }).click()
+    await openOrchestratorDirectChat(page)
+    await page.getByTestId('session-list').getByRole('button', { name: 'E2E Markdown 聊天', exact: true }).click()
 
     const markdownMessage = [
       `# E2E Markdown ${ts}`,

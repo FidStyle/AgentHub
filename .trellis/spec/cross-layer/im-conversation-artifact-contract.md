@@ -22,6 +22,7 @@
 ### 3. Contracts
 
 - Contact rows are derived from `role_agents`; they are not deleted or hidden by archiving a direct session.
+- Web IM entry points are contacts and groups. Loading a workspace must not auto-create an empty chat or auto-open the first row; users choose a contact or group, and direct sessions are created lazily only after selecting a contact.
 - Direct sessions bind one `direct_role_agent_id`; `/api/chat` rejects attempts to target a different role.
 - Group sessions bind participant role IDs; `/api/chat` rejects mentions outside participants and defaults to the group orchestrator or all participants.
 - Conversation sorting is pinned first, then `lastActivityAt desc`.
@@ -37,7 +38,8 @@
 | Missing `workspace_id` | `400 缺少 workspace_id` |
 | Group has no participants | `400 至少选择一个联系人` |
 | Group participant is not in workspace | `403 群聊联系人不存在或无权限` |
-| Direct session targets another role | `400 单聊会话不能 @ 其他联系人` |
+| Direct session missing bound contact | `409 单聊缺少绑定联系人` |
+| Direct session targets another role | `400 单聊不能 @ 其他联系人` |
 | Group mentions non-participant | `400 群聊只能 @ 已加入的联系人` |
 | Invalid diff | `400 不是合法 unified diff` |
 | Diff path outside workspace | `400 Diff 包含 workspace 外路径` |
@@ -47,6 +49,7 @@
 
 - Good: `GET /api/conversations` returns `contact` rows for role agents and `group` rows for group sessions in one sorted list.
 - Base: a contact without a direct session is selectable; the UI lazily creates the direct session before loading messages.
+- Bad: `fetchSessions` auto-creates a blank session or auto-opens the first conversation, reintroducing a duplicate "new session" product path.
 - Bad: UI hides the role picker for direct chat but `/api/chat` still accepts a different `roleAgentIds` target.
 - Bad: diff card applies patches immediately from the browser click without creating an approval action.
 - Bad: PPT endpoint returns success while only storing JSON and no downloadable PPTX file.
@@ -58,6 +61,7 @@
 - API tests for valid/invalid diff apply action creation.
 - Chat API tests for direct/group recipient enforcement when those session fields are present.
 - Store/component tests for `/api/conversations` consumption and contact/group rendering.
+- E2E tests must enter direct chat by clicking a contact and group chat by creating/selecting a group; do not use a blank "new session" button as setup.
 - Type-checks for shared `RuntimeMessagePart` union consumers, including Mobile/PWA.
 
 ### 7. Wrong vs Correct

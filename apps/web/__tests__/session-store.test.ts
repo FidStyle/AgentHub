@@ -162,7 +162,7 @@ describe('session store streaming replies', () => {
     ]))
     useSessionStore.setState({
       activeSessionId: 'session-001',
-      sessions: [{ id: 'session-001', title: '新会话', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+      sessions: [{ id: 'session-001', title: '新聊天', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
     })
 
     await useSessionStore.getState().sendMessage({
@@ -386,16 +386,8 @@ describe('session store lifecycle actions', () => {
         participants: [],
       },
     ])
-    expect(useSessionStore.getState().activeSessionId).toBe('strict-session-001')
-    expect(useSessionStore.getState().messages).toEqual([
-      expect.objectContaining({
-        id: 'msg-001',
-        sessionId: 'strict-session-001',
-        role: 'agent',
-        roleAgentId: 'agent-fe',
-        visibleStatus: '已完成',
-      }),
-    ])
+    expect(useSessionStore.getState().activeSessionId).toBeNull()
+    expect(useSessionStore.getState().messages).toEqual([])
   })
 
   it('fetches active sessions with status filter and maps archived state', async () => {

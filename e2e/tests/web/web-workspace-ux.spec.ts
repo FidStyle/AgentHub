@@ -1,14 +1,15 @@
 import { test, expect } from '@playwright/test'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/visual-assertions'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 
 /**
  * WEB-WORKSPACE-UX-001 E2E — real DB, no main-chain API mocks.
  *
  * 覆盖 ROLE-CHAT-CORE-001 未触及的 deep-link 真实交互回归：
  *   1. 直接打开 /workspace/:id → 选中 URL 指定的 workspace（而非默认第一个）
- *   2. 点击已有 session → 真实触发 GET /api/messages 拉取消息
- *   3. @Orchestrator 发送 → 仍走 POST /api/chat（不退回 /api/messages）
+ *   2. 点击已有聊天 → 真实触发 GET /api/messages 拉取消息
+ *   3. Orchestrator 单聊发送 → 仍走 POST /api/chat（不退回 /api/messages）
  *   4. reload 后 session/message 持久化
  *
  * P0 harness 边界同 role-chat-core：无 Redis/runtime worker，public_cloud chat
@@ -21,7 +22,7 @@ test.describe('WEB-WORKSPACE-UX deep-link 真实交互', () => {
     storageState = await ensureAcceptanceStorageState()
   })
 
-  test('直接打开 /workspace/:id → 选中正确 workspace → 点击 session 拉消息 → @Orchestrator 走 /api/chat → reload 保留', async ({ browser }) => {
+  test('直接打开 /workspace/:id → 选中正确 workspace → 点击聊天拉消息 → Orchestrator 单聊走 /api/chat → reload 保留', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
 
@@ -47,16 +48,9 @@ test.describe('WEB-WORKSPACE-UX deep-link 真实交互', () => {
     // 断言 URL 指定 workspace 被选中：Sidebar 切换器显示 ws2 名称（activeWorkspaceId===ws2Id），
     // 即使 ws2 不是列表第一个，也不被默认覆盖（修复核心断言）。
     await expect(page.getByTestId('workspace-switcher')).toHaveText(new RegExp(ws2Name), { timeout: 10000 })
+    await openOrchestratorDirectChat(page)
 
-    // 新建会话，使其落库并产生可点击的 session 项
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('session-list')).toBeVisible()
-
-    // @Orchestrator 发送一条消息（经 /api/chat 真实持久化），为 fetchMessages 断言准备历史
-    await page.getByRole('button', { name: '提及角色' }).click()
-    const picker = page.getByTestId('role-picker')
-    await expect(picker).toBeVisible()
-    await picker.getByText('@Orchestrator').click()
+    // Orchestrator 单聊发送一条消息（经 /api/chat 真实持久化），为 fetchMessages 断言准备历史
     const msg = `WSUX-ASK-${ts}`
     await page.getByTestId('composer-input').fill(msg)
     await page.getByRole('button', { name: /发送/ }).click()
@@ -78,6 +72,7 @@ test.describe('WEB-WORKSPACE-UX deep-link 真实交互', () => {
     // 故按用户气泡(.bg-primary/10)精确定位用户消息，避免与 agent 回显文本串味。
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
+    await openOrchestratorDirectChat(page)
     await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
 
     await context.close()

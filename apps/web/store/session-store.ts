@@ -59,7 +59,7 @@ type StreamEvent = {
   metadata?: unknown
 }
 
-const PLACEHOLDER_SESSION_TITLES = new Set(['', '新会话', '未命名会话'])
+const PLACEHOLDER_SESSION_TITLES = new Set(['', '新聊天', '未命名聊天', '新会话', '未命名会话'])
 
 function titleFromFirstUserMessage(content: string) {
   const title = content
@@ -68,7 +68,7 @@ function titleFromFirstUserMessage(content: string) {
     .find(Boolean)
     ?.replace(/\s+/g, ' ')
     .slice(0, 80)
-  return title || '新会话'
+  return title || '新聊天'
 }
 
 function shouldAutoTitleSession(title: string) {
@@ -223,9 +223,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return
       }
       const data = await res.json()
-      let sessions: Session[] = data.map((s: Record<string, unknown>) => ({
+      const sessions: Session[] = data.map((s: Record<string, unknown>) => ({
         id: String(s.sessionId ?? s.session_id ?? s.id),
-        title: String(s.title ?? s.name ?? '未命名会话'),
+        title: String(s.title ?? s.name ?? '未命名聊天'),
         lastMessage: (s.lastMessage as string | undefined) || (s.last_message as string | undefined) || '',
         updatedAt: (s.lastActivityAt as string | undefined) || (s.last_message_at as string | undefined) || s.updated_at || s.created_at || '',
         status: s.status === 'archived' ? 'archived' : 'active',
@@ -235,28 +235,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         isPinned: Boolean(s.isPinned),
         participants: Array.isArray(s.participants) ? s.participants as Array<{ roleAgentId: string; name: string }> : [],
       }))
-      if (sessions.length === 0 && sessionStatusFilter === 'active') {
-        const createRes = await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspace_id: workspaceId }),
-        })
-        if (!createRes.ok) {
-          const body = await createRes.json().catch(() => ({ error: createRes.statusText }))
-          set({ error: body.error || createRes.statusText, loading: false })
-          return
-        }
-        const s = await createRes.json()
-        sessions = [{
-          id: s.id,
-          title: s.name || '新会话',
-          lastMessage: '',
-          updatedAt: s.updated_at || s.created_at || '',
-          status: 'active',
-        }]
-      }
-      set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: sessions[0]?.id ?? null, loading: false })
-      if (sessions[0]) await get().openConversation(sessions[0])
+      set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: null, messages: [], loading: false })
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
     }
@@ -325,7 +304,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const s = await res.json()
       const session: Session = {
         id: s.id,
-        title: s.name || '新会话',
+        title: s.name || '新聊天',
         lastMessage: '',
         updatedAt: s.updated_at || s.created_at || '',
         status: 'active',

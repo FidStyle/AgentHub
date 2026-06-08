@@ -322,7 +322,7 @@ describe('POST /api/sessions', () => {
     const { POST } = await import('@/app/api/sessions/route')
     setupMockClient(noWorkspaceChain())
     const result = await callRoute(POST, 'POST', {
-      body: { workspace_id: 'ws-other', name: '新会话' },
+      body: { workspace_id: 'ws-other', name: '新聊天' },
     })
     expect(result.status).toBe(403)
     expect((result.data as { error: string }).error).toBe('工作区不存在或无权限')
@@ -332,16 +332,16 @@ describe('POST /api/sessions', () => {
     const { POST } = await import('@/app/api/sessions/route')
     setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
-      body: { workspace_id: 'ws-001', name: '新会话' },
+      body: { workspace_id: 'ws-001', name: '新聊天' },
     })
     expect(result.status).toBe(201)
     const session = result.data as Record<string, unknown>
     expect(session.id).toBeTruthy()
     expect(session.workspace_id).toBe('ws-001')
-    expect(session.name).toBe('新会话')
+    expect(session.name).toBe('新聊天')
   })
 
-  it('AT-S010: uses default name "新会话" when name not provided', async () => {
+  it('AT-S010: uses default name "新聊天" when name not provided', async () => {
     const { POST } = await import('@/app/api/sessions/route')
     setupMockClient(createPostgresChain())
     const result = await callRoute(POST, 'POST', {
@@ -349,7 +349,7 @@ describe('POST /api/sessions', () => {
     })
     expect(result.status).toBe(201)
     const session = result.data as Record<string, unknown>
-    expect(session.name).toBe('新会话')
+    expect(session.name).toBe('新聊天')
   })
 
   it('AT-S011: returns 403 when workspace not found (ownership check precedes insert)', async () => {

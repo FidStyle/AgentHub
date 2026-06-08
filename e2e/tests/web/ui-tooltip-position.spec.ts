@@ -1,11 +1,12 @@
 import { test, expect, type Page, type Browser } from '@playwright/test'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll } from '../../helpers/visual-assertions'
+import { createAndOpenGroupChat } from '../../helpers/chat-entry'
 
 /**
  * UI-TOOLTIP-POSITION-001 — 全局 Tooltip 定位/变形真实浏览器 UAT。
  * Tooltip 现 portal 到 body + 自动 flip/shift 防越界 + max-width 换行。
- * 对 workspace 关键 IconButton（新建会话/@角色/发送/打开侧栏/切换面板）
+ * 对 workspace 关键 IconButton（新建群聊/@角色/发送/打开侧栏/切换面板）
  * 在桌面 1440/1280 与移动 768 下 hover + focus，断言：
  *   - tooltip 渲染（role=tooltip 出现且文本匹配 aria-label）
  *   - boundingBox 完整落在 viewport 内（未被裁切）
@@ -82,7 +83,7 @@ async function assertNotCoveringTrigger(page: Page, triggerSel: string, tip: Too
 }
 
 const DESKTOP_TRIGGERS: { sel: string; label: string }[] = [
-  { sel: '[data-testid="new-session-btn"]', label: '新建会话' },
+  { sel: '[data-testid="new-group-conversation"]', label: '新建群聊' },
   { sel: '[data-testid="mention-role-btn"]', label: '提及角色' },
   { sel: '[data-testid="send-btn"]', label: '发送' },
   { sel: '[data-testid="toggle-artifact-btn"]', label: '切换面板' },
@@ -107,8 +108,8 @@ test.describe('Tooltip 桌面定位/变形（1440 / 1280）', () => {
       await page.waitForLoadState('domcontentloaded')
       await expect(page.getByTestId('workspace-shell')).toBeVisible()
 
-      // 先建一个会话以激活 composer 工具栏按钮（@角色/发送可用）
-      await page.getByTestId('new-session-btn').click()
+      // 先建一个群聊以激活 composer 工具栏按钮（@角色/发送可用）
+      await createAndOpenGroupChat(page, wsId)
       await expect(page.getByTestId('composer-input')).toBeEnabled({ timeout: 10000 })
       // 输入文本以启用发送按钮（disabled 按钮无法获得键盘焦点，focus tooltip 不可达）
       await page.getByTestId('composer-input').fill('tooltip e2e')
@@ -166,14 +167,7 @@ test.describe('Tooltip 移动窄屏定位/变形（768）', () => {
     await dismiss(page)
 
     // 右边缘按钮：切换面板，tooltip 不得超出右边界。
-    // 768 窄屏侧栏默认折叠，new-session-btn 隐藏在抽屉内：先开抽屉建会话再关闭，避免 click 卡死。
-    if (!(await page.getByTestId('new-session-btn').first().isVisible().catch(() => false))) {
-      await page.getByTestId('open-sidebar').click()
-    }
-    await page.getByTestId('new-session-btn').first().click()
-    // 关闭遮罩抽屉：force 点击（点击会移除 backdrop，普通 click 的稳定性检查会卡死），随后等待其卸载。
-    await page.getByTestId('sidebar-backdrop').click({ force: true }).catch(() => {})
-    await page.getByTestId('sidebar-backdrop').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {})
+    await createAndOpenGroupChat(page, wsId)
     const toggle = '[data-testid="toggle-artifact-btn"]'
     // 仅当 toggle 真正可命中（顶层元素即按钮本身，未被其它面板覆盖）时才测 hover，避免被覆盖时 hover 卡死。
     const toggleHittable = await page

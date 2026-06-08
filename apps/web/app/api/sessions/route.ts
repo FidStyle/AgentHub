@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     .from('sessions')
     .insert({
       workspace_id,
-      name: name || '新会话',
+      name: name || '新聊天',
       chat_kind: chat_kind === 'direct' ? 'direct' : 'group',
       direct_role_agent_id: typeof direct_role_agent_id === 'string' ? direct_role_agent_id : null,
       last_activity_at: now,

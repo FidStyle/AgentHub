@@ -41,11 +41,11 @@ export default function MobileHomePage() {
     setSessionsLoading(true)
     fetch(`/api/sessions?workspace_id=${selectedWs}`)
       .then(r => {
-        if (!r.ok) throw new Error('加载会话失败')
+        if (!r.ok) throw new Error('加载聊天失败')
         return r.json()
       })
       .then(d => { if (Array.isArray(d)) setSessions(d) })
-      .catch((e) => setError(e instanceof Error ? e.message : '加载会话失败'))
+      .catch((e) => setError(e instanceof Error ? e.message : '加载聊天失败'))
       .finally(() => setSessionsLoading(false))
   }, [selectedWs])
 
@@ -60,10 +60,10 @@ export default function MobileHomePage() {
         body: JSON.stringify({ workspace_id: selectedWs }),
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((body as { error?: string }).error || '创建会话失败')
+      if (!res.ok) throw new Error((body as { error?: string }).error || '创建聊天失败')
       router.push(`/m/sessions/${(body as SessionRow).id}`)
     } catch (e) {
-      setError(e instanceof Error ? e.message : '创建会话失败')
+      setError(e instanceof Error ? e.message : '创建聊天失败')
       setSessionsLoading(false)
     }
   }
@@ -105,14 +105,14 @@ export default function MobileHomePage() {
       {selectedWs && (
         <>
           <div className="mt-2 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium">会话</h2>
+            <h2 className="text-sm font-medium">聊天</h2>
             <Button size="sm" onClick={createSession} disabled={sessionsLoading}>
-              新建会话
+              新建聊天
             </Button>
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex flex-col gap-2">
-            {sessionsLoading && sessions.length === 0 && <StateCard variant="loading" title="正在加载会话" />}
+            {sessionsLoading && sessions.length === 0 && <StateCard variant="loading" title="正在加载聊天" />}
             {sessions.map(s => (
               <Card key={s.id} className="cursor-pointer hover:bg-muted transition-colors"
                 onClick={() => router.push(`/m/sessions/${s.id}`)}>
@@ -122,7 +122,7 @@ export default function MobileHomePage() {
               </Card>
             ))}
             {sessions.length === 0 && (
-              <StateCard variant="empty" title="暂无会话" description="选择工作区后会话将在此显示" />
+              <StateCard variant="empty" title="暂无聊天" description="选择工作区后聊天将在此显示" />
             )}
           </div>
         </>

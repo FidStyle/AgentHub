@@ -1,14 +1,15 @@
 import { test, expect } from '@playwright/test'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/visual-assertions'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 
 /**
  * ROLE-CHAT-CORE-001 E2E (TASK-005) — real DB, no main-chain API mocks.
  *
  * P0 harness boundary: no Redis / runtime worker, so the public_cloud chat path emits
  * endpoint_unavailable and no agent reply streams back. This spec therefore asserts the
- * runtime-independent golden path: workspace create → default Orchestrator auto-seeds in picker →
- * @-select → send persists the user message with role context → reload retains it.
+ * runtime-independent golden path: workspace create → open Orchestrator direct chat →
+ * send persists the user message with role context → reload retains it.
  * Agent-reply role-badge assertion is deferred to a Redis+worker-enabled environment.
  */
 test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
@@ -18,7 +19,7 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
     storageState = await ensureAcceptanceStorageState()
   })
 
-  test('创建工作区 → 默认 Orchestrator → @Orchestrator 选择 → 发送持久化 → reload 保留', async ({ browser }) => {
+  test('创建工作区 → Orchestrator 单聊 → 发送持久化 → reload 保留', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
 
@@ -31,20 +32,7 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
 
     await page.goto(`/workspace/${workspace.id}`)
     await page.waitForLoadState('domcontentloaded')
-
-    // 新建会话（启用聊天输入）
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('session-list')).toBeVisible()
-
-    // 打开 @角色选择器，默认 Orchestrator 已自动 seed
-    await page.getByRole('button', { name: '提及角色' }).click()
-    const picker = page.getByTestId('role-picker')
-    await expect(picker).toBeVisible()
-    await expect(picker.getByText('@Orchestrator')).toBeVisible()
-    await picker.getByText('@Orchestrator').click()
-
-    // 已选角色 Badge
-    await expect(page.getByTestId('selected-role')).toHaveText(/Orchestrator/)
+    await openOrchestratorDirectChat(page)
 
     // Slash 命令可展开并把常用任务模板写回多行 composer。
     await page.getByTestId('composer-input').fill('/')
@@ -67,6 +55,7 @@ test.describe('ROLE-CHAT-CORE 角色对话链路', () => {
     // 精确定位，避免与 agent 回显串味（P0 无 worker 时仍是唯一用户气泡）。
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
+    await openOrchestratorDirectChat(page)
     await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
 
     await context.close()

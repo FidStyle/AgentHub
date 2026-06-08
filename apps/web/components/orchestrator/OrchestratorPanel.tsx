@@ -162,7 +162,7 @@ export function OrchestratorPanel() {
   )
 
   if (!activeSessionId) {
-    return <StateCard variant="empty" title="未选择会话" description="选择一个会话后，其计划与动作将在此展示" />
+    return <StateCard variant="empty" title="未选择聊天" description="选择一个联系人或群聊后，其计划与动作将在此展示" />
   }
 
   return (
@@ -175,7 +175,7 @@ export function OrchestratorPanel() {
           <StateCard
             variant="empty"
             title="暂无计划或动作"
-            description="当前会话还没有编排计划或需要授权的动作"
+            description="当前聊天还没有编排计划或需要授权的动作"
           />
         </div>
       )}

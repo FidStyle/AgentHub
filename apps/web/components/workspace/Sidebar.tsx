@@ -2,8 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { IconButton, Badge } from '@agenthub/ui'
-import { Plus, ChevronDown, Trash2 } from 'lucide-react'
+import { Badge } from '@agenthub/ui'
+import { ChevronDown, Trash2 } from 'lucide-react'
 import { SessionList } from './SessionList'
 import { useSessionStore } from '@/store/session-store'
 
@@ -38,7 +38,7 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const [mounted, setMounted] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const { activeWorkspaceId, setActiveWorkspace, fetchSessions, createSession } = useSessionStore()
+  const { activeWorkspaceId, setActiveWorkspace, fetchSessions } = useSessionStore()
 
   useEffect(() => setMounted(true), [])
 
@@ -94,7 +94,7 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
   }
 
   const deleteWorkspace = async (workspace: Workspace) => {
-    if (!confirm(`确定删除工作区「${workspace.name}」吗？相关会话、消息和云端项目目录会一并删除。`)) return
+    if (!confirm(`确定删除工作区「${workspace.name}」吗？相关聊天、消息和云端项目目录会一并删除。`)) return
     const res = await fetch(`/api/workspaces/${workspace.id}`, { method: 'DELETE' })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
@@ -135,17 +135,6 @@ export function Sidebar({ workspaceId }: { workspaceId?: string }) {
           activeWorkspaceId={activeWorkspaceId}
           onSelect={switchWorkspace}
           onDelete={deleteWorkspace}
-        />
-      </div>
-      <div data-testid="session-header" className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <h2 data-testid="session-header-title" className="text-xs font-semibold text-muted-foreground">会话</h2>
-        <IconButton
-          icon={Plus}
-          label="新建会话"
-          size="sm"
-          data-testid="new-session-btn"
-          disabled={!activeWorkspaceId}
-          onClick={() => activeWorkspaceId && createSession(activeWorkspaceId)}
         />
       </div>
       <div className="flex-1 overflow-hidden p-2">

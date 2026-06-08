@@ -103,7 +103,7 @@ type RoleProcessMessageEvent = {
   metadata: Record<string, unknown>
 }
 
-const PLACEHOLDER_SESSION_TITLES = new Set(['', '新会话', '未命名会话'])
+const PLACEHOLDER_SESSION_TITLES = new Set(['', '新聊天', '未命名聊天'])
 
 function titleFromFirstUserMessage(content: string) {
   const title = content
@@ -112,7 +112,7 @@ function titleFromFirstUserMessage(content: string) {
     .find(Boolean)
     ?.replace(/\s+/g, ' ')
     .slice(0, 80)
-  return title || '新会话'
+  return title || '新聊天'
 }
 
 async function maybeRenameSessionFromFirstMessage(input: {
@@ -194,7 +194,7 @@ function buildPinnedContextPrompt(messages: PinnedContextMessage[]) {
   })
   return [
     '',
-    '已固定上下文（来自当前会话，用户明确要求后续回复持续参考）：',
+    '已固定上下文（来自当前聊天，用户明确要求后续回复持续参考）：',
     ...clipped,
     '请优先遵守以上固定上下文；如与用户本轮新指令冲突，请明确指出冲突并以本轮新指令为准。',
   ].join('\n\n')
@@ -754,7 +754,7 @@ export async function POST(req: NextRequest) {
     .select('*')
     .eq('id', sessionId)
     .single()
-  if (!session) return Response.json({ error: '会话不存在' }, { status: 404 })
+  if (!session) return Response.json({ error: '聊天不存在' }, { status: 404 })
 
   const { data: ws } = await db
     .from('workspaces')
@@ -816,10 +816,10 @@ export async function POST(req: NextRequest) {
   const participantIds = sessionParticipantIds(sessionRecord)
   if (sessionRecord.chat_kind === 'direct') {
     if (!sessionRecord.direct_role_agent_id) {
-      return Response.json({ error: '单聊会话缺少绑定联系人' }, { status: 409 })
+      return Response.json({ error: '单聊缺少绑定联系人' }, { status: 409 })
     }
     if (requestedRoleIds.length > 0 && requestedRoleIds.some((id) => id !== sessionRecord.direct_role_agent_id)) {
-      return Response.json({ error: '单聊会话不能 @ 其他联系人' }, { status: 400 })
+      return Response.json({ error: '单聊不能 @ 其他联系人' }, { status: 400 })
     }
     requestedRoleIds.splice(0, requestedRoleIds.length, sessionRecord.direct_role_agent_id)
   } else if (participantIds.length > 0) {
@@ -1533,7 +1533,7 @@ export async function POST(req: NextRequest) {
                 `已完成：@${currentRoleName} 完成当前节点。`,
                 target.phase === 'summarizing'
                   ? '架构师正在进行最终验收：检查计划状态、权限续跑、文件引用和产物候选。'
-                  : '节点产出已写入会话，后续角色会通过 handoff 继续处理。',
+                  : '节点产出已写入聊天，后续角色会通过 handoff 继续处理。',
               ].join('\n'),
               metadata: {
                 runMarker: requestRunMarker,

@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { openOrchestratorDirectChat } from '../helpers/chat-entry'
 
 // TEST-REALITY-GATE-001 (REG-20260531-011 / PRGA-008) G2：messaging.spec.ts 真实走 /api/chat。
 //
@@ -6,7 +7,7 @@ import { test, expect } from './fixtures'
 // 从不断言 agent 回复——发送链路完全不被门禁覆盖；且该文件位于 tests/ 根目录，不在任何 project
 // testMatch 内，从不执行。
 //
-// 修复后：真实 workspace/session（authed context，非 mock），打开真实 UI 发送，断 POST /api/chat 被调用，
+// 修复后：真实 workspace/session（authed context，非 mock），打开 Orchestrator 单聊发送，断 POST /api/chat 被调用，
 // 并按 runtime 环境断言用户目标终态（非 toBeVisible 糊弄）：
 //   - RUNTIME_E2E=1（真实 worker）：可见非 echo agent 回复 + role badge + reload 双向持久化
 //   - RUNTIME_E2E_NOWORKER=1（Redis 无 worker）：立即明确中文错误态（不空等），无 role badge
@@ -20,7 +21,7 @@ const workerMode = process.env.RUNTIME_E2E === '1'
 test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
   test.skip(!hasAuth, 'DEFERRED：需真实 DB session（TEST_AUTH_COOKIE/TEST_AUTH_STORAGE_STATE），CI 无真实 Supabase 时跳过')
 
-  test('真实 workspace → 新建会话 → @Orchestrator → 发送 → /api/chat 被调用 → 回复或明确错误态 → reload 持久化', async ({ authedPage: page }) => {
+  test('真实 workspace → Orchestrator 单聊 → 发送 → /api/chat 被调用 → 回复或明确错误态 → reload 持久化', async ({ authedPage: page }) => {
     const ts = Date.now()
     const wsResp = await page.request.post('/api/workspaces', {
       data: { name: `E2E-MSG-${ts}`, execution_domain: 'cloud' },
@@ -30,16 +31,7 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
 
     await page.goto(`/workspace/${workspaceId}`)
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
-
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('session-list')).toBeVisible()
-
-    // 打开 @角色选择器，默认 Orchestrator 自动 seed
-    await page.getByRole('button', { name: '提及角色' }).click()
-    const picker = page.getByTestId('role-picker')
-    await expect(picker).toBeVisible()
-    await picker.getByText('@Orchestrator').click()
-    await expect(page.getByTestId('selected-role')).toHaveText(/Orchestrator/)
+    await openOrchestratorDirectChat(page)
 
     // 监听 POST /api/chat 被调用（修复前根本不发真实请求）
     let chatCalled = false
@@ -72,6 +64,7 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
 
       await page.reload()
       await page.waitForLoadState('domcontentloaded')
+      await openOrchestratorDirectChat(page)
       await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
       await expect(page.getByTestId('message-role-badge').first()).toBeVisible({ timeout: 10000 })
     } else {
@@ -86,6 +79,7 @@ test.describe('消息发送真实走 /api/chat（PRGA-008）', () => {
       // reload：用户消息持久化；错误态不被误存为 agent 回复
       await page.reload()
       await page.waitForLoadState('domcontentloaded')
+      await openOrchestratorDirectChat(page)
       await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
       await expect(page.getByTestId('message-role-badge')).toHaveCount(0)
     }

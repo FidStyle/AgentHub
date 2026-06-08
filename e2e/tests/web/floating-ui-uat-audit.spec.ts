@@ -76,7 +76,7 @@ async function seedWorkspace(page: Page): Promise<string> {
   })
   expect(res.ok(), 'workspace 播种应成功（真实 DB/auth）').toBeTruthy()
   const wsId = (await res.json()).id as string
-  // 播种一个会话，使 composer / role picker 可用（@角色按钮非 disabled）
+  // 播种一个群聊，使 composer / role picker 可用（@角色按钮非 disabled）
   await page.request.post('/api/sessions', { data: { workspace_id: wsId, name: `S-${ts}` } }).catch(() => {})
   // 播种一个长名角色，用于检验 role picker 的 max-width / 换行（R5）
   await page.request
@@ -180,17 +180,17 @@ for (const vp of VIEWPORTS) {
         await expect(page.locator(o1Sel), `${vp.name} O1 点击 backdrop 后抽屉应关闭`).toHaveCount(0)
       }
 
-      // ---- T1: tooltip（新建会话按钮）hover + focus ----
+      // ---- T1: tooltip（新建群聊按钮）hover + focus ----
       // 移动态左栏在抽屉里，先开抽屉；桌面态左栏常驻。
       if (isMobile) {
         await page.locator('[data-testid="open-sidebar"]').click()
         await expect(page.locator('[data-testid="sidebar-region"]')).toBeVisible()
       }
       {
-        const triggerSel = '[data-testid="new-session-btn"]'
+        const triggerSel = '[data-testid="new-group-conversation"]'
         await page.mouse.move(0, 0)
         await page.locator(triggerSel).first().hover()
-        const tip = page.locator('[role="tooltip"]:has-text("新建会话")').first()
+        const tip = page.locator('[role="tooltip"]:has-text("新建群聊")').first()
         const visible = await tip.isVisible().catch(() => false)
         const triggerBox = await boxOf(page, triggerSel)
         const floatingBox = visible ? await tip.boundingBox() : null
@@ -200,9 +200,9 @@ for (const vp of VIEWPORTS) {
           symptoms.push(...inViewport(floatingBox, vp.width, vp.height))
           if (floatingBox.width > 256 + 2) symptoms.push(`宽度超 max-w-16rem (${Math.round(floatingBox.width)})`)
         }
-        const sshot = await shot(page, `${vp.name}-T1-tooltip-new-session`)
+        const sshot = await shot(page, `${vp.name}-T1-tooltip-new-group`)
         record({
-          id: 'T1', viewport: vp.name, target: 'tooltip 新建会话', selector: triggerSel,
+          id: 'T1', viewport: vp.name, target: 'tooltip 新建群聊', selector: triggerSel,
           triggerBox, floatingBox, symptoms,
           severity: symptoms.length === 0 ? 'ok' : 'medium',
           reference: 'R1/R2/R3/R5（已修母版对照）', screenshot: sshot,

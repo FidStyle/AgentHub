@@ -38,7 +38,7 @@ export default function WorkspacePage() {
   useEffect(() => { fetchWorkspaces() }, [fetchWorkspaces])
 
   const deleteWorkspace = async (workspace: WorkspaceRow) => {
-    if (!confirm(`确定删除工作区「${workspace.name}」吗？相关会话、消息和云端项目目录会一并删除。`)) return
+    if (!confirm(`确定删除工作区「${workspace.name}」吗？相关聊天、消息和云端项目目录会一并删除。`)) return
     setDeletingWorkspaceId(workspace.id)
     setError(null)
     try {

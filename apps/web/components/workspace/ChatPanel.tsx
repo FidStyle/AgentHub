@@ -369,9 +369,14 @@ function MessageComposer({
   const directMode = Boolean(directRole)
   const currentMode = PERMISSION_MODES.find((mode) => mode.value === permissionMode)
   const defaultRole = directRole ?? roleAgents.find((role) => role.is_orchestrator || role.name === 'Orchestrator') ?? roleAgents[0] ?? null
-  const effectiveRoles = selectedRoles.length > 0 ? selectedRoles : defaultRole ? [defaultRole] : []
+  const effectiveRoles = directRole ? [directRole] : selectedRoles.length > 0 ? selectedRoles : defaultRole ? [defaultRole] : []
 
   useEffect(() => setMounted(true), [])
+
+  useEffect(() => {
+    setPickerOpen(false)
+    setSelectedRoles([])
+  }, [activeSessionId])
 
   useEffect(() => {
     if (!quotedMessage?.suggestedPrompt) return
@@ -743,7 +748,7 @@ export function ChatPanel({
     <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border">
       <div className="shrink-0 flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-sm font-semibold">
-          {activeSession?.title ?? '选择一个会话'}
+          {activeSession?.title ?? '选择一个联系人或群聊'}
         </h2>
         <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
       </div>

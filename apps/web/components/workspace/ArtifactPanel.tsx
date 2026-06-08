@@ -792,13 +792,13 @@ function TimelineTab() {
     }
   }, [activeSessionId])
 
-  if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后可查看完整过程记录" />
+  if (!activeSessionId) return <StateCard variant="empty" title="未选择聊天" description="选择联系人或群聊后可查看完整过程记录" />
 
   return (
     <div data-testid="artifact-process-timeline" className="space-y-3">
       <PanelSection
         icon={Route}
-        title="会话过程"
+        title="聊天过程"
         description="从真实 DB/API 聚合消息、计划、角色交接、Runtime、权限和产物"
         action={(
           <Button size="sm" variant="outline" onClick={() => void load()}>
@@ -814,7 +814,7 @@ function TimelineTab() {
           <StateCard
             variant="empty"
             title="暂无过程记录"
-            description="当前会话还没有可读回的编排、运行或产物记录"
+            description="当前聊天还没有可读回的编排、运行或产物记录"
           />
         ) : (
           <div className="space-y-2">
@@ -2289,7 +2289,7 @@ function ArtifactsTab() {
   }
 
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，Agent 产出的产物将在此展示" />
-  if (!activeSessionId) return <StateCard variant="empty" title="未选择会话" description="选择会话后，Agent 产出的产物将在此展示" />
+  if (!activeSessionId) return <StateCard variant="empty" title="未选择聊天" description="选择联系人或群聊后，Agent 产出的产物将在此展示" />
   if (error) return <p data-testid="artifact-output-error" className="text-sm text-destructive">{error}</p>
   return (
     <div data-testid="artifact-output" className="space-y-2">
@@ -2307,7 +2307,7 @@ function ArtifactsTab() {
       {!loaded ? (
         <StateCard variant="loading" title="加载产物" />
       ) : artifacts.length === 0 ? (
-        <StateCard variant="empty" title="暂无产物" description="当前会话还没有 Agent 产出的代码、文件或结果，可先新建富文档或演示稿" />
+        <StateCard variant="empty" title="暂无产物" description="当前聊天还没有 Agent 产出的代码、文件或结果，可先新建富文档或演示稿" />
       ) : (
         artifacts.map((artifact) => (
           <ArtifactCard
@@ -2342,7 +2342,7 @@ export function ArtifactPanel({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Boxes className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">会话工作台</h2>
+              <h2 className="text-sm font-semibold">聊天工作台</h2>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">角色、编排、文件、Git 和产物按职责拆分</p>
           </div>

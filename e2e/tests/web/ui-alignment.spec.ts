@@ -11,10 +11,10 @@ test.describe('Web UI 对齐修复断言', () => {
 
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('Sidebar 新建按钮有 lucide 图标', async ({ authedPage: page }) => {
+  test('Sidebar 新建群聊按钮有 lucide 图标', async ({ authedPage: page }) => {
     await page.goto('/workspace/test-session')
     await page.waitForSelector('[data-testid="workspace-shell"]')
-    const iconBtn = page.locator('aside svg.lucide-plus, aside [aria-label="新建会话"]')
+    const iconBtn = page.locator('[data-testid="new-group-conversation"] svg.lucide-plus')
     await expect(iconBtn.first()).toBeVisible()
   })
 

@@ -72,7 +72,7 @@ export function ActionCard({ action, onApprove }: ActionCardProps) {
 
         {isPending && (
           <div className="rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-muted-foreground">
-            该动作超出当前权限策略，需要在当前会话中授权后才会继续执行。Desktop 只记录策略命中和执行结果。
+            该动作超出当前权限策略，需要在当前聊天中授权后才会继续执行。Desktop 只记录策略命中和执行结果。
           </div>
         )}
 

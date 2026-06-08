@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
 import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/visual-assertions'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 
 /**
  * TEST-REALITY-GATE-001 (REG-20260531-011 / PRGA-010) G4：p0-main-flow.spec.ts 断言全链路终态。
@@ -9,7 +10,7 @@ import { assertNoHorizontalScroll, assertNoElementOverlap } from '../../helpers/
  * 发送后无任何回复/错误态断言，reload 后无持久化断言，是典型的「silent pass」假绿。
  *
  * 修复后：去掉所有条件保护，按真实 UI 选择器硬断言完整主链路终态：
- *   workspace 创建 → 进工作台 → 新建会话 → @Orchestrator → 发送 → /api/chat 被调用
+ *   workspace 创建 → 进工作台 → 打开 Orchestrator 单聊 → 发送 → /api/chat 被调用
  *   → 回复（worker）或明确中文错误态（无 worker）→ reload 后用户消息持久化 → 视觉/布局断言。
  * 缺真实 DB session 时显式 test.skip 并标 DEFERRED，绝不 silent pass。
  */
@@ -25,7 +26,7 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
     storageState = await ensureAcceptanceStorageState()
   })
 
-  test('Workspace 创建 → Session → @Orchestrator → 发送 → 回复/错误态 → reload 持久化', async ({ browser }) => {
+  test('Workspace 创建 → Orchestrator 单聊 → 发送 → 回复/错误态 → reload 持久化', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     const ts = Date.now()
@@ -49,19 +50,9 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
     await page.goto(`/workspace/${createdWorkspace.id}`)
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
     await expect(page.getByTestId('chat-panel')).toBeVisible()
+    await openOrchestratorDirectChat(page)
 
-    // 3) 新建会话
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('session-list')).toBeVisible()
-
-    // 4) @Orchestrator（默认 orchestrator 自动 seed）
-    await page.getByRole('button', { name: '提及角色' }).click()
-    const picker = page.getByTestId('role-picker')
-    await expect(picker).toBeVisible()
-    await picker.getByText('@Orchestrator').click()
-    await expect(page.getByTestId('selected-role')).toHaveText(/Orchestrator/)
-
-    // 5) 发送（走真实 /api/chat），监听确认链路被调用
+    // 3) 发送（走真实 /api/chat），监听确认链路被调用
     let chatCalled = false
     page.on('request', (req) => {
       if (req.method() === 'POST' && req.url().includes('/api/chat')) chatCalled = true
@@ -103,6 +94,7 @@ test.describe('P0 Web 主链路（PRGA-010 真实终态断言）', () => {
     // 8) reload 持久化：用户消息从 DB 重新加载
     await page.reload()
     await page.waitForLoadState('domcontentloaded')
+    await openOrchestratorDirectChat(page)
     await expect(page.getByTestId('chat-panel').locator('.bg-primary\\/10', { hasText: msg })).toBeVisible({ timeout: 10000 })
     if (workerMode) {
       await expect(page.getByTestId('message-role-badge').first()).toBeVisible({ timeout: 10000 })

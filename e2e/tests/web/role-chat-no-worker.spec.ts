@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 
 /**
  * ROLE-CHAT-NO-WORKER E2E — 真实 DB + 真实浏览器，public_cloud 无可用 worker。
  *
- * 关闭 REG-20260530-006 的另一半：无 worker / 未配置 endpoint 时，@Orchestrator 发送必须「立即」
+ * 关闭 REG-20260530-006 的另一半：无 worker / 未配置 endpoint 时，Orchestrator 单聊发送必须「立即」
  * 给出明确中文错误态，绝不空等 60s idle timeout，也绝不伪造 agent 成功回复。
- *   1. open /workspace/:id（cloud domain）→ 新建 session → @Orchestrator → 发送
+ *   1. open /workspace/:id（cloud domain）→ 打开 Orchestrator 单聊 → 发送
  *   2. POST /api/chat 必须在 60s idle timeout 之前快速返回（断言 < 15s，远低于 60s）
  *   3. UI 出现中文错误系统提示（公共云端 Runtime 未就绪/尚未配置）
  *   4. 该提示不带 role badge（系统态，非伪造 agent 回答）
@@ -28,7 +29,7 @@ test.describe('ROLE-CHAT-NO-WORKER 无 worker 立即错误态', () => {
     storageState = await ensureAcceptanceStorageState()
   })
 
-  test('open workspace → @Orchestrator → 发送 → 立即中文错误态（不空等 60s，无 role badge）', async ({ browser }) => {
+  test('open workspace → Orchestrator 单聊 → 发送 → 立即中文错误态（不空等 60s，无 role badge）', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
 
@@ -42,14 +43,7 @@ test.describe('ROLE-CHAT-NO-WORKER 无 worker 立即错误态', () => {
     await page.goto(`/workspace/${wsId}`)
     await page.waitForLoadState('domcontentloaded')
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
-
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await expect(page.getByTestId('session-list')).toBeVisible()
-
-    await page.getByRole('button', { name: '提及角色' }).click()
-    const picker = page.getByTestId('role-picker')
-    await expect(picker).toBeVisible()
-    await picker.getByText('@Orchestrator').click()
+    await openOrchestratorDirectChat(page)
 
     const msg = `NOWORKER-ASK-${ts}`
     await page.getByTestId('composer-input').fill(msg)

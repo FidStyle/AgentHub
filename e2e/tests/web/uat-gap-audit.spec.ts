@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
 import { ensureAcceptanceStorageState } from '../../helpers/auth-state'
+import { openOrchestratorDirectChat } from '../../helpers/chat-entry'
 
 /**
  * PRODUCT-UAT-GAP-AUDIT-001 — 只读真实浏览器审计（不修复、不断言已知答案）。
@@ -31,7 +32,7 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
     )
   })
 
-  test('cloud workspace：@Orchestrator 发送后用户能否看到真实回复', async ({ browser }) => {
+  test('cloud workspace：Orchestrator 单聊发送后用户能否看到真实回复', async ({ browser }) => {
     const context = await browser.newContext({ storageState })
     const page = await context.newPage()
     const ts = Date.now()
@@ -46,16 +47,8 @@ test.describe('UAT 缺口审计（真实浏览器 / 真实 DB / 无 worker = 真
     await page.waitForLoadState('domcontentloaded')
     await expect(page.getByTestId('workspace-shell')).toBeVisible()
 
-    await page.getByRole('button', { name: '新建会话' }).click()
-    await page.waitForTimeout(1000)
-
-    await page.getByRole('button', { name: '提及角色' }).click()
-    const picker = page.getByTestId('role-picker')
-    await picker.waitFor({ state: 'visible' }).catch(() => {})
-    const orchestrator = picker.getByText('@Orchestrator')
-    const hasOrchestrator = await orchestrator.count()
-    record('role-picker', { orchestrator_visible: hasOrchestrator > 0 })
-    if (hasOrchestrator > 0) await orchestrator.first().click()
+    await openOrchestratorDirectChat(page)
+    record('contact-entry', { orchestrator_direct_chat_opened: true })
 
     const chatResp = page.waitForResponse((r) => r.url().includes('/api/chat'), { timeout: 15000 })
     const msg = `AUDIT-ASK-${ts}`
