@@ -955,3 +955,36 @@ Completed the Bytedance P0/P1 final completion gate, committed the fresh strict 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: 收紧会话列表密度
+
+**Date**: 2026-06-08
+**Task**: 收紧会话列表密度
+**Branch**: `AgentHub_new_claude_test`
+
+### Summary
+
+将 Web 左侧联系人/群聊会话项调整为紧凑 IM 列表布局，区分新建会话与新建群聊入口，并补 Playwright 行高/溢出回归测试。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a5379f1` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

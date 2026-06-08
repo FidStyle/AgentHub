@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 25
-- **Last Active**: 2026-06-07
+- **Total Sessions**: 26
+- **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~957 | Active |
+| `journal-1.md` | ~990 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 26 | 2026-06-08 | 收紧会话列表密度 | `a5379f1` | `AgentHub_new_claude_test` |
 | 25 | 2026-06-07 | Bytedance P0/P1 final gate | `832cea7`, `6045da2`, `9349ee7` | `AgentHub_new_claude_test` |
 | 24 | 2026-06-06 | 收口严格工作台主链路验收 | `68c9454`, `8df9ca6` | `AgentHub_new_claude_test` |
 | 23 | 2026-06-06 | 前端工作台用户可见闭环 | `c0c0aa1` | `AgentHub_new_claude_test` |
