@@ -15,3 +15,4 @@
 | [真实主链路验收规范](./real-flow-acceptance.md) | 本地/远端对话、@角色、附件和 artifact 的真实通过口径与禁止假绿规则 | 生效 |
 | [Role Agent 工具/标签/Runtime 契约](./role-agent-tools-contract.md) | 三端通用：能力标签、具体工具目录、Runtime 绑定和权限边界 | 生效 |
 | [IM 联系人和产物契约](./im-conversation-artifact-contract.md) | 联系人/群聊、富媒体消息卡、PPT 生成和 Diff 应用审批契约 | 生效 |
+| [Bytedance Goal 总控计划](./bytedance-im-agent-artifact-goal.md) | `/goal` 模式执行 Bytedance P1 IM、Agent、工具、产物、发布与最终全真实验收的范围和阶段计划 | 生效 |
