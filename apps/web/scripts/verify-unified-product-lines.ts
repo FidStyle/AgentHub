@@ -551,9 +551,9 @@ async function verifyLineB(pool: Pool): Promise<LineResult> {
 async function verifyLineC(pool: Pool): Promise<LineResult> {
   const checks: Check[] = []
   const evidence = [p1.artifactDir]
-  const agent = await one<{ id: string; name: string; runtime_type: string; capabilities: unknown }>(
+  const agent = await one<{ id: string; name: string; runtime_type: string; capability_tags: unknown; enabled_tool_ids: unknown }>(
     pool,
-    'SELECT id, name, runtime_type, capabilities FROM public.role_agents WHERE id = $1',
+    'SELECT id, name, runtime_type, capability_tags, enabled_tool_ids FROM public.role_agents WHERE id = $1',
     [p1.agentId],
   )
   checks.push(agent?.runtime_type === 'codex' && String(agent.name).includes('已编辑') ? ok('self-built Agent create/edit/readback', JSON.stringify(agent)) : fail('self-built Agent create/edit/readback', JSON.stringify(agent)))

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
-import { toolsetsForPrompt } from '@/lib/role-agents/toolsets'
+import { capabilityTagsForPrompt, toolsForPrompt } from '@/lib/role-agents/tools'
 import { NextResponse } from 'next/server'
 
 function titleFromPrompt(prompt: string) {
@@ -38,14 +38,8 @@ export async function POST(request: Request) {
   if (!ws) return NextResponse.json({ error: '无权限' }, { status: 403 })
 
   const name = titleFromPrompt(prompt)
-  const toolsetIds = toolsetsForPrompt(prompt)
-  const capabilities = [
-    roleTypeFromPrompt(prompt) === 'tester' ? '验收' : null,
-    toolsetIds.includes('ppt_generation') ? '演示稿生成' : null,
-    toolsetIds.includes('publish') ? '发布预览' : null,
-    toolsetIds.includes('git') ? 'Git' : null,
-    '自建 Agent',
-  ].filter((item): item is string => Boolean(item))
+  const enabledToolIds = toolsForPrompt(prompt)
+  const capabilityTags = capabilityTagsForPrompt(prompt)
 
   return NextResponse.json({
     workspace_id: workspaceId,
@@ -56,9 +50,9 @@ export async function POST(request: Request) {
       `用户创建意图：${prompt}`,
       '请只在授权工具集允许的边界内执行；缺少工具集时说明需要用户调整 Agent 配置。',
     ].join('\n'),
-    capabilities,
-    toolset_ids: toolsetIds,
-    runtime_type: toolsetIds.includes('shell') || toolsetIds.includes('file_write') ? 'codex' : 'claude_code',
+    capability_tags: capabilityTags,
+    enabled_tool_ids: enabledToolIds,
+    runtime_type: enabledToolIds.includes('shell') || enabledToolIds.includes('file_write') ? 'codex' : 'claude_code',
     is_orchestrator: false,
   })
 }

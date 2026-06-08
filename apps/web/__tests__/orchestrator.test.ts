@@ -158,9 +158,9 @@ describe('DAG Scheduler', () => {
 
 describe('DAG Generator', () => {
   const roles: OrchestratedRole[] = [
-    { id: 'agent-arch', name: '架构师', role_type: 'orchestrator', capabilities: ['规划'], is_orchestrator: true },
-    { id: 'agent-fe', name: '前端工程师', role_type: 'frontend', capabilities: ['UI'], is_orchestrator: false },
-    { id: 'agent-be', name: '后端工程师', role_type: 'backend', capabilities: ['API'], is_orchestrator: false },
+    { id: 'agent-arch', name: '架构师', role_type: 'orchestrator', capability_tags: ['规划'], is_orchestrator: true },
+    { id: 'agent-fe', name: '前端工程师', role_type: 'frontend', capability_tags: ['UI'], is_orchestrator: false },
+    { id: 'agent-be', name: '后端工程师', role_type: 'backend', capability_tags: ['API'], is_orchestrator: false },
   ]
 
   it('generates planner, parallel workers, and summarizer fan-in for general collaboration tasks', () => {

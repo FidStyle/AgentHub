@@ -1,3 +1,29 @@
+// src/domain/role-agent.ts
+var ROLE_AGENT_TOOLS = [
+  "file_read",
+  "file_write",
+  "shell",
+  "git_cli",
+  "web_search",
+  "web_fetch",
+  "browser_preview",
+  "diff_apply",
+  "artifact_store",
+  "publish_service",
+  "ppt_master"
+];
+function isRoleAgentToolId(value) {
+  return typeof value === "string" && ROLE_AGENT_TOOLS.includes(value);
+}
+function normalizeRoleAgentTools(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter(isRoleAgentToolId))];
+}
+function normalizeCapabilityTags(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item) => typeof item === "string").map((item) => item.trim().replace(/^#+/, "").trim()).filter(Boolean))];
+}
+
 // src/domain/runtime-workspace.ts
 var WORKSPACE_ROOT_REQUIRED = "WORKSPACE_ROOT_REQUIRED";
 var SELECTED_WORKSPACE_NOT_FOUND = "SELECTED_WORKSPACE_NOT_FOUND";
@@ -357,7 +383,7 @@ function inferEngineeringRoleTargets(userMessage) {
   if (normalized.includes("sqlite") || normalized.includes("\u6570\u636E\u5E93") || normalized.includes("\u5B58\u50A8") || normalized.includes("\u540E\u7AEF") || normalized.includes("api")) {
     targets.add("role-backend");
   }
-  if (normalized.includes("\u7F51\u7AD9") || normalized.includes("\u9875\u9762") || normalized.includes("\u524D\u7AEF") || normalized.includes("ui") || normalized.includes("\u52A0\u51CF\u4E58\u9664")) {
+  if (normalized.includes("\u7F51\u7AD9") || normalized.includes("\u7F51\u9875") || normalized.includes("\u9875\u9762") || normalized.includes("\u524D\u7AEF") || normalized.includes("ui") || normalized.includes("\u52A0\u51CF\u4E58\u9664") || normalized.includes("\u56DB\u5219\u8FD0\u7B97")) {
     targets.add("role-frontend");
   }
   return [...targets];
@@ -531,6 +557,7 @@ export {
   FR_IDS,
   NativeCliToolActionKind,
   PermissionBrokerEventKind,
+  ROLE_AGENT_TOOLS,
   RUNTIME_CWD_MISMATCH,
   RoleDispatchEventKind,
   RuntimeErrorCode,
@@ -546,7 +573,10 @@ export {
   createRuntimeOutputAccumulator,
   createRuntimeWorkerJob,
   evaluateNativeCliToolPermission,
+  isRoleAgentToolId,
   nextPlanNodeAttemptDraft,
+  normalizeCapabilityTags,
+  normalizeRoleAgentTools,
   parseFrame,
   resolveSelectedWorkspaceScope,
   selectReadyMailboxItems,

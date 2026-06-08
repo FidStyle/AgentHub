@@ -44,9 +44,9 @@ describe('new rich IM/API contracts', () => {
     setupMockClient(createPostgresChain())
   })
 
-  it('creates a role-agent draft with recommended toolsets', async () => {
+  it('creates a role-agent draft with recommended concrete tools', async () => {
     const { POST } = await import('@/app/api/role-agents/draft/route')
-    const result = await callRoute<{ name: string; toolset_ids: string[] }>(
+    const result = await callRoute<{ name: string; enabled_tool_ids: string[]; capability_tags: string[] }>(
       POST,
       'POST',
       '/api/role-agents/draft',
@@ -54,20 +54,47 @@ describe('new rich IM/API contracts', () => {
     )
     expect(result.status).toBe(200)
     expect(result.data.name).toBe('演示稿助手')
-    expect(result.data.toolset_ids).toContain('ppt_generation')
-    expect(result.data.toolset_ids).toContain('publish')
+    expect(result.data.enabled_tool_ids).toContain('ppt_master')
+    expect(result.data.enabled_tool_ids).toContain('publish_service')
+    expect(result.data.capability_tags).toContain('演示稿')
   })
 
-  it('rejects invalid role-agent toolsets on create', async () => {
+  it('rejects invalid role-agent tools on create', async () => {
     const { POST } = await import('@/app/api/role-agents/route')
     const result = await callRoute<{ error: string }>(
       POST,
       'POST',
       '/api/role-agents',
-      { workspace_id: 'ws-001', name: 'Bad Agent', toolset_ids: ['unknown_tool'] },
+      { workspace_id: 'ws-001', name: 'Bad Agent', enabled_tool_ids: ['unknown_tool'] },
     )
     expect(result.status).toBe(400)
-    expect(result.data.error).toContain('未知工具集')
+    expect(result.data.error).toContain('未知工具')
+  })
+
+  it('serves concrete built-in tool catalog and rejects runtimes as tools', async () => {
+    const { GET } = await import('@/app/api/tools/catalog/route')
+    const catalog = await callRoute<{ tools: Array<{ id: string; label: string }> }>(
+      GET,
+      'GET',
+      '/api/tools/catalog',
+    )
+    expect(catalog.status).toBe(200)
+    expect(catalog.data.tools.map((tool) => tool.id)).toEqual(expect.arrayContaining([
+      'file_read',
+      'git_cli',
+      'publish_service',
+      'ppt_master',
+    ]))
+
+    const { POST } = await import('@/app/api/role-agents/route')
+    const result = await callRoute<{ error: string }>(
+      POST,
+      'POST',
+      '/api/role-agents',
+      { workspace_id: 'ws-001', name: 'Bad Runtime Tool Agent', enabled_tool_ids: ['codex'] },
+    )
+    expect(result.status).toBe(400)
+    expect(result.data.error).toContain('Runtime 不是工具')
   })
 
   it('creates an apply-diff approval action for a valid unified diff', async () => {

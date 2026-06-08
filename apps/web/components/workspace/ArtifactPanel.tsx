@@ -39,9 +39,17 @@ type RoleAgentRow = {
   name: string
   role_type: string
   system_prompt: string
-  capabilities: string[] | null
+  capability_tags: string[] | null
+  enabled_tool_ids: string[] | null
   runtime_type: 'claude_code' | 'codex'
   is_orchestrator: boolean
+}
+type RoleAgentToolDefinition = {
+  id: string
+  label: string
+  description: string
+  riskLevel: 'low' | 'medium' | 'high'
+  category: string
 }
 type FileTreeNode = {
   name: string
@@ -182,6 +190,12 @@ function selectionReference(preview: FilePreview, range: { start: number; end: n
 
 function runtimeLabel(runtimeType: RoleAgentRow['runtime_type']) {
   return runtimeType === 'codex' ? 'Codex' : 'Claude Code'
+}
+
+function toolRiskVariant(riskLevel: RoleAgentToolDefinition['riskLevel']) {
+  if (riskLevel === 'high') return 'destructive'
+  if (riskLevel === 'medium') return 'warning'
+  return 'secondary'
 }
 
 function timelineKindLabel(kind: TimelineKind) {
@@ -378,13 +392,15 @@ function PanelSection({
 function AgentsTab() {
   const { activeWorkspaceId } = useSessionStore()
   const [agents, setAgents] = useState<RoleAgentRow[]>([])
+  const [toolCatalog, setToolCatalog] = useState<RoleAgentToolDefinition[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
     name: '',
     role_type: 'engineer',
     system_prompt: '',
-    capabilities: '',
+    capability_tags: '',
+    enabled_tool_ids: [] as string[],
     runtime_type: 'claude_code' as RoleAgentRow['runtime_type'],
     is_orchestrator: false,
   })
@@ -416,6 +432,13 @@ function AgentsTab() {
     void loadAgents()
   }, [activeWorkspaceId])
 
+  useEffect(() => {
+    fetch('/api/tools/catalog')
+      .then((res) => (res.ok ? res.json() : { tools: [] }))
+      .then((body: { tools?: RoleAgentToolDefinition[] }) => setToolCatalog(Array.isArray(body.tools) ? body.tools : []))
+      .catch(() => setToolCatalog([]))
+  }, [])
+
   function emitRoleAgentsChanged() {
     window.dispatchEvent(new CustomEvent('role-agents:changed', { detail: { workspaceId: activeWorkspaceId } }))
   }
@@ -427,7 +450,8 @@ function AgentsTab() {
       name: agent.name,
       role_type: agent.role_type,
       system_prompt: agent.system_prompt ?? '',
-      capabilities: (agent.capabilities ?? []).join(', '),
+      capability_tags: (agent.capability_tags ?? []).join(', '),
+      enabled_tool_ids: agent.enabled_tool_ids ?? [],
       runtime_type: agent.runtime_type,
       is_orchestrator: agent.is_orchestrator,
     })
@@ -440,9 +464,19 @@ function AgentsTab() {
       name: '',
       role_type: 'engineer',
       system_prompt: '',
-      capabilities: '',
+      capability_tags: '',
+      enabled_tool_ids: ['file_read'],
       runtime_type: 'claude_code',
       is_orchestrator: false,
+    })
+  }
+
+  function toggleTool(toolId: string) {
+    setForm((current) => {
+      const next = current.enabled_tool_ids.includes(toolId)
+        ? current.enabled_tool_ids.filter((id) => id !== toolId)
+        : [...current.enabled_tool_ids, toolId]
+      return { ...current, enabled_tool_ids: next }
     })
   }
 
@@ -458,7 +492,8 @@ function AgentsTab() {
       name: form.name.trim(),
       role_type: form.role_type,
       system_prompt: form.system_prompt,
-      capabilities: form.capabilities.split(',').map((item) => item.trim()).filter(Boolean),
+      capability_tags: form.capability_tags.split(',').map((item) => item.trim()).filter(Boolean),
+      enabled_tool_ids: form.enabled_tool_ids,
       runtime_type: form.runtime_type,
       is_orchestrator: form.is_orchestrator,
     }
@@ -533,13 +568,25 @@ function AgentsTab() {
                 {a.is_orchestrator && <Badge variant="secondary" className={roleBadgeColorClass(a.id, a.name)}>编排者</Badge>}
               </span>
               <span className="mt-1 block text-xs text-muted-foreground">{roleTypeLabel(a)} · 配置摘要：{runtimeLabel(a.runtime_type)}</span>
-              {a.capabilities && a.capabilities.length > 0 && (
+              {a.capability_tags && a.capability_tags.length > 0 && (
                 <span className="mt-2 flex flex-wrap gap-1">
-                  {a.capabilities.slice(0, 4).map((capability) => (
-                    <Badge key={capability} variant="secondary" className="max-w-full truncate">
-                      {capability}
+                  {a.capability_tags.slice(0, 4).map((tag) => (
+                    <Badge key={tag} variant="secondary" className="max-w-full truncate">
+                      #{tag}
                     </Badge>
                   ))}
+                </span>
+              )}
+              {a.enabled_tool_ids && a.enabled_tool_ids.length > 0 && (
+                <span className="mt-2 flex flex-wrap gap-1">
+                  {a.enabled_tool_ids.slice(0, 5).map((toolId) => {
+                    const tool = toolCatalog.find((item) => item.id === toolId)
+                    return (
+                      <Badge key={toolId} variant="secondary" className="max-w-full truncate">
+                        {tool?.label ?? toolId}
+                      </Badge>
+                    )
+                  })}
                 </span>
               )}
             </span>
@@ -602,11 +649,40 @@ function AgentsTab() {
             <label htmlFor="agent-capabilities" className="text-xs font-medium">能力标签</label>
             <input
               id="agent-capabilities"
-              value={form.capabilities}
-              onChange={(e) => setForm({ ...form, capabilities: e.target.value })}
+              value={form.capability_tags}
+              onChange={(e) => setForm({ ...form, capability_tags: e.target.value })}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="用英文逗号分隔，例如 architecture, review"
+              placeholder="用逗号分隔，例如 前端, E2E"
             />
+          </div>
+          <div className="grid gap-2">
+            <div className="text-xs font-medium">可请求工具</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {toolCatalog.map((tool) => (
+                <label
+                  key={tool.id}
+                  className="flex min-w-0 items-start gap-2 rounded-md border border-border bg-background p-2 text-sm"
+                  title={tool.description}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.enabled_tool_ids.includes(tool.id)}
+                    onChange={() => toggleTool(tool.id)}
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-1">
+                      <span className="truncate">{tool.label}</span>
+                      <Badge variant={toolRiskVariant(tool.riskLevel)} className="shrink-0">
+                        {tool.riskLevel === 'high' ? '高' : tool.riskLevel === 'medium' ? '中' : '低'}
+                      </Badge>
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{tool.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {toolCatalog.length === 0 && <p className="text-xs text-muted-foreground">工具目录暂不可用</p>}
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -631,11 +707,23 @@ function AgentsTab() {
             <div className="text-xs text-muted-foreground">{roleTypeLabel(selected)}{selected.is_orchestrator ? ' · 可协调分工' : ''}</div>
             <div className="mt-1 text-xs text-muted-foreground">运行时配置摘要：{runtimeLabel(selected.runtime_type)}</div>
           </div>
-          {selected.capabilities && selected.capabilities.length > 0 && (
+          {selected.capability_tags && selected.capability_tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {selected.capabilities.map((capability) => (
-                <Badge key={capability} variant="secondary">{capability}</Badge>
+              {selected.capability_tags.map((tag) => (
+                <Badge key={tag} variant="secondary">#{tag}</Badge>
               ))}
+            </div>
+          )}
+          {selected.enabled_tool_ids && selected.enabled_tool_ids.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {selected.enabled_tool_ids.map((toolId) => {
+                const tool = toolCatalog.find((item) => item.id === toolId)
+                return (
+                  <Badge key={toolId} variant="secondary">
+                    {tool?.label ?? toolId}
+                  </Badge>
+                )
+              })}
             </div>
           )}
           <p className="whitespace-pre-wrap text-sm text-muted-foreground">

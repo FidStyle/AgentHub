@@ -256,12 +256,12 @@ describe('dispatchApprovedAction', () => {
     ]))
   })
 
-  it('blocks role-scoped actions when the role lacks the required toolset', async () => {
+  it('blocks role-scoped actions when the role lacks the required tool', async () => {
     const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
-    const { db, writes } = dispatchDb({ role: { toolset_ids: ['file_read'] } })
+    const { db, writes } = dispatchDb({ role: { enabled_tool_ids: ['file_read'] } })
 
     const result = await dispatchApprovedAction(db as never, {
-      id: 'action-shell-no-toolset',
+      id: 'action-shell-no-tool',
       session_id: 'session-001',
       owner_id: 'user-001',
       role_agent_id: 'agent-be',
@@ -272,13 +272,13 @@ describe('dispatchApprovedAction', () => {
     })
 
     expect(result.status).toBe('unsupported')
-    expect(result.error).toContain('未开通「执行命令」工具集')
+    expect(result.error).toContain('未启用「执行命令」工具')
     expect(createSessionMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(writes).toEqual(expect.arrayContaining([
       expect.objectContaining({
         table: 'actions',
-        id: 'action-shell-no-toolset',
+        id: 'action-shell-no-tool',
         values: expect.objectContaining({ status: 'failed' }),
       }),
     ]))
@@ -877,7 +877,7 @@ describe('dispatchRuntimeInvokeNode', () => {
     const { db, writes } = dispatchDb({
       role: {
         runtime_type: 'claude_code',
-        capabilities: ['runtime:codex', 'api'],
+        capability_tags: ['runtime:codex', 'api'],
       },
     })
 

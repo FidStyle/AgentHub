@@ -110,10 +110,10 @@ CREATE TABLE IF NOT EXISTS public.role_agents (
   name text NOT NULL,
   role_type text NOT NULL DEFAULT 'engineer',
   system_prompt text DEFAULT '',
-  capabilities jsonb DEFAULT '[]'::jsonb,
+  capability_tags jsonb DEFAULT '[]'::jsonb,
   runtime_type text NOT NULL DEFAULT 'claude_code' CHECK (runtime_type IN ('claude_code','codex')),
   is_orchestrator boolean NOT NULL DEFAULT false,
-  toolset_ids jsonb DEFAULT '[]'::jsonb,
+  enabled_tool_ids jsonb DEFAULT '[]'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -154,55 +154,98 @@ ALTER TABLE public.role_agents
   ADD COLUMN IF NOT EXISTS runtime_type text NOT NULL DEFAULT 'claude_code';
 
 ALTER TABLE public.role_agents
-  ADD COLUMN IF NOT EXISTS toolset_ids jsonb DEFAULT '[]'::jsonb;
+  ADD COLUMN IF NOT EXISTS capability_tags jsonb DEFAULT '[]'::jsonb;
 
-UPDATE public.role_agents
-SET runtime_type = 'codex'
-WHERE capabilities ? 'runtime:codex';
+ALTER TABLE public.role_agents
+  ADD COLUMN IF NOT EXISTS enabled_tool_ids jsonb DEFAULT '[]'::jsonb;
 
-UPDATE public.role_agents
-SET runtime_type = 'claude_code'
-WHERE capabilities ? 'runtime:claude_code';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'role_agents'
+      AND column_name = 'capabilities'
+  ) THEN
+    EXECUTE $migrate_capability_tags$
+      UPDATE public.role_agents
+      SET capability_tags = capabilities
+      WHERE jsonb_typeof(capabilities) = 'array'
+        AND (capability_tags IS NULL OR capability_tags = '[]'::jsonb)
+    $migrate_capability_tags$;
+  END IF;
 
-UPDATE public.role_agents
-SET capabilities = (capabilities - 'runtime:codex') - 'runtime:claude_code'
-WHERE capabilities ? 'runtime:codex' OR capabilities ? 'runtime:claude_code';
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'role_agents'
+      AND column_name = 'toolset_ids'
+  ) THEN
+    EXECUTE $migrate_enabled_tool_ids$
+      UPDATE public.role_agents
+      SET enabled_tool_ids = (
+        SELECT COALESCE(jsonb_agg(DISTINCT mapped.tool_id), '[]'::jsonb)
+        FROM jsonb_array_elements_text(toolset_ids) AS old(toolset_id)
+        CROSS JOIN LATERAL (
+          SELECT unnest(CASE old.toolset_id
+            WHEN 'file_read' THEN ARRAY['file_read']
+            WHEN 'file_write' THEN ARRAY['file_write']
+            WHEN 'shell' THEN ARRAY['shell']
+            WHEN 'git' THEN ARRAY['git_cli']
+            WHEN 'artifact' THEN ARRAY['artifact_store']
+            WHEN 'publish' THEN ARRAY['publish_service']
+            WHEN 'web_fetch' THEN ARRAY['web_fetch']
+            WHEN 'ppt_generation' THEN ARRAY['ppt_master']
+            ELSE ARRAY[]::text[]
+          END) AS tool_id
+        ) AS mapped
+      )
+      WHERE jsonb_typeof(toolset_ids) = 'array'
+        AND (enabled_tool_ids IS NULL OR enabled_tool_ids = '[]'::jsonb)
+    $migrate_enabled_tool_ids$;
+  END IF;
+END $$;
+
+ALTER TABLE public.role_agents
+  DROP COLUMN IF EXISTS capabilities;
+
+ALTER TABLE public.role_agents
+  DROP COLUMN IF EXISTS toolset_ids;
 
 UPDATE public.role_agents
 SET
   name = '架构师',
   role_type = 'orchestrator',
   system_prompt = '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
-  capabilities = '["规划", "路由", "协调"]'::jsonb,
-  toolset_ids = '["file_read", "artifact", "web_fetch"]'::jsonb,
+  capability_tags = '["规划", "路由", "协调"]'::jsonb,
+  enabled_tool_ids = '["file_read", "web_search", "web_fetch", "artifact_store"]'::jsonb,
   runtime_type = 'claude_code',
   is_orchestrator = true
-WHERE name = 'Orchestrator'
-  AND capabilities @> '["planning", "routing", "coordination"]'::jsonb;
+WHERE name = 'Orchestrator';
 
 UPDATE public.role_agents
 SET
   name = '前端工程师',
   role_type = 'engineer',
   system_prompt = '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
-  capabilities = '["前端", "React", "UI", "E2E"]'::jsonb,
-  toolset_ids = '["file_read", "file_write", "shell", "git", "artifact", "publish", "web_fetch"]'::jsonb,
+  capability_tags = '["前端", "React", "UI", "E2E"]'::jsonb,
+  enabled_tool_ids = '["file_read", "file_write", "shell", "git_cli", "web_fetch", "browser_preview", "diff_apply", "artifact_store", "publish_service"]'::jsonb,
   runtime_type = 'claude_code',
   is_orchestrator = false
-WHERE name = 'Frontend Engineer'
-  AND capabilities @> '["frontend", "react", "ui", "e2e"]'::jsonb;
+WHERE name = 'Frontend Engineer';
 
 UPDATE public.role_agents
 SET
   name = '后端工程师',
   role_type = 'engineer',
   system_prompt = '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
-  capabilities = '["后端", "数据库", "Runtime", "API"]'::jsonb,
-  toolset_ids = '["file_read", "file_write", "shell", "git", "artifact", "publish", "web_fetch", "ppt_generation"]'::jsonb,
+  capability_tags = '["后端", "数据库", "Runtime", "API"]'::jsonb,
+  enabled_tool_ids = '["file_read", "file_write", "shell", "git_cli", "web_fetch", "browser_preview", "diff_apply", "artifact_store", "publish_service", "ppt_master"]'::jsonb,
   runtime_type = 'codex',
   is_orchestrator = false
-WHERE name = 'Backend Engineer'
-  AND capabilities @> '["backend", "database", "runtime", "api"]'::jsonb;
+WHERE name = 'Backend Engineer';
 
 ALTER TABLE public.role_agents
   DROP CONSTRAINT IF EXISTS role_agents_runtime_type_check;

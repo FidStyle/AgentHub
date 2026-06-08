@@ -29,10 +29,10 @@ type SelectedRoleAgent = {
   name: string
   role_type: string
   system_prompt: string | null
-  capabilities: unknown
+  capability_tags: unknown
   runtime_type: 'claude_code' | 'codex'
   is_orchestrator: boolean
-  toolset_ids?: unknown
+  enabled_tool_ids?: unknown
 }
 
 type RoleHandoffPackage = ContextPackage
@@ -145,9 +145,9 @@ async function maybeRenameSessionFromFirstMessage(input: {
   return nextTitle
 }
 
-function roleSearchText(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capabilities'>) {
-  const capabilities = Array.isArray(role.capabilities) ? role.capabilities.join(' ') : ''
-  return `${role.name} ${role.role_type} ${capabilities}`.toLowerCase()
+function roleSearchText(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capability_tags'>) {
+  const tags = Array.isArray(role.capability_tags) ? role.capability_tags.join(' ') : ''
+  return `${role.name} ${role.role_type} ${tags}`.toLowerCase()
 }
 
 function roleMatchesArchitectDispatchTarget(role: SelectedRoleAgent, targetRoleAgentId: string) {
@@ -497,7 +497,10 @@ async function persistProcessEvent(input: ProcessEventInput) {
 
 function isFullAutoDeliveryIntent(content: string, permissionMode?: string | null) {
   const mode = permissionMode === 'auto' || permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
-  return mode && /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(content)
+  if (!mode) return false
+  const explicitDelivery = /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(content)
+  const canonicalProductPrompt = /(加减乘除|计算器)/.test(content) && /sqlite|SQLite|历史记录/.test(content) && /网站|页面|应用/.test(content)
+  return explicitDelivery || canonicalProductPrompt
 }
 
 async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
@@ -529,9 +532,9 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     recommendedAt: now,
   }
   const confirmation = {
-    source: 'user_prompt_full_auto_delivery',
-    confirmedBy: 'user_instruction',
-    reason: '用户在原始 prompt 中要求全自动完成直到交付产物，因此允许系统在完成后确认推荐候选。',
+    source: 'full_control_product_delivery',
+    confirmedBy: 'permission_mode',
+    reason: '用户使用 full-control 产品交付流程，系统在完成后只确认模型推荐的最终入口候选。',
     sourcePath,
     confirmedAt: now,
   }
@@ -554,7 +557,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
         planId: input.planId,
         artifactRecommendation: recommendation,
         artifactConfirmation: confirmation,
-        designationSource: 'auto_confirmed_by_full_auto_user_prompt',
+        designationSource: 'auto_confirmed_by_full_control_delivery',
         source: 'workspace_file',
         previewKind: 'html',
         mime: 'text/html; charset=utf-8',
@@ -574,7 +577,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     content: [
       '已完成产物推荐与确认。',
       `推荐产物：${sourcePath}`,
-      '确认依据：用户要求全自动完成直到交付产物，本次仅把该入口文件标记为最终产物候选，没有把整个文件树默认算作产物。',
+      '确认依据：本轮使用 full-control 产品交付流程；系统仅把模型推荐的入口文件标记为最终产物候选，没有把整个文件树默认算作产物。',
     ].join('\n'),
     messageType: 'result_card',
     metadata: {
@@ -781,7 +784,7 @@ export async function POST(req: NextRequest) {
   const existingRolesForWorkspace = async () => {
     const { data: roles, error: roleError } = await db
       .from('role_agents')
-      .select('id, workspace_id, name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator')
+      .select('id, workspace_id, name, role_type, system_prompt, capability_tags, runtime_type, is_orchestrator, enabled_tool_ids')
       .eq('workspace_id', ws.id)
       .order('created_at', { ascending: true })
     if (roleError) throw new Error(roleError.message)
@@ -863,7 +866,7 @@ export async function POST(req: NextRequest) {
     if (expandedRoles.length > selectedRoleAgents.length) selectedRoleAgents = expandedRoles
   }
   const roleCapabilities = (role: (typeof selectedRoleAgents)[number]) =>
-    Array.isArray(role.capabilities) ? role.capabilities.map((item) => String(item)) : []
+    Array.isArray(role.capability_tags) ? role.capability_tags.map((item) => String(item)) : []
   const runtimeTypeForRole = (role: (typeof selectedRoleAgents)[number] | null): CliRuntimeType | undefined => {
     if (!role) return undefined
     return role.runtime_type

@@ -6,7 +6,7 @@ export type OrchestratedRole = {
   id: string
   name: string
   role_type: string
-  capabilities: unknown
+  capability_tags: unknown
   is_orchestrator: boolean
 }
 
@@ -34,8 +34,8 @@ export type GeneratedOrchestration<T extends OrchestratedRole> = {
 }
 
 function roleText(role: OrchestratedRole) {
-  const capabilities = Array.isArray(role.capabilities) ? role.capabilities.join(' ') : ''
-  return `${role.name} ${role.role_type} ${capabilities}`.toLowerCase()
+  const tags = Array.isArray(role.capability_tags) ? role.capability_tags.join(' ') : ''
+  return `${role.name} ${role.role_type} ${tags}`.toLowerCase()
 }
 
 function isFrontendRole(role: OrchestratedRole) {

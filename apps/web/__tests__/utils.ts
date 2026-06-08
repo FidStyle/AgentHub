@@ -65,10 +65,10 @@ export const mockRoleAgent = {
   name: 'Analyzer Agent',
   role_type: 'analyzer',
   system_prompt: 'You analyze things.',
-  capabilities: [],
+  capability_tags: [],
   runtime_type: 'claude_code',
   is_orchestrator: false,
-  toolset_ids: [],
+  enabled_tool_ids: [],
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 }

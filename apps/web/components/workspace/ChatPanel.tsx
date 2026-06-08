@@ -13,7 +13,7 @@ interface RoleAgent {
   id: string
   name: string
   role_type?: string
-  capabilities?: string[] | null
+  capability_tags?: string[] | null
   is_orchestrator: boolean
 }
 
@@ -661,11 +661,11 @@ function RolePicker({
                 {r.is_orchestrator && <Badge variant="warning">编排</Badge>}
               </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">{roleTypeLabel(r)}</span>
-              {r.capabilities && r.capabilities.length > 0 && (
+              {r.capability_tags && r.capability_tags.length > 0 && (
                 <span className="mt-1 flex flex-wrap gap-1">
-                  {r.capabilities.slice(0, 3).map((capability) => (
-                    <Badge key={capability} variant="secondary" className="max-w-full truncate">
-                      {capability}
+                  {r.capability_tags.slice(0, 3).map((tag) => (
+                    <Badge key={tag} variant="secondary" className="max-w-full truncate">
+                      #{tag}
                     </Badge>
                   ))}
                 </span>

@@ -1,32 +1,46 @@
 export type RoleType = 'orchestrator' | 'engineer' | 'reviewer' | 'tester' | 'custom'
-export type RoleAgentToolsetId =
+export type RoleAgentToolId =
   | 'file_read'
   | 'file_write'
   | 'shell'
-  | 'git'
-  | 'artifact'
-  | 'publish'
+  | 'git_cli'
+  | 'web_search'
   | 'web_fetch'
-  | 'ppt_generation'
+  | 'browser_preview'
+  | 'diff_apply'
+  | 'artifact_store'
+  | 'publish_service'
+  | 'ppt_master'
 
-export const ROLE_AGENT_TOOLSETS: readonly RoleAgentToolsetId[] = [
+export const ROLE_AGENT_TOOLS: readonly RoleAgentToolId[] = [
   'file_read',
   'file_write',
   'shell',
-  'git',
-  'artifact',
-  'publish',
+  'git_cli',
+  'web_search',
   'web_fetch',
-  'ppt_generation',
+  'browser_preview',
+  'diff_apply',
+  'artifact_store',
+  'publish_service',
+  'ppt_master',
 ] as const
 
-export function isRoleAgentToolsetId(value: unknown): value is RoleAgentToolsetId {
-  return typeof value === 'string' && (ROLE_AGENT_TOOLSETS as readonly string[]).includes(value)
+export function isRoleAgentToolId(value: unknown): value is RoleAgentToolId {
+  return typeof value === 'string' && (ROLE_AGENT_TOOLS as readonly string[]).includes(value)
 }
 
-export function normalizeRoleAgentToolsets(value: unknown): RoleAgentToolsetId[] {
+export function normalizeRoleAgentTools(value: unknown): RoleAgentToolId[] {
   if (!Array.isArray(value)) return []
-  return [...new Set(value.filter(isRoleAgentToolsetId))]
+  return [...new Set(value.filter(isRoleAgentToolId))]
+}
+
+export function normalizeCapabilityTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim().replace(/^#+/, '').trim())
+    .filter(Boolean))]
 }
 
 export interface RoleAgent {
@@ -35,8 +49,8 @@ export interface RoleAgent {
   name: string
   roleType: RoleType
   systemPrompt: string
-  capabilities: string[]
-  toolsetIds?: RoleAgentToolsetId[]
+  capabilityTags: string[]
+  enabledToolIds: RoleAgentToolId[]
   runtimeType: 'claude_code' | 'codex'
   allowOrchestration: boolean
 }

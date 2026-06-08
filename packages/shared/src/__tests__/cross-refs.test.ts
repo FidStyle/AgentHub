@@ -77,7 +77,8 @@ describe('Domain Cross-References', () => {
       name: '代码审查员',
       roleType: 'reviewer',
       systemPrompt: 'Review code',
-      capabilities: ['code_review'],
+      capabilityTags: ['code_review'],
+      enabledToolIds: ['file_read'],
       runtimeType: 'codex',
       allowOrchestration: false,
     }

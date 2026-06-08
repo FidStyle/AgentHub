@@ -7,8 +7,8 @@ import type { AgentMailboxItem } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { createSession, resolveEndpoint } from '@/lib/runtime/gateway'
 import { enqueue, isWorkerAlive, type RuntimeJob } from '@/lib/runtime/redis-client'
-import { assertRoleAgentToolset, loadRoleAgentForToolset } from '@/lib/role-agents/toolsets'
-import type { RoleAgentToolsetId } from '@agenthub/shared'
+import { assertRoleAgentTool, loadRoleAgentForTool } from '@/lib/role-agents/tools'
+import type { RoleAgentToolId } from '@agenthub/shared'
 
 type AppDb = Awaited<ReturnType<typeof createClient>>
 
@@ -85,23 +85,26 @@ function stringArrayValue(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
 }
 
-function requiredToolsetForAction(actionType: string): RoleAgentToolsetId | null {
-  if (actionType === 'deploy') return 'publish'
-  if (actionType === 'apply_diff') return 'file_write'
-  if (actionType.startsWith('git_')) return 'git'
+function requiredToolForAction(actionType: string): RoleAgentToolId | null {
+  if (actionType === 'deploy') return 'publish_service'
+  if (actionType === 'apply_diff') return 'diff_apply'
+  if (actionType.startsWith('git_')) return 'git_cli'
   if (actionType === 'file_write' || actionType === 'write_file') return 'file_write'
   if (actionType === 'read_file') return 'file_read'
   if (actionType === 'shell' || actionType === 'shell_command' || actionType === 'destructive_command') return 'shell'
   if (actionType === 'network_request') return 'web_fetch'
-  if (actionType === 'presentation_generate' || actionType === 'ppt_generation') return 'ppt_generation'
+  if (actionType === 'web_search') return 'web_search'
+  if (actionType === 'browser_preview') return 'browser_preview'
+  if (actionType === 'artifact_store' || actionType === 'artifact_write') return 'artifact_store'
+  if (actionType === 'presentation_generate' || actionType === 'ppt_generation') return 'ppt_master'
   return null
 }
 
-async function assertActionToolset(db: AppDb, action: ActionRecordForDispatch) {
-  const required = requiredToolsetForAction(action.action_type)
+async function assertActionTool(db: AppDb, action: ActionRecordForDispatch) {
+  const required = requiredToolForAction(action.action_type)
   if (!required || !action.role_agent_id) return { ok: true as const }
-  const role = await loadRoleAgentForToolset(db, action.role_agent_id)
-  return assertRoleAgentToolset(role, required)
+  const role = await loadRoleAgentForTool(db, action.role_agent_id)
+  return assertRoleAgentTool(role, required)
 }
 
 function runtimePermissionBrokerResult(action: ActionRecordForDispatch): RuntimePermissionBrokerResult | null {
@@ -664,9 +667,9 @@ export async function dispatchApprovedAction(
   db: AppDb,
   action: ActionRecordForDispatch,
 ): Promise<ActionDispatchResult> {
-  const toolset = await assertActionToolset(db, action)
-  if (!toolset.ok) {
-    return recordDispatchFailure(db, action, 'unsupported', toolset.error)
+  const tool = await assertActionTool(db, action)
+  if (!tool.ok) {
+    return recordDispatchFailure(db, action, 'unsupported', tool.error)
   }
 
   if (action.action_type.startsWith('git_')) {

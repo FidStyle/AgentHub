@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/app-db-client'
 import { requireAuth } from '@/lib/auth-guard'
 import { NextResponse } from 'next/server'
-import { validateToolsetIds } from '@/lib/role-agents/toolsets'
+import { normalizeRoleAgentCapabilityTags, validateEnabledToolIds } from '@/lib/role-agents/tools'
 
 function isRuntimeType(value: unknown): value is 'claude_code' | 'codex' {
   return value === 'claude_code' || value === 'codex'
@@ -69,24 +69,30 @@ export async function PATCH(
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
 
   const body = await request.json()
-  const { name, role_type, system_prompt, capabilities, runtime_type, is_orchestrator, toolset_ids } = body
+  const { name, role_type, system_prompt, capability_tags, runtime_type, is_orchestrator, enabled_tool_ids } = body
+  if (body.capabilities !== undefined) {
+    return NextResponse.json({ error: 'capabilities 已废弃，请使用 capability_tags' }, { status: 400 })
+  }
+  if (body.toolset_ids !== undefined) {
+    return NextResponse.json({ error: 'toolset_ids 已废弃，请使用 enabled_tool_ids' }, { status: 400 })
+  }
   if (runtime_type !== undefined && !isRuntimeType(runtime_type)) {
     return NextResponse.json({ error: 'runtime_type 必须是 claude_code 或 codex' }, { status: 400 })
   }
-  if (hasLegacyRuntimeTag(capabilities)) {
-    return NextResponse.json({ error: 'capabilities 不能包含 runtime:* 旧标签，请使用 runtime_type' }, { status: 400 })
+  if (hasLegacyRuntimeTag(capability_tags)) {
+    return NextResponse.json({ error: 'capability_tags 不能包含 runtime:* 旧标签，请使用 runtime_type' }, { status: 400 })
   }
-  const toolsets = toolset_ids === undefined ? null : validateToolsetIds(toolset_ids)
-  if (toolsets && !toolsets.ok) return NextResponse.json({ error: toolsets.error }, { status: 400 })
+  const tools = enabled_tool_ids === undefined ? null : validateEnabledToolIds(enabled_tool_ids)
+  if (tools && !tools.ok) return NextResponse.json({ error: tools.error }, { status: 400 })
 
   const updates: Record<string, unknown> = {}
   if (name !== undefined) updates.name = name
   if (role_type !== undefined) updates.role_type = role_type
   if (system_prompt !== undefined) updates.system_prompt = system_prompt
-  if (capabilities !== undefined) updates.capabilities = capabilities
+  if (capability_tags !== undefined) updates.capability_tags = normalizeRoleAgentCapabilityTags(capability_tags)
   if (runtime_type !== undefined) updates.runtime_type = runtime_type
   if (is_orchestrator !== undefined) updates.is_orchestrator = is_orchestrator
-  if (toolsets?.ok) updates.toolset_ids = toolsets.ids
+  if (tools?.ok) updates.enabled_tool_ids = tools.ids
 
   const { data, error } = await ctx.db
     .from('role_agents')

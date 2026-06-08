@@ -6,7 +6,9 @@
  * and role_agent_id persistence on the user message.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   setupMockAuth,
   resetMockAuth,
@@ -225,6 +227,10 @@ describe('POST /api/chat — role-chat-core', () => {
     setupMockAuth()
   })
 
+  afterEach(async () => {
+    await rm(path.join(mockWorkspaceRoot, 'public'), { recursive: true, force: true })
+  })
+
   it('renames the default new session from the first user message and streams the title update', async () => {
     setupMockClient(chainCapturingInsertsWithRoles(undefined, [], [
       { id: 'session-001', workspace_id: 'ws-001', name: '新会话', status: 'active' },
@@ -354,7 +360,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: 'Frontend Engineer',
         role_type: 'frontend',
         system_prompt: 'Build UI',
-        capabilities: ['ui'],
+        capability_tags: ['ui'],
         runtime_type: 'claude_code',
         is_orchestrator: false,
       },
@@ -364,7 +370,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: 'Backend Engineer',
         role_type: 'backend',
         system_prompt: 'Build API',
-        capabilities: ['api'],
+        capability_tags: ['api'],
         runtime_type: 'codex',
         is_orchestrator: false,
       },
@@ -416,7 +422,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: '架构师',
         role_type: 'orchestrator',
         system_prompt: '负责协调',
-        capabilities: ['规划'],
+        capability_tags: ['规划'],
         runtime_type: 'claude_code',
         is_orchestrator: true,
       },
@@ -496,7 +502,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: '架构师',
         role_type: 'orchestrator',
         system_prompt: '负责协调',
-        capabilities: ['规划'],
+        capability_tags: ['规划'],
         runtime_type: 'claude_code',
         is_orchestrator: true,
       },
@@ -506,7 +512,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: '前端工程师',
         role_type: 'engineer',
         system_prompt: '负责前端',
-        capabilities: ['前端'],
+        capability_tags: ['前端'],
         runtime_type: 'claude_code',
         is_orchestrator: false,
       },
@@ -516,7 +522,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: '后端工程师',
         role_type: 'engineer',
         system_prompt: '负责后端',
-        capabilities: ['后端'],
+        capability_tags: ['后端'],
         runtime_type: 'codex',
         is_orchestrator: false,
       },
@@ -600,6 +606,22 @@ describe('POST /api/chat — role-chat-core', () => {
           }
           return {
             select: () => actionChain,
+          }
+        }
+        if (table === 'artifacts') {
+          return {
+            select: () => {
+              const chain = {
+                eq: (_field: string, _value: string) => chain,
+                limit: () => ({ data: [], error: null }),
+              }
+              return chain
+            },
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `artifact-${insertedArtifacts.length + 1}`, ...vals }
+              insertedArtifacts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
           }
         }
         const t = origFrom(table)
@@ -699,7 +721,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: '架构师',
         role_type: 'orchestrator',
         system_prompt: '负责协调',
-        capabilities: ['规划'],
+        capability_tags: ['规划'],
         runtime_type: 'claude_code',
         is_orchestrator: true,
       },
@@ -709,7 +731,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: '前端工程师',
         role_type: 'engineer',
         system_prompt: '负责前端',
-        capabilities: ['前端'],
+        capability_tags: ['前端'],
         runtime_type: 'claude_code',
         is_orchestrator: false,
       },
@@ -719,7 +741,7 @@ describe('POST /api/chat — role-chat-core', () => {
         name: '后端工程师',
         role_type: 'engineer',
         system_prompt: '负责后端',
-        capabilities: ['后端', '数据库'],
+        capability_tags: ['后端', '数据库'],
         runtime_type: 'codex',
         is_orchestrator: false,
       },
@@ -805,6 +827,22 @@ describe('POST /api/chat — role-chat-core', () => {
             select: () => actionChain,
           }
         }
+        if (table === 'artifacts') {
+          return {
+            select: () => {
+              const chain = {
+                eq: (_field: string, _value: string) => chain,
+                limit: () => ({ data: [], error: null }),
+              }
+              return chain
+            },
+            insert: (vals: Record<string, unknown>) => {
+              const row = { id: `artifact-${insertedArtifacts.length + 1}`, ...vals }
+              insertedArtifacts.push(row)
+              return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+            },
+          }
+        }
         const t = origFrom(table)
         if (table === 'messages') {
           const origInsert = t.insert
@@ -817,10 +855,12 @@ describe('POST /api/chat — role-chat-core', () => {
       })
       return client
     }))
+    await mkdir(path.join(mockWorkspaceRoot, 'public'), { recursive: true })
+    await writeFile(path.join(mockWorkspaceRoot, 'public/index.html'), '<!doctype html><title>计算器</title>', 'utf8')
 
     const { status, text } = await callChat({
       sessionId: 'session-001',
-      content: '做一个加减乘除的简单网站，使用sqlite存储历史记录。全自动完成直到交付产物',
+      content: '做一个加减乘除的简单网站，使用sqlite存储历史记录',
       permissionMode: 'full_control',
       runMarker: 'STRICT-SPD-UNIT',
     })
@@ -864,6 +904,29 @@ describe('POST /api/chat — role-chat-core', () => {
         requestedFinalProduct: true,
       },
     })
+    const finalArtifact = insertedArtifacts.find((artifact) => artifact.source_path === 'public/index.html')
+    expect(finalArtifact).toMatchObject({
+      workspace_id: 'ws-001',
+      session_id: 'session-001',
+      source_path: 'public/index.html',
+      artifact_type: 'html',
+      metadata: expect.objectContaining({
+        kind: 'final_product_candidate',
+        runMarker: 'STRICT-SPD-UNIT',
+        artifactRecommendation: expect.objectContaining({ sourcePath: 'public/index.html' }),
+        artifactConfirmation: expect.objectContaining({
+          source: 'full_control_product_delivery',
+          sourcePath: 'public/index.html',
+        }),
+        designationSource: 'auto_confirmed_by_full_control_delivery',
+      }),
+    })
+    const artifactResultMessage = insertedMessages.find((message) => (
+      message.message_type === 'result_card'
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactRecommendation)
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
+    ))
+    expect(artifactResultMessage?.content).toContain('推荐产物：public/index.html')
     expect(text).toContain('orchestrator_plan_started')
     const backendMessage = insertedMessages.find((message) => (
       message.sender_type === 'agent'

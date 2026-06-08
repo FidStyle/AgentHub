@@ -59,10 +59,10 @@ export interface RoleAgent {
   name: string
   role_type: string
   system_prompt: string
-  capabilities: string[]
+  capability_tags: string[]
   runtime_type: 'claude_code' | 'codex'
   is_orchestrator: boolean
-  toolset_ids?: string[] | null
+  enabled_tool_ids: string[]
   created_at: string
   updated_at: string
 }
