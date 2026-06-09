@@ -4,7 +4,7 @@ import React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Badge, Button } from '@agenthub/ui'
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileImage, FileText, GitBranch, Maximize2, Paperclip, Play, Presentation, Rocket, Square } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileImage, FileText, GitBranch, Maximize2, Paperclip, Play, Presentation, Rocket, Square, UserPlus } from 'lucide-react'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 import { MessageMarkdown } from './MessageMarkdown'
 import { useSessionStore } from '@/store/session-store'
@@ -188,6 +188,85 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
   )
 }
 
+function AgentDraftPartCard({ part }: { part: Extract<RuntimeMessagePart, { type: 'agent_draft' }> }) {
+  const activeWorkspaceId = useSessionStore((state) => state.activeWorkspaceId)
+  const fetchSessions = useSessionStore((state) => state.fetchSessions)
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    part.status === 'created' ? 'saved' : 'idle',
+  )
+  const [error, setError] = useState<string | null>(null)
+  const draft = part.draft
+  const toolText = draft.enabled_tool_ids.length > 0 ? draft.enabled_tool_ids.join('、') : '未启用工具'
+  const tagText = draft.capability_tags.length > 0 ? draft.capability_tags.map((tag) => `#${tag}`).join(' ') : '#自建Agent'
+
+  const saveDraft = async () => {
+    setStatus('saving')
+    setError(null)
+    try {
+      const res = await fetch('/api/role-agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      const body = await res.json().catch(() => ({})) as { error?: string; workspace_id?: string }
+      if (!res.ok) throw new Error(body.error || '保存 Agent 失败')
+      setStatus('saved')
+      const workspaceId = body.workspace_id || activeWorkspaceId || draft.workspace_id
+      window.dispatchEvent(new CustomEvent('role-agents:changed', { detail: { workspaceId } }))
+      if (workspaceId) void fetchSessions(workspaceId)
+    } catch (err) {
+      setStatus('error')
+      setError(err instanceof Error ? err.message : '保存 Agent 失败')
+    }
+  }
+
+  return (
+    <div data-testid="message-agent-draft-card" className="rounded-md border border-border bg-background p-3 text-xs shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 font-medium">
+            <UserPlus className="h-3.5 w-3.5 text-primary" />
+            <span>Agent 草稿：{draft.name}</span>
+          </div>
+          <p className="mt-1 text-muted-foreground">确认后会保存为左侧联系人，可在普通对话或群聊中使用。</p>
+        </div>
+        <Badge variant={status === 'saved' ? 'success' : status === 'error' ? 'destructive' : 'secondary'}>
+          {status === 'saved' ? '已保存' : status === 'saving' ? '保存中' : status === 'error' ? '保存失败' : '待确认'}
+        </Badge>
+      </div>
+      <dl className="mt-3 grid gap-1 rounded-md border border-border bg-muted/40 p-2 text-[11px] leading-4">
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted-foreground">类型</dt>
+          <dd>{draft.role_type}</dd>
+        </div>
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted-foreground">Runtime</dt>
+          <dd>{draft.runtime_type === 'codex' ? 'Codex' : 'Claude Code'}</dd>
+        </div>
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted-foreground">标签</dt>
+          <dd className="break-words">{tagText}</dd>
+        </div>
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+          <dt className="text-muted-foreground">工具边界</dt>
+          <dd className="break-words font-mono">{toolText}</dd>
+        </div>
+      </dl>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-muted-foreground">查看 System Prompt</summary>
+        <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-2 text-[11px]">{draft.system_prompt}</pre>
+      </details>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">保存后仍可在右侧角色管理里编辑。</span>
+        <Button size="sm" disabled={status === 'saving' || status === 'saved'} onClick={() => void saveDraft()} data-testid="message-agent-draft-confirm-btn">
+          {status === 'saved' ? '已保存' : '确认保存'}
+        </Button>
+      </div>
+      {error && <p className="mt-2 text-destructive">{error}</p>}
+    </div>
+  )
+}
+
 function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
   const [expanded, setExpanded] = useState(false)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
@@ -250,6 +329,9 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
   }
   if (part.type === 'permission') {
     return <PermissionPartCard part={part} />
+  }
+  if (part.type === 'agent_draft') {
+    return <AgentDraftPartCard part={part} />
   }
   if (part.type === 'question') {
     return (

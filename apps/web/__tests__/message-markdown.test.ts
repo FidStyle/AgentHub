@@ -300,6 +300,21 @@ describe('MessageMarkdown', () => {
       { id: 'doc-1', type: 'document_preview', status: 'created', artifactId: 'artifact-doc', title: '需求文档', sourcePath: 'docs/spec.md', summary: '文档产物已进入聊天记录。' },
       { id: 'ppt-1', type: 'presentation_preview', status: 'created', artifactId: 'artifact-ppt', title: '汇报 PPT', sourcePath: 'deck.pptx', summary: '演示稿产物已进入聊天记录。' },
       { id: 'img-1', type: 'image_preview', status: 'created', title: '截图', sourcePath: 'public/screen.png', url: '/api/file.png' },
+      {
+        id: 'agent-draft-1',
+        type: 'agent_draft',
+        status: 'draft',
+        draft: {
+          workspace_id: 'ws-001',
+          name: '文档工程师',
+          role_type: 'engineer',
+          system_prompt: '你是 AgentHub 中的「文档工程师」。',
+          capability_tags: ['自建Agent', '文档'],
+          enabled_tool_ids: ['file_read', 'file_write', 'artifact_store'],
+          runtime_type: 'codex',
+          is_orchestrator: false,
+        },
+      },
     ]
     const html = renderToStaticMarkup(createElement(MessageContent, { content: '交付完成', parts }))
 
@@ -311,6 +326,8 @@ describe('MessageMarkdown', () => {
     expect(html).toContain('data-testid="message-document-preview-card"')
     expect(html).toContain('data-testid="message-presentation-preview-card"')
     expect(html).toContain('data-testid="message-image-preview-card"')
+    expect(html).toContain('data-testid="message-agent-draft-card"')
+    expect(html).toContain('data-testid="message-agent-draft-confirm-btn"')
     expect(html).toContain('应用 Diff')
     expect(html).toContain('展开')
     expect(html).toContain('启动来源：npm run start')
@@ -318,6 +335,8 @@ describe('MessageMarkdown', () => {
     expect(html).toContain('停止')
     expect(html).toContain('端口')
     expect(html).toContain('4100')
+    expect(html).toContain('Agent 草稿：文档工程师')
+    expect(html).toContain('工具边界')
   })
 })
 
@@ -506,22 +525,36 @@ describe('ArtifactPanel frontend contract', () => {
     const frontend = roleColorIndex('any-frontend-id', '前端工程师')
     const backend = roleColorIndex('any-backend-id', '后端工程师')
     const presentation = roleColorIndex('any-presentation-id', '演示稿工程师')
+    const agentCreator = roleColorIndex('any-agent-creator-id', 'Agent 创建助手')
     const documentEngineer = roleColorIndex('custom-document-engineer-id', '文档工程师')
 
-    expect(new Set([architect, frontend, backend, presentation]).size).toBe(4)
+    expect(new Set([architect, frontend, backend, presentation, agentCreator]).size).toBe(5)
     expect(roleAvatarColorClass('same-id', '架构师')).not.toBe(roleAvatarColorClass('same-id', '前端工程师'))
     expect(roleAvatarColorClass('same-id', '前端工程师')).not.toBe(roleAvatarColorClass('same-id', '后端工程师'))
     expect(roleAvatarColorClass('same-id', '演示稿工程师')).not.toBe(roleAvatarColorClass('same-id', '前端工程师'))
+    expect(roleAvatarColorClass('same-id', 'Agent 创建助手')).not.toBe(roleAvatarColorClass('same-id', '前端工程师'))
     expect(documentEngineer).not.toBe(frontend)
     expect(documentEngineer).not.toBe(architect)
     expect(documentEngineer).not.toBe(backend)
     expect(documentEngineer).not.toBe(presentation)
+    expect(documentEngineer).not.toBe(agentCreator)
     expect(roleAvatarColorClass('custom-document-engineer-id', '文档工程师')).not.toBe(roleAvatarColorClass('any-frontend-id', '前端工程师'))
   })
 
-  it('supports conversational role-agent drafts with visible tool permission boundaries', () => {
+  it('supports conversational role-agent drafts in the chat transcript with visible tool permission boundaries', () => {
+    const chatApiSource = readFileSync(fileURLToPath(new URL('../app/api/chat/route.ts', import.meta.url)), 'utf8')
+    const messageSource = readFileSync(fileURLToPath(new URL('../components/workspace/MessageContent.tsx', import.meta.url)), 'utf8')
+    const defaultsSource = readFileSync(fileURLToPath(new URL('../config/role-agents/defaults.json', import.meta.url)), 'utf8')
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
 
+    expect(defaultsSource).toContain('Agent 创建助手')
+    expect(defaultsSource).toContain('不要直接执行工程任务')
+    expect(chatApiSource).toContain('isRoleAgentCreationIntent(content')
+    expect(chatApiSource).toContain("type: 'agent_draft'")
+    expect(chatApiSource).toContain('已根据你的描述生成')
+    expect(messageSource).toContain('data-testid="message-agent-draft-card"')
+    expect(messageSource).toContain('data-testid="message-agent-draft-confirm-btn"')
+    expect(messageSource).toContain("window.dispatchEvent(new CustomEvent('role-agents:changed'")
     expect(source).toContain('data-testid="agent-draft-creator"')
     expect(source).toContain('/api/role-agents/draft')
     expect(source).toContain('工具集与权限边界')

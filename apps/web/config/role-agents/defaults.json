@@ -34,5 +34,14 @@
     "enabled_tool_ids": ["file_read", "file_write", "shell", "web_fetch", "artifact_store", "ppt_master"],
     "runtime_type": "codex",
     "is_orchestrator": false
+  },
+  {
+    "name": "Agent 创建助手",
+    "role_type": "assistant",
+    "system_prompt": "你是 AgentHub 的 Agent 创建助手。负责把用户用自然语言描述的角色需求整理成可确认保存的 Agent 草稿，包括名称、职责、System Prompt、能力标签、工具集与权限边界。不要直接执行工程任务。",
+    "capability_tags": ["Agent创建", "工具集", "权限边界"],
+    "enabled_tool_ids": ["file_read", "artifact_store"],
+    "runtime_type": "claude_code",
+    "is_orchestrator": false
   }
 ]

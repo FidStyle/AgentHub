@@ -406,6 +406,62 @@ describe('POST /api/chat — role-chat-core', () => {
     })
   })
 
+  it('creates role-agent drafts inside the chat transcript instead of routing creation through the side panel', async () => {
+    setupMockClient(chainCapturingInsertsWithRoles([
+      {
+        id: 'agent-architect',
+        workspace_id: 'ws-001',
+        name: '架构师',
+        role_type: 'orchestrator',
+        system_prompt: '规划任务',
+        capability_tags: ['规划'],
+        runtime_type: 'claude_code',
+        is_orchestrator: true,
+        enabled_tool_ids: ['file_read'],
+      },
+      {
+        id: 'agent-creator',
+        workspace_id: 'ws-001',
+        name: 'Agent 创建助手',
+        role_type: 'assistant',
+        system_prompt: '生成 Agent 草稿',
+        capability_tags: ['Agent创建'],
+        runtime_type: 'claude_code',
+        is_orchestrator: false,
+        enabled_tool_ids: ['file_read', 'artifact_store'],
+      },
+    ]))
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: '创建一个文档工程师，负责 markdown 文档和报告产物',
+    })
+
+    expect(status).toBe(200)
+    expect(invokeSpy).not.toHaveBeenCalled()
+    expect(text).toContain('"type":"role_process_message"')
+    expect(text).toContain('"type":"agent_draft"')
+    expect(text).toContain('"roleAgentId":"agent-creator"')
+    const draftMessage = insertedMessages.find((message) => message.message_type === 'result_card')
+    expect(draftMessage).toBeDefined()
+    expect(draftMessage!.role_agent_id).toBe('agent-creator')
+    expect(draftMessage!.content).toContain('文档工程师')
+    const runtimeParts = (draftMessage!.metadata as { runtimeParts?: Array<Record<string, unknown>> }).runtimeParts ?? []
+    expect(runtimeParts).toHaveLength(1)
+    expect(runtimeParts[0]).toMatchObject({
+      type: 'agent_draft',
+      status: 'draft',
+      draft: expect.objectContaining({
+        workspace_id: 'ws-001',
+        name: '文档工程师',
+        role_type: 'engineer',
+        runtime_type: 'codex',
+        enabled_tool_ids: expect.arrayContaining(['file_read', 'file_write', 'artifact_store']),
+        capability_tags: expect.arrayContaining(['自建Agent', '文档']),
+      }),
+    })
+  })
+
   it('AT-002a [critical]: roleAgentIds dispatches each selected role and uses role runtime_type', async () => {
     setAdapterEvents([
       { type: 'runtime_output', delta: 'done' },

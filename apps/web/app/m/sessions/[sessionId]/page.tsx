@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { Button, Input, Card, CardContent, StateCard, Badge } from '@agenthub/ui'
-import { GitBranch, Paperclip, PlayCircle, RefreshCcw, ShieldCheck } from 'lucide-react'
+import { GitBranch, Paperclip, PlayCircle, RefreshCcw, ShieldCheck, UserPlus } from 'lucide-react'
 import { createRuntimeOutputAccumulator, type Message, type Plan, type PlanNode, type PlanNodeControl, type RuntimeMessagePart, type RuntimeOutputEvent } from '@agenthub/shared'
 import { MobileActionCard, type MobilePermissionAction } from './mobile-permission-readback'
 
@@ -57,6 +57,21 @@ function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
           <Badge variant={statusText.includes('失败') || statusText === '已拒绝' ? 'destructive' : part.status === 'pending' ? 'warning' : 'success'}>{statusText}</Badge>
         </div>
         <p className="mt-1 text-muted-foreground">{part.description}</p>
+      </div>
+    )
+  }
+  if (part.type === 'agent_draft') {
+    return (
+      <div data-testid="mobile-agent-draft-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5 font-medium">
+            <UserPlus className="h-3.5 w-3.5 text-primary" />
+            <span className="truncate">Agent 草稿：{part.draft.name}</span>
+          </span>
+          <Badge variant={part.status === 'created' ? 'success' : 'secondary'}>{part.status === 'created' ? '已保存' : '待确认'}</Badge>
+        </div>
+        <p className="mt-1 text-muted-foreground">请在 Web 端确认保存为联系人。</p>
+        <p className="mt-1 break-words text-muted-foreground">工具边界：{part.draft.enabled_tool_ids.join('、') || '未启用工具'}</p>
       </div>
     )
   }

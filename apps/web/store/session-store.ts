@@ -65,6 +65,7 @@ type StreamEvent = {
   createdAt?: string
   messageType?: string
   metadata?: unknown
+  draft?: Extract<RuntimeMessagePart, { type: 'agent_draft' }>['draft']
 }
 
 const PLACEHOLDER_SESSION_TITLES = new Set(['', '新聊天', '未命名聊天', '新会话', '未命名会话'])

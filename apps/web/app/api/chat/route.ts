@@ -16,6 +16,7 @@ import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
 import { detectWorkspaceRunnablePackage, previewKindForPath, readWorkspaceGitDiff, readWorkspaceGitStatus, type WorkspaceGitChange } from '@/lib/workspace/cloud-workspace-fs'
 import { artifactTypeForPath, type ArtifactDbType } from '@/lib/artifacts/rich-artifacts'
 import { startArtifactPublish, type PublishArtifactRow } from '@/lib/artifacts/publish-service'
+import { createRoleAgentDraft, isRoleAgentCreationIntent } from '@/lib/role-agents/draft'
 import {
   DEFAULT_EXECUTION_DECISION_PROMPT,
   backendWorkerPhaseBoundaryPrompt,
@@ -1569,6 +1570,54 @@ export async function POST(req: NextRequest) {
     const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : ''
     return normalized === 'full_control' || normalized === 'dangerous_bypass'
   }
+
+  if (isRoleAgentCreationIntent(content, selectedRoleAgents.map((role) => role.name))) {
+    const draft = createRoleAgentDraft(ws.id, content)
+    const runtimeParts: RuntimeMessagePart[] = [{
+      id: `agent-draft-${Date.now()}`,
+      type: 'agent_draft',
+      status: 'draft',
+      draft,
+    }]
+    const creatorRole = allWorkspaceRoles.find((role) => role.name === 'Agent 创建助手') ?? selectedRoleAgents[0] ?? null
+    const { data: draftMessage } = await db.from('messages').insert({
+      session_id: sessionId,
+      content: `已根据你的描述生成「${draft.name}」草稿，请确认后保存为联系人。`,
+      sender_type: 'agent',
+      role_agent_id: creatorRole?.id ?? primaryRoleAgentId,
+      message_type: 'result_card',
+      metadata: {
+        runtimeParts,
+        roleAgentDraft: draft,
+        processEvent: false,
+      },
+    }).select('id, created_at').single()
+    const draftStream = new ReadableStream({
+      start(controller) {
+        enqueueSessionTitleUpdate(controller)
+        controller.enqueue(encode({
+          type: 'role_selected',
+          roleAgentId: creatorRole?.id ?? primaryRoleAgentId,
+        }))
+        controller.enqueue(encode({
+          type: 'role_process_message',
+          messageId: (draftMessage as { id?: string } | null)?.id ?? `agent-draft-message-${Date.now()}`,
+          sessionId,
+          roleAgentId: creatorRole?.id ?? primaryRoleAgentId,
+          content: `已根据你的描述生成「${draft.name}」草稿，请确认后保存为联系人。`,
+          messageType: 'result_card',
+          createdAt: (draftMessage as { created_at?: string } | null)?.created_at ?? new Date().toISOString(),
+          metadata: { runtimeParts },
+        }))
+        controller.enqueue(encode({ type: 'done' }))
+        controller.close()
+      },
+    })
+    return new Response(draftStream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    })
+  }
+
   const reduceRuntimeParts = (parts: RuntimeMessagePart[], evt: RuntimeGatewayEvent): RuntimeMessagePart[] => {
     if (evt.type === 'tool_started') {
       const id = partId(`tool-${evt.toolName}`, evt)

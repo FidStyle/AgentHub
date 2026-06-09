@@ -14,6 +14,7 @@
 - `POST /api/conversations/groups` with `{ workspace_id, name, participant_role_agent_ids[] }`
 - `PATCH /api/sessions/:id` with `{ name?, status?, is_pinned? }`
 - `POST /api/role-agents/draft` with `{ workspace_id, prompt }`
+- `POST /api/chat` with normal user text that expresses Agent creation intent, e.g. `创建一个文档工程师`
 - `POST /api/artifacts/presentations/generate` with `{ workspace_id, session_id?, source_path?, prompt?, title? }`
 - `POST /api/artifacts/:id/preview`
 - `POST /api/workspaces/:id/diff/apply` with `{ session_id, message_id?, diff }`
@@ -27,6 +28,8 @@
 - Group sessions bind participant role IDs; `/api/chat` rejects mentions outside participants and defaults to the group orchestrator or all participants.
 - Conversation sorting is pinned first, then `lastActivityAt desc`.
 - Role Agent tags/tools/runtime are not defined here; use `role-agent-tools-contract.md`.
+- Conversational Role Agent creation is a chat-first flow. When the user asks to create/configure/add an Agent in a normal conversation or direct chat with `Agent 创建助手`, `/api/chat` must persist an agent reply containing a `RuntimeMessagePart` with `type="agent_draft"`. The right Role Agent panel may manage/edit existing agents, but it is not the primary creation path.
+- `Agent 创建助手` is a built-in contact from the default role-agent config. It can prepare drafts and explain tool/permission boundaries, but it must not execute engineering implementation work.
 - Rich IM cards must use `RuntimeMessagePart` discriminants, not parse arbitrary text to infer card kinds.
 - Diff apply creates a pending action; it does not directly mutate files before approval.
 - Presentation generation must create a durable `presentation` artifact and a real `.pptx` file, or return an explicit dependency/workspace error.
@@ -40,6 +43,7 @@
 | Condition | Error / Behavior |
 | --- | --- |
 | Missing `workspace_id` | `400 缺少 workspace_id` |
+| Chat asks to create an Agent | Persist user message, then persist an agent `result_card` with `metadata.runtimeParts[0].type="agent_draft"` and do not invoke runtime implementation |
 | Group has no participants | `400 至少选择一个联系人` |
 | Group participant is not in workspace | `403 群聊联系人不存在或无权限` |
 | Direct session missing bound contact | `409 单聊缺少绑定联系人` |
@@ -55,9 +59,11 @@
 
 - Good: `GET /api/conversations` returns `contact` rows for role agents and `group` rows for group sessions in one sorted list.
 - Base: a contact without a direct session is selectable; the UI lazily creates the direct session before loading messages.
+- Good: user sends `创建一个文档工程师`, the chat transcript shows an `Agent 草稿` card with System Prompt, tags, runtime, concrete tools, and a `确认保存` action.
 - Good: final architect summary writes `.agenthub/delivery.json` for a generated service, and the IM result card contains change summary, diff, artifact, web/service preview, and running publish status in full-control.
 - Base: a generated Markdown file becomes a document preview card and downloadable artifact without a deployment button.
 - Bad: `fetchSessions` auto-creates a blank session or auto-opens the first conversation, reintroducing a duplicate "new session" product path.
+- Bad: self-built Agent creation only exists as a right-side form and cannot be started from normal chat.
 - Bad: UI hides the role picker for direct chat but `/api/chat` still accepts a different `roleAgentIds` target.
 - Bad: diff card applies patches immediately from the browser click without creating an approval action.
 - Bad: PPT endpoint returns success while only storing JSON and no downloadable PPTX file.
@@ -67,6 +73,7 @@
 
 - API tests for conversation merge/sort/filter and group creation.
 - API tests for role-agent draft and the project-wide tool contract where this flow creates/updates agents.
+- Chat API tests for conversational Agent creation intent producing an `agent_draft` message part without invoking runtime execution.
 - API tests for valid/invalid diff apply action creation.
 - Chat API tests for direct/group recipient enforcement when those session fields are present.
 - Chat API tests for final artifact recommendation by type: static HTML iframe without publish card, service manifest/package with publish status, and render-only document/presentation preview cards.
@@ -79,7 +86,9 @@
 #### Wrong
 
 - UI-only direct chat hides the role picker, but backend still accepts arbitrary `roleAgentIds`.
+- User says `创建一个文档工程师`, but the product tells them to open the right-side Role Agent form.
 
 #### Correct
 
 - Backend owns the invariant and rejects direct-chat requests targeting any role other than `direct_role_agent_id`.
+- Chat creates a durable `agent_draft` card first; clicking `确认保存` calls `POST /api/role-agents`, refreshes contacts, and the right panel remains an editing surface.

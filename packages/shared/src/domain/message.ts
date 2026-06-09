@@ -37,6 +37,21 @@ export type RuntimeMessagePart =
   | { id: string; type: 'presentation_preview'; status: 'created' | 'unavailable'; artifactId?: string; title: string; sourcePath?: string; previewUrl?: string; downloadUrl?: string; summary?: string; previewKind?: 'pdf' | 'summary' }
   | { id: string; type: 'web_preview'; status: 'created' | 'unavailable'; title: string; url?: string; description?: string; iframeUrl?: string }
   | { id: string; type: 'publish_status'; status: 'pending' | 'running' | 'stopped' | 'failed'; artifactId?: string; title: string; url?: string; port?: number; message?: string; error?: string; startedAt?: string; stoppedAt?: string }
+  | {
+    id: string
+    type: 'agent_draft'
+    status: 'draft' | 'created'
+    draft: {
+      workspace_id: string
+      name: string
+      role_type: string
+      system_prompt: string
+      capability_tags: string[]
+      enabled_tool_ids: string[]
+      runtime_type: 'claude_code' | 'codex'
+      is_orchestrator: false
+    }
+  }
 
 export interface Message {
   id: string
