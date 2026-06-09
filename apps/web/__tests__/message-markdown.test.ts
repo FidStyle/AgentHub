@@ -7,6 +7,7 @@ import type { RuntimeMessagePart } from '@agenthub/shared'
 import { normalizeMessageMarkdown } from '@/lib/chat/markdown'
 import { MessageContent } from '@/components/workspace/MessageContent'
 import { MessageMarkdown } from '@/components/workspace/MessageMarkdown'
+import { roleAvatarColorClass, roleColorIndex } from '@/lib/role-colors'
 import { MobileActionCard, mobileActionDetailRows, mobileActionStatusText, type MobilePermissionAction } from '@/app/m/sessions/[sessionId]/mobile-permission-readback'
 
 describe('normalizeMessageMarkdown', () => {
@@ -494,6 +495,16 @@ describe('ArtifactPanel frontend contract', () => {
     expect(chatSource).toContain('min-h-0 flex-1 overflow-y-auto p-6')
     expect(chatSource).toContain('data-testid="chat-empty-selection"')
     expect(chatSource).toContain('请选择联系人或者群聊')
+  })
+
+  it('keeps built-in role avatar colors distinct before hashing custom roles', () => {
+    const architect = roleColorIndex('any-architect-id', '架构师')
+    const frontend = roleColorIndex('any-frontend-id', '前端工程师')
+    const backend = roleColorIndex('any-backend-id', '后端工程师')
+
+    expect(new Set([architect, frontend, backend]).size).toBe(3)
+    expect(roleAvatarColorClass('same-id', '架构师')).not.toBe(roleAvatarColorClass('same-id', '前端工程师'))
+    expect(roleAvatarColorClass('same-id', '前端工程师')).not.toBe(roleAvatarColorClass('same-id', '后端工程师'))
   })
 
   it('adds a publish API that starts and stops runnable artifacts behind the UI buttons', () => {

@@ -327,7 +327,7 @@ function MessageList({
             className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
           >
             <div className={`flex max-w-[82%] items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
-              {!isUser && <AgentHubAvatar name={name ?? '智能体'} id={msg.roleAgentId} size="sm" className="mt-0.5" />}
+              {!isUser && <AgentHubAvatar name={name ?? '智能体'} id={msg.roleAgentId ?? name} size="sm" className="mt-0.5" />}
               <div className={`min-w-0 rounded-2xl px-4 py-3 shadow-sm transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${isUser ? 'bg-muted text-foreground' : 'border border-border bg-background/95'}`}>
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div className="min-w-0">

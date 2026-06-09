@@ -37,7 +37,21 @@ const ROLE_AVATAR_COLOR_CLASSES = [
   'border-teal-200 bg-teal-600 text-white dark:border-teal-700 dark:bg-teal-500',
 ]
 
+const DEFAULT_ROLE_COLOR_INDEX: Record<string, number> = {
+  '架构师': 4,
+  Orchestrator: 4,
+  '前端工程师': 0,
+  '后端工程师': 1,
+}
+
+function defaultRoleColorIndex(roleName = '') {
+  return DEFAULT_ROLE_COLOR_INDEX[roleName.trim()]
+}
+
 export function roleColorIndex(roleId: string | null | undefined, roleName = '') {
+  const defaultIndex = defaultRoleColorIndex(roleName)
+  if (typeof defaultIndex === 'number') return defaultIndex
+
   const seed = roleId || roleName || 'agent'
   let hash = 0
   for (let index = 0; index < seed.length; index += 1) {
