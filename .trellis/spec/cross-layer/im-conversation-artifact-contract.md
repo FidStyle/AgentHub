@@ -33,6 +33,7 @@
 - Final artifact recommendation is agent/manifest first: if `.agenthub/delivery.json` exists, use its `source_path`, `artifact_type`, and optional `start_command` instead of asking the user to choose a file. Without a manifest, fallback scanning is typed: HTML -> `web_preview` iframe, Markdown/document -> `document_preview`, PPT/PPTX -> `presentation_preview`, runnable `package.json` -> service publish/start command.
 - `publish_status` cards are only for artifacts with an explicit service start instruction (`startCommand` or `packageScript`). Static HTML and document-like artifacts must show preview/download cards and must not be forced through a publish command path.
 - `full_control` and `dangerous_bypass` may auto-start a service artifact after final recommendation and must show a `publish_status` audit card with `status="running"` or `status="failed"`. Standard/sandbox/auto modes can recommend the same artifact after user-approved flow completion, but service start remains a user action through the publish controls.
+- `full_control` / `dangerous_bypass` auto-approved permission cards are completed audit records, not pending approval boundaries. If runtime later fails after completed auto-approval cards, the plan/node must fail closed rather than showing `等待授权`.
 
 ### 4. Validation & Error Matrix
 

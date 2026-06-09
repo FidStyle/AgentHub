@@ -146,17 +146,17 @@ export function SessionList() {
           className="min-w-0 flex-1 bg-transparent text-xs outline-none"
         />
       </label>
-      <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
         {filtered.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground">没有匹配的聊天</p>}
         {filtered.map((session) => (
           <div
             key={session.id}
             data-testid={`session-list-item-${session.id}`}
-            className={`group w-full rounded-xl border px-2.5 py-2 text-left transition-colors ${
+            className={`group w-full rounded-md border px-2 py-1.5 text-left transition-colors ${
               activeSessionId === (session.sessionId ?? session.id) ? 'border-border bg-background shadow-sm' : 'border-transparent hover:border-border hover:bg-background/70'
             }`}
           >
-            <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex min-w-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => void openConversation(session)}
@@ -175,7 +175,7 @@ export function SessionList() {
                   {session.isPinned && <Badge variant="secondary">置顶</Badge>}
                   {session.status === 'archived' && <Badge variant="secondary">已归档</Badge>}
                 </span>
-                <span className="mt-0.5 block truncate text-xs leading-4 text-muted-foreground">
+                <span className="block truncate text-xs leading-4 text-muted-foreground">
                   {session.lastMessage || (
                     session.participants && session.participants.length > 1
                       ? `成员：${session.participants.map((participant) => participant.name).join('、')}`
@@ -183,7 +183,7 @@ export function SessionList() {
                   )}
                 </span>
               </button>
-              <div className="flex max-w-[5.5rem] shrink-0 flex-col items-end gap-1 opacity-80 group-hover:opacity-100">
+              <div className="flex max-w-[5.25rem] shrink-0 flex-col items-end gap-0.5 opacity-80 group-hover:opacity-100">
                 <span className="flex items-center gap-1 whitespace-nowrap text-[11px] leading-4 text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {formatSessionTime(session.updatedAt)}

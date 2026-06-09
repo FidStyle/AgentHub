@@ -22,7 +22,7 @@ const HEARTBEAT_EVENT_INTERVAL_MS = Number(process.env.RUNTIME_HEARTBEAT_EVENT_I
 const WORKER_PRESENCE_TTL_SEC = Number(process.env.RUNTIME_WORKER_PRESENCE_TTL_SEC ?? 15)
 const WORKER_PRESENCE_INTERVAL_MS = Math.max(1_000, Math.floor((WORKER_PRESENCE_TTL_SEC * 1_000) / 3))
 const DEFAULT_RUNTIME_JOB_TIMEOUT_MS = 15 * 60_000
-const DEFAULT_RUNTIME_OUTPUT_IDLE_TIMEOUT_MS = 2 * 60_000
+const DEFAULT_RUNTIME_OUTPUT_IDLE_TIMEOUT_MS = 5 * 60_000
 
 function runtimeTypeForJob(job?: RuntimeJob): CliRuntimeType {
   if (job?.runtimeType === 'codex' || job?.runtimeType === 'claude_code') return job.runtimeType

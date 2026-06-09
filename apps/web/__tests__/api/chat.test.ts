@@ -1617,6 +1617,23 @@ describe('POST /api/chat — role-chat-core', () => {
     ]))
   })
 
+  it('does not treat completed full-control permission audit cards as a waiting approval boundary', async () => {
+    setAdapterEvents([
+      { type: 'approval_auto_approved', actionId: 'action-auto-1', title: 'Runtime 工具已自动通过', description: '按 full-control 自动执行', riskLevel: 'medium', actionKind: 'write_file', permissionMode: 'full_control' },
+      { type: 'runtime_observed_action', actionId: 'action-observed-1', status: 'completed', actionKind: 'shell_command', commandPreview: 'npm test', autoApproved: true, permissionMode: 'full_control' },
+      { type: 'runtime_failed', error: 'Runtime 输出空闲超时，已终止。' },
+    ])
+    setupMockClient(chainCapturingInserts())
+
+    const { status, text } = await callChat({ sessionId: 'session-001', content: 'hi', roleAgentId: 'agent-001', permissionMode: 'full_control' })
+
+    expect(status).toBe(200)
+    expect(text).toContain('Runtime 输出空闲超时')
+    const runtimeMessages = insertedMessages.filter((m) => m.sender_type === 'agent' && Boolean((m.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked))
+    expect(runtimeMessages).toHaveLength(0)
+    expect(insertedMessages.some((m) => (m.metadata as { visibleStatus?: unknown } | null)?.visibleStatus === '等待授权')).toBe(false)
+  })
+
   it('AT-007 [high]: runtime tool/permission/diff/artifact events persist as message parts', async () => {
     setAdapterEvents([
       { type: 'tool_started', toolCallId: 'tool-1', toolName: 'shell', input: { command: 'pnpm test' } },

@@ -105,8 +105,10 @@ function roleById(roleAgents: RoleAgent[], id: string | null | undefined) {
 
 function EmptyConversationPanel({
   conversation,
+  composer,
 }: {
   conversation: Session | null
+  composer: React.ReactNode
 }) {
   const title = conversation?.title ?? 'AgentHub'
   const isGroup = conversation?.kind === 'group'
@@ -126,27 +128,42 @@ function EmptyConversationPanel({
   }
 
   return (
-    <div data-testid="chat-empty-conversation" className="mx-auto flex h-full min-h-[420px] w-full max-w-3xl flex-col justify-center gap-8">
-      <div className="flex items-center gap-4">
-        <AgentHubAvatar name={title} id={conversation?.roleAgentId ?? conversation?.id} group={isGroup} size="lg" />
-        <div className="min-w-0">
-          <h2 className="truncate text-3xl font-semibold tracking-normal">{title}</h2>
-          <p className="mt-1 truncate text-sm text-muted-foreground">{subtitle}</p>
+    <div data-testid="chat-empty-conversation" className="flex h-full min-h-0 flex-col overflow-y-auto px-5 py-8">
+      <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center gap-8">
+        <div className="flex items-center gap-4">
+          <AgentHubAvatar name={title} id={conversation?.roleAgentId ?? conversation?.id} group={isGroup} size="lg" />
+          <div className="min-w-0">
+            <h2 className="truncate text-3xl font-semibold tracking-normal">{title}</h2>
+            <p className="mt-1 truncate text-sm text-muted-foreground">{subtitle}</p>
+          </div>
         </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {SUGGESTED_TASKS.map((item) => (
-          <button
-            key={item.title}
-            type="button"
-            data-testid="chat-suggested-task"
-            className="min-h-28 rounded-2xl border border-border bg-background/80 p-4 text-left shadow-sm transition-colors hover:bg-muted/40"
-            onClick={() => useSuggestion(item.prompt)}
-          >
-            <span className="block text-sm font-medium">{item.title}</span>
-            <span className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.prompt}</span>
-          </button>
-        ))}
+        <div className="w-full">
+          {composer}
+        </div>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="font-medium">推荐</span>
+            <span className="text-muted-foreground">办公学习</span>
+            <span className="text-muted-foreground">电脑设置</span>
+            <span className="text-muted-foreground">生活日常</span>
+            <span className="text-muted-foreground">游戏娱乐</span>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {SUGGESTED_TASKS.map((item) => (
+              <button
+                key={item.title}
+                type="button"
+                data-testid="chat-suggested-task"
+                className="min-h-32 rounded-xl border border-transparent bg-background/75 p-4 text-left shadow-sm transition-colors hover:border-border hover:bg-background"
+                onClick={() => useSuggestion(item.prompt)}
+              >
+                <span className="block text-sm font-medium">{item.title}</span>
+                <span className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{item.prompt}</span>
+                <span className="mt-4 block text-right text-muted-foreground">↑</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -249,7 +266,7 @@ function MessageList({
   roleAgents: RoleAgent[]
   onQuote: (message: QuotedMessage) => void
 }) {
-  const { activeSessionId, sessions, messages, messagesRevision, loading, error, setMessagePinned, regenerateMessage } = useSessionStore()
+  const { activeSessionId, messages, messagesRevision, loading, error, setMessagePinned, regenerateMessage } = useSessionStore()
   const [pinningId, setPinningId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
@@ -273,9 +290,7 @@ function MessageList({
   if (loading) return emptyFrame(<StateCard variant="loading" />)
   if (error) return emptyFrame(<StateCard variant="error" />)
   if (!activeSessionId) return emptyFrame(null)
-
-  const activeConversation = sessions.find((session) => (session.sessionId ?? session.id) === activeSessionId) ?? null
-  if (sessionMessages.length === 0) return emptyFrame(<EmptyConversationPanel conversation={activeConversation} />)
+  if (sessionMessages.length === 0) return emptyFrame(null)
 
   const roleName = (id: string | null) => roleAgents.find((r) => r.id === id)?.name
   const messageAuthor = (msg: Message) => {
@@ -412,6 +427,7 @@ function MessageComposer({
   onRefreshRuntimeStatus,
   quotedMessage,
   onClearQuote,
+  variant = 'dock',
 }: {
   roleAgents: RoleAgent[]
   readOnly: boolean
@@ -419,6 +435,7 @@ function MessageComposer({
   onRefreshRuntimeStatus: () => void
   quotedMessage: QuotedMessage | null
   onClearQuote: () => void
+  variant?: 'dock' | 'home'
 }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -536,8 +553,15 @@ function MessageComposer({
     }
   }
 
+  const containerClass = variant === 'home'
+    ? 'w-full'
+    : 'shrink-0 px-5 pb-5 pt-2'
+  const composerClass = variant === 'home'
+    ? 'rounded-2xl border border-border bg-background/95 p-4 shadow-sm'
+    : 'rounded-3xl border border-border bg-background/95 p-3 shadow-sm'
+
   return (
-    <div data-testid="message-composer" className="shrink-0 px-5 pb-5 pt-2">
+    <div data-testid="message-composer" className={containerClass}>
       {readOnly && (
         <div data-testid="readonly-composer-gate" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
           <span>{readOnlyReason ?? '当前为只读模式，不能继续执行本地任务。'}</span>
@@ -550,7 +574,7 @@ function MessageComposer({
           </button>
         </div>
       )}
-      <div className="rounded-3xl border border-border bg-background/95 p-3 shadow-sm">
+      <div className={composerClass}>
         <div data-testid="composer-input-row" className="flex items-end gap-3">
           <textarea
             data-testid="composer-input"
@@ -569,7 +593,7 @@ function MessageComposer({
             }}
             placeholder={readOnly ? '只读模式下不能发送消息' : '请输入任务，交给我来帮你完成'}
             disabled={!activeSessionId || sending || readOnly}
-            className="max-h-40 min-h-16 flex-1 resize-none border-0 bg-transparent px-0 py-2 text-base leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            className={`${variant === 'home' ? 'min-h-20 text-lg' : 'min-h-16 text-base'} max-h-40 flex-1 resize-none border-0 bg-transparent px-0 py-2 leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50`}
           />
           {sending ? (
             <IconButton icon={Square} label="停止" data-testid="stop-btn" onClick={stopSending} disabled={!activeSessionId} className="h-10 w-10 rounded-full bg-muted text-foreground" />
@@ -794,10 +818,23 @@ export function ChatPanel({
   readOnlyReason?: string | null
   onRefreshRuntimeStatus?: () => void
 }) {
-  const { activeSessionId, activeWorkspaceId, sessions } = useSessionStore()
+  const { activeSessionId, activeWorkspaceId, sessions, messages, loading, error } = useSessionStore()
   const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null)
   const activeSession = sessions.find((s) => (s.sessionId ?? s.id) === activeSessionId)
   const roleAgents = useRoleAgents(activeWorkspaceId)
+  const activeMessages = activeSessionId ? messages.filter((message) => message.sessionId === activeSessionId) : []
+  const showHomeConversation = Boolean(activeSessionId && activeMessages.length === 0 && !loading && !error)
+  const composer = (
+    <MessageComposer
+      roleAgents={roleAgents}
+      readOnly={readOnly}
+      readOnlyReason={readOnlyReason}
+      onRefreshRuntimeStatus={onRefreshRuntimeStatus}
+      quotedMessage={quotedMessage}
+      onClearQuote={() => setQuotedMessage(null)}
+      variant={showHomeConversation ? 'home' : 'dock'}
+    />
+  )
 
   useEffect(() => {
     const onQuote = (event: Event) => {
@@ -829,22 +866,23 @@ export function ChatPanel({
   }
 
   return (
-    <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border">
-      <div className="shrink-0 flex items-center justify-between p-4 border-b border-border">
-        <h2 className="text-sm font-semibold">
-          {activeSession?.title ?? '选择一个联系人或群聊'}
-        </h2>
-        <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
-      </div>
-      <MessageList roleAgents={roleAgents} onQuote={setQuotedMessage} />
-      <MessageComposer
-        roleAgents={roleAgents}
-        readOnly={readOnly}
-        readOnlyReason={readOnlyReason}
-        onRefreshRuntimeStatus={onRefreshRuntimeStatus}
-        quotedMessage={quotedMessage}
-        onClearQuote={() => setQuotedMessage(null)}
-      />
+    <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border bg-muted/20">
+      {!showHomeConversation && (
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-background/80 p-4">
+          <h2 className="text-sm font-semibold">
+            {activeSession?.title ?? '选择一个联系人或群聊'}
+          </h2>
+          <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
+        </div>
+      )}
+      {showHomeConversation ? (
+        <EmptyConversationPanel conversation={activeSession ?? null} composer={composer} />
+      ) : (
+        <>
+          <MessageList roleAgents={roleAgents} onQuote={setQuotedMessage} />
+          {composer}
+        </>
+      )}
     </div>
   )
 }

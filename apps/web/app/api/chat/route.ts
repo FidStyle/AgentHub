@@ -437,8 +437,14 @@ function appendEvidenceSummary(reply: string, evidenceSummary: string) {
   return trimmedReply ? `${trimmedReply}\n\n${evidenceSummary}` : evidenceSummary.trim()
 }
 
+function isPendingRuntimeBoundaryPart(part: RuntimeMessagePart) {
+  return part.type === 'question'
+    || (part.type === 'permission' && ['pending', 'approved', 'running'].includes(part.status))
+}
+
 function isRuntimeWaitingBoundary(error: string | null, runtimeParts: RuntimeMessagePart[]) {
-  if (runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')) return true
+  const hasPendingBoundaryPart = runtimeParts.some(isPendingRuntimeBoundaryPart)
+  if (hasPendingBoundaryPart) return true
   return error === 'Runtime 工具已进入权限审批，未执行该操作。'
     || error === 'Runtime 工具已按当前权限模式自动进入续跑。'
     || error === 'Runtime 等待用户补充确认，未继续执行。'
@@ -1998,7 +2004,7 @@ export async function POST(req: NextRequest) {
             roleAgentId: currentRoleAgentId,
             runtimeType: targetRuntimeType,
           })
-          const hasWaitingPart = runtimeParts.some((part) => part.type === 'question' || part.type === 'permission')
+          const hasWaitingPart = runtimeParts.some(isPendingRuntimeBoundaryPart)
           if (completed && (reply || runtimeParts.length > 0)) {
             const evidenceSummary = await buildCompletedRoleEvidenceSummary({
               db,

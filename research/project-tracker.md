@@ -20,6 +20,21 @@
 
 ## P0 任务
 
+### BYTEDANCE-P0-P1-REAL-STEP-UAT: Bytedance P0/P1 Real-Step UAT 当前验收
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
+| **对应计划** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md` |
+| **合同路径** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md`；`.trellis/spec/cross-layer/real-flow-bytedance-uat.md` |
+| **当前状态** | ✅ completed / fresh real-step UAT passed（2026-06-10）：最新代码下 full-control 产品交付主链路和标准/非完全权限 allow/reject 分支均通过；P2 未完全实现项继续按用户要求排除。 |
+| **目标** | 按 Bytedance P0/P1 当前验收口径，验证 AI 对话过程中的 Git diff、产物、iframe/web preview、发布状态卡、权限交互卡、用户允许后续跑、服务型产物启动命令和 Web/Mobile/Desktop readback。 |
+| **验收方式** | Fresh strict single-prompt product delivery gate + fresh manual permission branch gate + OpenCLI Web/Mobile readback + accepted Desktop/Electron Playwright fallback + focused API/runtime/UI tests + type-check/lint + `git diff --check`。 |
+| **测试证据** | Report: `research/execution-reports/bytedance-current-flow-fix-2026-06-10.md`；Full-control run `BYTEDANCE-CURRENT-FINAL-1781025161` PASS（78 passed / 0 failed / 0 warned），workspace `0b827668-5d74-49a4-bc3b-2d56263cfc92`，session `61912ccb-78a7-4b26-b7d7-d4cd194f06a6`，plan `fa73a80d-7c7d-4ab6-befe-930564ec1e47`，artifact `45a0a70e-1f46-4b6c-88d1-1592501c1e9d`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/BYTEDANCE-CURRENT-FINAL-1781025161/`；Manual permission run `BYTEDANCE-PERMISSION-FINAL-1781025780` PASS（38 passed / 0 failed / 0 warned），allow session `b780798e-f309-4982-a197-f0d1f1294bc7` action `0d53810f-1762-424c-819a-ff281946e2f2`，reject session `339ba0c9-a07f-4f96-a9e6-e5d0c4c2013b` action `0680ad29-ee12-4abf-b3be-7ca1819f65c1`，evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/BYTEDANCE-PERMISSION-FINAL-1781025780/`；focused tests PASS（6 files / 127 tests）；type-check PASS；lint PASS；`git diff --check` PASS。 |
+| **阻塞问题** | 无当前 P0/P1 blocker。Desktop/Electron 仍按当前合同使用已接受的 Playwright fallback；最终 Demo 包、3 分钟素材、未完全实现的纯 P2 项继续排除。 |
+| **下一步动作** | 本轮完成后自动提交；后续任何 Bytedance P0/P1 完成声明必须继续使用 fresh full-control + manual allow/reject 证据，不得复用历史 pass。 |
+
 ### 06-07-fix-bytedance-real-step-uat-blockers: 修复 Bytedance 全真实逐步 UAT 阻断
 
 | 字段 | 内容 |
