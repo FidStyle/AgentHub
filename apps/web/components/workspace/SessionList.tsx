@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { Badge, Button, StateCard, Tooltip } from '@agenthub/ui'
-import { Archive, Clock, MessageSquareText, Pin, PinOff, Plus, RotateCcw, Search, Trash2, UserRound, UsersRound } from 'lucide-react'
+import { Archive, Clock, MessageSquareText, Pin, PinOff, Plus, RotateCcw, Search, Trash2, UsersRound } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
+import { AgentHubAvatar } from './AgentHubAvatar'
 
 function formatSessionTime(value: string) {
   if (!value) return '暂无时间'
@@ -151,18 +152,18 @@ export function SessionList() {
           <div
             key={session.id}
             data-testid={`session-list-item-${session.id}`}
-            className={`group w-full rounded-md border px-2 py-1.5 text-left transition-colors ${
-              activeSessionId === (session.sessionId ?? session.id) ? 'border-primary/40 bg-primary/10' : 'border-transparent hover:border-border hover:bg-muted'
+            className={`group w-full rounded-xl border px-2.5 py-2 text-left transition-colors ${
+              activeSessionId === (session.sessionId ?? session.id) ? 'border-border bg-background shadow-sm' : 'border-transparent hover:border-border hover:bg-background/70'
             }`}
           >
-            <div className="flex min-w-0 items-start gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => void openConversation(session)}
-                className="mt-0.5 shrink-0 text-muted-foreground"
+                className="shrink-0"
                 aria-label={`打开 ${session.title}`}
               >
-                {session.kind === 'contact' ? <UserRound className="h-4 w-4" /> : <UsersRound className="h-4 w-4" />}
+                <AgentHubAvatar name={session.title} id={session.roleAgentId ?? session.id} group={session.kind !== 'contact'} size="sm" />
               </button>
               <button
                 type="button"
@@ -173,7 +174,6 @@ export function SessionList() {
                   <span className="truncate text-sm font-medium leading-5">{session.title}</span>
                   {session.isPinned && <Badge variant="secondary">置顶</Badge>}
                   {session.status === 'archived' && <Badge variant="secondary">已归档</Badge>}
-                  {activeSessionId === (session.sessionId ?? session.id) && <Badge variant="default">当前</Badge>}
                 </span>
                 <span className="mt-0.5 block truncate text-xs leading-4 text-muted-foreground">
                   {session.lastMessage || (
@@ -183,7 +183,7 @@ export function SessionList() {
                   )}
                 </span>
               </button>
-              <div className="flex max-w-[5.5rem] shrink-0 flex-col items-end gap-0.5">
+              <div className="flex max-w-[5.5rem] shrink-0 flex-col items-end gap-1 opacity-80 group-hover:opacity-100">
                 <span className="flex items-center gap-1 whitespace-nowrap text-[11px] leading-4 text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {formatSessionTime(session.updatedAt)}

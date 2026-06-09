@@ -30,6 +30,9 @@
 - Rich IM cards must use `RuntimeMessagePart` discriminants, not parse arbitrary text to infer card kinds.
 - Diff apply creates a pending action; it does not directly mutate files before approval.
 - Presentation generation must create a durable `presentation` artifact and a real `.pptx` file, or return an explicit dependency/workspace error.
+- Final artifact recommendation is agent/manifest first: if `.agenthub/delivery.json` exists, use its `source_path`, `artifact_type`, and optional `start_command` instead of asking the user to choose a file. Without a manifest, fallback scanning is typed: HTML -> `web_preview` iframe, Markdown/document -> `document_preview`, PPT/PPTX -> `presentation_preview`, runnable `package.json` -> service publish/start command.
+- `publish_status` cards are only for artifacts with an explicit service start instruction (`startCommand` or `packageScript`). Static HTML and document-like artifacts must show preview/download cards and must not be forced through a publish command path.
+- `full_control` and `dangerous_bypass` may auto-start a service artifact after final recommendation and must show a `publish_status` audit card with `status="running"` or `status="failed"`. Standard/sandbox/auto modes can recommend the same artifact after user-approved flow completion, but service start remains a user action through the publish controls.
 
 ### 4. Validation & Error Matrix
 
@@ -44,15 +47,20 @@
 | Invalid diff | `400 不是合法 unified diff` |
 | Diff path outside workspace | `400 Diff 包含 workspace 外路径` |
 | Presentation preview without `soffice` | `summary` fallback with slide summaries, not a claimed PDF preview |
+| Final artifact is Markdown/document/PPT | Render preview/download card, no publish card unless manifest also declares a start command |
+| Final artifact is service with start command | Persist artifact metadata and expose publish start/stop controls; full-control may auto-start and write running/failed status into the IM card |
 
 ### 5. Good/Base/Bad Cases
 
 - Good: `GET /api/conversations` returns `contact` rows for role agents and `group` rows for group sessions in one sorted list.
 - Base: a contact without a direct session is selectable; the UI lazily creates the direct session before loading messages.
+- Good: final architect summary writes `.agenthub/delivery.json` for a generated service, and the IM result card contains change summary, diff, artifact, web/service preview, and running publish status in full-control.
+- Base: a generated Markdown file becomes a document preview card and downloadable artifact without a deployment button.
 - Bad: `fetchSessions` auto-creates a blank session or auto-opens the first conversation, reintroducing a duplicate "new session" product path.
 - Bad: UI hides the role picker for direct chat but `/api/chat` still accepts a different `roleAgentIds` target.
 - Bad: diff card applies patches immediately from the browser click without creating an approval action.
 - Bad: PPT endpoint returns success while only storing JSON and no downloadable PPTX file.
+- Bad: every artifact receives a publish card even when it is a Markdown/PPT/document render artifact.
 
 ### 6. Tests Required
 
@@ -60,6 +68,7 @@
 - API tests for role-agent draft and the project-wide tool contract where this flow creates/updates agents.
 - API tests for valid/invalid diff apply action creation.
 - Chat API tests for direct/group recipient enforcement when those session fields are present.
+- Chat API tests for final artifact recommendation by type: static HTML iframe without publish card, service manifest/package with publish status, and render-only document/presentation preview cards.
 - Store/component tests for `/api/conversations` consumption and contact/group rendering.
 - E2E tests must enter direct chat by clicking a contact and group chat by creating/selecting a group; do not use a blank "new session" button as setup.
 - Type-checks for shared `RuntimeMessagePart` union consumers, including Mobile/PWA.

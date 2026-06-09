@@ -463,6 +463,7 @@ describe('ArtifactPanel frontend contract', () => {
 
   it('colors role messages deterministically and keeps file-edit references in the IM composer', () => {
     const chatSource = readFileSync(fileURLToPath(new URL('../components/workspace/ChatPanel.tsx', import.meta.url)), 'utf8')
+    const avatarSource = readFileSync(fileURLToPath(new URL('../components/workspace/AgentHubAvatar.tsx', import.meta.url)), 'utf8')
     const artifactSource = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
     const colorSource = readFileSync(fileURLToPath(new URL('../lib/role-colors.ts', import.meta.url)), 'utf8')
 
@@ -474,7 +475,9 @@ describe('ArtifactPanel frontend contract', () => {
     expect(chatSource).toContain("variant=\"outline\"")
     expect(chatSource).toContain('data-testid="mention-role-btn"')
     expect(chatSource).toContain('data-testid="message-role-badge"')
-    expect(chatSource).toContain("role === 'user' ? 'border-l-primary bg-primary/10' : roleMessageColorClass")
+    expect(chatSource).toContain('AgentHubAvatar')
+    expect(avatarSource).toContain('data-testid="agenthub-avatar"')
+    expect(chatSource).toContain('rounded-3xl')
     expect(chatSource).toContain('suggestedPrompt')
     expect(chatSource).toContain('const block = quotedText ?')
     expect(chatSource).toContain('quotedText')
@@ -484,7 +487,7 @@ describe('ArtifactPanel frontend contract', () => {
     expect(artifactSource).toContain('roleMessageColorClass')
     expect(artifactSource).toContain('已引用 ${ref.preview}')
     expect(chatSource).toContain('data-testid="message-list-empty-frame"')
-    expect(chatSource).toContain('min-h-0 flex-1 overflow-y-auto p-4')
+    expect(chatSource).toContain('min-h-0 flex-1 overflow-y-auto p-6')
     expect(chatSource).toContain('data-testid="chat-empty-selection"')
     expect(chatSource).toContain('请选择联系人或者群聊')
   })
@@ -494,21 +497,27 @@ describe('ArtifactPanel frontend contract', () => {
       fileURLToPath(new URL('../app/api/artifacts/[id]/publish/route.ts', import.meta.url)),
       'utf8',
     )
+    const serviceSource = readFileSync(
+      fileURLToPath(new URL('../lib/artifacts/publish-service.ts', import.meta.url)),
+      'utf8',
+    )
 
     expect(source).toContain("const action = body.action === 'stop' ? 'stop' : 'start'")
     expect(source).toContain("RUNNABLE_ARTIFACT_TYPES.has(row.artifact_type ?? '')")
-    expect(source).toContain('const launchSource = artifactLaunchSource(row)')
-    expect(source).toContain('createWorkspaceArtifactLaunchScript(workspaceRoot, row.id, launchSource)')
-    expect(source).toContain("publishKind: 'package_script'")
-    expect(source).toContain('if (!scriptFullPath.startsWith(`${workspaceRoot}${path.sep}`))')
-    expect(source).toContain("stdio: ['ignore', 'ignore', 'ignore']")
-    expect(source).toContain("publishStatus: 'running'")
-    expect(source).toContain('publishUrl: url')
+    expect(source).toContain('startArtifactPublish({')
+    expect(source).toContain('stopArtifactPublish(row)')
+    expect(serviceSource).toContain('const launchSource = artifactLaunchSource(input.row)')
+    expect(serviceSource).toContain('createWorkspaceArtifactLaunchScript(workspaceRoot, input.row.id, launchSource)')
+    expect(serviceSource).toContain("publishKind: 'package_script'")
+    expect(serviceSource).toContain('if (!scriptFullPath.startsWith(`${workspaceRoot}${path.sep}`))')
+    expect(serviceSource).toContain("stdio: ['ignore', 'ignore', 'ignore']")
+    expect(serviceSource).toContain("publishStatus: 'running'")
+    expect(serviceSource).toContain('publishUrl: url')
     expect(source).toContain("publishStatus: 'stopped'")
-    expect(source).toContain("typeof metadata?.publishPid === 'number'")
-    expect(source).toContain("process.kill(storedPid, 'SIGTERM')")
+    expect(serviceSource).toContain("typeof row.metadata?.publishPid === 'number'")
+    expect(serviceSource).toContain("process.kill(storedPid, 'SIGTERM')")
     expect(source).toContain('publishPid: null')
-    expect(source).toContain("NextResponse.json({ status: 'running', url")
+    expect(source).toContain('NextResponse.json(result)')
     expect(source).toContain("NextResponse.json({ status: 'stopped', pid")
   })
 

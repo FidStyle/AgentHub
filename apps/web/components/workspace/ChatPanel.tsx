@@ -3,11 +3,11 @@
 import React from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
+import { StateCard, IconButton, Badge } from '@agenthub/ui'
 import { AtSign, Copy, Pin, PinOff, Plus, Quote, RefreshCcw, Send, PanelRight, ShieldCheck, Square, WandSparkles, X } from 'lucide-react'
-import { useSessionStore, type Message } from '@/store/session-store'
+import { useSessionStore, type Message, type Session } from '@/store/session-store'
 import { MessageContent } from './MessageContent'
-import { roleBadgeColorClass, roleMessageColorClass } from '@/lib/role-colors'
+import { AgentHubAvatar } from './AgentHubAvatar'
 
 interface RoleAgent {
   id: string
@@ -56,6 +56,11 @@ const SLASH_COMMANDS = [
   { command: '/review', label: '审查当前结果', template: '请审查当前实现，优先指出阻塞验收的问题、风险和缺失测试。' },
   { command: '/fix', label: '修复问题', template: '请定位并修复当前问题，完成后说明验证结果。' },
 ] as const
+const SUGGESTED_TASKS = [
+  { title: '生成可运行网页', prompt: '做一个生成姓名的网页，需存储姓名记录，使用 sqlite' },
+  { title: '检查配置与依赖', prompt: '帮我检查当前项目配置、启动命令和潜在问题，并给出可执行修复建议' },
+  { title: '整理文档产物', prompt: '根据当前需求生成一份结构清晰的说明文档，并作为产物保存' },
+] as const
 
 const ROLE_TYPE_LABELS: Record<string, string> = {
   orchestrator: '编排者',
@@ -102,6 +107,59 @@ export function messageAutoScrollSignature(messages: Message[]) {
       }).join('|') ?? '',
     ].join(':'))
     .join(';')
+}
+
+function roleById(roleAgents: RoleAgent[], id: string | null | undefined) {
+  return roleAgents.find((role) => role.id === id) ?? null
+}
+
+function EmptyConversationPanel({
+  conversation,
+}: {
+  conversation: Session | null
+}) {
+  const title = conversation?.title ?? 'AgentHub'
+  const isGroup = conversation?.kind === 'group'
+  const subtitle = isGroup
+    ? `群聊成员：${conversation?.participants?.map((participant) => participant.name).join('、') || '等待成员加入'}`
+    : '随时在线，等待你的任务'
+
+  const useSuggestion = (prompt: string) => {
+    window.dispatchEvent(new CustomEvent('agenthub:quote-to-composer', {
+      detail: {
+        id: `suggestion-${Date.now()}`,
+        author: title,
+        preview: prompt,
+        suggestedPrompt: prompt,
+      },
+    }))
+  }
+
+  return (
+    <div data-testid="chat-empty-conversation" className="mx-auto flex h-full min-h-[420px] w-full max-w-3xl flex-col justify-center gap-8">
+      <div className="flex items-center gap-4">
+        <AgentHubAvatar name={title} id={conversation?.roleAgentId ?? conversation?.id} group={isGroup} size="lg" />
+        <div className="min-w-0">
+          <h2 className="truncate text-3xl font-semibold tracking-normal">{title}</h2>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{subtitle}</p>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {SUGGESTED_TASKS.map((item) => (
+          <button
+            key={item.title}
+            type="button"
+            data-testid="chat-suggested-task"
+            className="min-h-28 rounded-2xl border border-border bg-background/80 p-4 text-left shadow-sm transition-colors hover:bg-muted/40"
+            onClick={() => useSuggestion(item.prompt)}
+          >
+            <span className="block text-sm font-medium">{item.title}</span>
+            <span className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.prompt}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
@@ -201,7 +259,7 @@ function MessageList({
   roleAgents: RoleAgent[]
   onQuote: (message: QuotedMessage) => void
 }) {
-  const { activeSessionId, messages, messagesRevision, loading, error, setMessagePinned, regenerateMessage } = useSessionStore()
+  const { activeSessionId, sessions, messages, messagesRevision, loading, error, setMessagePinned, regenerateMessage } = useSessionStore()
   const [pinningId, setPinningId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
@@ -217,16 +275,17 @@ function MessageList({
   }, [focusedMessageId, messagesRevision, scrollSignature, sessionMessages.length])
 
   const emptyFrame = (node: React.ReactNode) => (
-    <div data-testid="message-list-empty-frame" className="min-h-0 flex-1 overflow-y-auto p-4">
+    <div data-testid="message-list-empty-frame" className="min-h-0 flex-1 overflow-y-auto p-6">
       {node}
     </div>
   )
 
   if (loading) return emptyFrame(<StateCard variant="loading" />)
   if (error) return emptyFrame(<StateCard variant="error" />)
-  if (!activeSessionId) return emptyFrame(<StateCard variant="empty" />)
+  if (!activeSessionId) return emptyFrame(null)
 
-  if (sessionMessages.length === 0) return emptyFrame(<StateCard variant="empty" />)
+  const activeConversation = sessions.find((session) => (session.sessionId ?? session.id) === activeSessionId) ?? null
+  if (sessionMessages.length === 0) return emptyFrame(<EmptyConversationPanel conversation={activeConversation} />)
 
   const roleName = (id: string | null) => roleAgents.find((r) => r.id === id)?.name
   const messageAuthor = (msg: Message) => {
@@ -245,104 +304,109 @@ function MessageList({
   }
 
   return (
-    <div data-testid="message-list-scroll" className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3">
+    <div data-testid="message-list-scroll" className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
       <PinnedContextPanel pinnedMessages={pinnedMessages} roleName={roleName} onJumpToMessage={jumpToMessage} />
       {sessionMessages.map((msg) => {
-        const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : undefined
+        const role = msg.role === 'agent' ? roleById(roleAgents, msg.roleAgentId) : null
+        const name = msg.role === 'agent' ? role?.name ?? roleName(msg.roleAgentId) : undefined
         const canPin = !msg.id.startsWith('tmp-') && !msg.id.startsWith('reply-') && !msg.id.startsWith('sys-')
         const canRegenerate = msg.role === 'agent' && !msg.id.startsWith('tmp-') && !msg.id.startsWith('reply-') && !msg.id.startsWith('sys-')
         const isProcessMessage = msg.messageType === 'system_event' || msg.messageType === 'plan_card' || msg.messageType === 'result_card'
+        const isUser = msg.role === 'user'
         return (
           <div
             key={msg.id}
             id={`message-${msg.id}`}
             data-message-id={msg.id}
             data-testid={isProcessMessage ? 'role-process-message' : 'chat-message'}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
           >
-            <Card className={`max-w-[75%] border-l-4 p-3 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${msg.role === 'user' ? 'border-l-primary bg-primary/10' : roleMessageColorClass(msg.roleAgentId, name)}`}>
-              <div className="mb-1 flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  {name && (
-                    <Badge data-testid="message-role-badge" variant="secondary" className={roleBadgeColorClass(msg.roleAgentId, name)}>
-                      @{name}
-                    </Badge>
-                  )}
-                  {msg.isPinned && (
-                    <Badge data-testid="message-pinned-badge" variant="secondary" className={name ? 'ml-1' : ''}>
-                      已固定
-                    </Badge>
-                  )}
-                  {msg.visibleStatus && (
-                    <Badge data-testid="message-status-badge" variant={
-                      msg.visibleStatus === '等待授权' ? 'warning'
-                        : msg.visibleStatus === '执行失败' ? 'destructive'
-                          : msg.visibleStatus === '已完成' ? 'success'
-                            : 'secondary'
-                    } className={name || msg.isPinned ? 'ml-1' : ''}>
-                      {msg.visibleStatus}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <IconButton
-                    icon={Copy}
-                    label={copiedId === msg.id ? '已复制' : '复制消息'}
-                    variant="ghost"
-                    size="sm"
-                    data-testid="message-copy-btn"
-                    disabled={!msg.content.trim()}
-                    onClick={() => void copyMessage(msg)}
-                  />
-                  <IconButton
-                    icon={Quote}
-                    label="引用回复"
-                    variant="ghost"
-                    size="sm"
-                    data-testid="message-quote-btn"
-                    disabled={!msg.content.trim()}
-                    onClick={() => onQuote({ id: msg.id, author: messageAuthor(msg), preview: messagePreview(msg.content) })}
-                  />
-                  {canRegenerate && (
+            <div className={`flex max-w-[82%] items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+              {!isUser && <AgentHubAvatar name={name ?? '智能体'} id={msg.roleAgentId} size="sm" className="mt-0.5" />}
+              <div className={`min-w-0 rounded-2xl px-4 py-3 shadow-sm transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${isUser ? 'bg-muted text-foreground' : 'border border-border bg-background/95'}`}>
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    {name && (
+                      <div data-testid="message-role-badge" className="truncate text-xs font-medium leading-5 text-muted-foreground">
+                        {name}
+                      </div>
+                    )}
+                    {msg.isPinned && (
+                      <Badge data-testid="message-pinned-badge" variant="secondary" className={name ? 'mt-1' : ''}>
+                        已固定
+                      </Badge>
+                    )}
+                    {msg.visibleStatus && (
+                      <Badge data-testid="message-status-badge" variant={
+                        msg.visibleStatus === '等待授权' ? 'warning'
+                          : msg.visibleStatus === '执行失败' ? 'destructive'
+                            : msg.visibleStatus === '已完成' ? 'success'
+                              : 'secondary'
+                      } className={name || msg.isPinned ? 'mt-1' : ''}>
+                        {msg.visibleStatus}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 opacity-70 transition-opacity hover:opacity-100">
                     <IconButton
-                      icon={RefreshCcw}
-                      label="重新生成"
+                      icon={Copy}
+                      label={copiedId === msg.id ? '已复制' : '复制消息'}
                       variant="ghost"
                       size="sm"
-                      data-testid="message-regenerate-btn"
-                      disabled={regeneratingId === msg.id}
-                      onClick={async () => {
-                        setRegeneratingId(msg.id)
-                        try {
-                          await regenerateMessage(msg.id)
-                        } finally {
-                          setRegeneratingId(null)
-                        }
-                      }}
+                      data-testid="message-copy-btn"
+                      disabled={!msg.content.trim()}
+                      onClick={() => void copyMessage(msg)}
                     />
-                  )}
-                  {canPin && (
                     <IconButton
-                      icon={msg.isPinned ? PinOff : Pin}
-                      label={msg.isPinned ? '取消固定上下文' : '固定到上下文'}
+                      icon={Quote}
+                      label="引用回复"
                       variant="ghost"
                       size="sm"
-                      data-testid={msg.isPinned ? 'message-unpin-btn' : 'message-pin-btn'}
-                      disabled={pinningId === msg.id}
-                      onClick={async () => {
-                        setPinningId(msg.id)
-                        try {
-                          await setMessagePinned(msg.id, !msg.isPinned)
-                        } finally {
-                          setPinningId(null)
-                        }
-                      }}
+                      data-testid="message-quote-btn"
+                      disabled={!msg.content.trim()}
+                      onClick={() => onQuote({ id: msg.id, author: messageAuthor(msg), preview: messagePreview(msg.content) })}
                     />
-                  )}
+                    {canRegenerate && (
+                      <IconButton
+                        icon={RefreshCcw}
+                        label="重新生成"
+                        variant="ghost"
+                        size="sm"
+                        data-testid="message-regenerate-btn"
+                        disabled={regeneratingId === msg.id}
+                        onClick={async () => {
+                          setRegeneratingId(msg.id)
+                          try {
+                            await regenerateMessage(msg.id)
+                          } finally {
+                            setRegeneratingId(null)
+                          }
+                        }}
+                      />
+                    )}
+                    {canPin && (
+                      <IconButton
+                        icon={msg.isPinned ? PinOff : Pin}
+                        label={msg.isPinned ? '取消固定上下文' : '固定到上下文'}
+                        variant="ghost"
+                        size="sm"
+                        data-testid={msg.isPinned ? 'message-unpin-btn' : 'message-pin-btn'}
+                        disabled={pinningId === msg.id}
+                        onClick={async () => {
+                          setPinningId(msg.id)
+                          try {
+                            await setMessagePinned(msg.id, !msg.isPinned)
+                          } finally {
+                            setPinningId(null)
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
+                <MessageContent content={msg.content} parts={msg.parts} streaming={msg.streaming === true} />
               </div>
-              <MessageContent content={msg.content} parts={msg.parts} streaming={msg.streaming === true} />
-            </Card>
+            </div>
           </div>
         )
       })}
@@ -483,7 +547,7 @@ function MessageComposer({
   }
 
   return (
-    <div data-testid="message-composer" className="shrink-0 border-t border-border p-4">
+    <div data-testid="message-composer" className="shrink-0 px-5 pb-5 pt-2">
       {readOnly && (
         <div data-testid="readonly-composer-gate" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
           <span>{readOnlyReason ?? '当前为只读模式，不能继续执行本地任务。'}</span>
@@ -496,8 +560,34 @@ function MessageComposer({
           </button>
         </div>
       )}
-      <div className="rounded-lg border border-border bg-background p-2 shadow-sm">
-        <div data-testid="composer-toolbar" className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="rounded-3xl border border-border bg-background/95 p-3 shadow-sm">
+        <div data-testid="composer-input-row" className="flex items-end gap-3">
+          <textarea
+            data-testid="composer-input"
+            value={input}
+            rows={1}
+            onChange={(e) => {
+              setInput(e.target.value)
+              setSlashOpen(e.target.value.trim().startsWith('/'))
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSlashOpen(false)
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void handleSend()
+              }
+            }}
+            placeholder={readOnly ? '只读模式下不能发送消息' : '请输入任务，交给我来帮你完成'}
+            disabled={!activeSessionId || sending || readOnly}
+            className="max-h-40 min-h-16 flex-1 resize-none border-0 bg-transparent px-0 py-2 text-base leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          {sending ? (
+            <IconButton icon={Square} label="停止" data-testid="stop-btn" onClick={stopSending} disabled={!activeSessionId} className="h-10 w-10 rounded-full bg-muted text-foreground" />
+          ) : (
+            <IconButton icon={Send} label="发送" data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || readOnly || uploadingAttachment} className="h-10 w-10 rounded-full bg-foreground text-background hover:bg-foreground/90" />
+          )}
+        </div>
+        <div data-testid="composer-toolbar" className="mt-3 flex flex-wrap items-center gap-2">
           {!directMode && (
             <div ref={triggerRef} className="relative">
               <IconButton
@@ -542,7 +632,7 @@ function MessageComposer({
           <IconButton
             icon={Plus}
             label={uploadingAttachment ? '上传中...' : '添加附件或上下文'}
-            variant="ghost"
+            variant="outline"
             size="sm"
             data-testid="attachment-btn"
             disabled={!activeSessionId || readOnly || uploadingAttachment}
@@ -574,14 +664,14 @@ function MessageComposer({
             </select>
           </label>
         </div>
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {currentMode && <span>权限：{currentMode.label} · {currentMode.description}</span>}
           {attachments.length > 0 && <span>附件 {attachments.length} 个</span>}
           {uploadingAttachment && <span>附件上传中...</span>}
         </div>
-        {attachmentError && <p className="mb-2 text-xs text-destructive">{attachmentError}</p>}
+        {attachmentError && <p className="mt-2 text-xs text-destructive">{attachmentError}</p>}
         {attachments.length > 0 && (
-          <div data-testid="attachment-chips" className="mb-2 flex flex-wrap gap-1">
+          <div data-testid="attachment-chips" className="mt-2 flex flex-wrap gap-1">
             {attachments.map((attachment) => (
               <Badge key={attachment.id} variant="secondary" className="max-w-full">
                 <span className="max-w-[180px] truncate">{attachment.name}</span>
@@ -598,7 +688,7 @@ function MessageComposer({
           </div>
         )}
         {quotedMessage && (
-          <div data-testid="composer-quote-preview" className="mb-2 flex items-start justify-between gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs">
+          <div data-testid="composer-quote-preview" className="mt-2 flex items-start justify-between gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs">
             <div className="min-w-0">
               <div className="font-medium text-foreground">引用 {quotedMessage.author}</div>
               <p className="mt-1 line-clamp-2 text-muted-foreground">{quotedMessage.preview}</p>
@@ -614,7 +704,7 @@ function MessageComposer({
           </div>
         )}
         {slashOpen && input.trim().startsWith('/') && (
-          <div data-testid="slash-command-menu" className="mb-2 rounded-md border border-border bg-popover p-1 shadow-sm">
+          <div data-testid="slash-command-menu" className="mt-2 rounded-md border border-border bg-popover p-1 shadow-sm">
             {SLASH_COMMANDS
               .filter((item) => item.command.startsWith(input.trim()))
               .map((item) => (
@@ -631,35 +721,9 @@ function MessageComposer({
                   <span className="font-medium">{item.command}</span>
                   <span className="text-xs text-muted-foreground">{item.label}</span>
                 </button>
-              ))}
+            ))}
           </div>
         )}
-        <div data-testid="composer-input-row" className="flex items-end gap-2">
-          <textarea
-            data-testid="composer-input"
-            value={input}
-            rows={1}
-            onChange={(e) => {
-              setInput(e.target.value)
-              setSlashOpen(e.target.value.trim().startsWith('/'))
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setSlashOpen(false)
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                void handleSend()
-              }
-            }}
-            placeholder={readOnly ? '只读模式下不能发送消息' : effectiveRoles.length > 0 ? `发送给 ${effectiveRoles.map((role) => `@${role.name}`).join('、')}...` : '输入消息...'}
-            disabled={!activeSessionId || sending || readOnly}
-            className="max-h-40 min-h-10 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          {sending ? (
-            <IconButton icon={Square} label="停止" data-testid="stop-btn" onClick={stopSending} disabled={!activeSessionId} />
-          ) : (
-            <IconButton icon={Send} label="发送" data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || readOnly || uploadingAttachment} />
-          )}
-        </div>
       </div>
     </div>
   )
@@ -742,7 +806,7 @@ export function ChatPanel({
 }) {
   const { activeSessionId, activeWorkspaceId, sessions } = useSessionStore()
   const [quotedMessage, setQuotedMessage] = useState<QuotedMessage | null>(null)
-  const activeSession = sessions.find((s) => s.id === activeSessionId)
+  const activeSession = sessions.find((s) => (s.sessionId ?? s.id) === activeSessionId)
   const roleAgents = useRoleAgents(activeWorkspaceId)
 
   useEffect(() => {
@@ -766,7 +830,7 @@ export function ChatPanel({
 
   if (!activeSessionId) {
     return (
-      <div data-testid="chat-panel" className="flex h-full min-h-0 border-r border-border">
+      <div data-testid="chat-panel" className="flex h-full min-h-0 border-r border-border bg-background">
         <div data-testid="chat-empty-selection" className="flex min-h-0 flex-1 items-center justify-center p-8">
           <p className="text-center text-xl font-medium text-muted-foreground">请选择联系人或者群聊</p>
         </div>

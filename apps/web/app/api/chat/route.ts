@@ -13,7 +13,9 @@ import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import { sessionParticipantIds } from '@/lib/conversations'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
-import { detectWorkspaceRunnablePackage, readWorkspaceGitDiff, readWorkspaceGitStatus, type WorkspaceGitChange } from '@/lib/workspace/cloud-workspace-fs'
+import { detectWorkspaceRunnablePackage, previewKindForPath, readWorkspaceGitDiff, readWorkspaceGitStatus, type WorkspaceGitChange } from '@/lib/workspace/cloud-workspace-fs'
+import { artifactTypeForPath, type ArtifactDbType } from '@/lib/artifacts/rich-artifacts'
+import { startArtifactPublish, type PublishArtifactRow } from '@/lib/artifacts/publish-service'
 import {
   createArchitectDispatch,
   createRuntimeInvokeInputFromChat,
@@ -78,11 +80,13 @@ type ArtifactRecommendationInput = {
   workspaceRoot: string | null
   runMarker: string | null
   planId: string | null
+  autoPublish: boolean
+  permissionMode?: string | null
 }
 
 type DeliveredArtifactCandidate = {
   sourcePath: string
-  artifactType: 'html' | 'folder' | 'generic_file' | 'code'
+  artifactType: ArtifactDbType
   title: string
   content: string | null
   contentRef: string
@@ -526,12 +530,21 @@ async function persistProcessEvent(input: ProcessEventInput) {
   return event
 }
 
-function isFullAutoDeliveryIntent(content: string, permissionMode?: string | null) {
-  const mode = permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
-  if (!mode) return false
+function isAutomaticDeliveryPermissionMode(permissionMode?: string | null) {
+  return permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
+}
+
+function isProductDeliveryIntent(content: string) {
   const explicitDelivery = /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(content)
-  const canonicalProductPrompt = /(加减乘除|计算器)/.test(content) && /sqlite|SQLite|历史记录/.test(content) && /网站|页面|应用/.test(content)
-  return explicitDelivery || canonicalProductPrompt
+  const canonicalProductPrompt = /sqlite|SQLite|历史记录/.test(content)
+    && /(网站|网页|页面|应用|服务)/.test(content)
+    && /(加减乘除|计算器|生成姓名|姓名生成|姓名)/.test(content)
+  const generatedProductPrompt = /(生成|做一个|创建|实现|开发).*(网页|网站|应用|服务|文档|markdown|Markdown|PPT|ppt|演示稿)/.test(content)
+  return explicitDelivery || canonicalProductPrompt || generatedProductPrompt
+}
+
+function isFullAutoDeliveryIntent(content: string, permissionMode?: string | null) {
+  return isAutomaticDeliveryPermissionMode(permissionMode) && isProductDeliveryIntent(content)
 }
 
 function downloadUrlForWorkspaceFile(workspaceId: string, sourcePath: string) {
@@ -572,7 +585,20 @@ function artifactPreviewPart(input: {
       description: '最终产物可在当前界面展开预览；如需运行服务，可从产物卡启动发布。',
     }
   }
-  if (previewKind === 'image') {
+  if (candidate.artifactType === 'markdown' || previewKind === 'markdown') {
+    return {
+      id: `document-preview-${artifactId}`,
+      type: 'document_preview',
+      status: 'created',
+      artifactId,
+      title,
+      sourcePath: candidate.sourcePath,
+      previewUrl,
+      downloadUrl,
+      summary: 'Markdown 文档产物已进入聊天记录，可在当前界面渲染预览。',
+    }
+  }
+  if (candidate.artifactType === 'image' || previewKind === 'image') {
     return {
       id: `image-preview-${artifactId}`,
       type: 'image_preview',
@@ -584,7 +610,7 @@ function artifactPreviewPart(input: {
       alt: title,
     }
   }
-  if (previewKind === 'document' || candidate.artifactType === 'generic_file' && /\.(docx?|md|txt)$/i.test(candidate.sourcePath)) {
+  if (candidate.artifactType === 'document' || previewKind === 'document' || candidate.artifactType === 'generic_file' && /\.(docx?|md|txt)$/i.test(candidate.sourcePath)) {
     return {
       id: `document-preview-${artifactId}`,
       type: 'document_preview',
@@ -597,7 +623,7 @@ function artifactPreviewPart(input: {
       summary: '文档产物已进入聊天记录，可预览或下载。',
     }
   }
-  if (previewKind === 'presentation' || /\.(pptx?|odp)$/i.test(candidate.sourcePath)) {
+  if (candidate.artifactType === 'presentation' || previewKind === 'presentation' || /\.(pptx?|odp)$/i.test(candidate.sourcePath)) {
     return {
       id: `presentation-preview-${artifactId}`,
       type: 'presentation_preview',
@@ -622,10 +648,26 @@ function artifactPreviewPart(input: {
   }
 }
 
+function candidateHasStartInstruction(candidate: DeliveredArtifactCandidate) {
+  return typeof candidate.metadata.startCommand === 'string' || typeof candidate.metadata.packageScript === 'string'
+}
+
 function publishStatusPart(input: {
   artifactId: string
   candidate: DeliveredArtifactCandidate
+  publish?: { status: 'running' | 'failed'; url?: string; message: string } | null
 }): RuntimeMessagePart {
+  if (input.publish) {
+    return {
+      id: `publish-${input.artifactId}`,
+      type: 'publish_status',
+      status: input.publish.status,
+      artifactId: input.artifactId,
+      title: `${input.candidate.runtimePartTitle || input.candidate.title}发布`,
+      url: input.publish.url,
+      message: input.publish.message,
+    }
+  }
   const startCommand = typeof input.candidate.metadata.startCommand === 'string'
     ? input.candidate.metadata.startCommand
     : typeof input.candidate.metadata.packageScript === 'string'
@@ -660,6 +702,7 @@ async function buildDeliveryRuntimeParts(input: {
   workspaceId: string
   artifactId: string
   candidate: DeliveredArtifactCandidate
+  publish?: { status: 'running' | 'failed'; url?: string; message: string } | null
 }): Promise<RuntimeMessagePart[]> {
   const parts: RuntimeMessagePart[] = []
   let changes: WorkspaceGitChange[] = []
@@ -729,7 +772,9 @@ async function buildDeliveryRuntimeParts(input: {
 
   const previewPart = artifactPreviewPart(input)
   if (previewPart) parts.push(previewPart)
-  parts.push(publishStatusPart(input))
+  if (candidateHasStartInstruction(input.candidate)) {
+    parts.push(publishStatusPart(input))
+  }
   return parts
 }
 
@@ -759,9 +804,11 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     recommendedAt: now,
   }
   const confirmation = {
-    source: 'full_control_product_delivery',
+    source: input.autoPublish ? 'full_control_product_delivery' : 'approved_product_delivery',
     confirmedBy: 'permission_mode',
-    reason: '用户使用 full-control 产品交付流程，系统在完成后只确认模型推荐的最终可运行产物候选。',
+    reason: input.autoPublish
+      ? '用户使用 full-control 产品交付流程，系统在完成后只确认模型推荐的最终可运行产物候选，并自动启动可运行入口。'
+      : '用户授权后的产品交付流程已完成，系统在完成后只确认模型推荐的最终产物候选。',
     sourcePath: candidate.sourcePath,
     confirmedAt: now,
   }
@@ -784,7 +831,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
         planId: input.planId,
         artifactRecommendation: recommendation,
         artifactConfirmation: confirmation,
-        designationSource: 'auto_confirmed_by_full_control_delivery',
+        designationSource: input.autoPublish ? 'auto_confirmed_by_full_control_delivery' : 'confirmed_after_permission_delivery',
         ...candidate.metadata,
       },
       created_by: input.userId,
@@ -793,11 +840,51 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     .single()
   if (error || !artifact?.id) return null
 
+  let publishResult: { status: 'running' | 'failed'; url?: string; message: string } | null = null
+  if (input.autoPublish && candidateHasStartInstruction(candidate)) {
+    const row: PublishArtifactRow = {
+      id: String(artifact.id),
+      workspace_id: input.workspaceId,
+      session_id: input.sessionId,
+      title: candidate.title,
+      source_path: candidate.sourcePath,
+      artifact_type: candidate.artifactType,
+      metadata: {
+        kind: 'final_product_candidate',
+        runMarker: input.runMarker,
+        planId: input.planId,
+        artifactRecommendation: recommendation,
+        artifactConfirmation: confirmation,
+        designationSource: 'auto_confirmed_by_full_control_delivery',
+        ...candidate.metadata,
+      },
+    }
+    try {
+      const started = await startArtifactPublish({
+        db: input.db,
+        row,
+        workspaceRoot: input.workspaceRoot,
+        persistMessage: false,
+      })
+      publishResult = {
+        status: 'running',
+        url: started.url,
+        message: `full-control 已自动启动发布，访问地址：${started.url}`,
+      }
+    } catch (publishError) {
+      publishResult = {
+        status: 'failed',
+        message: publishError instanceof Error ? publishError.message : '自动发布失败',
+      }
+    }
+  }
+
   const runtimeParts = await buildDeliveryRuntimeParts({
     workspaceRoot: input.workspaceRoot,
     workspaceId: input.workspaceId,
     artifactId: String(artifact.id),
     candidate,
+    publish: publishResult,
   })
 
   await persistProcessEvent({
@@ -807,7 +894,10 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     content: [
       '已完成产物推荐与确认。',
       `推荐产物：${candidate.displaySource}`,
-      '确认依据：本轮使用 full-control 产品交付流程；系统仅把模型推荐的可运行入口标记为最终产物候选，没有把整个文件树默认算作产物。',
+      input.autoPublish
+        ? '确认依据：本轮使用 full-control 产品交付流程；系统仅把模型推荐的可运行入口标记为最终产物候选，没有把整个文件树默认算作产物。'
+        : '确认依据：用户授权后的产品交付流程已完成；系统仅把模型推荐的最终入口标记为产物候选，没有把整个文件树默认算作产物。',
+      publishResult?.status === 'running' ? publishResult.message : null,
     ].join('\n'),
     messageType: 'result_card',
     metadata: {
@@ -857,6 +947,46 @@ async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId
     }
   }
 
+  const renderableCandidates = [
+    'README.md',
+    'readme.md',
+    'docs/README.md',
+    'docs/index.md',
+    'document.md',
+    'summary.md',
+    'slides.pptx',
+    'presentation.pptx',
+  ]
+  for (const sourcePath of renderableCandidates) {
+    const fullPath = path.join(workspaceRoot, sourcePath)
+    const info = await stat(fullPath).catch(() => null)
+    if (!info?.isFile()) continue
+    const content = await readFile(fullPath, 'utf8').catch(() => null)
+    const richType = artifactTypeForPath(sourcePath)
+    const previewKind = previewKindForPath(sourcePath)
+    const artifactType: ArtifactDbType = richType ?? (previewKind === 'markdown' ? 'markdown' : previewKind === 'code' ? 'code' : 'generic_file')
+    return {
+      sourcePath,
+      artifactType,
+      title: artifactType === 'presentation' ? '演示稿产物' : artifactType === 'document' || artifactType === 'markdown' ? '文档产物' : `文件产物：${sourcePath}`,
+      content,
+      contentRef: `workspace-file:${workspaceId}:${sourcePath}`,
+      recommendationReason: artifactType === 'presentation'
+        ? '该文件是本次生成的演示稿，适合作为可预览/下载产物。'
+        : '该文件是本次生成的文档产物，适合作为 Markdown/文档渲染入口。',
+      metadata: {
+        source: 'workspace_file',
+        deliveryKind: artifactType === 'presentation' ? 'presentation_entry' : 'document_entry',
+        previewKind,
+        mime: previewKind === 'markdown' ? 'text/markdown; charset=utf-8' : undefined,
+        size: info.size,
+        downloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
+      },
+      runtimePartTitle: artifactType === 'presentation' ? '演示稿产物' : '文档产物',
+      displaySource: sourcePath,
+    }
+  }
+
   const runnable = await detectWorkspaceRunnablePackage(workspaceRoot)
   if (!runnable) return null
   const packageFullPath = path.join(workspaceRoot, runnable.sourcePath)
@@ -887,7 +1017,22 @@ async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId
 }
 
 function normalizeArtifactTypeForManifest(value: unknown, sourcePath: string): DeliveredArtifactCandidate['artifactType'] {
-  if (value === 'html' || value === 'folder' || value === 'generic_file' || value === 'code') return value
+  if (
+    value === 'html'
+    || value === 'folder'
+    || value === 'generic_file'
+    || value === 'code'
+    || value === 'markdown'
+    || value === 'document'
+    || value === 'presentation'
+    || value === 'image'
+    || value === 'diff'
+  ) return value
+  const richType = artifactTypeForPath(sourcePath)
+  if (richType) return richType
+  const previewKind = previewKindForPath(sourcePath)
+  if (previewKind === 'markdown') return 'markdown'
+  if (previewKind === 'image') return 'image'
   if (sourcePath.endsWith('.html') || sourcePath.endsWith('.htm')) return 'html'
   if (sourcePath.endsWith('.js') || sourcePath.endsWith('.ts') || sourcePath.endsWith('.json') || sourcePath.endsWith('.sh')) return 'code'
   return 'generic_file'
@@ -1304,6 +1449,7 @@ export async function POST(req: NextRequest) {
   }
   const phaseBoundaryPrompt = (phase: ExecutionTarget['phase'], role: (typeof selectedRoleAgents)[number] | null) => {
     const fullAutoDelivery = isFullAutoDeliveryIntent(content, permissionMode)
+    const productDelivery = isProductDeliveryIntent(content)
     if (phase === 'planning') {
       return [
         '当前是架构师规划节点。',
@@ -1314,12 +1460,13 @@ export async function POST(req: NextRequest) {
     if (phase === 'summarizing') {
       return [
         '当前是架构师最终验收节点。',
-        '禁止在本节点修改业务产品文件；但如果本轮是 full-control 自动交付，必须创建或更新 AgentHub 交付文件 `.agenthub/start.sh` 和 `.agenthub/delivery.json`。',
-        fullAutoDelivery
+        '禁止在本节点修改业务产品文件；但如果本轮是产品交付任务，必须创建或更新 AgentHub 交付文件 `.agenthub/start.sh` 和 `.agenthub/delivery.json`。',
+        productDelivery
           ? [
-              '本节点必须选择最终产物并写入交付清单，不要让用户手动选择文件。',
-              '`.agenthub/start.sh` 必须是可执行启动脚本，使用 `PORT="${PORT:-3000}"` 并在 127.0.0.1:$PORT 启动最终应用；可调用 npm run start/dev、node server、前后端组合脚本或其他 workspace 内命令。',
-              '`.agenthub/delivery.json` 必须是 JSON，至少包含：`title`、`source_path`、`start_command`、`artifact_type`、`description`；`start_command` 推荐写 `bash .agenthub/start.sh`。',
+              '本节点必须选择最终产物并写入交付清单，不要让用户手动选择文件；标准/沙箱权限下写入交付清单会触发 AgentHub 授权卡，等待用户允许后继续。',
+              '如果最终产物是服务型应用，`.agenthub/start.sh` 必须是可执行启动脚本，使用 `PORT="${PORT:-3000}"` 并在 127.0.0.1:$PORT 启动最终应用；可调用 npm run start/dev、node server、前后端组合脚本或其他 workspace 内命令。',
+              '如果最终产物是 HTML、Markdown、文档或 PPT，优先在 `.agenthub/delivery.json` 中声明 `source_path` 和 `artifact_type`，不需要强行写启动脚本。',
+              '`.agenthub/delivery.json` 必须是 JSON，至少包含：`title`、`source_path`、`artifact_type`、`description`；服务型产物额外包含 `start_command`，推荐写 `bash .agenthub/start.sh`。',
               '可用已有证据总结验收结论；如需轻量验证启动脚本，必须用临时端口/临时进程完成后退出，不要留下长驻进程。',
             ].join('\n')
           : null,
@@ -2134,7 +2281,7 @@ export async function POST(req: NextRequest) {
               status: planCompleted ? 'completed' : waitingForUser ? 'running' : 'failed',
               updated_at: new Date().toISOString(),
             }).eq('id', planId)
-            if (planCompleted && isFullAutoDeliveryIntent(content, permissionMode)) {
+            if (planCompleted && isProductDeliveryIntent(content)) {
               const recommended = await recommendDeliveredArtifact({
                 db,
                 userId: user.id,
@@ -2144,6 +2291,8 @@ export async function POST(req: NextRequest) {
                 workspaceRoot: runtimeWorkspaceRoot,
                 runMarker: requestRunMarker,
                 planId,
+                autoPublish: isAutomaticDeliveryPermissionMode(permissionMode),
+                permissionMode,
               })
               if (!recommended) {
                 await persistProcessEvent({
@@ -2152,14 +2301,14 @@ export async function POST(req: NextRequest) {
                   roleAgentId: primaryRoleAgentId,
                   content: [
                     '执行失败：计划已到终态，但未发现架构师交付清单、静态入口或可运行服务入口。',
-                    'full-control 自动交付应由最终架构师生成 .agenthub/delivery.json 和 .agenthub/start.sh；系统也会兼容识别 public/index.html、index.html、dist/build/out 入口，或 package.json 中的 start/dev/preview/serve 脚本。',
+                    '产品交付任务应由最终架构师生成 .agenthub/delivery.json；服务型产物额外生成 .agenthub/start.sh。系统也会兼容识别 public/index.html、Markdown/文档/PPT 文件，或 package.json 中的 start/dev/preview/serve 脚本。',
                   ].join('\n'),
                   metadata: {
                     runMarker: requestRunMarker,
                     planId,
                     visibleStatus: '执行失败',
                     artifactRecommendationMissing: true,
-                    expectedArtifactEntry: ['.agenthub/delivery.json', '.agenthub/start.sh', 'public/index.html', 'index.html', 'dist/index.html', 'build/index.html', 'out/index.html', 'package.json scripts.start/dev/preview/serve'],
+                    expectedArtifactEntry: ['.agenthub/delivery.json', '.agenthub/start.sh', 'public/index.html', 'index.html', 'README.md', 'docs/index.md', '*.pptx', 'package.json scripts.start/dev/preview/serve'],
                   },
                   emit: emitProcess,
                 })

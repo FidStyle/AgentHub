@@ -23,7 +23,7 @@ import {
 const execFileAsync = promisify(execFile)
 
 const invokeSpy = vi.fn()
-const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock } = vi.hoisted(() => ({
+const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock, startArtifactPublishMock } = vi.hoisted(() => ({
   resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
   createSessionMock: vi.fn(async (input: { roleAgentId?: string | null; runtimeType?: string; cwd?: string | null }) => ({
     id: `runtime-${input.roleAgentId ?? input.runtimeType ?? 'none'}`,
@@ -32,6 +32,7 @@ const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock }
   })),
   isWorkerAliveMock: vi.fn(async () => true),
   enqueueMock: vi.fn(async (_input: unknown) => undefined),
+  startArtifactPublishMock: vi.fn(async (_input: unknown) => ({ status: 'running', url: 'http://127.0.0.1:4100', pid: 4100, port: 4100, artifact: {} })),
 }))
 const insertedMessages: Record<string, unknown>[] = []
 const insertedPlans: Record<string, unknown>[] = []
@@ -149,6 +150,14 @@ vi.mock('@/lib/runtime/redis-client', () => ({
   },
 }))
 
+vi.mock('@/lib/artifacts/publish-service', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/artifacts/publish-service')>('@/lib/artifacts/publish-service')
+  return {
+    ...actual,
+    startArtifactPublish: startArtifactPublishMock,
+  }
+})
+
 async function callChat(body: unknown): Promise<{ status: number; text: string }> {
   const { POST } = await import('@/app/api/chat/route')
   const req = new Request('http://localhost/api/chat', {
@@ -259,6 +268,7 @@ describe('POST /api/chat — role-chat-core', () => {
     createSessionMock.mockClear()
     isWorkerAliveMock.mockClear()
     enqueueMock.mockClear()
+    startArtifactPublishMock.mockClear()
     process.env.REDIS_URL = 'redis://test'
     setAdapterEvents([{ type: 'runtime_output', delta: 'ok' }])
     setupMockAuth()
@@ -269,7 +279,14 @@ describe('POST /api/chat — role-chat-core', () => {
     await rm(path.join(mockWorkspaceRoot, 'src'), { recursive: true, force: true })
     await rm(path.join(mockWorkspaceRoot, '.agenthub'), { recursive: true, force: true })
     await rm(path.join(mockWorkspaceRoot, '.git'), { recursive: true, force: true })
+    await rm(path.join(mockWorkspaceRoot, 'docs'), { recursive: true, force: true })
     await rm(path.join(mockWorkspaceRoot, 'package.json'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, 'README.md'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, 'readme.md'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, 'document.md'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, 'summary.md'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, 'slides.pptx'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, 'presentation.pptx'), { force: true })
   })
 
   it('renames the default new chat from the first user message and streams the title update', async () => {
@@ -977,8 +994,8 @@ describe('POST /api/chat — role-chat-core', () => {
       'diff',
       'artifact',
       'web_preview',
-      'publish_status',
     ]))
+    expect(partTypesFromMessage(artifactResultMessage)).not.toContain('publish_status')
     const diffParts = partsFromMessage(artifactResultMessage).filter((part) => part.type === 'diff')
     expect(diffParts).toEqual(expect.arrayContaining([
       expect.objectContaining({ applicable: true }),
@@ -1225,9 +1242,11 @@ describe('POST /api/chat — role-chat-core', () => {
     ]))
     expect(partsFromMessage(artifactResultMessage).find((part) => part.type === 'publish_status')).toMatchObject({
       artifactId: expect.any(String),
-      status: 'pending',
-      message: expect.stringContaining('npm run start'),
+      status: 'running',
+      url: 'http://127.0.0.1:4100',
+      message: expect.stringContaining('full-control 已自动启动发布'),
     })
+    expect(startArtifactPublishMock).toHaveBeenCalled()
   })
 
   it('uses the architect delivery manifest as the final artifact source before fallback scanning', async () => {
@@ -1415,7 +1434,9 @@ describe('POST /api/chat — role-chat-core', () => {
     ))
     expect(artifactResultMessage?.content).toContain('推荐产物：package.json（bash .agenthub/start.sh）')
     expect(partsFromMessage(artifactResultMessage).find((part) => part.type === 'publish_status')).toMatchObject({
-      message: expect.stringContaining('bash .agenthub/start.sh'),
+      status: 'running',
+      url: 'http://127.0.0.1:4100',
+      message: expect.stringContaining('full-control 已自动启动发布'),
     })
   })
 
