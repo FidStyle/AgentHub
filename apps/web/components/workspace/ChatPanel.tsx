@@ -8,6 +8,7 @@ import { AtSign, Copy, Pin, PinOff, Plus, Quote, RefreshCcw, Send, PanelRight, S
 import { useSessionStore, type Message, type Session } from '@/store/session-store'
 import { MessageContent } from './MessageContent'
 import { AgentHubAvatar } from './AgentHubAvatar'
+import { roleTypeLabel as configuredRoleTypeLabel } from '@/config/ui/role-type-labels'
 
 interface RoleAgent {
   id: string
@@ -62,19 +63,8 @@ const SUGGESTED_TASKS = [
   { title: '整理文档产物', prompt: '根据当前需求生成一份结构清晰的说明文档，并作为产物保存' },
 ] as const
 
-const ROLE_TYPE_LABELS: Record<string, string> = {
-  orchestrator: '编排者',
-  engineer: '工程师',
-  reviewer: '审查者',
-  tester: '测试者',
-  custom: '自定义',
-  general: '通用',
-}
-
 export function roleTypeLabel(role: RoleAgent) {
-  if (role.is_orchestrator) return '编排者'
-  if (!role.role_type) return '角色智能体'
-  return ROLE_TYPE_LABELS[role.role_type] ?? role.role_type
+  return configuredRoleTypeLabel(role)
 }
 
 export function messagePreview(content: string, max = 96) {

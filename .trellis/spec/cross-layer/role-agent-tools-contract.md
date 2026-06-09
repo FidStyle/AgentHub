@@ -23,6 +23,9 @@
 - `capability_tags` are display-only labels. Store without `#`; render as colored `#xxx` chips. They never grant permission.
 - `enabled_tool_ids` are concrete built-in tools. They grant only the ability to request a tool; actual execution still follows permission mode and approval policy.
 - Runtime is separate from tools. `claude_code`, `codex`, and future runtimes are invalid inside `enabled_tool_ids`.
+- Default Role Agent seed data must live under `apps/web/config/role-agents/`; API, DB, and seed helpers may import that config but must not redefine default roles inline.
+- Long orchestration/runtime prompt templates must live under `apps/web/config/orchestration/`; `/api/chat` should compose context and call prompt builders instead of owning large static prompt strings.
+- Shared Role Agent UI labels must live under `apps/web/config/ui/`; Web panels and tests should import or re-export that shared label helper instead of duplicating role type maps.
 - P1 has no user-defined custom tools. Use the built-in catalog only.
 - Do not compatibility-map old abstract values. Rows containing old values must fail visibly or be reset/reseeded.
 - Concrete tool IDs:

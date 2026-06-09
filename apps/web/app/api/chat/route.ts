@@ -17,6 +17,13 @@ import { detectWorkspaceRunnablePackage, previewKindForPath, readWorkspaceGitDif
 import { artifactTypeForPath, type ArtifactDbType } from '@/lib/artifacts/rich-artifacts'
 import { startArtifactPublish, type PublishArtifactRow } from '@/lib/artifacts/publish-service'
 import {
+  DEFAULT_EXECUTION_DECISION_PROMPT,
+  backendWorkerPhaseBoundaryPrompt,
+  frontendWorkerPhaseBoundaryPrompt,
+  planningPhaseBoundaryPrompt,
+  summarizingPhaseBoundaryPrompt,
+} from '@/config/orchestration/prompts'
+import {
   createArchitectDispatch,
   createRuntimeInvokeInputFromChat,
   createRuntimeOutputAccumulator,
@@ -1426,16 +1433,6 @@ export async function POST(req: NextRequest) {
       '请基于以上交接上下文继续推进，不要重复上游角色已经完成的工作；如有冲突，请明确指出并给出你的角色判断。',
     ].join('\n\n')
   }
-  const defaultExecutionDecisionPrompt = [
-    'AgentHub 执行决策规则：',
-    '对具体工程实现请求，如果技术栈、界面细节或历史记录策略能用保守默认值安全决定，不要调用 AskUserQuestion 或停下来询问可选项；直接选择默认方案并继续实现/派发。',
-    '固定样本“做一个加减乘除的简单网站，使用 sqlite 存储历史记录”默认采用 Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS；历史记录全部保留，界面默认展示最近 20 条；除非继续执行会产生安全风险，否则不要向用户确认这些选项。',
-    '固定样本的后端入口必须让 `node src/server.js` 直接启动 HTTP 服务；如果导出 createApp/startServer，也必须保留 `if (require.main === module) startServer()` 或等价入口，不能只导出函数后退出。',
-    '不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent；AgentHub 已经负责计划节点、任务状态和角色调度。需要说明计划时直接用普通文本输出，需要改文件或执行命令时只使用真实文件/命令工具。',
-    '不要把 npm start、npm run dev、node server.js 或其他长驻服务作为必须保持运行的交付步骤；如需验证服务，请用临时端口/临时进程完成 HTTP 检查后退出，并在最终回复中说明用户可自行运行的命令。',
-    '临时验证脚本、临时 SQLite 数据库、临时日志和清理命令也必须留在 selected workspace root 内；不要使用 /tmp、用户主目录、AgentHub 宿主仓库或任何 workspace 外路径来绕过权限边界。',
-    '只有当缺少的信息会导致越权、破坏性操作、真实安全风险或无法用合理默认值推进时，才允许请求用户补充。',
-  ].join('\n')
   const systemPromptForRole = (role: (typeof selectedRoleAgents)[number] | null, handoffs: RoleHandoffPackage[]) => {
     if (!roleContextPrompt) return undefined
     if (!role) return roleContextPrompt
@@ -1443,7 +1440,7 @@ export async function POST(req: NextRequest) {
       roleContextPrompt,
       runtimeContextConstraintPrompt(role),
       handoffContextPrompt(handoffs),
-      defaultExecutionDecisionPrompt,
+      DEFAULT_EXECUTION_DECISION_PROMPT,
       `当前回复角色：@${role.name}。请只从该角色职责出发回答，不要冒充其他被选中的角色。`,
     ].filter(Boolean).join('\n\n')
   }
@@ -1451,43 +1448,16 @@ export async function POST(req: NextRequest) {
     const fullAutoDelivery = isFullAutoDeliveryIntent(content, permissionMode)
     const productDelivery = isProductDeliveryIntent(content)
     if (phase === 'planning') {
-      return [
-        '当前是架构师规划节点。',
-        '禁止在本节点写文件、编辑文件、安装依赖、启动服务或执行实现命令。',
-        '只输出可见规划、前端/后端分工、交接说明和验收标准；具体实现必须交给后端工程师和前端工程师节点。',
-      ].join('\n')
+      return planningPhaseBoundaryPrompt()
     }
     if (phase === 'summarizing') {
-      return [
-        '当前是架构师最终验收节点。',
-        '禁止在本节点修改业务产品文件；但如果本轮是产品交付任务，必须创建或更新 AgentHub 交付文件 `.agenthub/start.sh` 和 `.agenthub/delivery.json`。',
-        productDelivery
-          ? [
-              '本节点必须选择最终产物并写入交付清单，不要让用户手动选择文件；标准/沙箱权限下写入交付清单会触发 AgentHub 授权卡，等待用户允许后继续。',
-              '如果最终产物是服务型应用，`.agenthub/start.sh` 必须是可执行启动脚本，使用 `PORT="${PORT:-3000}"` 并在 127.0.0.1:$PORT 启动最终应用；可调用 npm run start/dev、node server、前后端组合脚本或其他 workspace 内命令。',
-              '如果最终产物是 HTML、Markdown、文档或 PPT，优先在 `.agenthub/delivery.json` 中声明 `source_path` 和 `artifact_type`，不需要强行写启动脚本。',
-              '`.agenthub/delivery.json` 必须是 JSON，至少包含：`title`、`source_path`、`artifact_type`、`description`；服务型产物额外包含 `start_command`，推荐写 `bash .agenthub/start.sh`。',
-              '可用已有证据总结验收结论；如需轻量验证启动脚本，必须用临时端口/临时进程完成后退出，不要留下长驻进程。',
-            ].join('\n')
-          : null,
-        '只检查已有证据并总结是否完成：计划节点、权限续跑、后端 API/SQLite、前端/服务入口、启动脚本、产物推荐确认。',
-      ].filter(Boolean).join('\n')
+      return summarizingPhaseBoundaryPrompt(productDelivery)
     }
     if (role && /前端|front|ui|web/i.test(role.name)) {
-      return [
-        '当前是前端工程师实现节点：负责 public/index.html、public/app.js、public/styles.css。',
-        fullAutoDelivery
-          ? '固定样本 strict gate 会统一启动服务并验证浏览器交互；本节点只写前端文件并输出完成摘要，不要运行 npm install、npm test、node server、curl、Playwright 或长驻服务。'
-          : '完成后可做轻量浏览器交互验证，避免长驻服务阻塞。',
-      ].join('\n')
+      return frontendWorkerPhaseBoundaryPrompt(fullAutoDelivery)
     }
     if (role && /后端|back|api|数据库|server/i.test(role.name)) {
-      return [
-        '当前是后端工程师实现节点：负责 package.json、src/server.js、SQLite history、API 契约和必要的最小测试文件。',
-        fullAutoDelivery
-          ? '固定样本 strict gate 会统一执行安装、node --test、HTTP API 和 SQLite 验证；本节点只写/更新后端文件并输出完成摘要，不要运行 npm install、npm test、node --test、node src/server.js、curl、pkill 或长驻服务。'
-          : '如需验证服务，请用临时进程完成后退出，避免长驻服务阻塞。',
-      ].join('\n')
+      return backendWorkerPhaseBoundaryPrompt(fullAutoDelivery)
     }
     return null
   }

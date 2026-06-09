@@ -10,17 +10,9 @@ import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
 import { defaultDocumentContent, defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck, type ArtifactDbType, type PresentationDeck } from '@/lib/artifacts/rich-artifacts'
 import { roleAvatarColorClass, roleBadgeColorClass, roleMessageColorClass } from '@/lib/role-colors'
+import { roleTypeLabel } from '@/config/ui/role-type-labels'
 
 const TABS = ['角色', '过程', '编排', '文件', 'Git', '产物'] as const
-
-const ROLE_TYPE_LABELS: Record<string, string> = {
-  orchestrator: '编排者',
-  engineer: '工程师',
-  reviewer: '审查者',
-  tester: '测试者',
-  custom: '自定义',
-  general: '通用',
-}
 
 const ARTIFACT_TYPE_LABELS: Record<ArtifactRow['artifact_type'], string> = {
   html: '网页预览',
@@ -144,11 +136,6 @@ function artifactStartCommand(artifact: Pick<ArtifactRow, 'metadata'>) {
   if (command) return command
   const packageScript = typeof artifact.metadata?.packageScript === 'string' ? artifact.metadata.packageScript.trim() : ''
   return packageScript ? `npm run ${packageScript}` : null
-}
-
-function roleTypeLabel(agent: Pick<RoleAgentRow, 'role_type' | 'is_orchestrator'>) {
-  if (agent.is_orchestrator) return '编排者'
-  return ROLE_TYPE_LABELS[agent.role_type] ?? agent.role_type
 }
 
 function toPreview(value: unknown) {
