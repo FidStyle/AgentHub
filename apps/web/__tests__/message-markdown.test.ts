@@ -501,10 +501,15 @@ describe('ArtifactPanel frontend contract', () => {
     const architect = roleColorIndex('any-architect-id', '架构师')
     const frontend = roleColorIndex('any-frontend-id', '前端工程师')
     const backend = roleColorIndex('any-backend-id', '后端工程师')
+    const documentEngineer = roleColorIndex('custom-document-engineer-id', '文档工程师')
 
     expect(new Set([architect, frontend, backend]).size).toBe(3)
     expect(roleAvatarColorClass('same-id', '架构师')).not.toBe(roleAvatarColorClass('same-id', '前端工程师'))
     expect(roleAvatarColorClass('same-id', '前端工程师')).not.toBe(roleAvatarColorClass('same-id', '后端工程师'))
+    expect(documentEngineer).not.toBe(frontend)
+    expect(documentEngineer).not.toBe(architect)
+    expect(documentEngineer).not.toBe(backend)
+    expect(roleAvatarColorClass('custom-document-engineer-id', '文档工程师')).not.toBe(roleAvatarColorClass('any-frontend-id', '前端工程师'))
   })
 
   it('adds a publish API that starts and stops runnable artifacts behind the UI buttons', () => {

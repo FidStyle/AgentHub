@@ -44,6 +44,11 @@ const DEFAULT_ROLE_COLOR_INDEX: Record<string, number> = {
   '后端工程师': 1,
 }
 
+const RESERVED_DEFAULT_ROLE_COLOR_INDEXES = new Set(Object.values(DEFAULT_ROLE_COLOR_INDEX))
+const CUSTOM_ROLE_COLOR_INDEXES = ROLE_COLOR_CLASSES
+  .map((_, index) => index)
+  .filter((index) => !RESERVED_DEFAULT_ROLE_COLOR_INDEXES.has(index))
+
 function defaultRoleColorIndex(roleName = '') {
   return DEFAULT_ROLE_COLOR_INDEX[roleName.trim()]
 }
@@ -57,7 +62,7 @@ export function roleColorIndex(roleId: string | null | undefined, roleName = '')
   for (let index = 0; index < seed.length; index += 1) {
     hash = (hash * 31 + seed.charCodeAt(index)) >>> 0
   }
-  return hash % ROLE_COLOR_CLASSES.length
+  return CUSTOM_ROLE_COLOR_INDEXES[hash % CUSTOM_ROLE_COLOR_INDEXES.length] ?? 0
 }
 
 export function roleMessageColorClass(roleId: string | null | undefined, roleName?: string) {
