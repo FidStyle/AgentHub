@@ -28,7 +28,7 @@
 - Group sessions bind participant role IDs; `/api/chat` rejects mentions outside participants and defaults to the group orchestrator or all participants.
 - Conversation sorting is pinned first, then `lastActivityAt desc`.
 - Role Agent tags/tools/runtime are not defined here; use `role-agent-tools-contract.md`.
-- Conversational Role Agent creation is a chat-first flow. When the user asks to create/configure/add an Agent in a normal conversation or direct chat with `Agent 创建助手`, `/api/chat` must persist an agent reply containing a `RuntimeMessagePart` with `type="agent_draft"`. The right Role Agent panel may manage/edit existing agents, but it is not the primary creation path.
+- Conversational Role Agent creation is a chat-first flow. When the user asks to create/configure/add an Agent in a normal conversation or direct chat with `Agent 创建助手`, `/api/chat` must persist an agent reply containing a `RuntimeMessagePart` with `type="agent_draft"`. The right Role Agent panel may manage/edit existing agents, but it must not contain a conversational draft creator, call `/api/role-agents/draft`, or render an `agent_draft` confirmation flow.
 - `Agent 创建助手` is a built-in contact from the default role-agent config. It can prepare drafts and explain tool/permission boundaries, but it must not execute engineering implementation work.
 - Rich IM cards must use `RuntimeMessagePart` discriminants, not parse arbitrary text to infer card kinds.
 - Diff apply creates a pending action; it does not directly mutate files before approval.

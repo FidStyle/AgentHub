@@ -555,10 +555,13 @@ describe('ArtifactPanel frontend contract', () => {
     expect(messageSource).toContain('data-testid="message-agent-draft-card"')
     expect(messageSource).toContain('data-testid="message-agent-draft-confirm-btn"')
     expect(messageSource).toContain("window.dispatchEvent(new CustomEvent('role-agents:changed'")
-    expect(source).toContain('data-testid="agent-draft-creator"')
-    expect(source).toContain('/api/role-agents/draft')
-    expect(source).toContain('工具集与权限边界')
-    expect(source).toContain('data-testid="agent-draft-confirm-btn"')
+    expect(source).toContain('自然语言创建请在聊天中完成')
+    expect(source).toContain('data-testid="agent-create-btn"')
+    expect(source).toContain('手动配置')
+    expect(source).not.toContain('data-testid="agent-draft-creator"')
+    expect(source).not.toContain('/api/role-agents/draft')
+    expect(source).not.toContain('对话式创建 Agent')
+    expect(source).not.toContain('data-testid="agent-draft-confirm-btn"')
   })
 
   it('keeps the role picker background opaque', () => {
