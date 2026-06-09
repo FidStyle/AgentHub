@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-export type OrchestratedPhase = 'direct' | 'planning' | 'worker' | 'summarizing'
+export type OrchestratedPhase = 'direct' | 'planning' | 'worker' | 'artifact_closure' | 'summarizing'
 
 export type OrchestratedRole = {
   id: string
@@ -48,6 +48,20 @@ function isBackendRole(role: OrchestratedRole) {
   return text.includes('back') || text.includes('api') || text.includes('server') || text.includes('后端') || text.includes('接口') || text.includes('数据库')
 }
 
+function isArtifactAssistantRole(role: OrchestratedRole) {
+  const text = roleText(role)
+  return role.name === '产物助手' || text.includes('artifact') || text.includes('产物') || text.includes('发布') || text.includes('预览')
+}
+
+function isProductDeliveryIntent(task: string) {
+  const explicitDelivery = /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(task)
+  const canonicalProductPrompt = /sqlite|SQLite|历史记录/.test(task)
+    && /(网站|网页|页面|应用|服务)/.test(task)
+    && /(加减乘除|计算器|生成姓名|姓名生成|姓名)/.test(task)
+  const generatedProductPrompt = /(生成|做一个|创建|实现|开发).*(网页|网站|应用|服务|文档|markdown|Markdown|PPT|ppt|演示稿)/.test(task)
+  return explicitDelivery || canonicalProductPrompt || generatedProductPrompt
+}
+
 function frontendDependsOnBackend(task: string) {
   const text = task.toLowerCase()
   return [
@@ -69,6 +83,7 @@ function frontendDependsOnBackend(task: string) {
 
 function labelForTarget(target: OrchestratedTarget<OrchestratedRole>) {
   if (target.phase === 'planning') return '架构师规划'
+  if (target.phase === 'artifact_closure') return `${target.role?.name ?? '产物助手'}收口`
   if (target.phase === 'summarizing') return '架构师汇总'
   return `${target.role?.name ?? '角色'}执行`
 }
@@ -91,8 +106,12 @@ export function generateOrchestration<T extends OrchestratedRole>(
   }
 
   const planner: OrchestratedTarget<T> = { nodeId: randomUUID(), role: orchestrator, phase: 'planning', dependsOn: [] }
+  const productDelivery = isProductDeliveryIntent(task)
+  const artifactAssistant = productDelivery
+    ? selectedRoles.find((role) => role.id !== orchestrator.id && isArtifactAssistantRole(role))
+    : null
   const workers: Array<OrchestratedTarget<T>> = selectedRoles
-    .filter((role) => role.id !== orchestrator.id)
+    .filter((role) => role.id !== orchestrator.id && role.id !== artifactAssistant?.id)
     .map((role) => ({ nodeId: randomUUID(), role, phase: 'worker' as const, dependsOn: [planner.nodeId as string] }))
 
   if (frontendDependsOnBackend(task)) {
@@ -105,14 +124,26 @@ export function generateOrchestration<T extends OrchestratedRole>(
     }
   }
 
+  const workerNodeIds = workers.map((target) => target.nodeId).filter((id): id is string => Boolean(id))
+  const artifactClosure: OrchestratedTarget<T> | null = artifactAssistant
+    ? {
+        nodeId: randomUUID(),
+        role: artifactAssistant,
+        phase: 'artifact_closure',
+        dependsOn: workerNodeIds.length > 0 ? workerNodeIds : [planner.nodeId as string],
+      }
+    : null
+
   const summarizer: OrchestratedTarget<T> = {
     nodeId: randomUUID(),
     role: orchestrator,
     phase: 'summarizing',
-    dependsOn: workers.map((target) => target.nodeId).filter((id): id is string => Boolean(id)),
+    dependsOn: artifactClosure?.nodeId
+      ? [artifactClosure.nodeId]
+      : workerNodeIds,
   }
 
-  const targets = [planner, ...workers, summarizer]
+  const targets = [planner, ...workers, ...(artifactClosure ? [artifactClosure] : []), summarizer]
   const planNodes = targets.map((target) => ({
     id: target.nodeId as string,
     label: labelForTarget(target),

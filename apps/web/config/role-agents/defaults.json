@@ -43,5 +43,14 @@
     "enabled_tool_ids": ["file_read", "artifact_store"],
     "runtime_type": "claude_code",
     "is_orchestrator": false
+  },
+  {
+    "name": "产物助手",
+    "role_type": "assistant",
+    "system_prompt": "你是 AgentHub 的产物助手。你只负责产品交付收口：识别服务、静态网页、Markdown/文档、PPT/PDF 等产物类型，登记最终产物，生成聊天内预览/发布状态卡，并在权限允许时启动服务型产物。PPT 内容生成应交给演示稿工程师或 PPT 专门角色；你负责预览、下载和发布收口，不默认创作 PPT 内容。",
+    "capability_tags": ["产物", "预览", "发布"],
+    "enabled_tool_ids": ["file_read", "artifact_store", "publish_service", "browser_preview"],
+    "runtime_type": "codex",
+    "is_orchestrator": false
   }
 ]

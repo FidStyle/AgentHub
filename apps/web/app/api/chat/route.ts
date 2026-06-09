@@ -19,6 +19,7 @@ import { startArtifactPublish, type PublishArtifactRow } from '@/lib/artifacts/p
 import { createRoleAgentDraft, isRoleAgentCreationIntent } from '@/lib/role-agents/draft'
 import {
   DEFAULT_EXECUTION_DECISION_PROMPT,
+  artifactClosurePhaseBoundaryPrompt,
   backendWorkerPhaseBoundaryPrompt,
   frontendWorkerPhaseBoundaryPrompt,
   planningPhaseBoundaryPrompt,
@@ -51,7 +52,7 @@ type RoleHandoffPackage = ContextPackage
 type ExecutionTarget = {
   nodeId: string | null
   role: SelectedRoleAgent | null
-  phase: 'direct' | 'planning' | 'worker' | 'summarizing'
+  phase: 'direct' | 'planning' | 'worker' | 'artifact_closure' | 'summarizing'
   dependsOn: string[]
 }
 
@@ -86,7 +87,7 @@ type ArtifactRecommendationInput = {
   sessionId: string
   roleAgentId: string | null
   workspaceRoot: string | null
-  runMarker: string | null
+  runMarker: string | string[] | null
   planId: string | null
   autoPublish: boolean
   permissionMode?: string | null
@@ -104,9 +105,16 @@ type DeliveredArtifactCandidate = {
   displaySource: string
 }
 
+type PersistedDeliveredArtifact = {
+  artifactId: string
+  candidate: DeliveredArtifactCandidate
+  kind: 'final_product_candidate' | 'supporting_product_artifact'
+}
+
 type DeliveredArtifactRecommendation = {
   artifactId: string
   sourcePath: string
+  supportingArtifactIds?: string[]
 }
 
 type DeliveryManifest = {
@@ -561,6 +569,26 @@ function isFullAutoDeliveryIntent(content: string, permissionMode?: string | nul
   return isAutomaticDeliveryPermissionMode(permissionMode) && isProductDeliveryIntent(content)
 }
 
+function isArtifactAssistantRole(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capability_tags'>) {
+  const tags = Array.isArray(role.capability_tags) ? role.capability_tags.map((item) => String(item)).join(' ') : ''
+  const text = `${role.name} ${role.role_type} ${tags}`.toLowerCase()
+  return role.name === '产物助手' || text.includes('artifact') || text.includes('产物') || text.includes('发布') || text.includes('预览')
+}
+
+function labelForExecutionTarget(target: ExecutionTarget) {
+  if (target.phase === 'planning') return '架构师规划'
+  if (target.phase === 'artifact_closure') return `${target.role?.name ?? '产物助手'}收口`
+  if (target.phase === 'summarizing') return '架构师汇总'
+  return `${target.role?.name ?? '角色'}执行`
+}
+
+function titleForExecutionPhase(target: ExecutionTarget) {
+  if (target.phase === 'planning') return '需求规划'
+  if (target.phase === 'artifact_closure') return '产物收口'
+  if (target.phase === 'summarizing') return '最终验收'
+  return '实现任务'
+}
+
 function downloadUrlForWorkspaceFile(workspaceId: string, sourcePath: string) {
   return `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`
 }
@@ -664,6 +692,25 @@ function artifactPreviewPart(input: {
 
 function candidateHasStartInstruction(candidate: DeliveredArtifactCandidate) {
   return typeof candidate.metadata.startCommand === 'string' || typeof candidate.metadata.packageScript === 'string'
+}
+
+function dedupeDeliveredArtifactCandidates(candidates: DeliveredArtifactCandidate[]) {
+  const seen = new Set<string>()
+  return candidates.filter((candidate) => {
+    const key = candidate.sourcePath.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function isSupportingArtifactCandidate(candidate: DeliveredArtifactCandidate) {
+  if (candidateHasStartInstruction(candidate)) return false
+  return candidate.artifactType === 'markdown'
+    || candidate.artifactType === 'document'
+    || candidate.artifactType === 'presentation'
+    || candidate.artifactType === 'image'
+    || candidate.artifactType === 'html'
 }
 
 function publishStatusPart(input: {
@@ -794,25 +841,92 @@ async function buildDeliveryRuntimeParts(input: {
   return parts
 }
 
-async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
-  if (!input.workspaceRoot) return null
-  const candidate = await findDeliveredArtifactCandidate(input.workspaceRoot, input.workspaceId)
-  if (!candidate) return null
+function artifactRuntimeParts(input: {
+  workspaceId: string
+  artifactId: string
+  candidate: DeliveredArtifactCandidate
+}): RuntimeMessagePart[] {
+  const parts: RuntimeMessagePart[] = [{
+    id: `artifact-${input.artifactId}`,
+    type: 'artifact',
+    status: 'created',
+    artifactId: input.artifactId,
+    artifactType: input.candidate.artifactType,
+    title: input.candidate.runtimePartTitle,
+    sourcePath: input.candidate.sourcePath,
+    contentRef: input.candidate.contentRef,
+    previewUrl: previewUrlForArtifact(input.artifactId),
+    downloadUrl: artifactDownloadUrl(input.artifactId),
+  }]
+  const previewPart = artifactPreviewPart(input)
+  if (previewPart) parts.push(previewPart)
+  return parts
+}
 
+async function persistDeliveredArtifact(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  userId: string
+  workspaceId: string
+  sessionId: string
+  candidate: DeliveredArtifactCandidate
+  kind: PersistedDeliveredArtifact['kind']
+  metadata: Record<string, unknown>
+}) {
   const existing = await input.db
     .from('artifacts')
     .select('id')
     .eq('workspace_id', input.workspaceId)
     .eq('session_id', input.sessionId)
-    .eq('source_path', candidate.sourcePath)
+    .eq('source_path', input.candidate.sourcePath)
     .limit(1)
   const existingId = Array.isArray(existing.data) && existing.data[0]?.id ? String(existing.data[0].id) : null
-  if (existingId) return { artifactId: existingId, sourcePath: candidate.sourcePath } satisfies DeliveredArtifactRecommendation
+  if (existingId) {
+    return {
+      artifactId: existingId,
+      candidate: input.candidate,
+      kind: input.kind,
+    } satisfies PersistedDeliveredArtifact
+  }
+
+  const { data: artifact, error } = await input.db
+    .from('artifacts')
+    .insert({
+      workspace_id: input.workspaceId,
+      session_id: input.sessionId,
+      source_message_id: null,
+      source_run_id: null,
+      source_path: input.candidate.sourcePath,
+      artifact_type: input.candidate.artifactType,
+      title: input.candidate.title,
+      content: input.candidate.content,
+      content_ref: input.candidate.contentRef,
+      metadata: {
+        kind: input.kind,
+        ...input.metadata,
+        ...input.candidate.metadata,
+      },
+      created_by: input.userId,
+    })
+    .select('id')
+    .single()
+  if (error || !artifact?.id) return null
+  return {
+    artifactId: String(artifact.id),
+    candidate: input.candidate,
+    kind: input.kind,
+  } satisfies PersistedDeliveredArtifact
+}
+
+async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
+  if (!input.workspaceRoot) return null
+  const candidates = await findDeliveredArtifactCandidates(input.workspaceRoot, input.workspaceId)
+  const candidate = candidates[0] ?? null
+  if (!candidate) return null
 
   const now = new Date().toISOString()
   const recommendation = {
     source: 'model_recommendation',
-    recommendedBy: 'Orchestrator',
+    recommendedBy: '产物助手',
     reason: candidate.recommendationReason,
     sourcePath: candidate.sourcePath,
     planId: input.planId,
@@ -829,37 +943,27 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     confirmedAt: now,
   }
 
-  const { data: artifact, error } = await input.db
-    .from('artifacts')
-    .insert({
-      workspace_id: input.workspaceId,
-      session_id: input.sessionId,
-      source_message_id: null,
-      source_run_id: null,
-      source_path: candidate.sourcePath,
-      artifact_type: candidate.artifactType,
-      title: candidate.title,
-      content: candidate.content,
-      content_ref: candidate.contentRef,
-      metadata: {
-        kind: 'final_product_candidate',
-        runMarker: input.runMarker,
-        planId: input.planId,
-        artifactRecommendation: recommendation,
-        artifactConfirmation: confirmation,
-        designationSource: input.autoPublish ? 'auto_confirmed_by_full_control_delivery' : 'confirmed_after_permission_delivery',
-        ...candidate.metadata,
-      },
-      created_by: input.userId,
-    })
-    .select('id')
-    .single()
-  if (error || !artifact?.id) return null
+  const persistedFinal = await persistDeliveredArtifact({
+    db: input.db,
+    userId: input.userId,
+    workspaceId: input.workspaceId,
+    sessionId: input.sessionId,
+    candidate,
+    kind: 'final_product_candidate',
+    metadata: {
+      runMarker: input.runMarker,
+      planId: input.planId,
+      artifactRecommendation: recommendation,
+      artifactConfirmation: confirmation,
+      designationSource: input.autoPublish ? 'auto_confirmed_by_full_control_delivery' : 'confirmed_after_permission_delivery',
+    },
+  })
+  if (!persistedFinal) return null
 
   let publishResult: { status: 'running' | 'failed'; url?: string; port?: number; error?: string; message: string } | null = null
   if (input.autoPublish && candidateHasStartInstruction(candidate)) {
     const row: PublishArtifactRow = {
-      id: String(artifact.id),
+      id: persistedFinal.artifactId,
       workspace_id: input.workspaceId,
       session_id: input.sessionId,
       title: candidate.title,
@@ -901,10 +1005,34 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   const runtimeParts = await buildDeliveryRuntimeParts({
     workspaceRoot: input.workspaceRoot,
     workspaceId: input.workspaceId,
-    artifactId: String(artifact.id),
+    artifactId: persistedFinal.artifactId,
     candidate,
     publish: publishResult,
   })
+  const supportingArtifacts: PersistedDeliveredArtifact[] = []
+  for (const supportingCandidate of candidates.slice(1).filter(isSupportingArtifactCandidate).slice(0, 8)) {
+    const persisted = await persistDeliveredArtifact({
+      db: input.db,
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+      sessionId: input.sessionId,
+      candidate: supportingCandidate,
+      kind: 'supporting_product_artifact',
+      metadata: {
+        runMarker: input.runMarker,
+        planId: input.planId,
+        finalArtifactSourcePath: candidate.sourcePath,
+        designationSource: 'artifact_assistant_supporting_scan',
+      },
+    })
+    if (!persisted) continue
+    supportingArtifacts.push(persisted)
+    runtimeParts.push(...artifactRuntimeParts({
+      workspaceId: input.workspaceId,
+      artifactId: persisted.artifactId,
+      candidate: persisted.candidate,
+    }))
+  }
 
   await persistProcessEvent({
     db: input.db,
@@ -913,6 +1041,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     content: [
       '已完成产物推荐与确认。',
       `推荐产物：${candidate.displaySource}`,
+      supportingArtifacts.length > 0 ? `附属产物：${supportingArtifacts.map((artifact) => artifact.candidate.displaySource).join('、')}` : null,
       input.autoPublish
         ? '确认依据：本轮使用 full-control 产品交付流程；系统仅把模型推荐的可运行入口标记为最终产物候选，没有把整个文件树默认算作产物。'
         : '确认依据：用户授权后的产品交付流程已完成；系统仅把模型推荐的最终入口标记为产物候选，没有把整个文件树默认算作产物。',
@@ -924,15 +1053,86 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
       visibleStatus: '已完成',
       artifactRecommendation: recommendation,
       artifactConfirmation: confirmation,
+      supportingArtifacts: supportingArtifacts.map((artifact) => ({
+        artifactId: artifact.artifactId,
+        sourcePath: artifact.candidate.sourcePath,
+        artifactType: artifact.candidate.artifactType,
+        title: artifact.candidate.title,
+      })),
       runtimeParts,
     },
   })
-  return { artifactId: String(artifact.id), sourcePath: candidate.sourcePath } satisfies DeliveredArtifactRecommendation
+  return {
+    artifactId: persistedFinal.artifactId,
+    sourcePath: candidate.sourcePath,
+    supportingArtifactIds: supportingArtifacts.map((artifact) => artifact.artifactId),
+  } satisfies DeliveredArtifactRecommendation
 }
 
-async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId: string): Promise<DeliveredArtifactCandidate | null> {
+async function workspaceFileCandidate(input: {
+  workspaceRoot: string
+  workspaceId: string
+  sourcePath: string
+}): Promise<DeliveredArtifactCandidate | null> {
+  const fullPath = path.join(input.workspaceRoot, input.sourcePath)
+  const info = await stat(fullPath).catch(() => null)
+  if (!info?.isFile()) return null
+  const content = await readFile(fullPath, 'utf8').catch(() => null)
+  const richType = artifactTypeForPath(input.sourcePath)
+  const previewKind = previewKindForPath(input.sourcePath)
+  const artifactType: ArtifactDbType = richType
+    ?? (previewKind === 'markdown'
+      ? 'markdown'
+      : previewKind === 'image'
+        ? 'image'
+        : previewKind === 'code'
+          ? 'code'
+          : input.sourcePath.endsWith('.html') || input.sourcePath.endsWith('.htm')
+            ? 'html'
+            : 'generic_file')
+  const isPresentation = artifactType === 'presentation'
+  const isDocument = artifactType === 'document' || artifactType === 'markdown'
+  const isHtml = artifactType === 'html'
+  return {
+    sourcePath: input.sourcePath,
+    artifactType,
+    title: isHtml
+      ? input.sourcePath === 'public/index.html' ? '网站入口' : `网站入口：${input.sourcePath}`
+      : isPresentation
+        ? '演示稿产物'
+        : isDocument
+          ? '文档产物'
+          : `文件产物：${input.sourcePath}`,
+    content,
+    contentRef: `workspace-file:${input.workspaceId}:${input.sourcePath}`,
+    recommendationReason: isHtml
+      ? '该文件是本次生成产品的浏览器入口，适合作为最终可交付产物候选。'
+      : isPresentation
+        ? '该文件是本次生成的演示稿，适合作为可预览/下载产物。'
+        : isDocument
+          ? '该文件是本次生成的文档产物，适合作为 Markdown/文档渲染入口。'
+          : '该文件是本次生成的产物文件，适合作为可预览或下载产物。',
+    metadata: {
+      source: 'workspace_file',
+      deliveryKind: isHtml ? 'static_entry' : isPresentation ? 'presentation_entry' : isDocument ? 'document_entry' : 'file_entry',
+      previewKind,
+      mime: isHtml
+        ? 'text/html; charset=utf-8'
+        : previewKind === 'markdown'
+          ? 'text/markdown; charset=utf-8'
+          : undefined,
+      size: info.size,
+      downloadUrl: `/api/workspaces/${input.workspaceId}/files/download?path=${encodeURIComponent(input.sourcePath)}`,
+    },
+    runtimePartTitle: isHtml ? '网站入口' : isPresentation ? '演示稿产物' : isDocument ? '文档产物' : '文件产物',
+    displaySource: input.sourcePath,
+  }
+}
+
+async function findDeliveredArtifactCandidates(workspaceRoot: string, workspaceId: string): Promise<DeliveredArtifactCandidate[]> {
   const manifestCandidate = await findManifestDeliveredArtifactCandidate(workspaceRoot, workspaceId)
-  if (manifestCandidate) return manifestCandidate
+  const candidates: DeliveredArtifactCandidate[] = []
+  if (manifestCandidate) candidates.push(manifestCandidate)
 
   const staticCandidates = [
     'public/index.html',
@@ -942,28 +1142,8 @@ async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId
     'out/index.html',
   ]
   for (const sourcePath of staticCandidates) {
-    const fullPath = path.join(workspaceRoot, sourcePath)
-    const info = await stat(fullPath).catch(() => null)
-    if (!info?.isFile()) continue
-    const content = await readFile(fullPath, 'utf8').catch(() => null)
-    return {
-      sourcePath,
-      artifactType: 'html',
-      title: sourcePath === 'public/index.html' ? '网站入口' : `网站入口：${sourcePath}`,
-      content,
-      contentRef: `workspace-file:${workspaceId}:${sourcePath}`,
-      recommendationReason: '该文件是本次生成产品的浏览器入口，适合作为最终可交付产物候选。',
-      metadata: {
-        source: 'workspace_file',
-        deliveryKind: 'static_entry',
-        previewKind: 'html',
-        mime: 'text/html; charset=utf-8',
-        size: info.size,
-        downloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
-      },
-      runtimePartTitle: '网站入口',
-      displaySource: sourcePath,
-    }
+    const candidate = await workspaceFileCandidate({ workspaceRoot, workspaceId, sourcePath })
+    if (candidate) candidates.push(candidate)
   }
 
   const renderableCandidates = [
@@ -977,41 +1157,18 @@ async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId
     'presentation.pptx',
   ]
   for (const sourcePath of renderableCandidates) {
-    const fullPath = path.join(workspaceRoot, sourcePath)
-    const info = await stat(fullPath).catch(() => null)
-    if (!info?.isFile()) continue
-    const content = await readFile(fullPath, 'utf8').catch(() => null)
-    const richType = artifactTypeForPath(sourcePath)
-    const previewKind = previewKindForPath(sourcePath)
-    const artifactType: ArtifactDbType = richType ?? (previewKind === 'markdown' ? 'markdown' : previewKind === 'code' ? 'code' : 'generic_file')
-    return {
-      sourcePath,
-      artifactType,
-      title: artifactType === 'presentation' ? '演示稿产物' : artifactType === 'document' || artifactType === 'markdown' ? '文档产物' : `文件产物：${sourcePath}`,
-      content,
-      contentRef: `workspace-file:${workspaceId}:${sourcePath}`,
-      recommendationReason: artifactType === 'presentation'
-        ? '该文件是本次生成的演示稿，适合作为可预览/下载产物。'
-        : '该文件是本次生成的文档产物，适合作为 Markdown/文档渲染入口。',
-      metadata: {
-        source: 'workspace_file',
-        deliveryKind: artifactType === 'presentation' ? 'presentation_entry' : 'document_entry',
-        previewKind,
-        mime: previewKind === 'markdown' ? 'text/markdown; charset=utf-8' : undefined,
-        size: info.size,
-        downloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
-      },
-      runtimePartTitle: artifactType === 'presentation' ? '演示稿产物' : '文档产物',
-      displaySource: sourcePath,
-    }
+    const candidate = await workspaceFileCandidate({ workspaceRoot, workspaceId, sourcePath })
+    if (candidate) candidates.push(candidate)
   }
 
+  if (candidates.length > 0) return dedupeDeliveredArtifactCandidates(candidates)
+
   const runnable = await detectWorkspaceRunnablePackage(workspaceRoot)
-  if (!runnable) return null
+  if (!runnable) return []
   const packageFullPath = path.join(workspaceRoot, runnable.sourcePath)
   const info = await stat(packageFullPath).catch(() => null)
   const content = await readFile(packageFullPath, 'utf8').catch(() => null)
-  return {
+  candidates.push({
     sourcePath: runnable.sourcePath,
     artifactType: 'generic_file',
     title: '可运行服务产物',
@@ -1032,7 +1189,8 @@ async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId
     },
     runtimePartTitle: '可运行服务产物',
     displaySource: `${runnable.sourcePath}（${runnable.command}）`,
-  }
+  })
+  return dedupeDeliveredArtifactCandidates(candidates)
 }
 
 function normalizeArtifactTypeForManifest(value: unknown, sourcePath: string): DeliveredArtifactCandidate['artifactType'] {
@@ -1373,6 +1531,17 @@ export async function POST(req: NextRequest) {
     }
     if (expandedRoles.length > selectedRoleAgents.length) selectedRoleAgents = expandedRoles
   }
+  const productDeliveryIntent = isProductDeliveryIntent(content)
+  const artifactAssistantRole = allWorkspaceRoles.find(isArtifactAssistantRole) ?? null
+  const canAppendArtifactAssistant = productDeliveryIntent
+    && artifactAssistantRole
+    && sessionRecord.chat_kind !== 'direct'
+    && !selectedRoleAgents.some((role) => role.id === artifactAssistantRole.id)
+    && (participantIds.length === 0 || participantIds.includes(artifactAssistantRole.id))
+  if (canAppendArtifactAssistant) {
+    selectedRoleAgents = [...selectedRoleAgents, artifactAssistantRole]
+  }
+  const selectedArtifactAssistantRole = selectedRoleAgents.find(isArtifactAssistantRole) ?? null
   const roleCapabilities = (role: (typeof selectedRoleAgents)[number]) =>
     Array.isArray(role.capability_tags) ? role.capability_tags.map((item) => String(item)) : []
   const runtimeTypeForRole = (role: (typeof selectedRoleAgents)[number] | null): CliRuntimeType | undefined => {
@@ -1458,12 +1627,14 @@ export async function POST(req: NextRequest) {
   }
   const phaseBoundaryPrompt = (phase: ExecutionTarget['phase'], role: (typeof selectedRoleAgents)[number] | null) => {
     const fullAutoDelivery = isFullAutoDeliveryIntent(content, permissionMode)
-    const productDelivery = isProductDeliveryIntent(content)
     if (phase === 'planning') {
       return planningPhaseBoundaryPrompt()
     }
+    if (phase === 'artifact_closure') {
+      return artifactClosurePhaseBoundaryPrompt(fullAutoDelivery)
+    }
     if (phase === 'summarizing') {
-      return summarizingPhaseBoundaryPrompt(productDelivery)
+      return summarizingPhaseBoundaryPrompt(productDeliveryIntent)
     }
     if (role && /前端|front|ui|web/i.test(role.name)) {
       return frontendWorkerPhaseBoundaryPrompt(fullAutoDelivery)
@@ -1502,7 +1673,9 @@ export async function POST(req: NextRequest) {
       planId: architectDispatch.planId,
       mailboxId: architectDispatch.mailboxId,
       requestedTargets: architectDispatch.targetRoleAgentIds,
-      selectedTargets: selectedRoleAgents.slice(1).map((role) => role.id),
+      selectedTargets: selectedRoleAgents
+        .filter((role) => !role.is_orchestrator && !isArtifactAssistantRole(role))
+        .map((role) => role.id),
       eventKinds: architectDispatch.events.map((event) => event.kind),
     }
   }
@@ -1791,6 +1964,7 @@ export async function POST(req: NextRequest) {
         const orchestration = generateOrchestration(selectedRoleAgents, content)
         const useOrchestratedRun = orchestration.useOrchestratedRun
         const executionTargets: ExecutionTarget[] = orchestration.targets
+        let deliveredArtifactRecommendation: DeliveredArtifactRecommendation | null = null
         let planId: string | null = null
         if (useOrchestratedRun) {
           const { data: plan } = await db.from('plans').insert({
@@ -1805,11 +1979,7 @@ export async function POST(req: NextRequest) {
             await db.from('plan_nodes').insert(executionTargets.map((target) => ({
               id: target.nodeId,
               plan_id: planId,
-              label: target.phase === 'planning'
-                ? '架构师规划'
-                : target.phase === 'summarizing'
-                  ? '架构师汇总'
-                  : `${target.role?.name ?? '角色'}执行`,
+              label: labelForExecutionTarget(target),
               agent_id: target.role?.id ?? null,
               action_type: 'runtime_invoke',
                   action_payload: {
@@ -1830,7 +2000,9 @@ export async function POST(req: NextRequest) {
               roleAgentId: primaryRoleAgentId,
               content: [
                 '思考中：架构师已接收需求并创建执行计划。',
-                '分工：架构师负责规划和验收，后端工程师负责 API、SQLite 历史记录与服务验证，前端工程师负责 public/index.html、public/app.js、public/styles.css 和浏览器交互。',
+                productDeliveryIntent && selectedArtifactAssistantRole
+                  ? '分工：架构师负责规划和验收，工程师角色负责实现，产物助手负责识别产物类型、登记产物、生成预览/发布卡并按权限处理启动。'
+                  : '分工：架构师负责规划和验收，工程师角色负责具体实现与验证。',
                 '交付候选将在文件真实生成并完成验证后再推荐，不会把整个文件树默认标记为产物。',
               ].join('\n'),
               messageType: 'plan_card',
@@ -1883,12 +2055,15 @@ export async function POST(req: NextRequest) {
             sessionId,
             roleAgentId: currentRoleAgentId,
             content: [
-              `执行中：@${currentRoleName} 开始处理「${target.phase === 'planning' ? '需求规划' : target.phase === 'summarizing' ? '最终验收' : '实现任务'}」。`,
+              `执行中：@${currentRoleName} 开始处理「${titleForExecutionPhase(target)}」。`,
               target.phase === 'worker' && /前端|front|ui|web/i.test(currentRoleName)
                 ? '当前步骤关注前端文件：public/index.html、public/app.js、public/styles.css。'
                 : null,
               target.phase === 'worker' && /后端|back|api|数据库|server/i.test(currentRoleName)
                 ? '当前步骤关注后端与存储文件：package.json、src/server.js、data/calculator.sqlite、README.md。'
+                : null,
+              target.phase === 'artifact_closure'
+                ? '当前步骤关注产物登记、预览卡、发布状态和右侧产物列表同步。'
                 : null,
             ].filter(Boolean).join('\n'),
             metadata: {
@@ -2138,6 +2313,67 @@ export async function POST(req: NextRequest) {
               },
               emit: emitProcess,
             })
+            if (target.phase === 'artifact_closure' && productDeliveryIntent) {
+              deliveredArtifactRecommendation = await recommendDeliveredArtifact({
+                db,
+                userId: user.id,
+                workspaceId: ws.id,
+                sessionId,
+                roleAgentId: currentRoleAgentId,
+                workspaceRoot: runtimeWorkspaceRoot,
+                runMarker: requestRunMarker,
+                planId,
+                autoPublish: isAutomaticDeliveryPermissionMode(permissionMode),
+                permissionMode,
+              })
+              if (deliveredArtifactRecommendation) {
+                await persistProcessEvent({
+                  db,
+                  sessionId,
+                  roleAgentId: currentRoleAgentId,
+                  content: `已完成：@${currentRoleName} 已创建最终产物卡并同步右侧产物列表。`,
+                  metadata: {
+                    runMarker: requestRunMarker,
+                    planId,
+                    planNodeId: target.nodeId,
+                    roleName: currentRoleName,
+                    phase: target.phase,
+                    visibleStatus: '已完成',
+                    deliveredArtifactRecommendation,
+                  },
+                  emit: emitProcess,
+                })
+              } else {
+                await persistProcessEvent({
+                  db,
+                  sessionId,
+                  roleAgentId: currentRoleAgentId,
+                  content: [
+                    `执行失败：@${currentRoleName} 未发现可登记的最终产物入口。`,
+                    '请确保实现角色生成 .agenthub/delivery.json，或存在 public/index.html、Markdown/文档/PPT 文件，或 package.json 中的 start/dev/preview/serve 脚本。',
+                  ].join('\n'),
+                  metadata: {
+                    runMarker: requestRunMarker,
+                    planId,
+                    planNodeId: target.nodeId,
+                    roleName: currentRoleName,
+                    phase: target.phase,
+                    visibleStatus: '执行失败',
+                    artifactRecommendationMissing: true,
+                    expectedArtifactEntry: ['.agenthub/delivery.json', '.agenthub/start.sh', 'public/index.html', 'index.html', 'README.md', 'docs/index.md', '*.pptx', 'package.json scripts.start/dev/preview/serve'],
+                  },
+                  emit: emitProcess,
+                })
+                if (target.nodeId) {
+                  await db.from('plan_nodes').update({
+                    status: 'failed',
+                    completed_at: new Date().toISOString(),
+                    result: { error: '产物助手未发现可登记的最终产物入口' },
+                  }).eq('id', target.nodeId)
+                }
+                return 'failed'
+              }
+            }
             if (role && completedReplyText.trim()) {
               for (const downstream of downstreamTargets) {
                 if (!downstream.role || (downstream.role.id === currentRoleAgentId && downstream.phase !== 'summarizing')) continue
@@ -2311,13 +2547,13 @@ export async function POST(req: NextRequest) {
               status: planCompleted ? 'completed' : waitingForUser ? 'running' : 'failed',
               updated_at: new Date().toISOString(),
             }).eq('id', planId)
-            if (planCompleted && isProductDeliveryIntent(content)) {
+            if (planCompleted && productDeliveryIntent && !deliveredArtifactRecommendation) {
               const recommended = await recommendDeliveredArtifact({
                 db,
                 userId: user.id,
                 workspaceId: ws.id,
                 sessionId,
-                roleAgentId: primaryRoleAgentId,
+                roleAgentId: selectedArtifactAssistantRole?.id ?? primaryRoleAgentId,
                 workspaceRoot: runtimeWorkspaceRoot,
                 runMarker: requestRunMarker,
                 planId,
@@ -2328,10 +2564,10 @@ export async function POST(req: NextRequest) {
                 await persistProcessEvent({
                   db,
                   sessionId,
-                  roleAgentId: primaryRoleAgentId,
+                  roleAgentId: selectedArtifactAssistantRole?.id ?? primaryRoleAgentId,
                   content: [
-                    '执行失败：计划已到终态，但未发现架构师交付清单、静态入口或可运行服务入口。',
-                    '产品交付任务应由最终架构师生成 .agenthub/delivery.json；服务型产物额外生成 .agenthub/start.sh。系统也会兼容识别 public/index.html、Markdown/文档/PPT 文件，或 package.json 中的 start/dev/preview/serve 脚本。',
+                    '执行失败：计划已到终态，但未发现产物助手可登记的交付清单、静态入口、文档/PPT 或可运行服务入口。',
+                    '产品交付任务应生成 .agenthub/delivery.json；服务型产物额外生成 .agenthub/start.sh。系统也会兼容识别 public/index.html、Markdown/文档/PPT 文件，或 package.json 中的 start/dev/preview/serve 脚本。',
                   ].join('\n'),
                   metadata: {
                     runMarker: requestRunMarker,

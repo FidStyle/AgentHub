@@ -9,7 +9,7 @@ export interface ContextPackage {
   summary: string
   sourceMessageId: string | null
   target?: string
-  phase?: 'direct' | 'planning' | 'worker' | 'summarizing'
+  phase?: 'direct' | 'planning' | 'worker' | 'artifact_closure' | 'summarizing'
   runtimeType?: 'claude_code' | 'codex' | null
   pinnedMessageIds?: string[]
   artifacts?: { type: string; content: string }[]

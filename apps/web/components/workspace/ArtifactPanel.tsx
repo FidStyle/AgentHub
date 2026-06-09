@@ -2230,7 +2230,6 @@ function ArtifactsTab() {
   const [artifacts, setArtifacts] = useState<ArtifactRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [createStatus, setCreateStatus] = useState<string | null>(null)
   const loadRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     if (!activeWorkspaceId) return
@@ -2254,56 +2253,15 @@ function ArtifactsTab() {
     return () => window.removeEventListener('artifacts:changed', onChanged)
   }, [activeWorkspaceId, activeSessionId])
 
-  async function createRichArtifact(type: 'document' | 'presentation') {
-    if (!activeWorkspaceId || !activeSessionId) return
-    const title = type === 'document' ? '新建富文档' : '新建演示稿'
-    setCreateStatus(`正在创建${type === 'document' ? '富文档' : '演示稿'}...`)
-    try {
-      const content = type === 'document'
-        ? defaultDocumentContent(title)
-        : serializePresentationDeck(defaultPresentationDeck(title))
-      const res = await fetch('/api/artifacts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspace_id: activeWorkspaceId,
-          session_id: activeSessionId,
-          title,
-          artifact_type: type,
-          content,
-          metadata: { source: 'web_artifact_panel', editor: 'web_artifact_panel' },
-        }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((body as { error?: string }).error || `创建失败（${res.status}）`)
-      setCreateStatus('已创建产物')
-      window.dispatchEvent(new CustomEvent('artifacts:changed', { detail: { workspaceId: activeWorkspaceId, sessionId: activeSessionId } }))
-      loadRef.current?.()
-    } catch (e) {
-      setCreateStatus(e instanceof Error ? e.message : '创建失败')
-    }
-  }
-
   if (!activeWorkspaceId) return <StateCard variant="empty" title="未选择工作区" description="选择工作区后，Agent 产出的产物将在此展示" />
   if (!activeSessionId) return <StateCard variant="empty" title="未选择聊天" description="选择联系人或群聊后，Agent 产出的产物将在此展示" />
   if (error) return <p data-testid="artifact-output-error" className="text-sm text-destructive">{error}</p>
   return (
     <div data-testid="artifact-output" className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 p-2">
-        <Button size="sm" variant="outline" onClick={() => void createRichArtifact('document')} data-testid="create-document-artifact">
-          <FileText className="mr-1 h-3.5 w-3.5" />
-          新建富文档
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => void createRichArtifact('presentation')} data-testid="create-presentation-artifact">
-          <Presentation className="mr-1 h-3.5 w-3.5" />
-          新建演示稿
-        </Button>
-        {createStatus && <span className="text-xs text-muted-foreground">{createStatus}</span>}
-      </div>
       {!loaded ? (
         <StateCard variant="loading" title="加载产物" />
       ) : artifacts.length === 0 ? (
-        <StateCard variant="empty" title="暂无产物" description="当前聊天还没有 Agent 产出的代码、文件或结果，可先新建富文档或演示稿" />
+        <StateCard variant="empty" title="暂无产物" description="当前聊天还没有产物。请在对话中让对应角色生成网页、文档或演示稿，产物助手会自动收口。" />
       ) : (
         artifacts.map((artifact) => (
           <ArtifactCard

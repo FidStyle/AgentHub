@@ -161,24 +161,41 @@ describe('DAG Generator', () => {
     { id: 'agent-arch', name: '架构师', role_type: 'orchestrator', capability_tags: ['规划'], is_orchestrator: true },
     { id: 'agent-fe', name: '前端工程师', role_type: 'frontend', capability_tags: ['UI'], is_orchestrator: false },
     { id: 'agent-be', name: '后端工程师', role_type: 'backend', capability_tags: ['API'], is_orchestrator: false },
+    { id: 'agent-artifact', name: '产物助手', role_type: 'assistant', capability_tags: ['产物', '预览', '发布'], is_orchestrator: false },
   ]
 
   it('generates planner, parallel workers, and summarizer fan-in for general collaboration tasks', () => {
     const result = generateOrchestration(roles, '请前后端一起完成页面和服务')
 
     expect(result.useOrchestratedRun).toBe(true)
-    expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '前端工程师执行', '后端工程师执行', '架构师汇总'])
+    expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '前端工程师执行', '后端工程师执行', '产物助手执行', '架构师汇总'])
 
-    const [planner, frontend, backend, summarizer] = result.planNodes
+    const [planner, frontend, backend, artifactAssistant, summarizer] = result.planNodes
     expect(frontend.depends_on).toEqual([planner.id])
     expect(backend.depends_on).toEqual([planner.id])
-    expect(summarizer.depends_on).toEqual([frontend.id, backend.id])
+    expect(artifactAssistant.depends_on).toEqual([planner.id])
+    expect(summarizer.depends_on).toEqual([frontend.id, backend.id, artifactAssistant.id])
     expect(result.dag.edges).toEqual(expect.arrayContaining([
       { from: planner.id, to: frontend.id },
       { from: planner.id, to: backend.id },
+      { from: planner.id, to: artifactAssistant.id },
       { from: frontend.id, to: summarizer.id },
       { from: backend.id, to: summarizer.id },
+      { from: artifactAssistant.id, to: summarizer.id },
     ]))
+  })
+
+  it('adds artifact assistant closure after workers for product delivery tasks', () => {
+    const result = generateOrchestration(roles, '做一个加减乘除的简单网站，使用 sqlite 存储历史记录')
+
+    expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '前端工程师执行', '后端工程师执行', '产物助手收口', '架构师汇总'])
+    const frontend = result.planNodes.find((node) => node.label === '前端工程师执行')
+    const backend = result.planNodes.find((node) => node.label === '后端工程师执行')
+    const artifactClosure = result.planNodes.find((node) => node.label === '产物助手收口')
+    const summarizer = result.planNodes.find((node) => node.label === '架构师汇总')
+
+    expect(artifactClosure?.depends_on).toEqual(expect.arrayContaining([frontend?.id, backend?.id]))
+    expect(summarizer?.depends_on).toEqual([artifactClosure?.id])
   })
 
   it('serializes frontend after backend when the task requires API or database contract first', () => {

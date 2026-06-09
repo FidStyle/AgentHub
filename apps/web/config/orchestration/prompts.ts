@@ -34,6 +34,18 @@ export function summarizingPhaseBoundaryPrompt(productDelivery: boolean) {
   ].filter(Boolean).join('\n')
 }
 
+export function artifactClosurePhaseBoundaryPrompt(fullAutoDelivery: boolean) {
+  return [
+    '当前是产物助手收口节点。',
+    '你的职责是识别最终产物类型、读取或创建交付清单，并让 AgentHub 在聊天流中生成对应的产物/预览/发布状态卡。',
+    '不要默认创作 PPT 内容；PPT 内容生成属于演示稿工程师或 PPT 专门角色。若已存在 .pptx、Markdown、HTML、package.json 或 .agenthub/delivery.json，只负责登记、预览、下载和发布收口。',
+    '如果最终产物是服务型应用，优先读取 `.agenthub/delivery.json` 和 `.agenthub/start.sh`；缺少时可基于 package.json 的 start/dev/preview/serve 脚本给出明确启动入口。',
+    fullAutoDelivery
+      ? '本轮是 full-control 产品交付：服务型产物可由系统在收口后自动启动，并在 IM 中保留自动通过/发布状态审计卡。'
+      : '本轮不是 full-control：服务型产物只生成可操作产物卡，启动必须由用户点击卡片或授权后执行。',
+  ].join('\n')
+}
+
 export function frontendWorkerPhaseBoundaryPrompt(fullAutoDelivery: boolean) {
   return [
     '当前是前端工程师实现节点：负责 public/index.html、public/app.js、public/styles.css。',

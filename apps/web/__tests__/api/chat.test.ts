@@ -62,6 +62,20 @@ function partsFromMessage(message: Record<string, unknown> | undefined) {
   return metadata?.runtimeParts ?? []
 }
 
+function artifactAssistantRoleFixture() {
+  return {
+    id: 'agent-artifact',
+    workspace_id: 'ws-001',
+    name: '产物助手',
+    role_type: 'assistant',
+    system_prompt: '负责产物收口',
+    capability_tags: ['产物', '预览', '发布'],
+    runtime_type: 'codex',
+    is_orchestrator: false,
+    enabled_tool_ids: ['file_read', 'artifact_store', 'publish_service', 'browser_preview'],
+  }
+}
+
 async function runGit(args: string[]) {
   await execFileAsync('git', args, { cwd: mockWorkspaceRoot })
 }
@@ -859,6 +873,7 @@ describe('POST /api/chat — role-chat-core', () => {
         runtime_type: 'codex',
         is_orchestrator: false,
       },
+      artifactAssistantRoleFixture(),
     ])
     setupMockClient(vi.fn(() => {
       const client = base()
@@ -974,6 +989,8 @@ describe('POST /api/chat — role-chat-core', () => {
       'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
     })
     await writeWorkspaceFixture('public/index.html', '<!doctype html><title>计算器</title>')
+    await writeWorkspaceFixture('README.md', '# 计算器说明\n\n支持历史记录。\n')
+    await writeWorkspaceFixture('slides.pptx', 'fake pptx bytes for artifact registration\n')
     await writeWorkspaceFixture('package.json', JSON.stringify({ scripts: { test: 'echo baseline', start: 'node src/server.js' } }, null, 2))
 
     const { status, text } = await callChat({
@@ -986,30 +1003,36 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(status).toBe(200)
     expect(invokeSpy).not.toHaveBeenCalled()
     expect(insertedPlans[0]).toMatchObject({ session_id: 'session-001', owner_id: 'user-001', status: 'running' })
-    expect(insertedPlanNodes.map((node) => node.label)).toEqual(['架构师规划', '后端工程师执行', '前端工程师执行', '架构师汇总'])
+    expect(insertedPlanNodes.map((node) => node.label)).toEqual(['架构师规划', '后端工程师执行', '前端工程师执行', '产物助手收口', '架构师汇总'])
     const backendNode = insertedPlanNodes.find((node) => node.label === '后端工程师执行')
     const frontendNode = insertedPlanNodes.find((node) => node.label === '前端工程师执行')
+    const artifactNode = insertedPlanNodes.find((node) => node.label === '产物助手收口')
+    const summarizerNode = insertedPlanNodes.find((node) => node.label === '架构师汇总')
     expect((frontendNode?.depends_on as string)).toContain(String(backendNode?.id))
-    expect(insertedAttempts).toHaveLength(4)
+    expect((artifactNode?.depends_on as string)).toContain(String(frontendNode?.id))
+    expect((artifactNode?.depends_on as string)).toContain(String(backendNode?.id))
+    expect((summarizerNode?.depends_on as string)).toContain(String(artifactNode?.id))
+    expect(insertedAttempts).toHaveLength(5)
     expect(insertedAttempts.every((attempt) => attempt.status === 'completed')).toBe(true)
     expect(insertedAttempts.every((attempt) => attempt.runtime_session_id === 'runtime-latest')).toBe(true)
-    expect(insertedMailboxItems.map((mailbox) => mailbox.to_role_agent_id)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-orch'])
-    expect(insertedMailboxItems.map((mailbox) => mailbox.runtime_type)).toEqual(['codex', 'codex', 'codex', 'codex'])
+    expect(insertedMailboxItems.map((mailbox) => mailbox.to_role_agent_id)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-artifact', 'agent-orch'])
+    expect(insertedMailboxItems.map((mailbox) => mailbox.runtime_type)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
     expect(createSessionMock.mock.calls.every((call) => call[0].cwd === mockWorkspaceRoot)).toBe(true)
-    expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-orch'])
-    expect(createSessionMock.mock.calls.map((call) => call[0].runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex'])
+    expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-artifact', 'agent-orch'])
+    expect(createSessionMock.mock.calls.map((call) => call[0].runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
     expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).cwd === mockWorkspaceRoot)).toBe(true)
     expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).suppressPlanProgress === true)).toBe(true)
-    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex'])
-    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3', 'attempt-4'])
-    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3', 'mailbox-4'])
-    expect(insertedPlanNodes.map((node) => (node.action_payload as Record<string, unknown>).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3', 'attempt-4', 'attempt-5'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3', 'mailbox-4', 'mailbox-5'])
+    expect(insertedPlanNodes.map((node) => (node.action_payload as Record<string, unknown>).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
     expect(insertedMessages[0].metadata).toMatchObject({
-      mentions: ['agent-orch', 'agent-be', 'agent-fe'],
+      mentions: ['agent-orch', 'agent-be', 'agent-fe', 'agent-artifact'],
       roleAgents: [
         { id: 'agent-orch', name: '架构师', roleType: 'orchestrator', runtimeType: 'claude_code', isOrchestrator: true },
         { id: 'agent-be', name: '后端工程师', roleType: 'engineer', runtimeType: 'codex', isOrchestrator: false },
         { id: 'agent-fe', name: '前端工程师', roleType: 'engineer', runtimeType: 'claude_code', isOrchestrator: false },
+        { id: 'agent-artifact', name: '产物助手', roleType: 'assistant', runtimeType: 'codex', isOrchestrator: false },
       ],
       architectDispatch: {
         requestedTargets: ['role-backend', 'role-frontend'],
@@ -1044,6 +1067,7 @@ describe('POST /api/chat — role-chat-core', () => {
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactRecommendation)
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
     ))
+    expect(artifactResultMessage?.role_agent_id).toBe('agent-artifact')
     expect(artifactResultMessage?.content).toContain('推荐产物：public/index.html')
     expect(partTypesFromMessage(artifactResultMessage)).toEqual(expect.arrayContaining([
       'change_summary',
@@ -1057,6 +1081,32 @@ describe('POST /api/chat — role-chat-core', () => {
       expect.objectContaining({ applicable: true }),
     ]))
     expect(diffParts.map((part) => part.path)).toEqual(expect.arrayContaining(['public/index.html']))
+    expect(insertedArtifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source_path: 'README.md',
+        artifact_type: 'document',
+        metadata: expect.objectContaining({
+          kind: 'supporting_product_artifact',
+          finalArtifactSourcePath: 'public/index.html',
+        }),
+      }),
+      expect.objectContaining({
+        source_path: 'slides.pptx',
+        artifact_type: 'presentation',
+        metadata: expect.objectContaining({
+          kind: 'supporting_product_artifact',
+          finalArtifactSourcePath: 'public/index.html',
+        }),
+      }),
+    ]))
+    expect((artifactResultMessage?.metadata as { supportingArtifacts?: unknown[] } | null)?.supportingArtifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePath: 'README.md', artifactType: 'document' }),
+      expect.objectContaining({ sourcePath: 'slides.pptx', artifactType: 'presentation' }),
+    ]))
+    expect(partTypesFromMessage(artifactResultMessage)).toEqual(expect.arrayContaining([
+      'document_preview',
+      'presentation_preview',
+    ]))
     expect(text).toContain('orchestrator_plan_started')
     const backendMessage = insertedMessages.find((message) => (
       message.sender_type === 'agent'
@@ -1068,9 +1118,9 @@ describe('POST /api/chat — role-chat-core', () => {
       && message.role_agent_id === 'agent-fe'
       && Boolean((message.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked)
     ))
-    const architectMessage = insertedMessages.find((message) => (
+    const artifactClosureMessage = insertedMessages.find((message) => (
       message.sender_type === 'agent'
-      && message.role_agent_id === 'agent-orch'
+      && message.role_agent_id === 'agent-artifact'
       && Boolean((message.metadata as { runtimeBacked?: unknown } | null)?.runtimeBacked)
       && Array.isArray((message.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived)
     ))
@@ -1096,8 +1146,8 @@ describe('POST /api/chat — role-chat-core', () => {
       roleName: '前端工程师',
       visibleStatus: '已完成',
     })
-    expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('public/index.html')
-    expect(JSON.stringify((architectMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('src/server.js')
+    expect(JSON.stringify((artifactClosureMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('public/index.html')
+    expect(JSON.stringify((artifactClosureMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('src/server.js')
   })
 
   it('recommends a runnable service artifact when no static html entry exists', async () => {
@@ -1136,6 +1186,7 @@ describe('POST /api/chat — role-chat-core', () => {
         runtime_type: 'codex',
         is_orchestrator: false,
       },
+      artifactAssistantRoleFixture(),
     ])
     setupMockClient(vi.fn(() => {
       const client = base()
@@ -1288,6 +1339,7 @@ describe('POST /api/chat — role-chat-core', () => {
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactRecommendation)
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
     ))
+    expect(artifactResultMessage?.role_agent_id).toBe('agent-artifact')
     expect(artifactResultMessage?.content).toContain('推荐产物：package.json（npm run start）')
     expect(partTypesFromMessage(artifactResultMessage)).toEqual(expect.arrayContaining([
       'change_summary',
@@ -1341,6 +1393,7 @@ describe('POST /api/chat — role-chat-core', () => {
         runtime_type: 'codex',
         is_orchestrator: false,
       },
+      artifactAssistantRoleFixture(),
     ])
     setupMockClient(vi.fn(() => {
       const client = base()
@@ -1488,6 +1541,7 @@ describe('POST /api/chat — role-chat-core', () => {
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactRecommendation)
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
     ))
+    expect(artifactResultMessage?.role_agent_id).toBe('agent-artifact')
     expect(artifactResultMessage?.content).toContain('推荐产物：package.json（bash .agenthub/start.sh）')
     expect(partsFromMessage(artifactResultMessage).find((part) => part.type === 'publish_status')).toMatchObject({
       status: 'running',
