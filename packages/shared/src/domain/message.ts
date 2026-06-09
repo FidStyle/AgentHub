@@ -33,10 +33,10 @@ export type RuntimeMessagePart =
   | { id: string; type: 'artifact'; status: 'created'; artifactId?: string; artifactType: string; title: string; sourcePath?: string; contentRef?: string; previewUrl?: string; downloadUrl?: string }
   | { id: string; type: 'attachment'; status: 'created'; attachmentId?: string; name: string; mime?: string; size?: number; contentRef?: string; downloadUrl?: string }
   | { id: string; type: 'image_preview'; status: 'created' | 'unavailable'; title: string; url?: string; sourcePath?: string; downloadUrl?: string; alt?: string }
-  | { id: string; type: 'document_preview'; status: 'created' | 'unavailable'; artifactId?: string; title: string; sourcePath?: string; previewUrl?: string; downloadUrl?: string; summary?: string }
-  | { id: string; type: 'presentation_preview'; status: 'created' | 'unavailable'; artifactId?: string; title: string; sourcePath?: string; previewUrl?: string; downloadUrl?: string; summary?: string }
+  | { id: string; type: 'document_preview'; status: 'created' | 'unavailable'; artifactId?: string; title: string; sourcePath?: string; previewUrl?: string; downloadUrl?: string; summary?: string; previewKind?: 'markdown' | 'pdf' | 'summary' }
+  | { id: string; type: 'presentation_preview'; status: 'created' | 'unavailable'; artifactId?: string; title: string; sourcePath?: string; previewUrl?: string; downloadUrl?: string; summary?: string; previewKind?: 'pdf' | 'summary' }
   | { id: string; type: 'web_preview'; status: 'created' | 'unavailable'; title: string; url?: string; description?: string; iframeUrl?: string }
-  | { id: string; type: 'publish_status'; status: 'pending' | 'running' | 'stopped' | 'failed'; artifactId?: string; title: string; url?: string; message?: string }
+  | { id: string; type: 'publish_status'; status: 'pending' | 'running' | 'stopped' | 'failed'; artifactId?: string; title: string; url?: string; port?: number; message?: string; error?: string; startedAt?: string; stoppedAt?: string }
 
 export interface Message {
   id: string

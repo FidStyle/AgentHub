@@ -113,6 +113,9 @@ export async function persistPublishStatusMessage(input: {
   }
   status: Extract<RuntimeMessagePart, { type: 'publish_status' }>['status']
   url?: string
+  port?: number
+  error?: string
+  stoppedAt?: string
   message: string
 }) {
   if (!input.row.session_id) return
@@ -124,6 +127,9 @@ export async function persistPublishStatusMessage(input: {
     artifactId: input.row.id,
     title,
     url: input.url,
+    port: input.port,
+    error: input.error,
+    stoppedAt: input.stoppedAt,
     message: input.message,
   }
   table(input.db, 'messages').insert({
@@ -207,11 +213,26 @@ export async function startArtifactPublish(input: {
   if (!ready) {
     child.kill('SIGTERM')
     publishRegistry.delete(input.row.id)
+    const failedAt = new Date().toISOString()
+    await table(input.db, 'artifacts').update({
+      metadata: {
+        ...(input.row.metadata && typeof input.row.metadata === 'object' ? input.row.metadata : {}),
+        publishStatus: 'failed',
+        publishUrl: null,
+        publishPid: null,
+        publishPort: port,
+        publishError: '发布服务启动超时，已终止临时进程。',
+        publishFailedAt: failedAt,
+      },
+      updated_at: failedAt,
+    }).eq('id', input.row.id)
     if (input.persistMessage !== false) {
       await persistPublishStatusMessage({
         db: input.db,
         row: input.row,
         status: 'failed',
+        port,
+        error: '发布服务启动超时',
         message: '发布服务启动超时，已终止临时进程。',
       })
     }
@@ -243,6 +264,7 @@ export async function startArtifactPublish(input: {
       row: input.row,
       status: 'running',
       url,
+      port,
       message: `发布已启动，访问地址：${url}`,
     })
   }

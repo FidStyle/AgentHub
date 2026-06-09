@@ -668,7 +668,7 @@ function candidateHasStartInstruction(candidate: DeliveredArtifactCandidate) {
 function publishStatusPart(input: {
   artifactId: string
   candidate: DeliveredArtifactCandidate
-  publish?: { status: 'running' | 'failed'; url?: string; message: string } | null
+  publish?: { status: 'running' | 'failed'; url?: string; port?: number; error?: string; message: string } | null
 }): RuntimeMessagePart {
   if (input.publish) {
     return {
@@ -678,6 +678,8 @@ function publishStatusPart(input: {
       artifactId: input.artifactId,
       title: `${input.candidate.runtimePartTitle || input.candidate.title}发布`,
       url: input.publish.url,
+      port: input.publish.port,
+      error: input.publish.error,
       message: input.publish.message,
     }
   }
@@ -715,7 +717,7 @@ async function buildDeliveryRuntimeParts(input: {
   workspaceId: string
   artifactId: string
   candidate: DeliveredArtifactCandidate
-  publish?: { status: 'running' | 'failed'; url?: string; message: string } | null
+  publish?: { status: 'running' | 'failed'; url?: string; port?: number; error?: string; message: string } | null
 }): Promise<RuntimeMessagePart[]> {
   const parts: RuntimeMessagePart[] = []
   let changes: WorkspaceGitChange[] = []
@@ -853,7 +855,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     .single()
   if (error || !artifact?.id) return null
 
-  let publishResult: { status: 'running' | 'failed'; url?: string; message: string } | null = null
+  let publishResult: { status: 'running' | 'failed'; url?: string; port?: number; error?: string; message: string } | null = null
   if (input.autoPublish && candidateHasStartInstruction(candidate)) {
     const row: PublishArtifactRow = {
       id: String(artifact.id),
@@ -882,12 +884,15 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
       publishResult = {
         status: 'running',
         url: started.url,
+        port: started.port,
         message: `full-control 已自动启动发布，访问地址：${started.url}`,
       }
     } catch (publishError) {
+      const message = publishError instanceof Error ? publishError.message : '自动发布失败'
       publishResult = {
         status: 'failed',
-        message: publishError instanceof Error ? publishError.message : '自动发布失败',
+        error: message,
+        message,
       }
     }
   }

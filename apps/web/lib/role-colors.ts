@@ -42,6 +42,7 @@ const DEFAULT_ROLE_COLOR_INDEX: Record<string, number> = {
   Orchestrator: 4,
   '前端工程师': 0,
   '后端工程师': 1,
+  '演示稿工程师': 2,
 }
 
 const RESERVED_DEFAULT_ROLE_COLOR_INDEXES = new Set(Object.values(DEFAULT_ROLE_COLOR_INDEX))

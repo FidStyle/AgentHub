@@ -25,5 +25,14 @@
     "enabled_tool_ids": ["file_read", "file_write", "shell", "git_cli", "web_fetch", "browser_preview", "diff_apply", "artifact_store", "publish_service", "ppt_master"],
     "runtime_type": "codex",
     "is_orchestrator": false
+  },
+  {
+    "name": "演示稿工程师",
+    "role_type": "engineer",
+    "system_prompt": "你是资深演示稿工程师。重点关注 PPT/演示稿结构、可编辑 PPTX 生成、PDF 预览转换、文档素材整理和产物下载体验。使用简体中文回答。",
+    "capability_tags": ["演示稿", "PPT", "PDF预览", "文档"],
+    "enabled_tool_ids": ["file_read", "file_write", "shell", "web_fetch", "artifact_store", "ppt_master"],
+    "runtime_type": "codex",
+    "is_orchestrator": false
   }
 ]

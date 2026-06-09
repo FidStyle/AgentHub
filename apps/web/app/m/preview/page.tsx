@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button, Card, CardHeader, CardTitle, CardContent, StateCard } from '@agenthub/ui'
 
-type PreviewKind = 'html' | 'markdown' | 'code' | 'image' | 'diff' | 'folder' | 'text' | 'generic_file'
+type PreviewKind = 'html' | 'markdown' | 'code' | 'image' | 'diff' | 'folder' | 'text' | 'generic_file' | 'document' | 'presentation' | 'pdf'
 
 interface PreviewState {
   id?: string
@@ -30,11 +30,21 @@ function renderPreview(preview: PreviewState) {
       />
     )
   }
-  if (preview.kind === 'markdown') {
+  if (preview.kind === 'markdown' || preview.kind === 'document') {
     return (
       <div data-testid="mobile-markdown-preview" className="prose prose-sm max-w-none rounded-md border border-border bg-background p-3 dark:prose-invert">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.content || '暂无内容'}</ReactMarkdown>
       </div>
+    )
+  }
+  if (preview.kind === 'pdf' && preview.downloadUrl) {
+    return (
+      <iframe
+        data-testid="mobile-pdf-preview"
+        title={preview.title}
+        src={preview.downloadUrl}
+        className="h-[60vh] w-full rounded-md border border-border bg-white"
+      />
     )
   }
   if (preview.kind === 'image' && preview.downloadUrl) {
@@ -72,8 +82,9 @@ function MobilePreviewContent() {
           if (!res.ok) throw new Error('产物预览加载失败')
           return res.json()
         })
-        .then((artifact: { id: string; title?: string; artifact_type?: PreviewKind; content?: string | null; metadata?: { manifest?: unknown } | null }) => {
+        .then((artifact: { id: string; title?: string; artifact_type?: PreviewKind; content?: string | null; metadata?: { manifest?: unknown; previewPdfPath?: string } | null; workspace_id?: string }) => {
           const kind = artifact.artifact_type ?? 'generic_file'
+          const pdfPath = typeof artifact.metadata?.previewPdfPath === 'string' ? artifact.metadata.previewPdfPath : null
           const content = kind === 'folder'
             ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2)
             : artifact.content ?? ''
@@ -81,9 +92,11 @@ function MobilePreviewContent() {
             id: artifact.id,
             title: artifact.title ?? title,
             source: `artifact:${artifact.id}`,
-            kind,
+            kind: pdfPath ? 'pdf' : kind,
             content,
-            downloadUrl: `/api/artifacts/${artifact.id}/download`,
+            downloadUrl: pdfPath && artifact.workspace_id
+              ? `/api/workspaces/${artifact.workspace_id}/files/download?path=${encodeURIComponent(pdfPath)}`
+              : `/api/artifacts/${artifact.id}/download`,
           })
         })
         .catch((e) => setError(e instanceof Error ? e.message : '产物预览加载失败'))

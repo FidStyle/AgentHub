@@ -31,14 +31,14 @@ async function callRoute<T>(
 
 async function callArtifactRoute<T>(
   handler: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>,
-  method: 'GET' | 'PATCH',
+  method: 'GET' | 'PATCH' | 'POST',
   id: string,
   body?: unknown,
 ): Promise<{ status: number; data: T; response: Response }> {
   const request = new Request(new URL(`/api/artifacts/${id}`, 'http://localhost'), {
     method,
     headers: { 'Content-Type': 'application/json' },
-    body: method === 'PATCH' ? JSON.stringify(body ?? {}) : undefined,
+    body: method === 'PATCH' || method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
   })
   const response = await handler(request, { params: Promise.resolve({ id }) })
   return { status: response.status, data: await response.clone().json().catch(() => null) as T, response }
@@ -197,6 +197,48 @@ describe('/api/artifacts', () => {
     expect(result.status).toBe(200)
     expect(result.response.headers.get('Content-Type')).toContain('presentationml.presentation')
     expect(bytes.equals(sourceBytes)).toBe(true)
+  })
+
+  it('previews markdown-like documents without forcing a publish command', async () => {
+    setupMockClient(createPostgresChain(undefined, undefined, undefined, undefined, undefined, [
+      { ...mockArtifact, artifact_type: 'document', title: '需求文档', content: '# 需求文档\n\n正文' },
+    ]))
+    const { POST } = await import('@/app/api/artifacts/[id]/preview/route')
+    const result = await callArtifactRoute<{ kind: string; status: string; content: string; url: string }>(
+      POST,
+      'POST',
+      'artifact-001',
+    )
+
+    expect(result.status).toBe(200)
+    expect(result.data.kind).toBe('document')
+    expect(result.data.status).toBe('markdown')
+    expect(result.data.content).toContain('需求文档')
+    expect(result.data.url).toContain('/m/preview?artifactId=artifact-001')
+  })
+
+  it('falls back to slide summaries when presentation PDF conversion is unavailable', async () => {
+    setupMockClient(createPostgresChain(undefined, undefined, undefined, undefined, undefined, [
+      {
+        ...mockArtifact,
+        artifact_type: 'presentation',
+        title: '汇报演示稿',
+        source_path: null,
+        content: JSON.stringify({ version: 1, title: '汇报演示稿', slides: [{ title: '第一页', body: ['要点'] }] }),
+      },
+    ]))
+    const { POST } = await import('@/app/api/artifacts/[id]/preview/route')
+    const result = await callArtifactRoute<{ kind: string; status: string; message: string; slides: Array<{ title: string }> }>(
+      POST,
+      'POST',
+      'artifact-001',
+    )
+
+    expect(result.status).toBe(200)
+    expect(result.data.kind).toBe('presentation')
+    expect(result.data.status).toBe('summary')
+    expect(result.data.message).toContain('PPTX 文件不存在')
+    expect(result.data.slides[0].title).toBe('第一页')
   })
 
   it('rejects artifact creation without workspace_id', async () => {

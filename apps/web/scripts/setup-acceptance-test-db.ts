@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { Pool } from 'pg'
+import { DEFAULT_ROLE_AGENTS } from '../config/role-agents/schema'
 
 type GithubTestUser = {
   user_id: string
@@ -10,39 +11,6 @@ type GithubTestUser = {
   image: string | null
   github_account_id: string
 }
-
-const defaultRoleAgents = [
-  {
-    name: '架构师',
-    roleType: 'orchestrator',
-    systemPrompt:
-      '你是 AgentHub 架构师。负责判断是否直接回答，或协调前端工程师、后端工程师等专门角色。面向用户使用简体中文，不暴露内部权限预设。',
-    capabilityTags: '["规划", "路由", "协调"]',
-    enabledToolIds: '["file_read", "web_search", "web_fetch", "artifact_store"]',
-    runtimeType: 'claude_code',
-    isOrchestrator: true,
-  },
-  {
-    name: '前端工程师',
-    roleType: 'engineer',
-    systemPrompt:
-      '你是资深前端工程师。重点关注 UI 行为、React/Next.js 实现、可访问性、布局稳定性、Markdown 渲染和真实浏览器验收证据。使用简体中文回答。',
-    capabilityTags: '["前端", "React", "UI", "E2E"]',
-    enabledToolIds: '["file_read", "file_write", "shell", "git_cli", "web_fetch", "browser_preview", "diff_apply", "artifact_store", "publish_service"]',
-    runtimeType: 'claude_code',
-    isOrchestrator: false,
-  },
-  {
-    name: '后端工程师',
-    roleType: 'engineer',
-    systemPrompt:
-      '你是资深后端工程师。重点关注 API 契约、数据库持久化、runtime worker、鉴权和可持久化产物。使用简体中文回答。',
-    capabilityTags: '["后端", "数据库", "Runtime", "API"]',
-    enabledToolIds: '["file_read", "file_write", "shell", "git_cli", "web_fetch", "browser_preview", "diff_apply", "artifact_store", "publish_service", "ppt_master"]',
-    runtimeType: 'codex',
-    isOrchestrator: false,
-  },
-] as const
 
 const repoRoot = path.resolve(__dirname, '../../..')
 
@@ -165,7 +133,7 @@ async function createFixtureGithubUser(pool: Pool): Promise<GithubTestUser> {
 async function ensureDefaultRoleAgents(pool: Pool) {
   const { rows: workspaces } = await pool.query('SELECT id FROM public.workspaces')
   for (const workspace of workspaces as Array<{ id: string }>) {
-    for (const role of defaultRoleAgents) {
+    for (const role of DEFAULT_ROLE_AGENTS) {
       await pool.query(
         `INSERT INTO public.role_agents (
            workspace_id, name, role_type, system_prompt, capability_tags, enabled_tool_ids, runtime_type, is_orchestrator
@@ -182,12 +150,12 @@ async function ensureDefaultRoleAgents(pool: Pool) {
         [
           workspace.id,
           role.name,
-          role.roleType,
-          role.systemPrompt,
-          role.capabilityTags,
-          role.enabledToolIds,
-          role.runtimeType,
-          role.isOrchestrator,
+          role.role_type,
+          role.system_prompt,
+          JSON.stringify(role.capability_tags),
+          JSON.stringify(role.enabled_tool_ids),
+          role.runtime_type,
+          role.is_orchestrator,
         ],
       )
     }

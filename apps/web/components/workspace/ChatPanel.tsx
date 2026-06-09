@@ -326,10 +326,10 @@ function MessageList({
             data-testid={isProcessMessage ? 'role-process-message' : 'chat-message'}
             className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
           >
-            <div className={`flex max-w-[82%] items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+            <div className={`flex ${isProcessMessage ? 'max-w-[74%]' : 'max-w-[82%]'} items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
               {!isUser && <AgentHubAvatar name={name ?? '智能体'} id={msg.roleAgentId ?? name} size="sm" className="mt-0.5" />}
-              <div className={`min-w-0 rounded-2xl px-4 py-3 shadow-sm transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${isUser ? 'bg-muted text-foreground' : 'border border-border bg-background/95'}`}>
-                <div className="mb-2 flex items-start justify-between gap-3">
+              <div className={`min-w-0 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${isProcessMessage ? 'rounded-md border border-border bg-muted/35 px-3 py-2 shadow-none' : isUser ? 'rounded-2xl bg-muted px-4 py-3 text-foreground shadow-sm' : 'rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-sm'}`}>
+                <div className={`${isProcessMessage ? 'mb-1.5' : 'mb-2'} flex items-start justify-between gap-3`}>
                   <div className="min-w-0">
                     {name && (
                       <div data-testid="message-role-badge" className="truncate text-xs font-medium leading-5 text-muted-foreground">
@@ -409,7 +409,7 @@ function MessageList({
                     )}
                   </div>
                 </div>
-                <MessageContent content={msg.content} parts={msg.parts} streaming={msg.streaming === true} />
+                <MessageContent content={msg.content} parts={msg.parts} streaming={msg.streaming === true} compact={isProcessMessage} />
               </div>
             </div>
           </div>
@@ -767,7 +767,7 @@ function RolePicker({
         transform: pos?.placement === 'above' ? 'translateY(-100%)' : undefined,
         visibility: pos ? 'visible' : 'hidden',
       }}
-      className="fixed z-50 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md"
+      className="fixed z-50 overflow-y-auto rounded-md border border-border bg-white p-1 shadow-md dark:bg-neutral-950"
     >
       {roleAgents.length === 0 ? (
         <div className="px-2 py-1.5 text-sm text-muted-foreground">暂无角色</div>

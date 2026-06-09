@@ -296,7 +296,7 @@ describe('MessageMarkdown', () => {
       { id: 'diff-1', type: 'diff', status: 'created', path: 'src/server.js', diff: '--- a/src/server.js\n+++ b/src/server.js\n@@ -1 +1 @@\n-old\n+new', applicable: true },
       { id: 'artifact-1', type: 'artifact', status: 'created', artifactId: 'artifact-1', artifactType: 'html', title: '网站入口', sourcePath: 'public/index.html' },
       { id: 'web-1', type: 'web_preview', status: 'created', title: '网站预览', iframeUrl: '/m/preview?artifactId=artifact-1' },
-      { id: 'publish-1', type: 'publish_status', status: 'pending', artifactId: 'artifact-1', title: '网站发布', message: '启动来源：npm run start' },
+      { id: 'publish-1', type: 'publish_status', status: 'pending', artifactId: 'artifact-1', title: '网站发布', port: 4100, message: '启动来源：npm run start' },
       { id: 'doc-1', type: 'document_preview', status: 'created', artifactId: 'artifact-doc', title: '需求文档', sourcePath: 'docs/spec.md', summary: '文档产物已进入聊天记录。' },
       { id: 'ppt-1', type: 'presentation_preview', status: 'created', artifactId: 'artifact-ppt', title: '汇报 PPT', sourcePath: 'deck.pptx', summary: '演示稿产物已进入聊天记录。' },
       { id: 'img-1', type: 'image_preview', status: 'created', title: '截图', sourcePath: 'public/screen.png', url: '/api/file.png' },
@@ -314,6 +314,10 @@ describe('MessageMarkdown', () => {
     expect(html).toContain('应用 Diff')
     expect(html).toContain('展开')
     expect(html).toContain('启动来源：npm run start')
+    expect(html).toContain('启动')
+    expect(html).toContain('停止')
+    expect(html).toContain('端口')
+    expect(html).toContain('4100')
   })
 })
 
@@ -383,7 +387,7 @@ describe('MessageContent', () => {
     expect(runningHtml).toContain('审批状态：已允许')
     expect(runningHtml).not.toContain('审批状态：执行中')
     expect(completedHtml).toContain('审批状态：已执行')
-    expect(autoHtml).toContain('审批状态：已自动通过并执行')
+    expect(autoHtml).toContain('自动审批记录：已自动通过并执行')
     expect(autoHtml).toContain('权限模式')
     expect(autoHtml).toContain('full_control')
   })
@@ -501,15 +505,45 @@ describe('ArtifactPanel frontend contract', () => {
     const architect = roleColorIndex('any-architect-id', '架构师')
     const frontend = roleColorIndex('any-frontend-id', '前端工程师')
     const backend = roleColorIndex('any-backend-id', '后端工程师')
+    const presentation = roleColorIndex('any-presentation-id', '演示稿工程师')
     const documentEngineer = roleColorIndex('custom-document-engineer-id', '文档工程师')
 
-    expect(new Set([architect, frontend, backend]).size).toBe(3)
+    expect(new Set([architect, frontend, backend, presentation]).size).toBe(4)
     expect(roleAvatarColorClass('same-id', '架构师')).not.toBe(roleAvatarColorClass('same-id', '前端工程师'))
     expect(roleAvatarColorClass('same-id', '前端工程师')).not.toBe(roleAvatarColorClass('same-id', '后端工程师'))
+    expect(roleAvatarColorClass('same-id', '演示稿工程师')).not.toBe(roleAvatarColorClass('same-id', '前端工程师'))
     expect(documentEngineer).not.toBe(frontend)
     expect(documentEngineer).not.toBe(architect)
     expect(documentEngineer).not.toBe(backend)
+    expect(documentEngineer).not.toBe(presentation)
     expect(roleAvatarColorClass('custom-document-engineer-id', '文档工程师')).not.toBe(roleAvatarColorClass('any-frontend-id', '前端工程师'))
+  })
+
+  it('supports conversational role-agent drafts with visible tool permission boundaries', () => {
+    const source = readFileSync(fileURLToPath(new URL('../components/workspace/ArtifactPanel.tsx', import.meta.url)), 'utf8')
+
+    expect(source).toContain('data-testid="agent-draft-creator"')
+    expect(source).toContain('/api/role-agents/draft')
+    expect(source).toContain('工具集与权限边界')
+    expect(source).toContain('data-testid="agent-draft-confirm-btn"')
+  })
+
+  it('keeps the role picker background opaque', () => {
+    const source = readFileSync(fileURLToPath(new URL('../components/workspace/ChatPanel.tsx', import.meta.url)), 'utf8')
+
+    expect(source).toContain('data-testid="role-picker"')
+    expect(source).toContain('bg-white')
+    expect(source).toContain('dark:bg-neutral-950')
+    expect(source).not.toContain('border border-border bg-popover p-1 shadow-md')
+  })
+
+  it('renders process messages in a compact transcript style', () => {
+    const source = readFileSync(fileURLToPath(new URL('../components/workspace/ChatPanel.tsx', import.meta.url)), 'utf8')
+
+    expect(source).toContain("compact={isProcessMessage}")
+    expect(source).toContain("data-testid={isProcessMessage ? 'role-process-message' : 'chat-message'}")
+    expect(source).toContain("max-w-[74%]")
+    expect(source).toContain('bg-muted/35')
   })
 
   it('adds a publish API that starts and stops runnable artifacts behind the UI buttons', () => {

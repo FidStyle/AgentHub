@@ -43,6 +43,9 @@ type RoleAgentToolDefinition = {
   riskLevel: 'low' | 'medium' | 'high'
   category: string
 }
+type RoleAgentDraft = Omit<RoleAgentRow, 'id' | 'created_at' | 'updated_at'> & {
+  workspace_id: string
+}
 type FileTreeNode = {
   name: string
   path: string
@@ -401,6 +404,9 @@ function AgentsTab() {
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [draftPrompt, setDraftPrompt] = useState('')
+  const [draft, setDraft] = useState<RoleAgentDraft | null>(null)
+  const [drafting, setDrafting] = useState(false)
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0] ?? null
 
@@ -511,6 +517,81 @@ function AgentsTab() {
     }
   }
 
+  async function generateAgentDraft() {
+    if (!activeWorkspaceId || !draftPrompt.trim()) {
+      setError('请先描述要创建的 Agent')
+      return
+    }
+    setDrafting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/role-agents/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: activeWorkspaceId, prompt: draftPrompt.trim() }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `生成 Agent 草稿失败（${res.status}）`)
+      setDraft(body as RoleAgentDraft)
+      setEditing(false)
+      setSelectedId(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '生成 Agent 草稿失败')
+    } finally {
+      setDrafting(false)
+    }
+  }
+
+  function editDraft() {
+    if (!draft) return
+    setEditing(true)
+    setSelectedId(null)
+    setForm({
+      name: draft.name,
+      role_type: draft.role_type,
+      system_prompt: draft.system_prompt ?? '',
+      capability_tags: (draft.capability_tags ?? []).join(', '),
+      enabled_tool_ids: draft.enabled_tool_ids ?? [],
+      runtime_type: draft.runtime_type,
+      is_orchestrator: draft.is_orchestrator,
+    })
+    setDraft(null)
+  }
+
+  async function confirmDraft() {
+    if (!draft || !activeWorkspaceId) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/role-agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: activeWorkspaceId,
+          name: draft.name,
+          role_type: draft.role_type,
+          system_prompt: draft.system_prompt,
+          capability_tags: draft.capability_tags ?? [],
+          enabled_tool_ids: draft.enabled_tool_ids ?? [],
+          runtime_type: draft.runtime_type,
+          is_orchestrator: draft.is_orchestrator,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `保存 Agent 失败（${res.status}）`)
+      const saved = body as RoleAgentRow
+      setDraft(null)
+      setDraftPrompt('')
+      setSelectedId(saved.id)
+      await loadAgents()
+      emitRoleAgentsChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存 Agent 失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function deleteAgent(agent: RoleAgentRow) {
     if (!confirm(`确定删除 Agent「${agent.name}」吗？删除后 @角色列表会同步移除。`)) return
     setSaving(true)
@@ -540,7 +621,81 @@ function AgentsTab() {
         </div>
         <Button size="sm" onClick={startCreate} data-testid="agent-create-btn">新建</Button>
       </div>
+      <div data-testid="agent-draft-creator" className="space-y-2 rounded-lg border border-border bg-background p-3">
+        <div className="flex items-start gap-2">
+          <Bot className="mt-0.5 h-4 w-4 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">对话式创建 Agent</div>
+            <p className="text-xs text-muted-foreground">描述角色职责，系统会先生成草稿；确认后才保存为联系人。</p>
+          </div>
+        </div>
+        <textarea
+          data-testid="agent-draft-prompt"
+          value={draftPrompt}
+          onChange={(event) => setDraftPrompt(event.target.value)}
+          rows={2}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          placeholder="例如：创建一个文档工程师，负责 Markdown 文档整理和产物预览"
+        />
+        <div className="flex justify-end">
+          <Button size="sm" onClick={generateAgentDraft} disabled={drafting || !draftPrompt.trim()} data-testid="agent-draft-generate-btn">
+            <SendHorizontal className="mr-1 h-3.5 w-3.5" />
+            {drafting ? '生成中...' : '生成草稿'}
+          </Button>
+        </div>
+      </div>
       {error && <p data-testid="artifact-agents-error" className="text-sm text-destructive">{error}</p>}
+      {draft && (
+        <div data-testid="agent-draft-card" className="space-y-3 rounded-lg border border-warning/50 bg-warning/5 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <ShieldCheck className="h-4 w-4 text-warning" />
+                Agent 草稿：{draft.name}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{roleTypeLabel(draft)} · 运行时：{runtimeLabel(draft.runtime_type)}</p>
+            </div>
+            <Badge variant="warning">待确认</Badge>
+          </div>
+          {draft.capability_tags && draft.capability_tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {draft.capability_tags.map((tag) => <Badge key={tag} variant="secondary">#{tag}</Badge>)}
+            </div>
+          )}
+          <div className="grid gap-2">
+            <div className="text-xs font-medium">工具集与权限边界</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(draft.enabled_tool_ids ?? []).map((toolId) => {
+                const tool = toolCatalog.find((item) => item.id === toolId)
+                return (
+                  <div key={toolId} className="rounded-md border border-border bg-background p-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{tool?.label ?? toolId}</span>
+                      {tool && <Badge variant={toolRiskVariant(tool.riskLevel)}>{tool.riskLevel === 'high' ? '高风险' : tool.riskLevel === 'medium' ? '中风险' : '低风险'}</Badge>}
+                    </div>
+                    {tool && <p className="mt-1 line-clamp-2 text-muted-foreground">{tool.description}</p>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className="rounded-md border border-border bg-background p-2 text-xs">
+            <div className="font-medium">System Prompt</div>
+            <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{draft.system_prompt}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={confirmDraft} disabled={saving} data-testid="agent-draft-confirm-btn">
+              <Check className="mr-1 h-3.5 w-3.5" />
+              确认保存
+            </Button>
+            <Button size="sm" variant="outline" onClick={editDraft} disabled={saving}>
+              <Pencil className="mr-1 h-3.5 w-3.5" />
+              编辑草稿
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setDraft(null)} disabled={saving}>取消</Button>
+          </div>
+        </div>
+      )}
       {!loaded && <p className="text-sm text-muted-foreground">加载中...</p>}
       {loaded && agents.length === 0 && !editing && (
         <StateCard variant="empty" title="暂无 Agent" description="点击新建，为当前工作区创建第一个 Role Agent" />

@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { createClient } from '@/lib/app-db-client'
 import { createPptxBuffer } from '@/lib/artifacts/rich-artifact-export'
@@ -15,6 +16,38 @@ async function assertSessionInWorkspace(db: Awaited<ReturnType<typeof createClie
   if (!sessionId) return true
   const { data } = await db.from('sessions').select('workspace_id').eq('id', sessionId).single()
   return Boolean(data && (data as { workspace_id?: string }).workspace_id === workspaceId)
+}
+
+async function writePptxWithGenerator(input: {
+  deck: ReturnType<typeof parsePresentationDeck>
+  artifactDir: string
+  pptxPath: string
+}) {
+  const command = process.env.PPT_MASTER_GENERATE_COMMAND || process.env.PPT_MASTER_COMMAND
+  if (!command) {
+    await writeFile(input.pptxPath, createPptxBuffer(input.deck))
+    return { generator: 'agenthub-openxml-fallback', pptMasterStatus: process.env.PPT_MASTER_HOME ? 'configured_not_used' : 'not_configured' }
+  }
+
+  const deckJsonPath = path.join(input.artifactDir, 'deck.agenthub.json')
+  await writeFile(deckJsonPath, JSON.stringify(input.deck, null, 2), 'utf8')
+  const generated = spawnSync(command, [deckJsonPath, input.pptxPath], { encoding: 'utf8', timeout: 120_000 })
+  if (generated.status === 0) {
+    try {
+      await access(input.pptxPath)
+      return { generator: 'ppt-master-wrapper', pptMasterStatus: 'used', pptMasterCommand: command }
+    } catch {
+      // fall through to fallback below
+    }
+  }
+
+  await writeFile(input.pptxPath, createPptxBuffer(input.deck))
+  return {
+    generator: 'agenthub-openxml-fallback',
+    pptMasterStatus: 'fallback_after_error',
+    pptMasterCommand: command,
+    pptMasterError: generated.stderr || 'ppt-master wrapper 未生成 PPTX，已回退到内置 OpenXML 生成器。',
+  }
 }
 
 export async function POST(request: Request) {
@@ -57,7 +90,7 @@ export async function POST(request: Request) {
     const artifactDir = path.join(cloud.root, 'artifacts', slug)
     await mkdir(artifactDir, { recursive: true })
     const pptxPath = path.join(artifactDir, 'deck.pptx')
-    await writeFile(pptxPath, createPptxBuffer(deck))
+    const generatorMetadata = await writePptxWithGenerator({ deck, artifactDir, pptxPath })
     const sourceArtifactPath = path.relative(cloud.root, pptxPath).replace(/\\/g, '/')
 
     const { data, error } = await db.from('artifacts').insert({
@@ -71,8 +104,7 @@ export async function POST(request: Request) {
       content,
       content_ref: `workspace-file:${workspaceId}:${sourceArtifactPath}`,
       metadata: {
-        generator: 'agenthub-openxml-fallback',
-        pptMasterStatus: process.env.PPT_MASTER_HOME ? 'configured_not_used' : 'not_configured',
+        ...generatorMetadata,
         sourcePath,
         pptxPath: sourceArtifactPath,
         workspaceDownloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourceArtifactPath)}`,

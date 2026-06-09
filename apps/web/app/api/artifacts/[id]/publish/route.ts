@@ -29,22 +29,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   if (action === 'stop') {
     const stoppedPid = stopArtifactPublish(row)
+    const stoppedAt = new Date().toISOString()
     await db.from('artifacts').update({
       metadata: {
         ...(row.metadata && typeof row.metadata === 'object' ? row.metadata : {}),
         publishStatus: 'stopped',
+        publishUrl: null,
         publishPid: null,
-        publishStoppedAt: new Date().toISOString(),
+        publishError: null,
+        publishStoppedAt: stoppedAt,
       },
-      updated_at: new Date().toISOString(),
+      updated_at: stoppedAt,
     }).eq('id', row.id)
     await persistPublishStatusMessage({
       db,
       row,
       status: 'stopped',
+      stoppedAt,
       message: stoppedPid ? `已停止发布进程 PID ${stoppedPid}。` : '已记录停止发布；未发现正在运行的发布进程。',
     })
-    return NextResponse.json({ status: 'stopped', pid: stoppedPid })
+    return NextResponse.json({ status: 'stopped', pid: stoppedPid, stoppedAt })
   }
 
   if (!artifactLaunchSource(row)) return NextResponse.json({ error: '产物缺少来源文件或启动脚本，无法发布' }, { status: 400 })
@@ -61,12 +65,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
     return NextResponse.json(result)
   } catch (error) {
+    const message = error instanceof Error ? error.message : '发布失败'
+    const failedAt = new Date().toISOString()
+    await db.from('artifacts').update({
+      metadata: {
+        ...(row.metadata && typeof row.metadata === 'object' ? row.metadata : {}),
+        publishStatus: 'failed',
+        publishPid: null,
+        publishUrl: null,
+        publishError: message,
+        publishFailedAt: failedAt,
+      },
+      updated_at: failedAt,
+    }).eq('id', row.id)
     await persistPublishStatusMessage({
       db,
       row,
       status: 'failed',
-      message: error instanceof Error ? error.message : '发布失败',
+      error: message,
+      message,
     })
-    return NextResponse.json({ error: error instanceof Error ? error.message : '发布失败' }, { status: 400 })
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }

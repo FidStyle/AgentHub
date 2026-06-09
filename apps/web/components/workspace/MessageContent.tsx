@@ -4,7 +4,7 @@ import React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Badge, Button } from '@agenthub/ui'
-import { AlertTriangle, Download, ExternalLink, FileImage, FileText, GitBranch, Maximize2, Paperclip, Presentation, Rocket } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileImage, FileText, GitBranch, Maximize2, Paperclip, Play, Presentation, Rocket, Square } from 'lucide-react'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 import { MessageMarkdown } from './MessageMarkdown'
 import { useSessionStore } from '@/store/session-store'
@@ -144,18 +144,20 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
     part.targetPaths && part.targetPaths.length > 0 ? ['路径', part.targetPaths.join('\n')] : null,
   ].filter((row): row is [string, string] => Boolean(row))
 
+  const riskText = part.riskLevel === 'high' ? '高风险' : part.riskLevel === 'medium' ? '中风险' : part.riskLevel === 'low' ? '低风险' : '需确认'
+
   return (
-    <div data-testid="message-permission-card" className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+    <div data-testid="message-permission-card" className="rounded-md border border-warning/40 bg-background p-3 text-xs shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 font-medium">
-          <AlertTriangle className="h-3.5 w-3.5" />
+          {autoApproved ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
           {part.title ?? '需要授权'}
         </span>
-        <Badge variant="warning">{part.riskLevel ?? '待确认'}</Badge>
+        <Badge variant={autoApproved ? 'success' : part.riskLevel === 'high' ? 'destructive' : 'warning'}>{riskText}</Badge>
       </div>
       <p className="mt-1 text-muted-foreground">{part.description}</p>
       {detailRows.length > 0 && (
-        <dl className="mt-2 grid gap-1 rounded-md bg-background/70 p-2 text-[11px] leading-4">
+        <dl className="mt-2 grid gap-1 rounded-md border border-border bg-muted/40 p-2 text-[11px] leading-4">
           {detailRows.map(([label, value]) => (
             <div key={label} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
               <dt className="text-muted-foreground">{label}</dt>
@@ -165,7 +167,7 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
         </dl>
       )}
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">审批状态：{statusText}</span>
+        <span className="text-muted-foreground">{autoApproved ? '自动审批记录' : '审批状态'}：{statusText}</span>
         {part.actionId && canDecide ? (
           <div className="flex gap-2">
             <Button size="sm" disabled={!canDecide} onClick={() => void decide(true)}>
@@ -190,7 +192,19 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
   const [expanded, setExpanded] = useState(false)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
   const activeWorkspaceId = useSessionStore((state) => state.activeWorkspaceId)
+  const fetchMessages = useSessionStore((state) => state.fetchMessages)
   const [applyState, setApplyState] = useState<'idle' | 'creating' | 'created' | 'error'>('idle')
+  const [publishActionState, setPublishActionState] = useState<'idle' | 'starting' | 'stopping' | 'error'>('idle')
+  const [publishStatus, setPublishStatus] = useState(part.type === 'publish_status' ? part.status : 'pending')
+  const [publishUrl, setPublishUrl] = useState(part.type === 'publish_status' ? part.url ?? null : null)
+  const [publishError, setPublishError] = useState(part.type === 'publish_status' ? part.error ?? null : null)
+
+  useEffect(() => {
+    if (part.type !== 'publish_status') return
+    setPublishStatus(part.status)
+    setPublishUrl(part.url ?? null)
+    setPublishError(part.error ?? null)
+  }, [part])
   const expandedNode = expanded ? (
     <div data-testid="message-fullscreen-preview" className="fixed inset-0 z-50 bg-background/95 p-4">
       <div className="flex h-full flex-col rounded-md border border-border bg-background shadow-lg">
@@ -369,14 +383,56 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
     )
   }
   if (part.type === 'publish_status') {
+    const isRunning = publishStatus === 'running'
+    const canOperate = Boolean(part.artifactId)
+    const publishAction = async (action: 'start' | 'stop') => {
+      if (!part.artifactId) return
+      setPublishActionState(action === 'start' ? 'starting' : 'stopping')
+      setPublishError(null)
+      try {
+        const res = await fetch(`/api/artifacts/${part.artifactId}/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        })
+        const body = await res.json().catch(() => ({})) as { url?: unknown; status?: unknown; error?: unknown; port?: unknown }
+        if (!res.ok) throw new Error(typeof body.error === 'string' ? body.error : `发布操作失败（${res.status}）`)
+        setPublishStatus(action === 'start' ? 'running' : 'stopped')
+        setPublishUrl(action === 'start' && typeof body.url === 'string' ? body.url : null)
+        if (activeSessionId) void fetchMessages(activeSessionId)
+      } catch (error) {
+        setPublishStatus('failed')
+        setPublishError(error instanceof Error ? error.message : '发布操作失败')
+        if (activeSessionId) void fetchMessages(activeSessionId)
+      } finally {
+        setPublishActionState('idle')
+      }
+    }
+
     return (
-      <div data-testid="message-publish-status-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+      <div data-testid="message-publish-status-card" className="rounded-md border border-border bg-background p-3 text-xs shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5 font-medium"><Rocket className="h-3.5 w-3.5" />{part.title}</span>
-          <Badge variant={part.status === 'running' ? 'success' : part.status === 'failed' ? 'destructive' : 'secondary'}>{part.status === 'running' ? '运行中' : part.status === 'failed' ? '失败' : part.status === 'stopped' ? '已停止' : '待处理'}</Badge>
+          <Badge variant={publishStatus === 'running' ? 'success' : publishStatus === 'failed' ? 'destructive' : 'secondary'}>{publishStatus === 'running' ? '运行中' : publishStatus === 'failed' ? '失败' : publishStatus === 'stopped' ? '已停止' : '待启动'}</Badge>
         </div>
         {part.message && <p className="mt-1 text-muted-foreground">{part.message}</p>}
-        {part.url && <a href={part.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-primary"><ExternalLink className="h-3.5 w-3.5" />发布访问</a>}
+        <div className="mt-2 grid gap-1 rounded-md border border-border bg-muted/40 p-2 text-[11px] leading-4">
+          {part.port ? <div className="flex justify-between gap-3"><span className="text-muted-foreground">端口</span><span className="font-mono">{part.port}</span></div> : null}
+          {publishUrl ? <div className="flex justify-between gap-3"><span className="text-muted-foreground">访问地址</span><span className="truncate font-mono">{publishUrl}</span></div> : null}
+          {(publishError || part.error) ? <div className="grid gap-1"><span className="text-destructive">失败原因</span><span className="break-words">{publishError ?? part.error}</span></div> : null}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={!canOperate || publishActionState !== 'idle'} onClick={() => void publishAction('start')}>
+            <Play className="mr-1 h-3.5 w-3.5" />
+            {isRunning ? '重新启动' : '启动'}
+          </Button>
+          <Button size="sm" variant="outline" disabled={!canOperate || !isRunning || publishActionState !== 'idle'} onClick={() => void publishAction('stop')}>
+            <Square className="mr-1 h-3.5 w-3.5" />
+            停止
+          </Button>
+          {publishUrl && <a href={publishUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" />打开</a>}
+        </div>
+        {!canOperate && <p className="mt-2 text-muted-foreground">缺少产物编号，无法在对话里操作发布。</p>}
       </div>
     )
   }
@@ -396,11 +452,11 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
   )
 }
 
-export function MessageContent({ content, parts, streaming }: { content: string; parts?: RuntimeMessagePart[]; streaming?: boolean }) {
+export function MessageContent({ content, parts, streaming, compact }: { content: string; parts?: RuntimeMessagePart[]; streaming?: boolean; compact?: boolean }) {
   const visibleContent = useSmoothStreamingText(content, streaming === true)
   const hasVisibleContent = visibleContent.trim().length > 0
   return (
-    <div data-testid="message-content" className="space-y-2">
+    <div data-testid="message-content" data-compact={compact ? 'true' : undefined} className={compact ? 'space-y-1.5 text-[13px] leading-5' : 'space-y-2'}>
       {hasVisibleContent ? (
         <MessageMarkdown content={visibleContent} streaming={streaming === true && visibleContent.length < content.length} />
       ) : streaming ? (

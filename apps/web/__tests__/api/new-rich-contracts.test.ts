@@ -53,10 +53,24 @@ describe('new rich IM/API contracts', () => {
       { workspace_id: 'ws-001', prompt: '创建一个能生成 PPT 并发布预览的助手' },
     )
     expect(result.status).toBe(200)
-    expect(result.data.name).toBe('演示稿助手')
+    expect(result.data.name).toBe('演示稿工程师')
     expect(result.data.enabled_tool_ids).toContain('ppt_master')
     expect(result.data.enabled_tool_ids).toContain('publish_service')
     expect(result.data.capability_tags).toContain('演示稿')
+  })
+
+  it('creates a document engineer draft with visible file/artifact boundaries', async () => {
+    const { POST } = await import('@/app/api/role-agents/draft/route')
+    const result = await callRoute<{ name: string; enabled_tool_ids: string[]; capability_tags: string[] }>(
+      POST,
+      'POST',
+      '/api/role-agents/draft',
+      { workspace_id: 'ws-001', prompt: '创建一个文档工程师，负责 Markdown 文档和预览产物' },
+    )
+    expect(result.status).toBe(200)
+    expect(result.data.name).toBe('文档工程师')
+    expect(result.data.enabled_tool_ids).toEqual(expect.arrayContaining(['file_read', 'file_write', 'artifact_store']))
+    expect(result.data.capability_tags).toContain('文档')
   })
 
   it('rejects invalid role-agent tools on create', async () => {
@@ -95,6 +109,19 @@ describe('new rich IM/API contracts', () => {
     )
     expect(result.status).toBe(400)
     expect(result.data.error).toContain('Runtime 不是工具')
+  })
+
+  it('loads the default presentation engineer from role-agent config', async () => {
+    const { DEFAULT_ROLE_AGENTS } = await import('@/config/role-agents/schema')
+    const presentationRole = DEFAULT_ROLE_AGENTS.find((role) => role.name === '演示稿工程师')
+
+    expect(presentationRole).toMatchObject({
+      role_type: 'engineer',
+      runtime_type: 'codex',
+      is_orchestrator: false,
+    })
+    expect(presentationRole?.enabled_tool_ids).toEqual(expect.arrayContaining(['file_read', 'file_write', 'artifact_store', 'ppt_master']))
+    expect(presentationRole?.capability_tags).toEqual(expect.arrayContaining(['演示稿', 'PPT', 'PDF预览']))
   })
 
   it('creates an apply-diff approval action for a valid unified diff', async () => {

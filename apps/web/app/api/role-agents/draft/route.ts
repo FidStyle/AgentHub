@@ -4,11 +4,12 @@ import { capabilityTagsForPrompt, toolsForPrompt } from '@/lib/role-agents/tools
 import { NextResponse } from 'next/server'
 
 function titleFromPrompt(prompt: string) {
+  if (/(文档|markdown|md|说明书|需求文档|报告|docx?)/i.test(prompt)) return '文档工程师'
   if (/(前端|ui|页面|react|web)/i.test(prompt)) return '前端工程师'
   if (/(后端|api|数据库|server|runtime)/i.test(prompt)) return '后端工程师'
   if (/(测试|验收|qa|test)/i.test(prompt)) return '测试工程师'
   if (/(审查|review|代码审查)/i.test(prompt)) return '代码审查'
-  if (/(ppt|演示|幻灯片|presentation)/i.test(prompt)) return '演示稿助手'
+  if (/(ppt|演示|幻灯片|presentation)/i.test(prompt)) return '演示稿工程师'
   return '自定义 Agent'
 }
 

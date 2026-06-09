@@ -59,6 +59,7 @@ export function toolsForPrompt(prompt: string): RoleAgentToolId[] {
   if (/(搜索|检索|search)/i.test(prompt)) ids.add('web_search')
   if (/(网页|抓取|url|http|web|fetch)/i.test(prompt)) ids.add('web_fetch')
   if (/(ppt|演示|幻灯片|presentation|deck)/i.test(prompt) || prompt.toLowerCase().includes('powerpoint')) ids.add('ppt_master')
+  if (/(文档|markdown|md|说明书|需求文档|报告|docx?)/i.test(prompt)) ids.add('file_write')
   return [...ids]
 }
 
@@ -69,6 +70,7 @@ export function capabilityTagsForPrompt(prompt: string): string[] {
   if (/(测试|验收|qa|test|e2e)/i.test(prompt)) tags.add('验收')
   if (/(审查|review|代码审查)/i.test(prompt)) tags.add('审查')
   if (/(ppt|演示|幻灯片|presentation)/i.test(prompt)) tags.add('演示稿')
+  if (/(文档|markdown|md|说明书|需求文档|报告|docx?)/i.test(prompt)) tags.add('文档')
   if (/(git|提交|diff|分支|commit)/i.test(prompt)) tags.add('Git')
   return [...tags]
 }
