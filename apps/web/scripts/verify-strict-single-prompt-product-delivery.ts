@@ -980,6 +980,21 @@ async function main() {
     record(artifactResultCard
       ? ok('IM transcript 包含产物推荐/确认 result card', artifactResultCard.id)
       : fail('IM transcript 包含产物推荐/确认 result card', JSON.stringify(messages.filter((message) => message.message_type === 'result_card'))))
+    const artifactResultParts = runtimePartsFromMetadata(artifactResultCard?.metadata)
+    const artifactResultPartTypes = new Set(artifactResultParts.map((part) => String(part.type ?? '')))
+    const requiredPartTypes = ['change_summary', 'diff', 'artifact', 'web_preview', 'publish_status']
+    const missingPartTypes = requiredPartTypes.filter((type) => !artifactResultPartTypes.has(type))
+    record(missingPartTypes.length === 0
+      ? ok('IM result card 内联包含 Git diff、产物、预览和发布状态卡', JSON.stringify(Array.from(artifactResultPartTypes)))
+      : fail('IM result card 内联包含 Git diff、产物、预览和发布状态卡', JSON.stringify({
+        missingPartTypes,
+        partTypes: Array.from(artifactResultPartTypes),
+        parts: artifactResultParts,
+      })))
+    const diffParts = artifactResultParts.filter((part) => part.type === 'diff')
+    record(diffParts.some((part) => typeof part.diff === 'string' && part.diff.includes('diff --git'))
+      ? ok('IM result card 包含可读 git diff 内容', `${diffParts.length} diff cards`)
+      : fail('IM result card 包含可读 git diff 内容', JSON.stringify(diffParts)))
 
     if (workspaceRoot) await verifyCalculatorProduct(workspaceRoot)
 

@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-guard'
 import { buildWorkspaceFolderManifest, previewKindForPath, readCloudWorkspacePreview } from '@/lib/workspace/cloud-workspace-fs'
 import { loadCloudWorkspaceRoot, loadOwnedWorkspace } from '@/lib/workspace/workspace-api'
 import { NextResponse } from 'next/server'
+import type { RuntimeMessagePart } from '@agenthub/shared'
 
 function normalizeArtifactType(value: unknown, sourcePath?: string, isFolder = false) {
   if (typeof value === 'string' && ARTIFACT_TYPES.has(value as never)) return value
@@ -24,6 +25,110 @@ async function assertSessionInWorkspace(db: Awaited<ReturnType<typeof createClie
     .eq('id', sessionId)
     .single()
   return Boolean(session && (session as { workspace_id?: string }).workspace_id === workspaceId)
+}
+
+function artifactPreviewRuntimePart(input: {
+  artifactId: string
+  artifactType: string
+  title: string
+  sourcePath: string | null
+  metadata: Record<string, unknown>
+}): RuntimeMessagePart | null {
+  const previewKind = typeof input.metadata.previewKind === 'string' ? input.metadata.previewKind : null
+  const downloadUrl = `/api/artifacts/${encodeURIComponent(input.artifactId)}/download`
+  const previewUrl = `/m/preview?artifactId=${encodeURIComponent(input.artifactId)}`
+  if (input.artifactType === 'html') {
+    return {
+      id: `web-preview-${input.artifactId}`,
+      type: 'web_preview',
+      status: 'created',
+      title: `${input.title}预览`,
+      url: previewUrl,
+      iframeUrl: previewUrl,
+      description: '网页产物已进入聊天记录，可展开预览。',
+    }
+  }
+  if (previewKind === 'image') {
+    return {
+      id: `image-preview-${input.artifactId}`,
+      type: 'image_preview',
+      status: 'created',
+      title: input.title,
+      sourcePath: input.sourcePath ?? undefined,
+      url: downloadUrl,
+      downloadUrl,
+      alt: input.title,
+    }
+  }
+  if (input.artifactType === 'document' || previewKind === 'document') {
+    return {
+      id: `document-preview-${input.artifactId}`,
+      type: 'document_preview',
+      status: 'created',
+      artifactId: input.artifactId,
+      title: input.title,
+      sourcePath: input.sourcePath ?? undefined,
+      previewUrl,
+      downloadUrl,
+      summary: '文档产物已进入聊天记录。',
+    }
+  }
+  if (input.artifactType === 'presentation' || previewKind === 'presentation') {
+    return {
+      id: `presentation-preview-${input.artifactId}`,
+      type: 'presentation_preview',
+      status: 'created',
+      artifactId: input.artifactId,
+      title: input.title,
+      sourcePath: input.sourcePath ?? undefined,
+      previewUrl,
+      downloadUrl,
+      summary: '演示稿产物已进入聊天记录。',
+    }
+  }
+  return null
+}
+
+async function persistArtifactCardMessage(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  sessionId: string | null
+  artifactId: string
+  artifactType: string
+  title: string
+  sourcePath: string | null
+  contentRef: string | null
+  metadata: Record<string, unknown>
+}) {
+  if (!input.sessionId) return
+  const parts: RuntimeMessagePart[] = [{
+    id: `artifact-${input.artifactId}`,
+    type: 'artifact',
+    status: 'created',
+    artifactId: input.artifactId,
+    artifactType: input.artifactType,
+    title: input.title,
+    sourcePath: input.sourcePath ?? undefined,
+    contentRef: input.contentRef ?? undefined,
+    previewUrl: `/m/preview?artifactId=${encodeURIComponent(input.artifactId)}`,
+    downloadUrl: `/api/artifacts/${encodeURIComponent(input.artifactId)}/download`,
+  }]
+  const previewPart = artifactPreviewRuntimePart(input)
+  if (previewPart) parts.push(previewPart)
+  await input.db.from('messages').insert({
+    session_id: input.sessionId,
+    sender_type: 'system',
+    content: `产物已生成：${input.title}${input.sourcePath ? `\n来源：${input.sourcePath}` : ''}`,
+    message_type: 'result_card',
+    metadata: {
+      visibleStatus: '已完成',
+      artifactCreated: {
+        artifactId: input.artifactId,
+        artifactType: input.artifactType,
+        sourcePath: input.sourcePath,
+      },
+      runtimeParts: parts,
+    },
+  })
 }
 
 export async function GET(request: Request) {
@@ -126,5 +231,17 @@ export async function POST(request: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (data?.id) {
+    await persistArtifactCardMessage({
+      db,
+      sessionId,
+      artifactId: String(data.id),
+      artifactType: String(data.artifact_type ?? artifactType),
+      title: String(data.title ?? title),
+      sourcePath: typeof data.source_path === 'string' ? data.source_path : sourcePath,
+      contentRef: typeof data.content_ref === 'string' ? data.content_ref : contentRef,
+      metadata: (data.metadata && typeof data.metadata === 'object' ? data.metadata : metadata) as Record<string, unknown>,
+    })
+  }
   return NextResponse.json(data, { status: 201 })
 }

@@ -7,6 +7,8 @@
  */
 
 import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -17,6 +19,8 @@ import {
   resetMockClient,
   mockWorkspaceRoot,
 } from '../utils'
+
+const execFileAsync = promisify(execFile)
 
 const invokeSpy = vi.fn()
 const { resolveEndpointMock, createSessionMock, isWorkerAliveMock, enqueueMock } = vi.hoisted(() => ({
@@ -46,6 +50,39 @@ const setAdapterEvents = (events: Record<string, unknown>[]) => {
 }
 
 const firstMockArg = (call: unknown[]): Record<string, unknown> => call[0] as Record<string, unknown>
+
+function partTypesFromMessage(message: Record<string, unknown> | undefined) {
+  const metadata = message?.metadata as { runtimeParts?: Array<{ type?: unknown }> } | undefined
+  return (metadata?.runtimeParts ?? []).map((part) => String(part.type ?? ''))
+}
+
+function partsFromMessage(message: Record<string, unknown> | undefined) {
+  const metadata = message?.metadata as { runtimeParts?: Array<Record<string, unknown>> } | undefined
+  return metadata?.runtimeParts ?? []
+}
+
+async function runGit(args: string[]) {
+  await execFileAsync('git', args, { cwd: mockWorkspaceRoot })
+}
+
+async function writeWorkspaceFixture(relativePath: string, content: string) {
+  const fullPath = path.join(mockWorkspaceRoot, relativePath)
+  await mkdir(path.dirname(fullPath), { recursive: true })
+  await writeFile(fullPath, content, 'utf8')
+}
+
+async function initGitWorkspace(baseFiles: Record<string, string>) {
+  await mkdir(mockWorkspaceRoot, { recursive: true })
+  await rm(path.join(mockWorkspaceRoot, '.git'), { recursive: true, force: true })
+  await runGit(['init'])
+  await runGit(['config', 'user.name', 'AgentHub Test'])
+  await runGit(['config', 'user.email', 'agenthub-test@example.com'])
+  for (const [relativePath, content] of Object.entries(baseFiles)) {
+    await writeWorkspaceFixture(relativePath, content)
+  }
+  await runGit(['add', '.'])
+  await runGit(['commit', '-m', 'baseline'])
+}
 
 function strictDeliveryActionEvidenceForNode(planNodeId: string) {
   const node = insertedPlanNodes.find((item) => item.id === planNodeId)
@@ -231,6 +268,7 @@ describe('POST /api/chat — role-chat-core', () => {
     await rm(path.join(mockWorkspaceRoot, 'public'), { recursive: true, force: true })
     await rm(path.join(mockWorkspaceRoot, 'src'), { recursive: true, force: true })
     await rm(path.join(mockWorkspaceRoot, '.agenthub'), { recursive: true, force: true })
+    await rm(path.join(mockWorkspaceRoot, '.git'), { recursive: true, force: true })
     await rm(path.join(mockWorkspaceRoot, 'package.json'), { force: true })
   })
 
@@ -858,8 +896,12 @@ describe('POST /api/chat — role-chat-core', () => {
       })
       return client
     }))
-    await mkdir(path.join(mockWorkspaceRoot, 'public'), { recursive: true })
-    await writeFile(path.join(mockWorkspaceRoot, 'public/index.html'), '<!doctype html><title>计算器</title>', 'utf8')
+    await initGitWorkspace({
+      'public/index.html': '<!doctype html><title>旧入口</title>',
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    await writeWorkspaceFixture('public/index.html', '<!doctype html><title>计算器</title>')
+    await writeWorkspaceFixture('package.json', JSON.stringify({ scripts: { test: 'echo baseline', start: 'node src/server.js' } }, null, 2))
 
     const { status, text } = await callChat({
       sessionId: 'session-001',
@@ -930,6 +972,18 @@ describe('POST /api/chat — role-chat-core', () => {
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
     ))
     expect(artifactResultMessage?.content).toContain('推荐产物：public/index.html')
+    expect(partTypesFromMessage(artifactResultMessage)).toEqual(expect.arrayContaining([
+      'change_summary',
+      'diff',
+      'artifact',
+      'web_preview',
+      'publish_status',
+    ]))
+    const diffParts = partsFromMessage(artifactResultMessage).filter((part) => part.type === 'diff')
+    expect(diffParts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ applicable: true }),
+    ]))
+    expect(diffParts.map((part) => part.path)).toEqual(expect.arrayContaining(['public/index.html']))
     expect(text).toContain('orchestrator_plan_started')
     const backendMessage = insertedMessages.find((message) => (
       message.sender_type === 'agent'
@@ -1119,12 +1173,14 @@ describe('POST /api/chat — role-chat-core', () => {
       })
       return client
     }))
-    await mkdir(path.join(mockWorkspaceRoot, 'src'), { recursive: true })
-    await writeFile(path.join(mockWorkspaceRoot, 'src/server.js'), 'console.log("server")\n', 'utf8')
-    await writeFile(path.join(mockWorkspaceRoot, 'package.json'), JSON.stringify({
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    await writeWorkspaceFixture('src/server.js', 'console.log("server")\n')
+    await writeWorkspaceFixture('package.json', JSON.stringify({
       scripts: { start: 'node src/server.js' },
       dependencies: { express: '^4.18.0' },
-    }), 'utf8')
+    }, null, 2))
 
     const { status } = await callChat({
       sessionId: 'session-001',
@@ -1160,6 +1216,18 @@ describe('POST /api/chat — role-chat-core', () => {
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
     ))
     expect(artifactResultMessage?.content).toContain('推荐产物：package.json（npm run start）')
+    expect(partTypesFromMessage(artifactResultMessage)).toEqual(expect.arrayContaining([
+      'change_summary',
+      'diff',
+      'artifact',
+      'web_preview',
+      'publish_status',
+    ]))
+    expect(partsFromMessage(artifactResultMessage).find((part) => part.type === 'publish_status')).toMatchObject({
+      artifactId: expect.any(String),
+      status: 'pending',
+      message: expect.stringContaining('npm run start'),
+    })
   })
 
   it('uses the architect delivery manifest as the final artifact source before fallback scanning', async () => {
@@ -1308,16 +1376,18 @@ describe('POST /api/chat — role-chat-core', () => {
       })
       return client
     }))
-    await mkdir(path.join(mockWorkspaceRoot, '.agenthub'), { recursive: true })
-    await writeFile(path.join(mockWorkspaceRoot, 'package.json'), JSON.stringify({ scripts: { start: 'node src/server.js' } }), 'utf8')
-    await writeFile(path.join(mockWorkspaceRoot, '.agenthub/start.sh'), 'PORT="${PORT:-3000}"\nnpm run start -- --port "$PORT"\n', 'utf8')
-    await writeFile(path.join(mockWorkspaceRoot, '.agenthub/delivery.json'), JSON.stringify({
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    await writeWorkspaceFixture('package.json', JSON.stringify({ scripts: { start: 'node src/server.js' } }, null, 2))
+    await writeWorkspaceFixture('.agenthub/start.sh', 'PORT="${PORT:-3000}"\nnpm run start -- --port "$PORT"\n')
+    await writeWorkspaceFixture('.agenthub/delivery.json', JSON.stringify({
       title: '姓名生成服务',
       source_path: 'package.json',
       artifact_type: 'generic_file',
       start_command: 'bash .agenthub/start.sh',
       description: '架构师选择 package.json + .agenthub/start.sh 作为最终可运行服务产物。',
-    }), 'utf8')
+    }, null, 2))
 
     const { status } = await callChat({
       sessionId: 'session-001',
@@ -1344,6 +1414,9 @@ describe('POST /api/chat — role-chat-core', () => {
       && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
     ))
     expect(artifactResultMessage?.content).toContain('推荐产物：package.json（bash .agenthub/start.sh）')
+    expect(partsFromMessage(artifactResultMessage).find((part) => part.type === 'publish_status')).toMatchObject({
+      message: expect.stringContaining('bash .agenthub/start.sh'),
+    })
   })
 
   it('AT-003 [high]: no roleAgentId uses the default orchestrator role instead of appending @ text', async () => {

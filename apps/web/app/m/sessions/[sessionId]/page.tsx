@@ -67,6 +67,17 @@ function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
       </div>
     )
   }
+  if (part.type === 'change_summary') {
+    return (
+      <div data-testid="mobile-change-summary-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="flex justify-between gap-2">
+          <span className="font-medium">{part.title ?? 'Git 变更摘要'}</span>
+          <Badge variant={part.files.length > 0 ? 'warning' : 'secondary'}>{part.files.length} 个文件</Badge>
+        </div>
+        {part.summary && <p className="mt-1 text-muted-foreground">{part.summary}</p>}
+      </div>
+    )
+  }
   if (part.type === 'artifact') {
     return (
       <div data-testid="mobile-artifact-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
@@ -74,6 +85,23 @@ function MobilePartCard({ part }: { part: RuntimeMessagePart }) {
           <span className="font-medium">{part.title}</span>
           <Badge variant="secondary">{part.artifactType}</Badge>
         </div>
+      </div>
+    )
+  }
+  if (part.type === 'image_preview') {
+    return (
+      <div data-testid="mobile-image-preview-card" className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="font-medium">{part.title}</div>
+        {part.sourcePath && <p className="mt-1 text-muted-foreground">{part.sourcePath}</p>}
+      </div>
+    )
+  }
+  if (part.type === 'document_preview' || part.type === 'presentation_preview') {
+    return (
+      <div data-testid={part.type === 'presentation_preview' ? 'mobile-presentation-preview-card' : 'mobile-document-preview-card'} className="mt-2 rounded border border-border bg-background/70 p-2 text-xs">
+        <div className="font-medium">{part.title}</div>
+        {part.summary && <p className="mt-1 text-muted-foreground">{part.summary}</p>}
+        {part.previewUrl && <a href={part.previewUrl} className="mt-1 inline-block text-primary">预览</a>}
       </div>
     )
   }

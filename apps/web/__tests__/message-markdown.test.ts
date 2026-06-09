@@ -277,6 +277,42 @@ describe('MessageMarkdown', () => {
     expect(css).toContain('[data-streamdown="code-block-body"]')
     expect(css).toContain('padding: 0.75rem')
   })
+
+  it('renders Bytedance rich message cards from RuntimeMessagePart metadata', () => {
+    const parts: RuntimeMessagePart[] = [
+      {
+        id: 'summary-1',
+        type: 'change_summary',
+        status: 'created',
+        title: '本轮 Git 变更摘要',
+        summary: '检测到 2 个文件变更。',
+        files: [
+          { path: 'src/server.js', status: ' M', unstaged: true },
+          { path: 'public/index.html', status: '??', untracked: true },
+        ],
+        diffCount: 1,
+      },
+      { id: 'diff-1', type: 'diff', status: 'created', path: 'src/server.js', diff: '--- a/src/server.js\n+++ b/src/server.js\n@@ -1 +1 @@\n-old\n+new', applicable: true },
+      { id: 'artifact-1', type: 'artifact', status: 'created', artifactId: 'artifact-1', artifactType: 'html', title: '网站入口', sourcePath: 'public/index.html' },
+      { id: 'web-1', type: 'web_preview', status: 'created', title: '网站预览', iframeUrl: '/m/preview?artifactId=artifact-1' },
+      { id: 'publish-1', type: 'publish_status', status: 'pending', artifactId: 'artifact-1', title: '网站发布', message: '启动来源：npm run start' },
+      { id: 'doc-1', type: 'document_preview', status: 'created', artifactId: 'artifact-doc', title: '需求文档', sourcePath: 'docs/spec.md', summary: '文档产物已进入聊天记录。' },
+      { id: 'ppt-1', type: 'presentation_preview', status: 'created', artifactId: 'artifact-ppt', title: '汇报 PPT', sourcePath: 'deck.pptx', summary: '演示稿产物已进入聊天记录。' },
+      { id: 'img-1', type: 'image_preview', status: 'created', title: '截图', sourcePath: 'public/screen.png', url: '/api/file.png' },
+    ]
+    const html = renderToStaticMarkup(createElement(MessageContent, { content: '交付完成', parts }))
+
+    expect(html).toContain('data-testid="message-change-summary-card"')
+    expect(html).toContain('data-testid="message-diff-card"')
+    expect(html).toContain('data-testid="message-artifact-card"')
+    expect(html).toContain('data-testid="message-web-preview-card"')
+    expect(html).toContain('data-testid="message-publish-status-card"')
+    expect(html).toContain('data-testid="message-document-preview-card"')
+    expect(html).toContain('data-testid="message-presentation-preview-card"')
+    expect(html).toContain('data-testid="message-image-preview-card"')
+    expect(html).toContain('应用 Diff')
+    expect(html).toContain('启动来源：npm run start')
+  })
 })
 
 describe('MessageContent', () => {

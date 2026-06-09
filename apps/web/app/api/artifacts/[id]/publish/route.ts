@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth-guard'
 import { createWorkspaceArtifactLaunchScript } from '@/lib/workspace/cloud-workspace-fs'
 import { loadCloudWorkspaceRoot, loadOwnedWorkspace } from '@/lib/workspace/workspace-api'
 import { NextResponse } from 'next/server'
+import type { RuntimeMessagePart } from '@agenthub/shared'
 
 const RUNNABLE_ARTIFACT_TYPES = new Set(['html', 'folder', 'generic_file', 'code'])
 
@@ -82,10 +83,48 @@ async function artifactRow(db: Awaited<ReturnType<typeof createClient>>, id: str
   return data as unknown as {
     id: string
     workspace_id: string
+    session_id?: string | null
+    title?: string | null
     source_path?: string | null
     artifact_type?: string | null
     metadata?: Record<string, unknown> | null
   } | null
+}
+
+async function persistPublishStatusMessage(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  row: {
+    id: string
+    session_id?: string | null
+    title?: string | null
+  }
+  status: Extract<RuntimeMessagePart, { type: 'publish_status' }>['status']
+  url?: string
+  message: string
+}) {
+  if (!input.row.session_id) return
+  const title = input.row.title?.trim() || '产物发布'
+  const part: RuntimeMessagePart = {
+    id: `publish-${input.row.id}-${Date.now()}`,
+    type: 'publish_status',
+    status: input.status,
+    artifactId: input.row.id,
+    title,
+    url: input.url,
+    message: input.message,
+  }
+  await input.db.from('messages').insert({
+    session_id: input.row.session_id,
+    sender_type: 'system',
+    content: `发布状态：${title}\n${input.message}`,
+    message_type: 'system_event',
+    metadata: {
+      visibleStatus: input.status === 'failed' ? '执行失败' : input.status === 'running' ? '执行中' : '已完成',
+      artifactId: input.row.id,
+      publishStatus: input.status,
+      runtimeParts: [part],
+    },
+  })
 }
 
 function packageScriptFromMetadata(metadata: Record<string, unknown> | null | undefined) {
@@ -134,6 +173,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
       updated_at: new Date().toISOString(),
     }).eq('id', row.id)
+    await persistPublishStatusMessage({
+      db,
+      row,
+      status: 'stopped',
+      message: stoppedPid ? `已停止发布进程 PID ${stoppedPid}。` : '已记录停止发布；未发现正在运行的发布进程。',
+    })
     return NextResponse.json({ status: 'stopped', pid: stoppedPid })
   }
 
@@ -181,6 +226,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!ready) {
       child.kill('SIGTERM')
       publishRegistry.delete(row.id)
+      await persistPublishStatusMessage({
+        db,
+        row,
+        status: 'failed',
+        message: '发布服务启动超时，已终止临时进程。',
+      })
       return NextResponse.json({ error: '发布服务启动超时' }, { status: 504 })
     }
 
@@ -204,8 +255,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await persistPublishStatusMessage({
+      db,
+      row,
+      status: 'running',
+      url,
+      message: `发布已启动，访问地址：${url}`,
+    })
     return NextResponse.json({ status: 'running', url, pid: child.pid ?? null, port, artifact: data })
   } catch (error) {
+    await persistPublishStatusMessage({
+      db,
+      row,
+      status: 'failed',
+      message: error instanceof Error ? error.message : '发布失败',
+    })
     return NextResponse.json({ error: error instanceof Error ? error.message : '发布失败' }, { status: 400 })
   }
 }

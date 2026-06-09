@@ -13,7 +13,7 @@ import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import { sessionParticipantIds } from '@/lib/conversations'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
-import { detectWorkspaceRunnablePackage } from '@/lib/workspace/cloud-workspace-fs'
+import { detectWorkspaceRunnablePackage, readWorkspaceGitDiff, readWorkspaceGitStatus, type WorkspaceGitChange } from '@/lib/workspace/cloud-workspace-fs'
 import {
   createArchitectDispatch,
   createRuntimeInvokeInputFromChat,
@@ -90,6 +90,11 @@ type DeliveredArtifactCandidate = {
   metadata: Record<string, unknown>
   runtimePartTitle: string
   displaySource: string
+}
+
+type DeliveredArtifactRecommendation = {
+  artifactId: string
+  sourcePath: string
 }
 
 type DeliveryManifest = {
@@ -529,6 +534,205 @@ function isFullAutoDeliveryIntent(content: string, permissionMode?: string | nul
   return explicitDelivery || canonicalProductPrompt
 }
 
+function downloadUrlForWorkspaceFile(workspaceId: string, sourcePath: string) {
+  return `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`
+}
+
+function previewUrlForArtifact(artifactId: string) {
+  return `/m/preview?artifactId=${encodeURIComponent(artifactId)}`
+}
+
+function artifactDownloadUrl(artifactId: string) {
+  return `/api/artifacts/${encodeURIComponent(artifactId)}/download`
+}
+
+function artifactPreviewPart(input: {
+  artifactId: string
+  candidate: DeliveredArtifactCandidate
+  workspaceId: string
+}): RuntimeMessagePart | null {
+  const { artifactId, candidate, workspaceId } = input
+  const previewUrl = previewUrlForArtifact(artifactId)
+  const downloadUrl = artifactDownloadUrl(artifactId)
+  const title = candidate.runtimePartTitle || candidate.title
+  const previewKind = typeof candidate.metadata.previewKind === 'string' ? candidate.metadata.previewKind : null
+  const mime = typeof candidate.metadata.mime === 'string' ? candidate.metadata.mime : undefined
+  const directDownloadUrl = typeof candidate.metadata.downloadUrl === 'string'
+    ? candidate.metadata.downloadUrl
+    : downloadUrlForWorkspaceFile(workspaceId, candidate.sourcePath)
+
+  if (candidate.artifactType === 'html') {
+    return {
+      id: `web-preview-${artifactId}`,
+      type: 'web_preview',
+      status: 'created',
+      title: `${title}预览`,
+      url: previewUrl,
+      iframeUrl: previewUrl,
+      description: '最终产物可在当前界面展开预览；如需运行服务，可从产物卡启动发布。',
+    }
+  }
+  if (previewKind === 'image') {
+    return {
+      id: `image-preview-${artifactId}`,
+      type: 'image_preview',
+      status: 'created',
+      title,
+      sourcePath: candidate.sourcePath,
+      url: directDownloadUrl,
+      downloadUrl: directDownloadUrl,
+      alt: title,
+    }
+  }
+  if (previewKind === 'document' || candidate.artifactType === 'generic_file' && /\.(docx?|md|txt)$/i.test(candidate.sourcePath)) {
+    return {
+      id: `document-preview-${artifactId}`,
+      type: 'document_preview',
+      status: 'created',
+      artifactId,
+      title,
+      sourcePath: candidate.sourcePath,
+      previewUrl,
+      downloadUrl,
+      summary: '文档产物已进入聊天记录，可预览或下载。',
+    }
+  }
+  if (previewKind === 'presentation' || /\.(pptx?|odp)$/i.test(candidate.sourcePath)) {
+    return {
+      id: `presentation-preview-${artifactId}`,
+      type: 'presentation_preview',
+      status: 'created',
+      artifactId,
+      title,
+      sourcePath: candidate.sourcePath,
+      previewUrl,
+      downloadUrl,
+      summary: '演示稿产物已进入聊天记录，可预览或下载。',
+    }
+  }
+  return {
+    id: `web-preview-${artifactId}`,
+    type: 'web_preview',
+    status: candidate.metadata.startCommand || candidate.metadata.packageScript ? 'created' : 'unavailable',
+    title: `${title}入口`,
+    url: previewUrl,
+    description: candidate.metadata.startCommand || candidate.metadata.packageScript
+      ? '服务型产物需要通过发布按钮启动；启动后会在聊天内追加发布状态卡。'
+      : `该产物为 ${mime ?? '文件'}，可从产物卡下载或打开。`,
+  }
+}
+
+function publishStatusPart(input: {
+  artifactId: string
+  candidate: DeliveredArtifactCandidate
+}): RuntimeMessagePart {
+  const startCommand = typeof input.candidate.metadata.startCommand === 'string'
+    ? input.candidate.metadata.startCommand
+    : typeof input.candidate.metadata.packageScript === 'string'
+      ? `npm run ${input.candidate.metadata.packageScript}`
+      : input.candidate.artifactType === 'html'
+        ? '静态 HTML 预览'
+        : null
+  return {
+    id: `publish-${input.artifactId}`,
+    type: 'publish_status',
+    status: 'pending',
+    artifactId: input.artifactId,
+    title: `${input.candidate.runtimePartTitle || input.candidate.title}发布`,
+    message: startCommand
+      ? `启动来源：${startCommand}。需要运行时可在产物卡点击启动发布，状态会回写到聊天记录。`
+      : '该产物已生成，当前没有声明启动命令。',
+  }
+}
+
+function normalizeGitChangeForPart(change: WorkspaceGitChange) {
+  return {
+    path: change.path,
+    status: change.status,
+    staged: change.staged,
+    unstaged: change.unstaged,
+    untracked: change.untracked,
+  }
+}
+
+async function buildDeliveryRuntimeParts(input: {
+  workspaceRoot: string
+  workspaceId: string
+  artifactId: string
+  candidate: DeliveredArtifactCandidate
+}): Promise<RuntimeMessagePart[]> {
+  const parts: RuntimeMessagePart[] = []
+  let changes: WorkspaceGitChange[] = []
+  try {
+    changes = await readWorkspaceGitStatus(input.workspaceRoot)
+  } catch {
+    changes = []
+  }
+
+  const relevantChanges = changes.filter((change) => (
+    !change.path.startsWith('node_modules/')
+    && !change.path.startsWith('.next/')
+    && !change.path.startsWith('dist/')
+    && !change.path.startsWith('build/')
+  ))
+  if (relevantChanges.length > 0) {
+    parts.push({
+      id: `change-summary-${input.artifactId}`,
+      type: 'change_summary',
+      status: 'created',
+      title: '本轮 Git 变更摘要',
+      summary: `检测到 ${relevantChanges.length} 个文件变更，聊天记录中内联展示关键 diff，完整列表可在 Git 面板查看。`,
+      files: relevantChanges.slice(0, 8).map(normalizeGitChangeForPart),
+      diffCount: Math.min(relevantChanges.length, 3),
+    })
+
+    for (const change of relevantChanges.slice(0, 3)) {
+      try {
+        const diff = await readWorkspaceGitDiff(input.workspaceRoot, change.path, change.staged && !change.unstaged)
+        if (!diff.trim()) continue
+        parts.push({
+          id: `diff-${input.artifactId}-${change.path}`,
+          type: 'diff',
+          status: 'created',
+          path: change.path,
+          diff: diff.length > 28_000 ? `${diff.slice(0, 28_000)}\n\n... diff 已截断，完整内容请在 Git 面板查看。` : diff,
+          applicable: true,
+        })
+      } catch {
+        // Keep the summary card even when one individual diff cannot be read.
+      }
+    }
+  } else {
+    parts.push({
+      id: `change-summary-${input.artifactId}`,
+      type: 'change_summary',
+      status: 'created',
+      title: '本轮 Git 变更摘要',
+      summary: '当前 workspace 没有检测到未提交变更；产物卡仍按最终交付入口保留。',
+      files: [],
+      diffCount: 0,
+    })
+  }
+
+  parts.push({
+    id: `artifact-${input.artifactId}`,
+    type: 'artifact',
+    status: 'created',
+    artifactId: input.artifactId,
+    artifactType: input.candidate.artifactType,
+    title: input.candidate.runtimePartTitle,
+    sourcePath: input.candidate.sourcePath,
+    contentRef: input.candidate.contentRef,
+    previewUrl: previewUrlForArtifact(input.artifactId),
+    downloadUrl: artifactDownloadUrl(input.artifactId),
+  })
+
+  const previewPart = artifactPreviewPart(input)
+  if (previewPart) parts.push(previewPart)
+  parts.push(publishStatusPart(input))
+  return parts
+}
+
 async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   if (!input.workspaceRoot) return null
   const candidate = await findDeliveredArtifactCandidate(input.workspaceRoot, input.workspaceId)
@@ -542,7 +746,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     .eq('source_path', candidate.sourcePath)
     .limit(1)
   const existingId = Array.isArray(existing.data) && existing.data[0]?.id ? String(existing.data[0].id) : null
-  if (existingId) return { artifactId: existingId, sourcePath: candidate.sourcePath }
+  if (existingId) return { artifactId: existingId, sourcePath: candidate.sourcePath } satisfies DeliveredArtifactRecommendation
 
   const now = new Date().toISOString()
   const recommendation = {
@@ -589,6 +793,13 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     .single()
   if (error || !artifact?.id) return null
 
+  const runtimeParts = await buildDeliveryRuntimeParts({
+    workspaceRoot: input.workspaceRoot,
+    workspaceId: input.workspaceId,
+    artifactId: String(artifact.id),
+    candidate,
+  })
+
   await persistProcessEvent({
     db: input.db,
     sessionId: input.sessionId,
@@ -604,19 +815,10 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
       visibleStatus: '已完成',
       artifactRecommendation: recommendation,
       artifactConfirmation: confirmation,
-      runtimeParts: [{
-        id: `artifact-${artifact.id}`,
-        type: 'artifact',
-        status: 'created',
-        artifactId: artifact.id,
-        artifactType: candidate.artifactType,
-        title: candidate.runtimePartTitle,
-        sourcePath: candidate.sourcePath,
-        contentRef: candidate.contentRef,
-      }],
+      runtimeParts,
     },
   })
-  return { artifactId: String(artifact.id), sourcePath: candidate.sourcePath }
+  return { artifactId: String(artifact.id), sourcePath: candidate.sourcePath } satisfies DeliveredArtifactRecommendation
 }
 
 async function findDeliveredArtifactCandidate(workspaceRoot: string, workspaceId: string): Promise<DeliveredArtifactCandidate | null> {

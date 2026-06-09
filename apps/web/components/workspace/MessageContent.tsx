@@ -4,7 +4,7 @@ import React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Badge, Button } from '@agenthub/ui'
-import { AlertTriangle, Download, ExternalLink, FileText, Maximize2, Paperclip, Rocket } from 'lucide-react'
+import { AlertTriangle, Download, ExternalLink, FileImage, FileText, GitBranch, Maximize2, Paperclip, Presentation, Rocket } from 'lucide-react'
 import type { RuntimeMessagePart } from '@agenthub/shared'
 import { MessageMarkdown } from './MessageMarkdown'
 import { useSessionStore } from '@/store/session-store'
@@ -237,6 +237,30 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
       </div>
     )
   }
+  if (part.type === 'change_summary') {
+    return (
+      <div data-testid="message-change-summary-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5 font-medium">
+            <GitBranch className="h-3.5 w-3.5" />
+            <span className="truncate">{part.title ?? 'Git 变更摘要'}</span>
+          </span>
+          <Badge variant={part.files.length > 0 ? 'warning' : 'secondary'}>{part.files.length} 个文件</Badge>
+        </div>
+        {part.summary && <p className="mt-1 text-muted-foreground">{part.summary}</p>}
+        {part.files.length > 0 && (
+          <div className="mt-2 grid gap-1">
+            {part.files.map((file) => (
+              <div key={file.path} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 rounded-sm bg-muted/50 px-2 py-1">
+                <span className="text-muted-foreground">{file.untracked ? '新增' : file.staged ? '已暂存' : file.unstaged ? '未暂存' : file.status ?? '变更'}</span>
+                <span className="truncate font-mono">{file.path}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
   if (part.type === 'diff') {
     const applyDiff = async () => {
       if (!activeWorkspaceId || !activeSessionId) return
@@ -280,6 +304,38 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
           {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
         </div>
         <p className="mt-1 text-muted-foreground">{part.mime ?? '文件'}{part.size ? ` · ${part.size} bytes` : ''}</p>
+      </div>
+    )
+  }
+  if (part.type === 'image_preview') {
+    return (
+      <div data-testid="message-image-preview-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5 font-medium"><FileImage className="h-3.5 w-3.5" /><span className="truncate">{part.title}</span></span>
+          {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
+        </div>
+        {part.url ? (
+          <img src={part.url} alt={part.alt ?? part.title} className="mt-2 max-h-64 w-full rounded-md border border-border object-contain" />
+        ) : (
+          <p className="mt-1 text-muted-foreground">图片预览暂不可用。</p>
+        )}
+        {part.sourcePath && <p className="mt-1 truncate text-muted-foreground">来源：{part.sourcePath}</p>}
+      </div>
+    )
+  }
+  if (part.type === 'document_preview' || part.type === 'presentation_preview') {
+    const Icon = part.type === 'presentation_preview' ? Presentation : FileText
+    return (
+      <div data-testid={part.type === 'presentation_preview' ? 'message-presentation-preview-card' : 'message-document-preview-card'} className="rounded-md border border-border bg-background/70 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5 font-medium"><Icon className="h-3.5 w-3.5" /><span className="truncate">{part.title}</span></span>
+          <div className="flex items-center gap-1">
+            {part.previewUrl && <a href={part.previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><ExternalLink className="h-3.5 w-3.5" />预览</a>}
+            {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
+          </div>
+        </div>
+        {part.summary && <p className="mt-1 text-muted-foreground">{part.summary}</p>}
+        {part.sourcePath && <p className="mt-1 truncate text-muted-foreground">来源：{part.sourcePath}</p>}
       </div>
     )
   }
