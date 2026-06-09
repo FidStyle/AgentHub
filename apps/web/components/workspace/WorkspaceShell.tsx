@@ -3,11 +3,12 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { signOut } from 'next-auth/react'
 import { Sidebar } from './Sidebar'
 import { ChatPanel } from './ChatPanel'
 import { ArtifactPanel } from './ArtifactPanel'
 import { Badge, IconButton } from '@agenthub/ui'
-import { ArrowLeft, GripVertical, PanelLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, GripVertical, LogOut, PanelLeft, RefreshCw } from 'lucide-react'
 import { useWorkspaceRuntimeStatus } from './useWorkspaceRuntimeStatus'
 import { NotificationBell } from '../orchestrator/NotificationBell'
 import { useSessionStore } from '@/store/session-store'
@@ -216,6 +217,14 @@ export function WorkspaceShell({
               size="sm"
               data-testid="refresh-runtime-status"
               onClick={() => runtimeStatus.refresh()}
+            />
+            <IconButton
+              icon={LogOut}
+              label="退出登录"
+              variant="ghost"
+              size="sm"
+              data-testid="sign-out-btn"
+              onClick={() => void signOut({ callbackUrl: '/' })}
             />
           </div>
         </div>

@@ -545,6 +545,10 @@ describe('ArtifactPanel frontend contract', () => {
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/WorkspaceShell.tsx', import.meta.url)), 'utf8')
 
     expect(source).toContain('data-testid="artifact-resize-handle"')
+    expect(source).toContain("import { signOut } from 'next-auth/react'")
+    expect(source).toContain('data-testid="sign-out-btn"')
+    expect(source).toContain('label="退出登录"')
+    expect(source).toContain("signOut({ callbackUrl: '/' })")
     expect(source).toContain('aria-label="拖动中间分界线调整右侧面板宽度"')
     expect(source).toContain('title="拖动调整右侧工作台宽度"')
     expect(source).toContain('GripVertical')
