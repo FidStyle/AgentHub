@@ -402,6 +402,25 @@ describe('dispatchApprovedAction', () => {
               artifactId: 'artifact-deploy-001',
               status: 'completed',
             }),
+            runtimeParts: expect.arrayContaining([
+              expect.objectContaining({
+                type: 'artifact',
+                artifactId: 'artifact-deploy-001',
+                title: '部署结果',
+              }),
+              expect.objectContaining({
+                type: 'web_preview',
+                status: 'created',
+                title: '部署预览',
+                iframeUrl: '/m/preview?artifactId=artifact-deploy-001',
+              }),
+              expect.objectContaining({
+                type: 'publish_status',
+                status: 'running',
+                artifactId: 'artifact-deploy-001',
+                title: '部署状态',
+              }),
+            ]),
           }),
         }),
       }),

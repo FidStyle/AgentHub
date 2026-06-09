@@ -151,6 +151,44 @@ describe('session store message pinning', () => {
 })
 
 describe('session store streaming replies', () => {
+  it('regenerates an agent message by replaying the previous user request through /api/chat', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({
+        sessionId: 'session-001',
+        content: '做一个生成姓名的网页，需存储姓名记录，使用sqlite',
+        roleAgentIds: ['agent-arch'],
+        permissionMode: 'standard',
+      }))
+      .mockResolvedValueOnce(sseResponse([
+        { type: 'runtime_output', delta: '重新生成完成' },
+        { type: 'runtime_completed' },
+      ]))
+    useSessionStore.setState({
+      activeSessionId: 'session-001',
+      sessions: [{ id: 'session-001', title: '测试', lastMessage: '', updatedAt: '2026-06-01T00:00:00.000Z', status: 'active' }],
+    })
+
+    await useSessionStore.getState().regenerateMessage('agent-failed')
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/messages/agent-failed/regenerate', { method: 'POST' })
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/chat', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        sessionId: 'session-001',
+        content: '做一个生成姓名的网页，需存储姓名记录，使用sqlite',
+        roleAgentId: 'agent-arch',
+        roleAgentIds: ['agent-arch'],
+        mentions: ['agent-arch'],
+        attachmentIds: [],
+        permissionMode: 'standard',
+      }),
+    }))
+    expect(useSessionStore.getState().messages.map((message) => message.content)).toEqual([
+      '做一个生成姓名的网页，需存储姓名记录，使用sqlite',
+      '重新生成完成',
+    ])
+  })
+
   it('renames a placeholder session locally from the first user message', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseResponse([
       {

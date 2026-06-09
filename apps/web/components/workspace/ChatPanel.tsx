@@ -4,7 +4,7 @@ import React from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Card, StateCard, IconButton, Badge } from '@agenthub/ui'
-import { AtSign, Copy, Pin, PinOff, Plus, Quote, Send, PanelRight, ShieldCheck, Square, WandSparkles, X } from 'lucide-react'
+import { AtSign, Copy, Pin, PinOff, Plus, Quote, RefreshCcw, Send, PanelRight, ShieldCheck, Square, WandSparkles, X } from 'lucide-react'
 import { useSessionStore, type Message } from '@/store/session-store'
 import { MessageContent } from './MessageContent'
 import { roleBadgeColorClass, roleMessageColorClass } from '@/lib/role-colors'
@@ -201,9 +201,10 @@ function MessageList({
   roleAgents: RoleAgent[]
   onQuote: (message: QuotedMessage) => void
 }) {
-  const { activeSessionId, messages, messagesRevision, loading, error, setMessagePinned } = useSessionStore()
+  const { activeSessionId, messages, messagesRevision, loading, error, setMessagePinned, regenerateMessage } = useSessionStore()
   const [pinningId, setPinningId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const sessionMessages = activeSessionId ? messages.filter((m) => m.sessionId === activeSessionId) : []
@@ -249,6 +250,7 @@ function MessageList({
       {sessionMessages.map((msg) => {
         const name = msg.role === 'agent' ? roleName(msg.roleAgentId) : undefined
         const canPin = !msg.id.startsWith('tmp-') && !msg.id.startsWith('reply-') && !msg.id.startsWith('sys-')
+        const canRegenerate = msg.role === 'agent' && !msg.id.startsWith('tmp-') && !msg.id.startsWith('reply-') && !msg.id.startsWith('sys-')
         const isProcessMessage = msg.messageType === 'system_event' || msg.messageType === 'plan_card' || msg.messageType === 'result_card'
         return (
           <div
@@ -301,6 +303,24 @@ function MessageList({
                     disabled={!msg.content.trim()}
                     onClick={() => onQuote({ id: msg.id, author: messageAuthor(msg), preview: messagePreview(msg.content) })}
                   />
+                  {canRegenerate && (
+                    <IconButton
+                      icon={RefreshCcw}
+                      label="重新生成"
+                      variant="ghost"
+                      size="sm"
+                      data-testid="message-regenerate-btn"
+                      disabled={regeneratingId === msg.id}
+                      onClick={async () => {
+                        setRegeneratingId(msg.id)
+                        try {
+                          await regenerateMessage(msg.id)
+                        } finally {
+                          setRegeneratingId(null)
+                        }
+                      }}
+                    />
+                  )}
                   {canPin && (
                     <IconButton
                       icon={msg.isPinned ? PinOff : Pin}

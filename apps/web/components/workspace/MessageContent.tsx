@@ -201,6 +201,14 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {part.type === 'web_preview' && part.iframeUrl ? (
             <iframe title={part.title} src={part.iframeUrl} className="h-full min-h-[480px] w-full rounded-md border border-border bg-white" />
+          ) : part.type === 'artifact' && part.previewUrl ? (
+            <iframe title={part.title} src={part.previewUrl} className="h-full min-h-[480px] w-full rounded-md border border-border bg-white" />
+          ) : part.type === 'image_preview' && part.url ? (
+            <div className="flex h-full min-h-[480px] items-center justify-center rounded-md bg-muted p-3">
+              <img src={part.url} alt={part.alt ?? part.title} className="max-h-full max-w-full object-contain" />
+            </div>
+          ) : (part.type === 'document_preview' || part.type === 'presentation_preview') && part.previewUrl ? (
+            <iframe title={part.title} src={part.previewUrl} className="h-full min-h-[480px] w-full rounded-md border border-border bg-white" />
           ) : part.type === 'diff' ? (
             <pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">{part.diff}</pre>
           ) : (
@@ -312,7 +320,10 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
       <div data-testid="message-image-preview-card" className="rounded-md border border-border bg-background/70 p-2 text-xs">
         <div className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1.5 font-medium"><FileImage className="h-3.5 w-3.5" /><span className="truncate">{part.title}</span></span>
-          {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
+          <div className="flex items-center gap-1">
+            {part.url && <Button size="sm" variant="outline" onClick={() => setExpanded(true)}><Maximize2 className="mr-1 h-3.5 w-3.5" />展开</Button>}
+            {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
+          </div>
         </div>
         {part.url ? (
           <img src={part.url} alt={part.alt ?? part.title} className="mt-2 max-h-64 w-full rounded-md border border-border object-contain" />
@@ -320,6 +331,7 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
           <p className="mt-1 text-muted-foreground">图片预览暂不可用。</p>
         )}
         {part.sourcePath && <p className="mt-1 truncate text-muted-foreground">来源：{part.sourcePath}</p>}
+        {expandedNode && createPortal(expandedNode, document.body)}
       </div>
     )
   }
@@ -330,12 +342,14 @@ function RuntimePartCard({ part }: { part: RuntimeMessagePart }) {
         <div className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1.5 font-medium"><Icon className="h-3.5 w-3.5" /><span className="truncate">{part.title}</span></span>
           <div className="flex items-center gap-1">
+            {part.previewUrl && <Button size="sm" variant="outline" onClick={() => setExpanded(true)}><Maximize2 className="mr-1 h-3.5 w-3.5" />展开</Button>}
             {part.previewUrl && <a href={part.previewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary"><ExternalLink className="h-3.5 w-3.5" />预览</a>}
             {part.downloadUrl && <a href={part.downloadUrl} className="inline-flex items-center gap-1 text-primary"><Download className="h-3.5 w-3.5" />下载</a>}
           </div>
         </div>
         {part.summary && <p className="mt-1 text-muted-foreground">{part.summary}</p>}
         {part.sourcePath && <p className="mt-1 truncate text-muted-foreground">来源：{part.sourcePath}</p>}
+        {expandedNode && createPortal(expandedNode, document.body)}
       </div>
     )
   }

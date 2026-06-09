@@ -604,6 +604,26 @@ async function dispatchDeployAction(
         title: '部署结果',
         sourcePath: manifestRelativePath,
         contentRef: previewPath ?? `workspace-file:${workspaceId}:${manifestRelativePath}`,
+      }, {
+        id: `deployment-preview-${action.id}`,
+        type: 'web_preview',
+        status: previewPath ? 'created' : 'unavailable',
+        title: '部署预览',
+        url: previewPath ?? undefined,
+        iframeUrl: previewPath ? `/m/preview?artifactId=${artifactId}` : undefined,
+        description: previewPath
+          ? '部署完成后生成的本地静态预览入口，可在聊天内展开查看。'
+          : '未发现可预览入口文件，请在部署结果产物中查看 manifest。',
+      }, {
+        id: `deployment-status-${action.id}`,
+        type: 'publish_status',
+        status: previewPath ? 'running' : 'failed',
+        artifactId,
+        title: '部署状态',
+        url: previewPath ?? undefined,
+        message: previewPath
+          ? `本地静态预览已生成：${entryPath ?? previewPath}`
+          : '部署 manifest 已生成，但没有可预览入口。',
       }],
     },
   })

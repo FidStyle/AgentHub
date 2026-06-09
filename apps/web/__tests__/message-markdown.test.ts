@@ -311,6 +311,7 @@ describe('MessageMarkdown', () => {
     expect(html).toContain('data-testid="message-presentation-preview-card"')
     expect(html).toContain('data-testid="message-image-preview-card"')
     expect(html).toContain('应用 Diff')
+    expect(html).toContain('展开')
     expect(html).toContain('启动来源：npm run start')
   })
 })

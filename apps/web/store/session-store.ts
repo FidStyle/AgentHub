@@ -240,6 +240,7 @@ interface SessionState {
   fetchMessages: (sessionId: string) => Promise<void>
   setMessagePinned: (messageId: string, isPinned: boolean) => Promise<void>
   sendMessage: (input: { content: string; roleAgentIds?: string[]; attachmentIds?: string[]; permissionMode?: string; signal?: AbortSignal }) => Promise<void>
+  regenerateMessage: (messageId: string) => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -814,6 +815,35 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return
       }
       set({ error: (e as Error).message })
+    }
+  },
+
+  regenerateMessage: async (messageId) => {
+    try {
+      const res = await fetch(`/api/messages/${messageId}/regenerate`, { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((body as { error?: string }).error || `重新生成失败（${res.status}）`)
+      const payload = body as {
+        content?: unknown
+        roleAgentIds?: unknown
+        roleAgentId?: unknown
+        permissionMode?: unknown
+      }
+      const content = typeof payload.content === 'string' ? payload.content : ''
+      if (!content.trim()) throw new Error('重新生成失败：缺少上一条用户消息')
+      const roleAgentIds = Array.isArray(payload.roleAgentIds)
+        ? payload.roleAgentIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        : typeof payload.roleAgentId === 'string' && payload.roleAgentId.trim()
+          ? [payload.roleAgentId]
+          : []
+      await get().sendMessage({
+        content,
+        roleAgentIds,
+        permissionMode: typeof payload.permissionMode === 'string' ? payload.permissionMode : undefined,
+      })
+    } catch (e) {
+      set({ error: (e as Error).message })
+      throw e
     }
   },
 }))
