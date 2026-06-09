@@ -532,8 +532,11 @@ describe('ArtifactPanel frontend contract', () => {
     const source = readFileSync(fileURLToPath(new URL('../components/workspace/ChatPanel.tsx', import.meta.url)), 'utf8')
 
     expect(source).toContain('data-testid="role-picker"')
-    expect(source).toContain('bg-white')
-    expect(source).toContain('dark:bg-neutral-950')
+    expect(source).toContain('bg-card')
+    expect(source).toContain('text-card-foreground')
+    expect(source).toContain('hover:bg-muted')
+    expect(source).not.toContain('bg-white')
+    expect(source).not.toContain('dark:bg-neutral-950')
     expect(source).not.toContain('border border-border bg-popover p-1 shadow-md')
   })
 

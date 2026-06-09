@@ -767,7 +767,7 @@ function RolePicker({
         transform: pos?.placement === 'above' ? 'translateY(-100%)' : undefined,
         visibility: pos ? 'visible' : 'hidden',
       }}
-      className="fixed z-50 overflow-y-auto rounded-md border border-border bg-white p-1 shadow-md dark:bg-neutral-950"
+      className="fixed z-50 overflow-y-auto rounded-md border border-border bg-card p-1 text-card-foreground shadow-md"
     >
       {roleAgents.length === 0 ? (
         <div className="px-2 py-1.5 text-sm text-muted-foreground">暂无角色</div>
@@ -777,7 +777,7 @@ function RolePicker({
             key={r.id}
             type="button"
             data-testid={`role-option-${r.id}`}
-            className="flex w-full items-start gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+            className="flex w-full items-start gap-2 rounded-sm px-2 py-2 text-left text-sm text-foreground hover:bg-muted"
             onClick={() => onSelect(r)}
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-xs font-medium">
