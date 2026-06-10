@@ -34,6 +34,20 @@
 | **阻塞问题** | 尚未跑真实 OpenCLI/GitHub 登录路径；不能声明端到端已关闭。 |
 | **下一步动作** | 用户看屏后执行真实 OpenCLI UAT；通过后关闭 `REG-20260611-001` 并补 UAT 证据。 |
 
+### REG-20260611-002: Runtime Redis subscription connection boundary
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001 |
+| **对应计划** | `.trellis/tasks/06-10-ppt`；`research/regression-ledger.md#reg-20260611-002--runtime-订阅连接执行-redis-set-导致编排失败`；`.trellis/spec/cross-layer/runtime-gateway-worker.md` |
+| **当前状态** | fixed_pending_verify（2026-06-11）：Runtime event subscriber 不再执行 Redis `SET`；progress timeout 通过普通 command client 写 cancel key 并返回 runtime_failed sentinel。 |
+| **目标** | 标准权限允许后续跑、Runtime 订阅超时和 progress timeout 不能因 Redis pub/sub 连接模式错误把计划异常标 failed。 |
+| **验收方式** | Redis client timeout 单测 + Web type-check/lint；真实 OpenCLI UAT 需用户看屏并走 GitHub 登录、新 workspace、新群组、文档+PPT prompt、标准权限允许。 |
+| **测试证据** | `pnpm --filter @agenthub/web test -- __tests__/runtime/subscribe-timeout.test.ts` PASS（4/4）。 |
+| **阻塞问题** | 尚未跑真实 OpenCLI/GitHub 登录路径；不能声明端到端已关闭。 |
+| **下一步动作** | 用户看屏后执行真实 OpenCLI UAT；通过后关闭 `REG-20260611-002` 并补 UAT 证据。 |
+
 ### standard-permission-approval-card
 
 | 字段 | 内容 |

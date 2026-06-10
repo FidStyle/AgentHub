@@ -7,21 +7,25 @@ type SubCb = (msg: string) => void
 const subscribers = new Map<string, SubCb>()
 let unsubscribed = false
 let quit = false
-const sets: Array<{ key: string; value: string; options?: unknown }> = []
+const commandSets: Array<{ key: string; value: string; options?: unknown }> = []
+const subscriberSets: Array<{ key: string; value: string; options?: unknown }> = []
 
-function makeClient() {
+function makeClient(kind: 'command' | 'subscriber' = 'command') {
   const client: Record<string, unknown> = {
     isReady: true,
     isOpen: true,
     connect: async () => {},
     quit: async () => { quit = true },
-    duplicate: () => makeClient(),
+    duplicate: () => makeClient('subscriber'),
     subscribe: async (channel: string, cb: SubCb) => { subscribers.set(channel, cb) },
     unsubscribe: async () => { unsubscribed = true },
     publish: async () => {},
     lPush: async () => {},
     brPop: async () => null,
-    set: async (key: string, value: string, options?: unknown) => { sets.push({ key, value, options }) },
+    set: async (key: string, value: string, options?: unknown) => {
+      const target = kind === 'subscriber' ? subscriberSets : commandSets
+      target.push({ key, value, options })
+    },
     get: async () => null,
     del: async () => {},
     exists: async () => 0,
@@ -43,7 +47,8 @@ beforeEach(() => {
   subscribers.clear()
   unsubscribed = false
   quit = false
-  sets.length = 0
+  commandSets.length = 0
+  subscriberSets.length = 0
   process.env.REDIS_URL = 'redis://localhost:6379'
   delete process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS
 })
@@ -132,11 +137,12 @@ describe('subscribeEvents — dual timeout', () => {
 
     const failed = events.find((e) => e.type === 'runtime_failed')
     expect(failed?.error).toBe('runtime progress timeout')
-    expect(sets).toEqual(expect.arrayContaining([
+    expect(commandSets).toEqual(expect.arrayContaining([
       expect.objectContaining({
         key: 'agenthub:runtime:cancel:heartbeat-only',
         value: '1',
       }),
     ]))
+    expect(subscriberSets).toEqual([])
   })
 })

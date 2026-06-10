@@ -45,6 +45,21 @@
 | **关闭条件** | Full-control/auto-approved observed tool failure 不再立即终止 Runtime，也不能在 Runtime 正常结束时单独造成 `runtime_failed`；失败观测会持久化到审计日志；真正失败仍来自 Runtime CLI 非 0 退出、超时、权限边界、取消或失联；真实 OpenCLI 路径用 GitHub 登录、新 workspace、新群组和文档+PPT prompt 证明计划能继续到产物预览。 |
 | **下一步** | 代码修复已完成：`apps/web/server/runtime-worker.ts` 将 failed observed action 改为纯审计观测；`apps/web/config/role-agents/defaults.json` 加固演示稿角色 fallback 提示；`apps/web/__tests__/runtime/executor.test.ts` 覆盖 observed failure 不再单独导致 runtime failed。下一步在用户看屏时跑真实 OpenCLI UAT。 |
 
+### REG-20260611-002 — Runtime 订阅连接执行 Redis SET 导致编排失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | P0 regression / runtime-control-plane-regression / redis-pubsub-boundary |
+| **优先级** | P0 |
+| **状态** | `fixed_pending_verify`（2026-06-11：单测已证明 progress timeout 通过普通 Redis command client 写 cancel key；待真实 OpenCLI/GitHub 登录路径复验） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001 |
+| **关联任务/合同** | `.trellis/tasks/06-10-ppt`；`.trellis/spec/cross-layer/runtime-gateway-worker.md` |
+| **影响功能面** | Web IM runtime 订阅、标准权限允许后续跑、计划节点终态回写、Runtime progress timeout/cancel |
+| **发现方式** | 用户真实运行文档/PPT任务后，UI 报 `Runtime 订阅未产生完成、失败或等待授权终态。ERR Can't execute 'set': only (P|S)SUBSCRIBE ... are allowed in this context`。 |
+| **证据** | `apps/web/lib/runtime/redis-client.ts` 的 `subscribeEvents()` 在 progress timeout 分支对已经进入 `SUBSCRIBE` 模式的 duplicate connection 执行 `r.set(cancelKey(...))`，触发 Redis pub/sub 协议限制。 |
+| **关闭条件** | 订阅连接只执行 pub/sub 安全命令；progress timeout 用普通 Redis command client 写 cancel key 并 yield `runtime_failed` sentinel；真实标准权限允许后不再因 Redis protocol error 把计划异常 failed。 |
+| **下一步** | 代码修复已完成：`subscribeEvents()` 改为调用 `setCancel()`，cancel 写失败时仍产出明确 runtime_failed；`apps/web/__tests__/runtime/subscribe-timeout.test.ts` 区分 command/subscriber client 并覆盖该边界。下一步真实 UAT 复验。 |
+
 ### REG-20260607-001 — Bytedance P0/P1 全真实逐步 UAT 失败
 
 | 字段 | 内容 |

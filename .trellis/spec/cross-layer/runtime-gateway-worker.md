@@ -47,6 +47,56 @@
 
 - No worker, action/runtime status becomes unavailable/failed with Chinese reason.
 
+## Scenario: Runtime Event Subscription Redis Connection Boundary
+
+### 1. Scope / Trigger
+
+- Trigger: modifying Runtime event subscriptions, Redis pub/sub usage, subscription timeout, progress timeout, or runtime cancellation signaling.
+
+### 2. Signatures
+
+- Subscriber channel: `agenthub:runtime:events:<runtimeSessionId>`
+- Cancel key: `agenthub:runtime:cancel:<runtimeSessionId>`
+- Timeout event: `{ type: "runtime_failed", error: "runtime progress timeout" | "subscription timeout" | string }`
+
+### 3. Contracts
+
+- A Redis connection that has entered `SUBSCRIBE` mode must only run pub/sub-safe commands (`SUBSCRIBE`, `UNSUBSCRIBE`, `PING`, `QUIT`, `RESET`).
+- Runtime cancellation, heartbeat, queue, status, or any key write must use the normal command Redis client, never the subscriber duplicate.
+- Subscription timeout paths must yield a terminal Runtime event instead of throwing a Redis protocol error into orchestration.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Progress timeout while subscriber is active | Use command client to set cancel key, then yield `runtime_failed` |
+| Cancel key write fails | Yield `runtime_failed` with cancel failure detail; do not throw a pub/sub protocol error |
+| Idle/total subscription timeout | Yield `runtime_failed(subscription timeout)` and cleanly unsubscribe/quit |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `subscribeEvents()` uses a duplicated connection only for `subscribe/unsubscribe/quit`, and calls `setCancel()` for cancellation.
+- Bad: `subscribeEvents()` calls `r.set(...)` on the subscriber connection after `subscribe()`, causing Redis `ERR Can't execute 'set'...`.
+
+### 6. Tests Required
+
+- Redis client unit test proving progress timeout writes cancel key through the command client, not the subscriber duplicate.
+- Timeout tests for subscription timeout, progress timeout, terminal completion, and `runtime_waiting`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+await subscriber.set(cancelKey(runtimeSessionId), '1', { EX: 300 })
+```
+
+#### Correct
+
+```ts
+await setCancel(runtimeSessionId)
+```
+
 ## Scenario: Native Runtime Observed Tool Failure Recovery
 
 ### 1. Scope / Trigger

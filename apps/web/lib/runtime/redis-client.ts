@@ -138,8 +138,18 @@ export async function* subscribeEvents(
       if (done && queue.length === 0) break
     }
     if (progressTimedOut) {
-      await r.set(cancelKey(runtimeSessionId), '1', { EX: 300 })
-      yield { type: 'runtime_failed', error: 'runtime progress timeout' }
+      let cancelError: string | null = null
+      try {
+        await setCancel(runtimeSessionId)
+      } catch (err) {
+        cancelError = err instanceof Error ? err.message : String(err)
+      }
+      yield {
+        type: 'runtime_failed',
+        error: cancelError
+          ? `runtime progress timeout; cancel signal failed: ${cancelError}`
+          : 'runtime progress timeout',
+      }
       return
     }
     if (timedOut) {
