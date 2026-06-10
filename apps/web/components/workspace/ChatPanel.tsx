@@ -739,7 +739,7 @@ function RolePicker({
   return (
     <div
       data-testid="role-picker"
-      className="absolute left-0 top-full z-50 mt-1 max-h-72 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md border border-border bg-card p-1 text-card-foreground shadow-md"
+      className="absolute left-0 bottom-full z-50 mb-1 max-h-72 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md border border-border bg-card p-1 text-card-foreground shadow-md"
     >
       {roleAgents.length === 0 ? (
         <div className="px-2 py-1.5 text-sm text-muted-foreground">暂无角色</div>

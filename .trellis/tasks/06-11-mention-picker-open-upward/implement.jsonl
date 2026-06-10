@@ -1,0 +1,1 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量门槛——改动不破坏现有测试、type-check 全绿、不引入无谓依赖"}
