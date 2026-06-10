@@ -27,6 +27,15 @@ function permissionStatusForDecision(
   return 'approved'
 }
 
+function visibleStatusForPermissionStatus(status: string) {
+  if (status === 'completed') return '已执行'
+  if (status === 'running') return '执行中'
+  if (status === 'failed') return '执行失败'
+  if (status === 'rejected') return '已拒绝'
+  if (status === 'approved') return '已允许'
+  return undefined
+}
+
 async function updateInlinePermissionParts(
   db: Awaited<ReturnType<typeof createClient>>,
   input: {
@@ -57,9 +66,10 @@ async function updateInlinePermissionParts(
     })
     if (!changed) continue
 
+    const visibleStatus = visibleStatusForPermissionStatus(input.status)
     await db
       .from('messages')
-      .update({ metadata: { ...metadata, runtimeParts: nextParts } })
+      .update({ metadata: { ...metadata, runtimeParts: nextParts, ...(visibleStatus ? { visibleStatus } : {}) } })
       .eq('id', message.id)
   }
 }

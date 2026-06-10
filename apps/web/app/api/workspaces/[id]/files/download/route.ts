@@ -10,6 +10,12 @@ function safeDownloadName(value: string, fallback: string) {
   return (path.basename(value) || fallback).replace(/["\r\n]/g, '_')
 }
 
+function contentDisposition(value: string, fallback: string) {
+  const name = safeDownloadName(value, fallback)
+  const asciiName = name.replace(/[^\x20-\x7E]/g, '_') || fallback
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(name)}`
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { user, error: authError } = await requireAuth()
@@ -33,7 +39,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return new Response(zip, {
         headers: {
           'Content-Type': 'application/zip',
-          'Content-Disposition': `attachment; filename="${name}"`,
+          'Content-Disposition': contentDisposition(name, 'artifact.zip'),
         },
       })
     }
@@ -42,7 +48,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return new Response(new Uint8Array(data), {
       headers: {
         'Content-Type': mimeForPath(target.relativePath),
-        'Content-Disposition': `attachment; filename="${safeDownloadName(target.relativePath, 'download')}"`,
+        'Content-Disposition': contentDisposition(target.relativePath, 'download'),
       },
     })
   } catch (error) {

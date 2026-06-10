@@ -109,6 +109,27 @@ describe('createSession native session reuse scope', () => {
     })
   })
 
+  it('can create a fresh session without reusing the previous native session id', async () => {
+    previousRows.push({ native_session_id: 'native-stale-readonly' })
+
+    const runtimeSession = await createSession({
+      sessionId: 'session-001',
+      endpoint,
+      roleAgentId: 'agent-ppt',
+      runtimeType: 'codex',
+      cwd: workspaceRoot,
+      reuseNativeSession: false,
+    })
+
+    expect(runtimeSession.nativeSessionId).toBeNull()
+    expect(selectFilters).toHaveLength(0)
+    expect(inserts[0]).toMatchObject({
+      role_agent_id: 'agent-ppt',
+      native_session_id: null,
+      cwd: workspaceRoot,
+    })
+  })
+
   it('rejects runtime session creation without cwd', async () => {
     await expect(createSession({
       sessionId: 'session-001',

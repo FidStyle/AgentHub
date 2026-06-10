@@ -214,6 +214,17 @@ describe('DAG Generator', () => {
     expect(summarizer?.depends_on).toEqual([artifactClosure?.id])
   })
 
+  it('routes document plus PPT delivery prompts to presentation engineer without backend workers', () => {
+    const result = generateOrchestration([
+      roles[0]!,
+      { id: 'agent-ppt', name: '演示稿工程师', role_type: 'engineer', capability_tags: ['演示稿', 'PPT', '文档'], is_orchestrator: false },
+      roles[3]!,
+    ], '帮我生成一个文档和一个PPT。内容简单介绍一下字节跳动')
+
+    expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '演示稿工程师执行', '产物助手收口', '架构师汇总'])
+    expect(result.planNodes.some((node) => node.label === '后端工程师执行')).toBe(false)
+  })
+
   it('serializes frontend after backend when the task requires API or database contract first', () => {
     const result = generateOrchestration(roles, '先定义后端接口和数据库 schema，再让前端调用后端 API')
 

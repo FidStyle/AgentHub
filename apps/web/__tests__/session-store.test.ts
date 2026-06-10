@@ -148,6 +148,32 @@ describe('session store message pinning', () => {
     await expect(useSessionStore.getState().setMessagePinned('msg-001', false)).rejects.toThrow('Forbidden')
     expect(useSessionStore.getState().messages[0].isPinned).toBe(true)
   })
+
+  it('persists session permission mode and keeps the optimistic readback', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    useSessionStore.setState({
+      sessions: [{
+        id: 'session-001',
+        title: '测试',
+        lastMessage: '',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        status: 'active',
+        runtimePermissionMode: 'standard',
+      }],
+    })
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      id: 'session-001',
+      metadata: { runtimePermissionMode: 'full_control' },
+    }))
+
+    await useSessionStore.getState().setSessionPermissionMode('session-001', 'full_control')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/sessions/session-001', expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({ runtime_permission_mode: 'full_control' }),
+    }))
+    expect(useSessionStore.getState().sessions[0].runtimePermissionMode).toBe('full_control')
+  })
 })
 
 describe('session store streaming replies', () => {
@@ -471,9 +497,11 @@ describe('session store lifecycle actions', () => {
         status: 'active',
         kind: 'group',
         roleAgentId: null,
+        isOrchestrator: false,
         sessionId: null,
         isPinned: false,
         participants: [],
+        runtimePermissionMode: null,
       },
     ])
     expect(useSessionStore.getState().activeSessionId).toBe('strict-session-001')
@@ -484,6 +512,28 @@ describe('session store lifecycle actions', () => {
         content: '已完成：@前端工程师 完成当前节点。',
       }),
     ]))
+  })
+
+  it('maps conversation runtime permission mode into session state', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse([
+        {
+          id: 'group-session-001',
+          sessionId: 'session-001',
+          title: '交付群聊',
+          status: 'active',
+          kind: 'group',
+          runtimePermissionMode: 'full_control',
+        },
+      ]))
+      .mockResolvedValueOnce(jsonResponse([]))
+
+    await useSessionStore.getState().fetchSessions('ws-001')
+
+    expect(useSessionStore.getState().sessions[0]).toMatchObject({
+      id: 'session-001',
+      runtimePermissionMode: 'full_control',
+    })
   })
 
   it('fetches active sessions with status filter and maps archived state', async () => {
@@ -510,9 +560,11 @@ describe('session store lifecycle actions', () => {
         status: 'archived',
         kind: 'group',
         roleAgentId: null,
+        isOrchestrator: false,
         sessionId: null,
         isPinned: false,
         participants: [],
+        runtimePermissionMode: null,
       },
     ])
   })

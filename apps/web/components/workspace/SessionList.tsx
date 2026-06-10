@@ -48,8 +48,9 @@ function sortedGroupContacts<T extends GroupContact>(contacts: T[]) {
 }
 
 function defaultGroupParticipantIds(contacts: GroupContact[]) {
-  const orchestrator = contacts.find((contact) => isOrchestratorContact(contact) && contact.roleAgentId)
-  return orchestrator?.roleAgentId ? [orchestrator.roleAgentId] : []
+  return contacts
+    .map((contact) => contact.roleAgentId)
+    .filter((id): id is string => Boolean(id))
 }
 
 function computeGroupPopoverPosition(trigger: DOMRect): FloatingPosition {

@@ -86,10 +86,15 @@ function PermissionPartCard({ part }: { part: Extract<RuntimeMessagePart, { type
     if (!activeSessionId) return
     refreshTimersRef.current.forEach((timer) => window.clearTimeout(timer))
     refreshTimersRef.current = []
-    void fetchMessages(activeSessionId)
+    const refreshReadback = () => {
+      void fetchMessages(activeSessionId)
+      window.dispatchEvent(new CustomEvent('messages:changed', { detail: { sessionId: activeSessionId, actionId: part.actionId } }))
+      window.dispatchEvent(new CustomEvent('actions:changed', { detail: { sessionId: activeSessionId, actionId: part.actionId } }))
+    }
+    refreshReadback()
     for (const delay of [2000, 5000, 10000, 20000, 45000, 90000, 180000, 300000]) {
       const timer = window.setTimeout(() => {
-        void fetchMessages(activeSessionId)
+        refreshReadback()
       }, delay)
       refreshTimersRef.current.push(timer)
     }

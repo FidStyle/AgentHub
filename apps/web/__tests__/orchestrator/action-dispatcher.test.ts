@@ -25,7 +25,11 @@ const {
   return {
   workspaceRoot: '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2',
   resolveEndpointMock: vi.fn(async (_input: unknown) => ({ id: 'endpoint-001', kind: 'public_cloud', status: 'available' })),
-  createSessionMock: vi.fn(async (input: { cwd?: string | null }) => ({ id: 'runtime-001', nativeSessionId: 'native-001', cwd: input.cwd })),
+  createSessionMock: vi.fn(async (input: { cwd?: string | null; reuseNativeSession?: boolean }) => ({
+    id: 'runtime-001',
+    nativeSessionId: input.reuseNativeSession === false ? null : 'native-001',
+    cwd: input.cwd,
+  })),
   isWorkerAliveMock: vi.fn(async () => true),
   enqueueMock: vi.fn(async (_input: unknown) => undefined),
   execFileMock: vi.fn((_command: string, _args: string[], _options: Record<string, unknown>, callback: (err: Error | null, stdout: string, stderr: string) => void) => {
@@ -92,7 +96,7 @@ vi.mock('@/lib/runtime/redis-client', () => ({
   enqueue: (input: unknown) => enqueueMock(input),
 }))
 
-function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Record<string, unknown> | null } = {}) {
+function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Record<string, unknown> | null; attempts?: Array<Record<string, unknown>> } = {}) {
   const writes: Array<{ table: string; values: Record<string, unknown>; id?: string }> = []
   const session = { id: 'session-001', workspace_id: 'ws-001' }
   const workspace = overrides.workspace === null
@@ -142,7 +146,7 @@ function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Rec
         }
         if (table === 'plan_node_attempts') {
           return {
-            select: () => ({ eq: () => ({ order: () => ({ limit: () => ({ data: [], error: null }) }) }) }),
+            select: () => ({ eq: () => ({ order: () => ({ limit: () => ({ data: overrides.attempts ?? [], error: null }) }) }) }),
             insert: (values: Record<string, unknown>) => {
               writes.push({ table, values })
               return { select: () => ({ single: () => ({ data: { id: 'attempt-001', ...values }, error: null }) }) }
@@ -344,6 +348,69 @@ describe('dispatchApprovedAction', () => {
         }),
       }),
     ]))
+  })
+
+  it('allows shell interpreter paths and readonly runtime skill files without opening host repo access', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+    const command = '/bin/zsh -lc "sed -n \'1,220p\' /Users/joytion/.codex/plugins/cache/openai-primary-runtime/presentations/26.601.10930/skills/presentations/SKILL.md && wc -l /Users/joytion/.codex/plugins/cache/openai-primary-runtime/presentations/26.601.10930/skills/presentations/SKILL.md && pwd && rg --files"'
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-read-runtime-skill',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      plan_node_id: 'node-ppt',
+      action_type: 'shell_command',
+      command,
+      cwd: workspaceRoot,
+      runtime_type: 'codex',
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: workspaceRoot,
+    }))
+    expect(enqueueMock).toHaveBeenCalled()
+  })
+
+  it('still blocks host repository paths when the command is wrapped by a shell interpreter', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-shell-host-repo-target',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'shell_command',
+      command: '/bin/zsh -lc "cat /Users/joytion/Documents/code/AgentHub_new_claude_test/package.json"',
+      cwd: workspaceRoot,
+      runtime_type: 'codex',
+    })
+
+    expect(result.status).toBe('unavailable')
+    expect(result.error).toContain('/Users/joytion/Documents/code/AgentHub_new_claude_test/package.json')
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('blocks destructive commands against runtime skill files outside the workspace', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-delete-runtime-skill',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'destructive_command',
+      command: 'rm -f /Users/joytion/.codex/plugins/cache/openai-primary-runtime/presentations/26.601.10930/skills/presentations/SKILL.md',
+      cwd: workspaceRoot,
+      runtime_type: 'codex',
+    })
+
+    expect(result.status).toBe('unavailable')
+    expect(result.error).toContain('该操作试图访问 workspace 外路径')
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
   })
 
   it('does not treat URL paths in approved network commands as filesystem absolute paths', async () => {
@@ -729,6 +796,79 @@ describe('dispatchApprovedAction', () => {
     }))
   })
 
+  it('binds approved native tool continuations back to the original attempt and mailbox', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb({
+      attempts: [{
+        id: 'attempt-runtime-approval',
+        attempt_number: 2,
+        runtime_session_id: 'runtime-original',
+        mailbox_item_id: 'mailbox-runtime-approval',
+      }],
+    })
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-approved-read',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      plan_node_id: 'node-runtime-approval',
+      action_type: 'read_file',
+      command: `Read: ${workspaceRoot}/package.json`,
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_permission_broker',
+        runtimeSessionId: 'runtime-original',
+        originalRuntimeSessionId: 'runtime-original',
+        toolCallId: 'tool-read-approval',
+        toolName: 'Read',
+        actionKind: 'read_file',
+        runtimeType: 'codex',
+        roleAgentId: 'agent-be',
+        nativeSessionId: 'codex-native-001',
+        permissionMode: 'standard',
+        targetPaths: [`${workspaceRoot}/package.json`],
+        cwd: workspaceRoot,
+        workspaceRoot,
+        input: { file_path: `${workspaceRoot}/package.json` },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      actionId: 'action-approved-read',
+      planNodeId: 'node-runtime-approval',
+      attemptId: 'attempt-runtime-approval',
+      mailboxItemId: 'mailbox-runtime-approval',
+    }))
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        id: 'attempt-runtime-approval',
+        values: expect.objectContaining({
+          status: 'running',
+          runtime_session_id: 'runtime-001',
+        }),
+      }),
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        id: 'mailbox-runtime-approval',
+        values: expect.objectContaining({ status: 'running' }),
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        id: 'node-runtime-approval',
+        values: expect.objectContaining({
+          status: 'running',
+          result: expect.objectContaining({
+            runtimeSessionId: 'runtime-001',
+            attemptId: 'attempt-runtime-approval',
+            mailboxItemId: 'mailbox-runtime-approval',
+          }),
+        }),
+      }),
+    ]))
+  })
+
   it('queues runtime invoke preapproval with the original prompt after the user allows it', async () => {
     const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
     const { db, writes } = dispatchDb()
@@ -1084,6 +1224,57 @@ describe('dispatchRuntimeInvokeNode', () => {
       runtimeType: 'claude_code',
       cwd: workspaceRoot,
       planNodeId: 'node-legacy-tag',
+    }))
+  })
+
+  it('does not reuse a native Codex session for explicit retry mailbox dispatch', async () => {
+    const { dispatchPreparedRuntimeInvokeNode } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db } = dispatchDb()
+
+    const result = await dispatchPreparedRuntimeInvokeNode(db as never, {
+      userId: 'user-001',
+      sessionId: 'session-001',
+      node: {
+        id: 'node-ppt-retry',
+        plan_id: 'plan-001',
+        label: '演示稿工程师执行',
+        action_payload: {
+          cwd: workspaceRoot,
+          workspaceRoot,
+          phase: 'worker',
+          userMessage: '生成 PPT',
+        },
+      },
+      workspaceId: 'ws-001',
+      executionDomain: 'cloud',
+      role: {
+        id: 'agent-ppt',
+        name: '演示稿工程师',
+        runtime_type: 'codex',
+      },
+      runtimeType: 'codex',
+      permissionMode: 'standard',
+      attemptId: 'attempt-retry',
+      mailboxItemId: 'mailbox-retry',
+      mailboxContextPackage: {
+        target: 'retry',
+        metadata: { control: 'retry' },
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      roleAgentId: 'agent-ppt',
+      runtimeType: 'codex',
+      cwd: workspaceRoot,
+      reuseNativeSession: false,
+    }))
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeSessionId: 'runtime-001',
+      nativeSessionId: null,
+      permissionMode: 'standard',
+      attemptId: 'attempt-retry',
+      mailboxItemId: 'mailbox-retry',
     }))
   })
 

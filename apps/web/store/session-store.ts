@@ -13,6 +13,7 @@ export interface Session {
   sessionId?: string | null
   isPinned?: boolean
   participants?: Array<{ roleAgentId: string; name: string }>
+  runtimePermissionMode?: string | null
 }
 
 type SessionStatusFilter = 'active' | 'archived'
@@ -237,6 +238,7 @@ interface SessionState {
   restoreSession: (sessionId: string) => Promise<void>
   deleteSession: (sessionId: string) => Promise<void>
   pinSession: (sessionId: string, isPinned: boolean) => Promise<void>
+  setSessionPermissionMode: (sessionId: string, mode: string) => Promise<void>
   openConversation: (conversation: Session) => Promise<void>
   createGroupConversation: (input: { workspaceId: string; name: string; participantRoleAgentIds: string[] }) => Promise<void>
   fetchMessages: (sessionId: string) => Promise<void>
@@ -301,6 +303,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         sessionId: (s.sessionId as string | null | undefined) ?? null,
         isPinned: Boolean(s.isPinned),
         participants: Array.isArray(s.participants) ? s.participants as Array<{ roleAgentId: string; name: string }> : [],
+        runtimePermissionMode: typeof s.runtimePermissionMode === 'string' ? s.runtimePermissionMode : null,
       }))
       const current = get().activeSessionId
       const preferredSession = sessions.find((session) => session.sessionId || session.kind !== 'contact') ?? null
@@ -485,6 +488,45 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
       const workspaceId = get().activeWorkspaceId
       if (workspaceId) await get().fetchSessions(workspaceId)
+    } catch (e) {
+      set({ sessions: previous, error: (e as Error).message })
+      throw e
+    }
+  },
+
+  setSessionPermissionMode: async (sessionId, mode) => {
+    const previous = get().sessions
+    set({
+      sessions: previous.map((session) => (
+        session.id === sessionId || session.sessionId === sessionId
+          ? { ...session, runtimePermissionMode: mode }
+          : session
+      )),
+    })
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runtime_permission_mode: mode }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(body.error || res.statusText)
+      }
+      const row = await res.json().catch(() => ({})) as { metadata?: Record<string, unknown> }
+      const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
+      const readbackMode = typeof metadata.runtimePermissionMode === 'string'
+        ? metadata.runtimePermissionMode
+        : typeof metadata.runtime_permission_mode === 'string'
+          ? metadata.runtime_permission_mode
+          : mode
+      set((state) => ({
+        sessions: state.sessions.map((session) => (
+          session.id === sessionId || session.sessionId === sessionId
+            ? { ...session, runtimePermissionMode: readbackMode }
+            : session
+        )),
+      }))
     } catch (e) {
       set({ sessions: previous, error: (e as Error).message })
       throw e

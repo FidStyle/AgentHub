@@ -147,7 +147,8 @@ function codexApprovalArgs(permissionMode?: string | null) {
 
 function codexSandboxMode(permissionMode?: string | null) {
   if (permissionMode === 'full_control' || permissionMode === 'dangerous_bypass') return 'workspace-write'
-  return 'read-only'
+  if (permissionMode === 'sandbox') return 'read-only'
+  return 'workspace-write'
 }
 
 function claudePermissionArgs(permissionMode?: string | null) {

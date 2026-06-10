@@ -328,6 +328,64 @@ function PreviewBlock({
   )
 }
 
+type OfficePreviewState =
+  | { status: 'loading' }
+  | { status: 'ready'; url: string }
+  | { status: 'failed'; message: string }
+
+function OfficeArtifactPreview({ artifact, downloadUrl }: { artifact: ArtifactRow; downloadUrl: string }) {
+  const [previewState, setPreviewState] = useState<OfficePreviewState>({ status: 'loading' })
+
+  useEffect(() => {
+    let cancelled = false
+    setPreviewState({ status: 'loading' })
+    fetch(`/api/artifacts/${artifact.id}/preview`, { method: 'POST' })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          const message = typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : `预览转换失败（${response.status}）`
+          throw new Error(message)
+        }
+        const url = typeof body.url === 'string' ? body.url : null
+        if (!url) throw new Error('预览转换没有返回 PDF 地址。')
+        if (!cancelled) setPreviewState({ status: 'ready', url })
+      })
+      .catch((error) => {
+        if (!cancelled) setPreviewState({ status: 'failed', message: error instanceof Error ? error.message : '预览转换失败。' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [artifact.id])
+
+  if (previewState.status === 'loading') {
+    return (
+      <div data-testid="workspace-office-preview-loading" className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        正在使用 LibreOffice/soffice 生成真实 PDF 预览...
+      </div>
+    )
+  }
+  if (previewState.status === 'failed') {
+    return (
+      <div data-testid="workspace-office-preview-error" className="space-y-2 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+        <p>{previewState.message}</p>
+        <a href={downloadUrl} className="inline-flex h-8 w-fit items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted">
+          <Download className="mr-1 h-3.5 w-3.5" />
+          下载原文件查看
+        </a>
+      </div>
+    )
+  }
+  return (
+    <iframe
+      data-testid={artifact.artifact_type === 'presentation' ? 'workspace-presentation-pdf-preview' : 'workspace-document-pdf-preview'}
+      title={`${artifact.title} 预览`}
+      src={previewState.url}
+      className="h-96 w-full rounded-md border border-border bg-white"
+    />
+  )
+}
+
 function PresentationPreview({ deck }: { deck: PresentationDeck }) {
   return (
     <div data-testid="workspace-presentation-preview" className="space-y-3">
@@ -1998,7 +2056,9 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
   const [publishUrl, setPublishUrl] = useState<string | null>(
     typeof artifact.metadata?.publishUrl === 'string' ? artifact.metadata.publishUrl : null,
   )
-  const editable = ['document', 'presentation', 'markdown', 'html', 'code'].includes(artifact.artifact_type)
+  const sourceBackedOfficeArtifact = Boolean(artifact.source_path) && (artifact.artifact_type === 'document' || artifact.artifact_type === 'presentation')
+  const editable = ['markdown', 'html', 'code'].includes(artifact.artifact_type)
+    || ((artifact.artifact_type === 'document' || artifact.artifact_type === 'presentation') && !sourceBackedOfficeArtifact)
   const startCommand = artifactStartCommand(artifact)
   const runnable = ['html', 'folder', 'generic_file', 'code'].includes(artifact.artifact_type) && (Boolean(artifact.source_path) || Boolean(startCommand))
 
@@ -2010,7 +2070,7 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
   }, [artifact])
   const preview = {
     previewKind: artifactPreviewKind(artifact.artifact_type),
-    content: artifactEditableContent(artifact) || (artifact.artifact_type === 'folder' ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2) : null),
+    content: sourceBackedOfficeArtifact ? null : artifactEditableContent(artifact) || (artifact.artifact_type === 'folder' ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2) : null),
     mime: String(artifact.metadata?.mime ?? 'application/octet-stream'),
     path: artifact.source_path ?? artifact.id,
     name: artifact.title,
@@ -2074,7 +2134,7 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
 
   function quoteArtifactToComposer() {
     const source = artifact.source_path ? `来源文件：${artifact.source_path}` : startCommand ? `启动命令：${startCommand}` : `产物 ID：${artifact.id}`
-    const inlineContent = artifactEditableContent(artifact).trim()
+    const inlineContent = sourceBackedOfficeArtifact ? '' : artifactEditableContent(artifact).trim()
     const summary = [
       `类型：${typeLabel}`,
       source,
@@ -2200,7 +2260,9 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
           </div>
         </div>
       ) : (
-        <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
+        sourceBackedOfficeArtifact
+          ? <OfficeArtifactPreview artifact={artifact} downloadUrl={downloadUrl} />
+          : <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
       )}
       <div className="flex flex-wrap gap-2 rounded-md border border-border bg-muted/30 p-2">
         <Button size="sm" variant="outline" onClick={quoteArtifactToComposer} data-testid="artifact-quote-to-composer">

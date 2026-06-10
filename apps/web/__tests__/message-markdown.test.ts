@@ -761,6 +761,26 @@ describe('IM-first orchestration contract', () => {
     expect(source).toContain("kind: 'presentation'")
     expect(source).toContain('slidesToText')
   })
+
+  it('keeps PPT routing bound to presentation role identity instead of backend ppt_master tools', () => {
+    const chatRoute = readFileSync(fileURLToPath(new URL('../app/api/chat/route.ts', import.meta.url)), 'utf8')
+    const defaults = JSON.parse(readFileSync(fileURLToPath(new URL('../config/role-agents/defaults.json', import.meta.url)), 'utf8')) as Array<{ name: string; enabled_tool_ids?: string[] }>
+    const backend = defaults.find((role) => role.name === '后端工程师')
+    const presentation = defaults.find((role) => role.name === '演示稿工程师')
+
+    expect(backend?.enabled_tool_ids ?? []).not.toContain('ppt_master')
+    expect(presentation?.enabled_tool_ids ?? []).toContain('ppt_master')
+    expect(chatRoute).not.toContain("tools.includes('ppt_master')")
+    expect(chatRoute).toContain("targetRoleAgentId === 'role-presentation'")
+  })
+
+  it('refreshes orchestration and timeline readback after permission decisions', () => {
+    const source = readFileSync(fileURLToPath(new URL('../components/workspace/MessageContent.tsx', import.meta.url)), 'utf8')
+
+    expect(source).toContain("new CustomEvent('messages:changed'")
+    expect(source).toContain("new CustomEvent('actions:changed'")
+    expect(source).toContain('refreshReadback()')
+  })
 })
 
 describe('MobileActionCard', () => {

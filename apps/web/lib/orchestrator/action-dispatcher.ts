@@ -4,11 +4,15 @@ import path from 'node:path'
 import type { ExecutionDomain } from '@agenthub/shared'
 import type { CliRuntimeType } from '@agenthub/shared'
 import type { AgentMailboxItem } from '@agenthub/shared'
+import type { RuntimeMessagePart } from '@agenthub/shared'
 import { createClient } from '@/lib/app-db-client'
 import { createSession, resolveEndpoint } from '@/lib/runtime/gateway'
 import { enqueue, isWorkerAlive, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { assertRoleAgentTool, loadRoleAgentForTool } from '@/lib/role-agents/tools'
 import { createPresentationArtifact } from '@/lib/artifacts/presentation-artifact'
+import { artifactTypeForPath, defaultDocumentContent, defaultPresentationDeck, serializePresentationDeck, type ArtifactDbType } from '@/lib/artifacts/rich-artifacts'
+import { previewKindForPath } from '@/lib/workspace/cloud-workspace-fs'
+import { advancePlanProgress } from '@/lib/orchestrator/plan-progress'
 import type { RoleAgentToolId } from '@agenthub/shared'
 
 type AppDb = Awaited<ReturnType<typeof createClient>>
@@ -119,6 +123,257 @@ function dispatchResult(action: ActionRecordForDispatch, values: Record<string, 
     ...(objectValue(action.result) ?? {}),
     ...values,
   }
+}
+
+type ArtifactClosureCandidate = {
+  sourcePath: string
+  title: string
+  artifactType: ArtifactDbType
+  content: string | null
+  contentRef: string
+  metadata: Record<string, unknown>
+}
+
+function titleForArtifactPath(sourcePath: string) {
+  const base = path.basename(sourcePath).replace(/\.[^.]+$/, '').trim()
+  return base || '交付产物'
+}
+
+function artifactClosurePreviewPart(input: {
+  artifactId: string
+  artifactType: ArtifactDbType
+  title: string
+  sourcePath: string
+}): RuntimeMessagePart | null {
+  const previewUrl = `/m/preview?artifactId=${encodeURIComponent(input.artifactId)}`
+  const downloadUrl = `/api/artifacts/${encodeURIComponent(input.artifactId)}/download`
+  if (input.artifactType === 'document') {
+    return {
+      id: `document-preview-${input.artifactId}`,
+      type: 'document_preview',
+      status: 'created',
+      artifactId: input.artifactId,
+      title: input.title,
+      sourcePath: input.sourcePath,
+      previewUrl,
+      downloadUrl,
+      summary: '文档产物已登记，可预览或下载。',
+    }
+  }
+  if (input.artifactType === 'presentation') {
+    return {
+      id: `presentation-preview-${input.artifactId}`,
+      type: 'presentation_preview',
+      status: 'created',
+      artifactId: input.artifactId,
+      title: input.title,
+      sourcePath: input.sourcePath,
+      previewUrl,
+      downloadUrl,
+      summary: '演示稿产物已登记，可预览或下载。',
+    }
+  }
+  return null
+}
+
+async function artifactClosureCandidates(workspaceRoot: string, workspaceId: string): Promise<ArtifactClosureCandidate[]> {
+  const files = await walkFiles(workspaceRoot)
+  const candidates: ArtifactClosureCandidate[] = []
+  for (const fullPath of files) {
+    const sourcePath = path.relative(workspaceRoot, fullPath).replace(/\\/g, '/')
+    const segments = sourcePath.split('/')
+    if (segments.some((segment) => segment.startsWith('.') && segment !== '.agenthub')) continue
+    if (sourcePath.startsWith('.git/') || sourcePath.includes('/node_modules/')) continue
+    if (/^(probe|test-|test_)/i.test(path.basename(sourcePath))) continue
+    if (!/\.(docx?|pptx?|md|markdown)$/i.test(sourcePath)) continue
+    const artifactType = artifactTypeForPath(sourcePath)
+    if (artifactType !== 'document' && artifactType !== 'presentation') continue
+    const info = await fs.stat(fullPath).catch(() => null)
+    if (!info?.isFile()) continue
+    const title = titleForArtifactPath(sourcePath)
+    const isMarkdown = /\.(md|markdown)$/i.test(sourcePath)
+    const content = isMarkdown
+      ? await fs.readFile(fullPath, 'utf8').catch(() => defaultDocumentContent(title))
+      : artifactType === 'document'
+        ? defaultDocumentContent(title)
+        : serializePresentationDeck(defaultPresentationDeck(title))
+    const previewKind = previewKindForPath(sourcePath)
+    candidates.push({
+      sourcePath,
+      title,
+      artifactType,
+      content,
+      contentRef: `workspace-file:${workspaceId}:${sourcePath}`,
+      metadata: {
+        source: 'artifact_closure_scan',
+        previewKind,
+        size: info.size,
+        downloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourcePath)}`,
+      },
+    })
+  }
+
+  const byPath = new Map(candidates.map((candidate) => [candidate.sourcePath, candidate]))
+  const preferredPairs = [
+    ['deliverables/字节跳动简介.docx', 'deliverables/字节跳动简介.pptx'],
+    ['deliverables/bytedance-introduction.docx', 'deliverables/bytedance-introduction.pptx'],
+    ['deliverables/ByteDance_Intro_CN.docx', 'deliverables/ByteDance_Intro_CN.pptx'],
+  ]
+  for (const pair of preferredPairs) {
+    const selected = pair.map((sourcePath) => byPath.get(sourcePath)).filter((candidate): candidate is ArtifactClosureCandidate => Boolean(candidate))
+    if (selected.length === pair.length) return selected
+  }
+
+  const deliverableCandidates = candidates.filter((candidate) => candidate.sourcePath.startsWith('deliverables/'))
+  const sortableCandidates = deliverableCandidates.length > 0 ? deliverableCandidates : candidates
+  return sortableCandidates.sort((a, b) => {
+    const score = (candidate: ArtifactClosureCandidate) => {
+      const pathValue = candidate.sourcePath.toLowerCase()
+      if (pathValue.startsWith('deliverables/')) return 0
+      if (pathValue.endsWith('.pptx')) return 1
+      if (pathValue.endsWith('.docx')) return 2
+      return 3
+    }
+    return score(a) - score(b) || a.sourcePath.localeCompare(b.sourcePath)
+  })
+}
+
+async function persistArtifactClosure(
+  db: AppDb,
+  input: {
+    userId: string
+    workspaceId: string
+    sessionId: string
+    nodeId: string
+    roleAgentId?: string | null
+    workspaceRoot: string
+    attemptId?: string | null
+    mailboxItemId?: string | null
+  },
+): Promise<ActionDispatchResult> {
+  const candidates = await artifactClosureCandidates(input.workspaceRoot, input.workspaceId)
+  const now = new Date().toISOString()
+  if (candidates.length === 0) {
+    const error = '产物助手未发现可登记的文档或演示稿产物。'
+    if (input.attemptId) {
+      await db.from('plan_node_attempts').update({ status: 'failed', error, updated_at: now }).eq('id', input.attemptId)
+    }
+    if (input.mailboxItemId) {
+      await db.from('agent_mailbox_items').update({ status: 'failed', error, updated_at: now }).eq('id', input.mailboxItemId)
+    }
+    await db.from('plan_nodes').update({ status: 'failed', completed_at: now, result: { error } }).eq('id', input.nodeId)
+    await advancePlanProgress(db, { planNodeId: input.nodeId })
+    return { status: 'unavailable', error }
+  }
+
+  const runtimeParts: RuntimeMessagePart[] = []
+  const artifactRows: Array<{ id: string; sourcePath: string; title: string; artifactType: ArtifactDbType }> = []
+  for (const candidate of candidates) {
+    const existing = await db
+      .from('artifacts')
+      .select('id, title, artifact_type')
+      .eq('workspace_id', input.workspaceId)
+      .eq('session_id', input.sessionId)
+      .eq('source_path', candidate.sourcePath)
+      .limit(1)
+    const existingRow = Array.isArray(existing.data) ? existing.data[0] as { id?: string; title?: string; artifact_type?: ArtifactDbType } | undefined : undefined
+    let artifactId = existingRow?.id ?? null
+    if (!artifactId) {
+      const { data: artifact, error } = await db
+        .from('artifacts')
+        .insert({
+          workspace_id: input.workspaceId,
+          session_id: input.sessionId,
+          source_message_id: null,
+          source_run_id: null,
+          source_path: candidate.sourcePath,
+          artifact_type: candidate.artifactType,
+          title: candidate.title,
+          content: candidate.content,
+          content_ref: candidate.contentRef,
+          metadata: {
+            ...candidate.metadata,
+            kind: 'artifact_closure_scan',
+            planNodeId: input.nodeId,
+          },
+          created_by: input.userId,
+        })
+        .select('id')
+        .single()
+      if (error || !artifact?.id) continue
+      artifactId = String(artifact.id)
+    }
+    artifactRows.push({
+      id: artifactId,
+      sourcePath: candidate.sourcePath,
+      title: candidate.title,
+      artifactType: candidate.artifactType,
+    })
+    runtimeParts.push({
+      id: `artifact-${artifactId}`,
+      type: 'artifact',
+      status: 'created',
+      artifactId,
+      artifactType: candidate.artifactType,
+      title: candidate.title,
+      sourcePath: candidate.sourcePath,
+      contentRef: candidate.contentRef,
+      previewUrl: `/m/preview?artifactId=${encodeURIComponent(artifactId)}`,
+      downloadUrl: `/api/artifacts/${encodeURIComponent(artifactId)}/download`,
+    })
+    const previewPart = artifactClosurePreviewPart({
+      artifactId,
+      artifactType: candidate.artifactType,
+      title: candidate.title,
+      sourcePath: candidate.sourcePath,
+    })
+    if (previewPart) runtimeParts.push(previewPart)
+  }
+
+  if (artifactRows.length === 0) {
+    const error = '产物助手发现候选文件，但写入 artifacts 表失败。'
+    await db.from('plan_nodes').update({ status: 'failed', completed_at: now, result: { error } }).eq('id', input.nodeId)
+    await advancePlanProgress(db, { planNodeId: input.nodeId })
+    return { status: 'unavailable', error }
+  }
+
+  await db.from('messages').insert({
+    session_id: input.sessionId,
+    content: [
+      '产物助手已完成收口。',
+      `已登记产物：${artifactRows.map((artifact) => artifact.sourcePath).join('、')}`,
+      '产物卡已同步右侧产物列表，可预览或下载。',
+    ].join('\n'),
+    sender_type: 'agent',
+    role_agent_id: input.roleAgentId ?? null,
+    message_type: 'result_card',
+    metadata: {
+      visibleStatus: '已完成',
+      systemArtifactClosure: true,
+      artifactClosure: {
+        planNodeId: input.nodeId,
+        artifacts: artifactRows,
+      },
+      runtimeParts,
+    },
+  })
+  if (input.attemptId) {
+    await db.from('plan_node_attempts').update({ status: 'completed', error: null, updated_at: now }).eq('id', input.attemptId)
+  }
+  if (input.mailboxItemId) {
+    await db.from('agent_mailbox_items').update({ status: 'completed', error: null, updated_at: now }).eq('id', input.mailboxItemId)
+  }
+  await db.from('plan_nodes').update({
+    status: 'completed',
+    completed_at: now,
+    result: {
+      systemArtifactClosure: true,
+      artifactCount: artifactRows.length,
+      artifacts: artifactRows,
+    },
+  }).eq('id', input.nodeId)
+  await advancePlanProgress(db, { planNodeId: input.nodeId })
+  return { status: 'completed' }
 }
 
 function buildApprovedNativeToolPrompt(
@@ -845,6 +1100,7 @@ export async function dispatchApprovedAction(
     }
   }
   const approvedNativeToolPrompt = broker ? buildApprovedNativeToolPrompt(action, broker, approvedNativeTool) : null
+  const continuationAttempt = await actionContinuationAttempt(db, action, broker)
 
   const runtimeSession = await createSession({
     sessionId: action.session_id,
@@ -865,11 +1121,24 @@ export async function dispatchApprovedAction(
     executed_at: now,
     result: queuedActionResult,
   }).eq('id', action.id)
+  if (continuationAttempt) {
+    await markAttemptAndMailbox(db, {
+      attemptId: continuationAttempt.id,
+      mailboxItemId: continuationAttempt.mailbox_item_id ?? null,
+      status: 'running',
+      runtimeSessionId: runtimeSession.id,
+    })
+  }
   if (action.plan_node_id) {
     await db.from('plan_nodes').update({
       status: 'running',
       started_at: now,
-      result: { dispatch: 'queued', runtimeSessionId: runtimeSession.id },
+      result: {
+        dispatch: 'queued',
+        runtimeSessionId: runtimeSession.id,
+        attemptId: continuationAttempt?.id ?? null,
+        mailboxItemId: continuationAttempt?.mailbox_item_id ?? null,
+      },
     }).eq('id', action.plan_node_id)
   }
 
@@ -891,6 +1160,8 @@ export async function dispatchApprovedAction(
     actionResult: queuedActionResult,
     approvedNativeTool,
     planNodeId: action.plan_node_id ?? undefined,
+    attemptId: continuationAttempt?.id,
+    mailboxItemId: continuationAttempt?.mailbox_item_id ?? null,
   })
 
   return { status: 'queued', runtimeSessionId: runtimeSession.id }
@@ -908,6 +1179,8 @@ export interface RuntimeInvokeNodeForDispatch {
 type AttemptRow = {
   id: string
   attempt_number: number
+  mailbox_item_id?: string | null
+  runtime_session_id?: string | null
 }
 
 async function latestPlanNodeAttempt(db: AppDb, planNodeId: string) {
@@ -918,6 +1191,27 @@ async function latestPlanNodeAttempt(db: AppDb, planNodeId: string) {
     .order('attempt_number', { ascending: false })
     .limit(1)
   const rows = Array.isArray(data) ? data as unknown as AttemptRow[] : []
+  return rows[0] ?? null
+}
+
+async function actionContinuationAttempt(
+  db: AppDb,
+  action: ActionRecordForDispatch,
+  broker: RuntimePermissionBrokerResult | null,
+) {
+  if (!action.plan_node_id) return null
+  const { data } = await db
+    .from('plan_node_attempts')
+    .select('id, attempt_number, mailbox_item_id, runtime_session_id')
+    .eq('plan_node_id', action.plan_node_id)
+    .order('attempt_number', { ascending: false })
+    .limit(5)
+  const rows = Array.isArray(data) ? data as unknown as AttemptRow[] : []
+  const originalRuntimeSessionId = stringValue(broker?.originalRuntimeSessionId) ?? stringValue(broker?.runtimeSessionId)
+  if (originalRuntimeSessionId) {
+    const matching = rows.find((row) => row.runtime_session_id === originalRuntimeSessionId)
+    if (matching) return matching
+  }
   return rows[0] ?? null
 }
 
@@ -1034,12 +1328,63 @@ function absolutePathTokens(command: string): string[] {
     .filter((token) => token.startsWith('/'))
 }
 
+function isShellInterpreterInvocation(command: string, token: string): boolean {
+  const normalizedToken = normalizeAbsolutePath(token)
+  if (!normalizedToken) return false
+  if (!['/bin/sh', '/bin/bash', '/bin/zsh', '/usr/bin/bash', '/usr/bin/env'].includes(normalizedToken)) {
+    return false
+  }
+  const trimmed = command.trimStart()
+  return trimmed === token || trimmed.startsWith(`${token} `)
+}
+
+function knownRuntimeReadonlyRoots(): string[] {
+  const home = process.env.HOME?.trim()
+  if (!home) return []
+  return [
+    `${home}/.codex/plugins/cache`,
+    `${home}/.codex/skills`,
+    `${home}/.agents/skills`,
+  ]
+}
+
+function unwrapShellReadCommand(command: string): string {
+  const trimmed = command.trim()
+  const shellMatch = trimmed.match(/^\/(?:bin|usr\/bin)\/(?:sh|bash|zsh|env)\s+(?:[a-z]+\s+)?-lc\s+(["'])([\s\S]*)\1$/)
+  return shellMatch?.[2]?.trim() ?? trimmed
+}
+
+function isConservativeReadonlyCommand(command: string): boolean {
+  const inner = unwrapShellReadCommand(command)
+  if (/[<>]/.test(inner)) return false
+  if (/\b(?:rm|mv|cp|chmod|chown|truncate|touch|mkdir|rmdir|ln|tee)\b/.test(inner)) return false
+  if (/\bsed\s+[^&;|]*\s(?:-i|--in-place)\b/.test(inner)) return false
+  const segments = inner.split(/\s*(?:&&|;|\|)\s*/).map((segment) => segment.trim()).filter(Boolean)
+  if (segments.length === 0) return false
+  return segments.every((segment) => /^(?:cat|sed\s+-n|head|tail|grep|rg|find|ls|pwd|wc)(?:\s|$)/.test(segment))
+}
+
+function isKnownRuntimeReadonlyPath(command: string, actionType: string, token: string): boolean {
+  if (actionType === 'destructive_command' || actionType === 'file_write' || actionType === 'write_file' || actionType === 'apply_diff') {
+    return false
+  }
+  const normalizedToken = normalizeAbsolutePath(token)
+  if (!normalizedToken) return false
+  if (!knownRuntimeReadonlyRoots().some((root) => isPathInsideRoot(root, normalizedToken))) return false
+  return isConservativeReadonlyCommand(command)
+}
+
 function actionWorkspaceViolation(action: ActionRecordForDispatch, workspaceRoot: string): string | null {
   const cwd = action.cwd?.trim()
   if (cwd && !isPathInsideRoot(workspaceRoot, cwd)) {
     return '该操作试图使用 workspace 外工作目录，已阻止。'
   }
-  const outsideTarget = absolutePathTokens(action.command).find((token) => !isPathInsideRoot(workspaceRoot, token))
+  const outsideTarget = absolutePathTokens(action.command).find((token) => {
+    if (isPathInsideRoot(workspaceRoot, token)) return false
+    if (isShellInterpreterInvocation(action.command, token)) return false
+    if (isKnownRuntimeReadonlyPath(action.command, action.action_type, token)) return false
+    return true
+  })
   if (outsideTarget) {
     return `该操作试图访问 workspace 外路径 ${outsideTarget}，已阻止。`
   }
@@ -1065,6 +1410,12 @@ function actionWorkspaceViolation(action: ActionRecordForDispatch, workspaceRoot
 function payloadString(payload: Record<string, unknown>, key: string) {
   const value = payload[key]
   return typeof value === 'string' ? value : undefined
+}
+
+function mailboxContextControl(value: unknown): string | null {
+  const record = objectValue(value)
+  const metadata = objectValue(record?.metadata)
+  return stringValue(record?.target) ?? stringValue(metadata?.control)
 }
 
 function requireCloudWorkspaceRoot(workspace: WorkspaceDispatchRow | null): string | null {
@@ -1105,6 +1456,28 @@ export async function dispatchPreparedRuntimeInvokeNode(
   },
 ): Promise<ActionDispatchResult> {
   const payload = input.node.action_payload ?? {}
+  const phase = payloadString(payload, 'phase')
+  const cwd = payloadString(payload, 'cwd') ?? null
+  if (phase === 'artifact_closure') {
+    const workspaceRoot = payloadString(payload, 'workspaceRoot') ?? cwd
+    if (!workspaceRoot) {
+      const error = 'Runtime 工作目录缺失，产物收口未执行。'
+      await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'dead_letter', error })
+      await db.from('plan_nodes').update({ status: 'failed', result: { error } }).eq('id', input.node.id)
+      await advancePlanProgress(db, { planNodeId: input.node.id })
+      return { status: 'unavailable', error }
+    }
+    return persistArtifactClosure(db, {
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+      sessionId: input.sessionId,
+      nodeId: input.node.id,
+      roleAgentId: input.role?.id ?? null,
+      workspaceRoot,
+      attemptId: input.attemptId,
+      mailboxItemId: input.mailboxItemId,
+    })
+  }
   const endpoint = await resolveEndpoint({
     userId: input.userId,
     workspaceId: input.workspaceId,
@@ -1121,7 +1494,6 @@ export async function dispatchPreparedRuntimeInvokeNode(
     return { status: 'unavailable', error: 'Runtime 执行器未就绪，节点未投递。' }
   }
 
-  const cwd = payloadString(payload, 'cwd') ?? null
   if (!cwd) {
     const error = 'Runtime 工作目录缺失，节点未投递以避免读取宿主仓库。'
     await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'dead_letter', error })
@@ -1134,6 +1506,7 @@ export async function dispatchPreparedRuntimeInvokeNode(
     roleAgentId: input.role?.id ?? undefined,
     runtimeType: input.runtimeType,
     cwd,
+    reuseNativeSession: !['retry', 'requeue'].includes(mailboxContextControl(input.mailboxContextPackage) ?? ''),
   })
   await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'running', runtimeSessionId: runtimeSession.id })
   const now = new Date().toISOString()

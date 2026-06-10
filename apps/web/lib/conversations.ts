@@ -13,6 +13,7 @@ export type ConversationRow = {
   lastMessage: string
   status: 'active' | 'archived'
   participants: Array<{ roleAgentId: string; name: string }>
+  runtimePermissionMode?: string | null
 }
 
 type SessionLike = {
@@ -48,6 +49,14 @@ type MessageSummary = {
 
 function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []
+}
+
+function runtimePermissionMode(metadata: Record<string, unknown> | null | undefined) {
+  const camel = metadata?.runtimePermissionMode
+  if (typeof camel === 'string' && camel.trim()) return camel
+  const snake = metadata?.runtime_permission_mode
+  if (typeof snake === 'string' && snake.trim()) return snake
+  return null
 }
 
 export function sessionParticipantIds(session: SessionLike) {
@@ -103,6 +112,7 @@ export function buildConversationRows(input: {
       lastMessage: lastMessage?.content ?? '',
       status: direct?.status === 'archived' ? 'archived' : 'active',
       participants: [{ roleAgentId: role.id, name: role.name }],
+      runtimePermissionMode: runtimePermissionMode(direct?.metadata),
     }
   })
 
@@ -126,6 +136,7 @@ export function buildConversationRows(input: {
           .map((id) => roleById.get(id))
           .filter((role): role is RoleLike => Boolean(role))
           .map((role) => ({ roleAgentId: role.id, name: role.name })),
+        runtimePermissionMode: runtimePermissionMode(session.metadata),
       }
     })
 

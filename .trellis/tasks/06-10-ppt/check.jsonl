@@ -1,0 +1,7 @@
+{"file":"apps/web/__tests__/orchestrator.test.ts","reason":"验证PPT任务不会路由到后端工程师"}
+{"file":"apps/web/__tests__/api/chat.test.ts","reason":"验证chat API对文档/PPT计划节点和权限metadata的读写"}
+{"file":"apps/web/__tests__/message-markdown.test.ts","reason":"验证审批卡允许/拒绝后刷新消息与编排事件"}
+{"file":"apps/web/components/workspace/ChatPanel.tsx","reason":"核对权限模式刷新后读回，且不做workspace全局高权限泄漏"}
+{"file":"apps/web/components/workspace/MessageContent.tsx","reason":"核对审批后触发 messages/actions/plans/timeline 刷新"}
+{"file":"apps/web/app/api/chat/route.ts","reason":"核对presentation匹配不被后端ppt_master误抢"}
+{"file":"apps/web/config/role-agents/defaults.json","reason":"核对默认后端角色不再包含ppt_master"}

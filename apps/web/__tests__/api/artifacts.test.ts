@@ -288,7 +288,7 @@ describe('/api/artifacts', () => {
     expect(result.data.url).toContain('/m/preview?artifactId=artifact-001')
   })
 
-  it('falls back to slide summaries when presentation PDF conversion is unavailable', async () => {
+  it('fails explicitly when presentation source is missing', async () => {
     setupMockClient(createPostgresChain(undefined, undefined, undefined, undefined, undefined, [
       {
         ...mockArtifact,
@@ -299,17 +299,16 @@ describe('/api/artifacts', () => {
       },
     ]))
     const { POST } = await import('@/app/api/artifacts/[id]/preview/route')
-    const result = await callArtifactRoute<{ kind: string; status: string; message: string; slides: Array<{ title: string }> }>(
+    const result = await callArtifactRoute<{ kind: string; status: string; message: string }>(
       POST,
       'POST',
       'artifact-001',
     )
 
-    expect(result.status).toBe(200)
+    expect(result.status).toBe(409)
     expect(result.data.kind).toBe('presentation')
-    expect(result.data.status).toBe('summary')
-    expect(result.data.message).toContain('PPTX 文件不存在')
-    expect(result.data.slides[0].title).toBe('第一页')
+    expect(result.data.status).toBe('unavailable')
+    expect(result.data.message).toContain('缺少源文件路径')
   })
 
   it('rejects artifact creation without workspace_id', async () => {

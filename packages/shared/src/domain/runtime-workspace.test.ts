@@ -135,6 +135,18 @@ describe('role runtime workspace permission contract', () => {
     expect(dispatch.targetRoleAgentIds).toEqual(['role-presentation'])
   })
 
+  it('dispatches document plus PPT prompts to the presentation engineer role', () => {
+    const dispatch = createArchitectDispatch({
+      workspaceId: 'workspace-test2',
+      sessionId: 'session-doc-ppt',
+      architectRoleAgentId: 'role-architect',
+      userMessage: '帮我生成一个文档和一个PPT。内容简单介绍一下字节跳动',
+    })
+
+    expect(dispatch.requiresEngineeringDispatch).toBe(true)
+    expect(dispatch.targetRoleAgentIds).toEqual(['role-presentation'])
+  })
+
   it('requires product permission events before native CLI tool execution', () => {
     const toolCall = {
       id: 'tool-write-1',

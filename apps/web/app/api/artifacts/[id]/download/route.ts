@@ -34,6 +34,22 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     .single()
   if (!workspace) return NextResponse.json({ error: '产物不存在' }, { status: 404 })
 
+  if (row.artifact_type === 'document' && row.source_path) {
+    const cloud = await loadCloudWorkspaceRoot(db, workspace as never, user)
+    if (cloud.ok) {
+      const { readFile, stat } = await import('node:fs/promises')
+      const target = resolveWorkspacePath(cloud.root, row.source_path)
+      const info = await stat(target.fullPath).catch(() => null)
+      if (info?.isFile()) {
+        return new Response(await readFile(target.fullPath), {
+          headers: {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'Content-Disposition': contentDisposition(row.title, row.artifact_type),
+          },
+        })
+      }
+    }
+  }
   if (row.artifact_type === 'document') {
     return new Response(createDocxBuffer(row.title, row.content ?? ''), {
       headers: {

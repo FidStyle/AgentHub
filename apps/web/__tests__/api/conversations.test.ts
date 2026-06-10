@@ -44,6 +44,35 @@ describe('/api/conversations', () => {
     expect(result.data.some((row) => row.kind === 'contact' && row.title === 'Analyzer Agent')).toBe(true)
   })
 
+  it('returns session runtime permission mode for composer readback', async () => {
+    const sessions = [
+      {
+        id: 'session-group',
+        workspace_id: 'ws-001',
+        name: '交付群聊',
+        status: 'active',
+        chat_kind: 'group',
+        participant_role_agent_ids: ['agent-001'],
+        metadata: { runtimePermissionMode: 'full_control' },
+        is_pinned: false,
+        updated_at: '2026-01-02T00:00:00.000Z',
+        last_activity_at: '2026-01-02T00:00:00.000Z',
+      },
+    ]
+    setupMockClient(createPostgresChain(mockUser, undefined, sessions, [], [mockRoleAgent]))
+    const { GET } = await import('@/app/api/conversations/route')
+    const result = await callRoute<Array<{ kind: string; title: string; runtimePermissionMode?: string | null }>>(
+      GET,
+      'GET',
+      '/api/conversations?workspace_id=ws-001&status=active',
+    )
+    expect(result.status).toBe(200)
+    expect(result.data.find((row) => row.kind === 'group')).toMatchObject({
+      title: '交付群聊',
+      runtimePermissionMode: 'full_control',
+    })
+  })
+
   it('creates a group conversation with selected participants', async () => {
     setupMockClient(createPostgresChain())
     const { POST } = await import('@/app/api/conversations/groups/route')

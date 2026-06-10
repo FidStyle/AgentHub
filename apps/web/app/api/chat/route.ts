@@ -210,8 +210,7 @@ function roleMatchesArchitectDispatchTarget(role: SelectedRoleAgent, targetRoleA
     return text.includes('front') || text.includes('ui') || text.includes('web') || text.includes('前端') || text.includes('页面') || text.includes('界面')
   }
   if (targetRoleAgentId === 'role-presentation') {
-    const tools = Array.isArray(role.enabled_tool_ids) ? role.enabled_tool_ids.map((item) => String(item)).join(' ') : ''
-    return text.includes('ppt') || text.includes('presentation') || text.includes('deck') || text.includes('演示稿') || text.includes('幻灯片') || tools.includes('ppt_master')
+    return text.includes('ppt') || text.includes('presentation') || text.includes('deck') || text.includes('演示稿') || text.includes('幻灯片')
   }
   return false
 }
@@ -2188,7 +2187,7 @@ export async function POST(req: NextRequest) {
   const explicitNonAutomaticPermissionMode = typeof permissionMode === 'string'
     && permissionMode.trim().length > 0
     && !isAutomaticPermissionMode(permissionMode)
-  if (explicitNonAutomaticPermissionMode) {
+  if (explicitNonAutomaticPermissionMode && selectedRoleAgents.length <= 1) {
     if (!runtimeWorkspaceRoot) {
       return Response.json({ error: '标准权限执行需要可写的云端工作区目录' }, { status: 409 })
     }

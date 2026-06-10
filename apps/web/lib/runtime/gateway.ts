@@ -153,23 +153,27 @@ export async function createSession(input: {
   runtimeType: RuntimeType
   cwd?: string | null
   capabilitySnapshot?: Record<string, unknown> | null
+  reuseNativeSession?: boolean
 }): Promise<RuntimeSessionRecord> {
   const db = await createClient()
   const cwd = input.cwd ?? null
   if (!cwd) {
     throw new Error('RUNTIME_CWD_REQUIRED')
   }
-  let previousQuery = db
-    .from('runtime_sessions')
-    .select('native_session_id')
-    .eq('session_id', input.sessionId)
-    .eq('runtime_type', input.runtimeType)
-  previousQuery = input.roleAgentId ? previousQuery.eq('role_agent_id', input.roleAgentId) : previousQuery.is('role_agent_id', null)
-  previousQuery = previousQuery.eq('cwd', cwd)
-  const { data: previousRows } = await previousQuery.order('created_at', { ascending: false }).limit(5)
-  const previous = Array.isArray(previousRows)
-    ? (previousRows as Array<{ native_session_id?: string | null }>).find((row) => row.native_session_id)
-    : undefined
+  let previous: { native_session_id?: string | null } | undefined
+  if (input.reuseNativeSession !== false) {
+    let previousQuery = db
+      .from('runtime_sessions')
+      .select('native_session_id')
+      .eq('session_id', input.sessionId)
+      .eq('runtime_type', input.runtimeType)
+    previousQuery = input.roleAgentId ? previousQuery.eq('role_agent_id', input.roleAgentId) : previousQuery.is('role_agent_id', null)
+    previousQuery = previousQuery.eq('cwd', cwd)
+    const { data: previousRows } = await previousQuery.order('created_at', { ascending: false }).limit(5)
+    previous = Array.isArray(previousRows)
+      ? (previousRows as Array<{ native_session_id?: string | null }>).find((row) => row.native_session_id)
+      : undefined
+  }
   const { data, error } = await db
     .from('runtime_sessions')
     .insert({

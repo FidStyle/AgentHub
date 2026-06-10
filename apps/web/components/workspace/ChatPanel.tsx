@@ -439,6 +439,7 @@ function MessageComposer({
   const currentMode = PERMISSION_MODES.find((mode) => mode.value === permissionMode)
   const defaultRole = directRole ?? roleAgents.find((role) => role.is_orchestrator || role.name === 'Orchestrator') ?? roleAgents[0] ?? null
   const effectiveRoles = directRole ? [directRole] : selectedRoles.length > 0 ? selectedRoles : defaultRole ? [defaultRole] : []
+  const setSessionPermissionMode = useSessionStore((state) => state.setSessionPermissionMode)
 
   useEffect(() => setMounted(true), [])
 
@@ -446,6 +447,15 @@ function MessageComposer({
     setPickerOpen(false)
     setSelectedRoles([])
   }, [activeSessionId])
+
+  useEffect(() => {
+    const mode = activeConversation?.runtimePermissionMode
+    if (PERMISSION_MODES.some((item) => item.value === mode)) {
+      setPermissionMode(mode as typeof permissionMode)
+    } else {
+      setPermissionMode('standard')
+    }
+  }, [activeConversation?.runtimePermissionMode, activeSessionId])
 
   useEffect(() => {
     if (!quotedMessage?.suggestedPrompt) return
@@ -637,7 +647,11 @@ function MessageComposer({
               data-testid="permission-mode-select"
               value={permissionMode}
               disabled={!activeSessionId || readOnly}
-              onChange={(event) => setPermissionMode(event.target.value as typeof permissionMode)}
+              onChange={(event) => {
+                const nextMode = event.target.value as typeof permissionMode
+                setPermissionMode(nextMode)
+                if (activeSessionId) void setSessionPermissionMode(activeSessionId, nextMode)
+              }}
               className="h-6 rounded border-0 bg-transparent px-1 text-xs text-foreground outline-none"
             >
               {PERMISSION_MODES.map((mode) => (

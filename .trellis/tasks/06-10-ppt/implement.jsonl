@@ -1,0 +1,15 @@
+{"file":"research/contracts/ARTIFACT-ASSISTANT-CLOSURE-2026-06-10.md","reason":"确认产物助手与PPT内容生成职责边界"}
+{"file":"research/contracts/RICH-DOC-PPT-ARTIFACTS-2026-06-03.md","reason":"确认文档/PPT artifact 的类型、预览和下载契约"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"权限卡、过程视图和用户可见工作台组件规范"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"真实浏览器/OpenCLI 和前端质量门禁"}
+{"file":".trellis/spec/backend/runtime-workspace-contract.md","reason":"审批续跑和权限状态语义"}
+{"file":".trellis/spec/cross-layer/im-conversation-artifact-contract.md","reason":"PPT路由、产物助手和富媒体消息契约"}
+{"file":".trellis/spec/cross-layer/role-agent-tools-contract.md","reason":"角色工具与能力标签边界"}
+{"file":"apps/web/components/workspace/ChatPanel.tsx","reason":"权限模式选择、持久化和发送参数"}
+{"file":"apps/web/components/workspace/MessageContent.tsx","reason":"审批允许/拒绝后的消息、actions、timeline刷新"}
+{"file":"apps/web/store/session-store.ts","reason":"消息刷新和session metadata读回"}
+{"file":"apps/web/app/api/chat/route.ts","reason":"presentation目标角色匹配和session权限metadata写入"}
+{"file":"apps/web/config/role-agents/defaults.json","reason":"默认角色工具集修正"}
+{"file":"apps/web/__tests__/orchestrator.test.ts","reason":"PPT任务DAG回归"}
+{"file":"apps/web/__tests__/api/chat.test.ts","reason":"chat API计划节点和权限模式回归"}
+{"file":"apps/web/__tests__/message-markdown.test.ts","reason":"权限卡交互和刷新事件回归"}

@@ -52,6 +52,7 @@ const MIME_BY_EXT: Record<string, string> = {
   '.doc': 'application/msword',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   '.ppt': 'application/vnd.ms-powerpoint',
+  '.pdf': 'application/pdf',
 }
 
 export type WorkspacePreviewKind = 'html' | 'markdown' | 'code' | 'image' | 'text' | 'binary' | 'folder' | 'document' | 'presentation'

@@ -436,6 +436,17 @@ describe('PATCH /api/sessions/[id]', () => {
     expect((result.data as { error: string }).error).toBe('无效的会话状态')
   })
 
+  it('rejects invalid runtime permission mode values', async () => {
+    const { PATCH } = await import('@/app/api/sessions/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(PATCH, 'PATCH', {
+      params: { id: 'session-001' },
+      body: { runtime_permission_mode: 'root_forever' },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('无效的权限模式')
+  })
+
   it('AT-S017: returns 404 when session not found for update', async () => {
     const { PATCH } = await import('@/app/api/sessions/[id]/route')
     setupMockClient(createPostgresChain(mockUser, [{ id: 'ws-001' }], []))
@@ -492,6 +503,21 @@ describe('PATCH /api/sessions/[id]', () => {
     expect(result.status).toBe(200)
     const session = result.data as Record<string, unknown>
     expect(session.status).toBe('archived')
+  })
+
+  it('persists runtime permission mode in session metadata', async () => {
+    const { PATCH } = await import('@/app/api/sessions/[id]/route')
+    setupMockClient(createPostgresChain())
+    const result = await callRoute(PATCH, 'PATCH', {
+      params: { id: 'session-001' },
+      body: { runtime_permission_mode: 'full_control' },
+    })
+    expect(result.status).toBe(200)
+    const session = result.data as { metadata?: Record<string, unknown> }
+    expect(session.metadata).toMatchObject({
+      runtimePermissionMode: 'full_control',
+      runtime_permission_mode: 'full_control',
+    })
   })
 
   it('AT-S022: returns 404 when session not found (lookup returns null from error chain)', async () => {
