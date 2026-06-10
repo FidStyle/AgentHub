@@ -13,6 +13,18 @@ Trellis 的作用不是替代产品文档，而是把任务、工程规范和跨
 - [Trellis GitHub](https://github.com/mindfold-ai/Trellis)
 - [Trellis 中文文档](https://docs.trytrellis.app/zh)
 
+## 为什么没有选择 OpenSpec 或 Superpowers
+
+开发过程中也对比过 OpenSpec 和 Superpowers。它们都能解决 AI 开发中“先有规范再实现”的问题，但和 AgentHub 当前阶段的匹配度不同。
+
+| 工具 | GitHub | 判断 |
+| --- | --- | --- |
+| OpenSpec | [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec/) | 更偏专门围绕 spec 生成和维护，适合把 spec 本身做得非常强；但对当前项目来说太重，也过于集中在 spec 生产上 |
+| Superpowers | [obra/superpowers](https://github.com/obra/superpowers) | 是一整套面向 coding agent 的方法论和 skill 体系，能力完整；但整体流程更重，接入和维护成本更高 |
+| Trellis | [mindfold-ai/Trellis](https://github.com/mindfold-ai/Trellis) | 更适合作为项目内 harness：把 workflow、task、spec、workspace memory 和平台 skill 放进仓库，不强迫改造成一套过重流程 |
+
+最终选择 Trellis，是因为 AgentHub 已经有 `research/` 作为产品和技术事实源，也有 Playwright/OpenCLI 做测试验收。这里需要的是一个能把规范、任务、上下文和 AI 入口组织起来的轻量 harness，而不是再引入一套更重的 spec 生产系统或完整 agent 方法论。
+
 ## 协作分层
 
 | 层级 | 位置 | 作用 |
