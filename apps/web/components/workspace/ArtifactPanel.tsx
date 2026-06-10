@@ -264,12 +264,12 @@ function PreviewBlock({
 }) {
   if (preview.previewKind === 'html' && preview.content) {
     return (
-      <iframe
-        data-testid="workspace-html-preview"
+      <FullscreenIframe
+        testId="workspace-html-preview"
         sandbox=""
         title={preview.name}
         srcDoc={preview.content}
-        className="h-72 w-full rounded-md border border-border bg-white"
+        className="h-72"
       />
     )
   }
@@ -330,8 +330,69 @@ function PreviewBlock({
 
 type OfficePreviewState =
   | { status: 'loading' }
-  | { status: 'ready'; url: string }
+  | { status: 'ready'; html: string }
   | { status: 'failed'; message: string }
+
+function FullscreenIframe({
+  title,
+  testId,
+  src,
+  srcDoc,
+  sandbox,
+  className = 'h-96',
+}: {
+  title: string
+  testId?: string
+  src?: string
+  srcDoc?: string
+  sandbox?: string
+  className?: string
+}) {
+  const [fullscreen, setFullscreen] = useState(false)
+  const iframe = (
+    <iframe
+      data-testid={testId}
+      title={title}
+      src={src}
+      srcDoc={srcDoc}
+      sandbox={sandbox}
+      className={`${className} w-full rounded-md border border-border bg-white`}
+    />
+  )
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={() => setFullscreen(true)} data-testid={`${testId ?? 'workspace-iframe'}-fullscreen`}>
+          <Maximize2 className="mr-1 h-3.5 w-3.5" />
+          全屏
+        </Button>
+      </div>
+      {iframe}
+      {fullscreen ? (
+        <div data-testid={`${testId ?? 'workspace-iframe'}-fullscreen-overlay`} className="fixed inset-0 z-50 bg-background p-4">
+          <div className="flex h-full flex-col rounded-md border border-border bg-background shadow-lg">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <div className="min-w-0 truncate text-sm font-medium">{title}</div>
+              <Button size="sm" variant="outline" onClick={() => setFullscreen(false)}>
+                <X className="mr-1 h-3.5 w-3.5" />
+                退出全屏
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 p-3">
+              <iframe
+                title={`${title} 全屏预览`}
+                src={src}
+                srcDoc={srcDoc}
+                sandbox={sandbox}
+                className="h-full w-full rounded-md border border-border bg-white"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function OfficeArtifactPreview({ artifact, downloadUrl }: { artifact: ArtifactRow; downloadUrl: string }) {
   const [previewState, setPreviewState] = useState<OfficePreviewState>({ status: 'loading' })
@@ -346,9 +407,9 @@ function OfficeArtifactPreview({ artifact, downloadUrl }: { artifact: ArtifactRo
           const message = typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : `预览转换失败（${response.status}）`
           throw new Error(message)
         }
-        const url = typeof body.url === 'string' ? body.url : null
-        if (!url) throw new Error('预览转换没有返回 PDF 地址。')
-        if (!cancelled) setPreviewState({ status: 'ready', url })
+        const html = typeof body.html === 'string' ? body.html : null
+        if (!html) throw new Error('预览转换没有返回 HTML 内容。')
+        if (!cancelled) setPreviewState({ status: 'ready', html })
       })
       .catch((error) => {
         if (!cancelled) setPreviewState({ status: 'failed', message: error instanceof Error ? error.message : '预览转换失败。' })
@@ -361,7 +422,7 @@ function OfficeArtifactPreview({ artifact, downloadUrl }: { artifact: ArtifactRo
   if (previewState.status === 'loading') {
     return (
       <div data-testid="workspace-office-preview-loading" className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
-        正在使用 LibreOffice/soffice 生成真实 PDF 预览...
+        正在生成 HTML 预览...
       </div>
     )
   }
@@ -377,11 +438,12 @@ function OfficeArtifactPreview({ artifact, downloadUrl }: { artifact: ArtifactRo
     )
   }
   return (
-    <iframe
-      data-testid={artifact.artifact_type === 'presentation' ? 'workspace-presentation-pdf-preview' : 'workspace-document-pdf-preview'}
+    <FullscreenIframe
+      testId={artifact.artifact_type === 'presentation' ? 'workspace-presentation-html-preview' : 'workspace-document-html-preview'}
       title={`${artifact.title} 预览`}
-      src={previewState.url}
-      className="h-96 w-full rounded-md border border-border bg-white"
+      srcDoc={previewState.html}
+      sandbox="allow-same-origin"
+      className="h-96"
     />
   )
 }

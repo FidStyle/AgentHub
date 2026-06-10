@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -270,12 +270,12 @@ describe('/api/artifacts', () => {
     expect(bytes.equals(sourceBytes)).toBe(true)
   })
 
-  it('previews markdown-like documents without forcing a publish command', async () => {
+  it('previews markdown-like documents as HTML without forcing a publish command', async () => {
     setupMockClient(createPostgresChain(undefined, undefined, undefined, undefined, undefined, [
       { ...mockArtifact, artifact_type: 'document', title: '需求文档', content: '# 需求文档\n\n正文' },
     ]))
     const { POST } = await import('@/app/api/artifacts/[id]/preview/route')
-    const result = await callArtifactRoute<{ kind: string; status: string; content: string; url: string }>(
+    const result = await callArtifactRoute<{ kind: string; status: string; html: string }>(
       POST,
       'POST',
       'artifact-001',
@@ -283,9 +283,66 @@ describe('/api/artifacts', () => {
 
     expect(result.status).toBe(200)
     expect(result.data.kind).toBe('document')
-    expect(result.data.status).toBe('markdown')
-    expect(result.data.content).toContain('需求文档')
-    expect(result.data.url).toContain('/m/preview?artifactId=artifact-001')
+    expect(result.data.status).toBe('html')
+    expect(result.data.html).toContain('<h1>需求文档</h1>')
+    expect(result.data.html).toContain('<p>正文</p>')
+  })
+
+  it('renders presentation previews as PNG pages inside generated HTML', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'agenthub-ppt-preview-images-'))
+    tmpDirs.push(root)
+    await mkdir(path.join(root, 'deliverables'), { recursive: true })
+    await writeFile(path.join(root, 'deliverables', 'deck.pptx'), 'pptx-bytes')
+
+    const toolsDir = await mkdtemp(path.join(os.tmpdir(), 'agenthub-preview-tools-'))
+    tmpDirs.push(toolsDir)
+    const fakePdf = path.join(toolsDir, 'fake-pdf.sh')
+    const fakeMagick = path.join(toolsDir, 'fake-magick.sh')
+    await writeFile(fakePdf, '#!/bin/sh\nmkdir -p "$2"\nprintf pdf > "$2/deck.pdf"\n')
+    await writeFile(fakeMagick, '#!/bin/sh\nfor arg do out="$arg"; done\nmkdir -p "$(dirname "$out")"\nprintf png0 > "$(printf "$out" 0)"\nprintf png1 > "$(printf "$out" 1)"\n', 'utf8')
+    await chmod(fakePdf, 0o755)
+    await chmod(fakeMagick, 0o755)
+
+    const oldPdfCommand = process.env.PPT_TO_PDF_COMMAND
+    const oldMagick = process.env.MAGICK_BIN
+    process.env.PPT_TO_PDF_COMMAND = fakePdf
+    process.env.MAGICK_BIN = fakeMagick
+    try {
+      setupMockClient(createPostgresChain(undefined, [{ ...mockWorkspace, cloud_project_dir: root }], undefined, undefined, undefined, [
+        {
+          ...mockArtifact,
+          artifact_type: 'presentation',
+          title: '汇报演示稿',
+          source_path: 'deliverables/deck.pptx',
+          content: null,
+        },
+      ]))
+
+      const { POST } = await import('@/app/api/artifacts/[id]/preview/route')
+      const result = await callArtifactRoute<{ kind: string; status: string; html: string; htmlPath: string; pages: Array<{ path: string; url: string }> }>(
+        POST,
+        'POST',
+        'artifact-001',
+      )
+
+      expect(result.status).toBe(200)
+      expect(result.data.kind).toBe('presentation')
+      expect(result.data.status).toBe('html')
+      expect(result.data.htmlPath).toBe('artifacts/artifact-001/preview/index.html')
+      expect(result.data.pages.map((page) => page.path)).toEqual([
+        'artifacts/artifact-001/preview/pages/page-00.png',
+        'artifacts/artifact-001/preview/pages/page-01.png',
+      ])
+      expect(result.data.html).toContain('workspace')
+      expect(result.data.html).toContain('/api/workspaces/ws-001/files/inline?path=')
+      expect(result.data.html).not.toContain('.pdf')
+      expect(await readFile(path.join(root, 'artifacts', 'artifact-001', 'preview', 'pages', 'page-00.png'), 'utf8')).toBe('png0')
+    } finally {
+      if (oldPdfCommand === undefined) delete process.env.PPT_TO_PDF_COMMAND
+      else process.env.PPT_TO_PDF_COMMAND = oldPdfCommand
+      if (oldMagick === undefined) delete process.env.MAGICK_BIN
+      else process.env.MAGICK_BIN = oldMagick
+    }
   })
 
   it('fails explicitly when presentation source is missing', async () => {

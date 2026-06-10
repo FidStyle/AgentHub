@@ -756,9 +756,12 @@ describe('IM-first orchestration contract', () => {
     const source = readFileSync(fileURLToPath(new URL('../app/m/preview/page.tsx', import.meta.url)), 'utf8')
 
     expect(source).toContain("kind === 'presentation'")
+    expect(source).toContain("kind === 'document'")
     expect(source).toContain("fetch(`/api/artifacts/${artifact.id}/preview`, { method: 'POST' })")
-    expect(source).toContain("kind: 'pdf'")
+    expect(source).toContain("kind: 'html'")
     expect(source).toContain("kind: 'presentation'")
+    expect(source).toContain('mobile-preview-fullscreen')
+    expect(source).toContain('产物记录不存在或已失效')
     expect(source).toContain('slidesToText')
   })
 
