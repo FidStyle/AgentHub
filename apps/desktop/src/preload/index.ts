@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     detect: () => ipcRenderer.invoke('runtime:detect'),
     cached: () => ipcRenderer.invoke('runtime:cached'),
     workspaceRoots: () => ipcRenderer.invoke('runtime:workspace-roots'),
+    addWorkspaceRoot: (root: string) => ipcRenderer.invoke('runtime:add-workspace-root', root),
+    chooseWorkspaceRoot: () => ipcRenderer.invoke('runtime:choose-workspace-root'),
     execute: (request: { runtimeType: 'claude_code' | 'codex'; prompt: string; nativeSessionId?: string | null; continueLast?: boolean }, cwd: string) =>
       ipcRenderer.invoke('runtime:execute', request, cwd),
     cancel: () => ipcRenderer.invoke('runtime:cancel'),

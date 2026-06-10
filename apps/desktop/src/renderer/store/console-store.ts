@@ -109,6 +109,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
     { id: 'full_control', preset: 'full_control', label: '完全控制', description: '当前 workspace/device 范围内最大授权，仍保留审计、撤销和安全阻断。', enabled: false },
   ],
   workspaceDirs: [
+    { path: '~/.agenthub/cloud-workspaces', healthy: true },
     { path: '~/.agenthub/workspaces/default', healthy: true },
   ],
   agents: [

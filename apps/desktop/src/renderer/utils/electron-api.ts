@@ -20,6 +20,7 @@ export interface RuntimeExecResult {
 export interface DesktopWorkspaceRoot {
   path: string
   healthy: boolean
+  source?: 'default' | 'env' | 'user'
 }
 
 export interface RuntimePromptRequest {
@@ -32,6 +33,8 @@ export interface RuntimePromptRequest {
 interface ElectronRuntimeApi {
   detect: () => Promise<RuntimeInfo[]>
   workspaceRoots?: () => Promise<DesktopWorkspaceRoot[]>
+  addWorkspaceRoot?: (root: string) => Promise<DesktopWorkspaceRoot[]>
+  chooseWorkspaceRoot?: () => Promise<DesktopWorkspaceRoot[]>
   execute: (request: RuntimePromptRequest, cwd: string) => Promise<RuntimeExecResult>
   cancel?: () => Promise<boolean>
   available: () => Promise<boolean>

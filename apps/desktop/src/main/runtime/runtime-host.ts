@@ -1,11 +1,11 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import type { RuntimeEvent, RequestFrame } from '@agenthub/shared'
 import { StreamAdapter } from './stream-adapter'
 import { LocalRuntimeAdapter, type RuntimePromptRequest } from './local-adapter'
 import { RuntimeDetector, type RuntimeInfo } from './runtime-detector'
 import { RuntimeConfigStore } from './runtime-config-store'
 import type { DeviceChannel } from '../device-channel'
-import { getDesktopWorkspaceRoots, isPathInsideAllowedWorkspaceRoots, type DesktopWorkspaceRoot } from './workspace-roots'
+import { addDesktopWorkspaceRoot, getDesktopWorkspaceRoots, isPathInsideAllowedWorkspaceRoots, type DesktopWorkspaceRoot } from './workspace-roots'
 
 export class RuntimeHost {
   private detector = new RuntimeDetector()
@@ -40,6 +40,23 @@ export class RuntimeHost {
     })
     ipcMain.handle('runtime:cached', () => this.cachedRuntimes)
     ipcMain.handle('runtime:workspace-roots', () => getDesktopWorkspaceRoots())
+    ipcMain.handle('runtime:add-workspace-root', (_event, root: string) => {
+      const roots = addDesktopWorkspaceRoot(root)
+      this.channel?.sendEvent('workspace_roots', { roots })
+      this.notifyRenderer({ type: 'workspace_roots', roots })
+      return roots
+    })
+    ipcMain.handle('runtime:choose-workspace-root', async () => {
+      const result = await dialog.showOpenDialog({
+        title: '选择 Desktop 授权工作目录',
+        properties: ['openDirectory', 'createDirectory'],
+      })
+      if (result.canceled || !result.filePaths[0]) return getDesktopWorkspaceRoots()
+      const roots = addDesktopWorkspaceRoot(result.filePaths[0])
+      this.channel?.sendEvent('workspace_roots', { roots })
+      this.notifyRenderer({ type: 'workspace_roots', roots })
+      return roots
+    })
   }
 
   private notifyRenderer(payload: RuntimeEvent | { type: 'workspace_roots'; roots: DesktopWorkspaceRoot[] }) {

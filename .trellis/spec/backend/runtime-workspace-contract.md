@@ -16,6 +16,8 @@
 
 - Runtime cwd must be the selected workspace root or a validated child path.
 - No runtime/tool path may read or write the AgentHub host repo unless that repo is the selected workspace.
+- Desktop must expose its authorized workspace roots to the user and to Web through the `workspace_roots` capability. The default Desktop-authorized roots include `~/.agenthub/cloud-workspaces` and `~/.agenthub/workspaces/default`; users can add more roots from Desktop settings.
+- Creating or running a `local_desktop` workspace must use one of Desktop's healthy authorized roots. Web must not invent a local root that Desktop did not report.
 - Approved native tool continuation must preserve original runtime/session/action IDs.
 - Permission approval state is separate from tool execution state.
 - Mobile/PWA can approve/reject/read status; complex editing remains Web/Desktop.
@@ -26,6 +28,8 @@
 | Condition | Required behavior |
 | --- | --- |
 | `cwd` outside workspace | reject before execution |
+| Desktop has no healthy authorized roots | Web local-desktop workspace creation is blocked with a visible Chinese error and Desktop settings must provide a way to add roots |
+| User adds a Desktop authorized root | Desktop persists the root, creates it if possible, emits updated `workspace_roots`, and Web can select it for local-desktop workspace creation |
 | `targetPaths` outside workspace | reject before approval continuation |
 | Approved action lacks native tool metadata | fail visibly, do not execute |
 | Mobile approves action | Web/Mobile readback show same durable status |
@@ -41,6 +45,7 @@
 ### 6. Tests Required
 
 - Workspace root/path validation unit tests.
+- Desktop workspace root management tests for default roots, user-added roots, and runtime host IPC/readback.
 - Approved native tool continuation integration tests.
 - Permission label/status mapping tests.
 - Mobile readback test for approval/reject status.
