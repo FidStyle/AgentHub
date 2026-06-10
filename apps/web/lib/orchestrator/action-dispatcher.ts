@@ -17,11 +17,18 @@ import type { RoleAgentToolId } from '@agenthub/shared'
 
 type AppDb = Awaited<ReturnType<typeof createClient>>
 
-export type ActionDispatchStatus = 'queued' | 'completed' | 'unavailable' | 'unsupported'
+export type ActionDispatchStatus = 'queued' | 'completed' | 'waiting' | 'unavailable' | 'unsupported'
 
 export interface ActionDispatchResult {
   status: ActionDispatchStatus
   runtimeSessionId?: string
+  actionId?: string
+  riskLevel?: string
+  actionKind?: string
+  commandPreview?: string
+  workspaceRoot?: string
+  cwd?: string
+  targetPaths?: string[]
   error?: string
 }
 
@@ -47,6 +54,16 @@ function buildActionPrompt(action: ActionRecordForDispatch): string {
     '',
     'Execute the requested action in the workspace context. Stream useful progress and final output.',
   ].join('\n')
+}
+
+function normalizePermissionMode(mode?: string | null): string | null {
+  const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : ''
+  return normalized.length > 0 ? normalized : null
+}
+
+function isAutomaticPermissionMode(mode?: string | null): boolean {
+  const normalized = normalizePermissionMode(mode)
+  return normalized === 'full_control' || normalized === 'dangerous_bypass'
 }
 
 type RuntimePermissionBrokerResult = {
@@ -1220,7 +1237,7 @@ async function markAttemptAndMailbox(
   input: {
     attemptId?: string | null
     mailboxItemId?: string | null
-    status: 'running' | 'dead_letter'
+    status: 'running' | 'waiting' | 'dead_letter'
     runtimeSessionId?: string | null
     error?: string
   },
@@ -1239,6 +1256,149 @@ async function markAttemptAndMailbox(
       error: input.error ?? null,
       updated_at: new Date().toISOString(),
     }).eq('id', input.mailboxItemId)
+  }
+}
+
+async function createRuntimeInvokeNodePreapproval(
+  db: AppDb,
+  input: {
+    userId: string
+    sessionId: string
+    node: RuntimeInvokeNodeForDispatch
+    role: RoleDispatchRow | null
+    runtimeType: CliRuntimeType
+    permissionMode: string
+    workspaceRoot: string
+    cwd: string
+    attemptId: string
+    mailboxItemId: string | null
+    mailboxContextPackage?: unknown
+  },
+): Promise<ActionDispatchResult> {
+  const payload = input.node.action_payload ?? {}
+  const now = new Date().toISOString()
+  const roleName = input.role?.name ?? input.node.label
+  const command = `Runtime 执行：@${roleName}`
+  const riskLevel = 'medium'
+  const prompt = buildRuntimeInvokePrompt({
+    label: input.node.label,
+    userMessage: payloadString(payload, 'userMessage') ?? '继续执行该编排节点。',
+    phase: payloadString(payload, 'phase'),
+    handoffs: payload.handoffs ?? input.mailboxContextPackage,
+  })
+  const result = {
+    source: 'runtime_invoke_preapproval',
+    planId: input.node.plan_id,
+    planNodeId: input.node.id,
+    actionKind: 'runtime_invoke',
+    workspaceRoot: input.workspaceRoot,
+    cwd: input.cwd,
+    targetPaths: [input.workspaceRoot],
+    commandPreview: command,
+    requestedAt: now,
+    prompt,
+    systemPrompt: input.role?.system_prompt ?? null,
+    runtimeType: input.runtimeType,
+    roleAgentId: input.role?.id ?? null,
+    roleName,
+    permissionMode: input.permissionMode,
+    attemptId: input.attemptId,
+    mailboxItemId: input.mailboxItemId,
+  }
+  const { data: action, error } = await db
+    .from('actions')
+    .insert({
+      session_id: input.sessionId,
+      plan_node_id: input.node.id,
+      owner_id: input.userId,
+      action_type: 'runtime_invoke',
+      command,
+      cwd: input.cwd,
+      risk_level: riskLevel,
+      status: 'pending',
+      requires_approval: true,
+      approved_at: null,
+      result,
+    })
+    .select('id')
+    .single()
+  const actionId = typeof action?.id === 'string' ? action.id : null
+  if (error || !actionId) {
+    const message = error?.message ?? '创建 Runtime 执行审批失败。'
+    await markAttemptAndMailbox(db, { attemptId: input.attemptId, mailboxItemId: input.mailboxItemId, status: 'dead_letter', error: message })
+    await db.from('plan_nodes').update({ status: 'failed', result: { error: message } }).eq('id', input.node.id)
+    return { status: 'unavailable', error: message }
+  }
+
+  await markAttemptAndMailbox(db, {
+    attemptId: input.attemptId,
+    mailboxItemId: input.mailboxItemId,
+    status: 'waiting',
+    error: '等待用户确认是否允许 Runtime 执行。',
+  })
+  await db.from('plan_nodes').update({
+    status: 'waiting',
+    started_at: null,
+    completed_at: null,
+    result: {
+      scheduler: 'waiting',
+      reason: '等待用户确认是否允许 Runtime 执行。',
+      actionId,
+      permissionMode: input.permissionMode,
+      at: now,
+    },
+  }).eq('id', input.node.id)
+  await db.from('notifications').insert({
+    user_id: input.userId,
+    type: 'approval_required',
+    title: `Runtime 执行需要授权: ${roleName}`.slice(0, 80),
+    body: `风险等级: ${riskLevel}`,
+    ref_type: 'action',
+    ref_id: actionId,
+  })
+  await db.from('messages').insert({
+    session_id: input.sessionId,
+    content: `当前是标准权限流程。请先确认是否允许 @${roleName} 在当前工作区执行本次任务。`,
+    sender_type: 'agent',
+    role_agent_id: input.role?.id ?? null,
+    message_type: 'approval',
+    metadata: {
+      visibleStatus: '等待授权',
+      runtimeInvokePreapproval: {
+        actionId,
+        status: 'pending_approval',
+        runtimeType: input.runtimeType,
+        roleAgentId: input.role?.id ?? null,
+        permissionMode: input.permissionMode,
+        workspaceRoot: input.workspaceRoot,
+      },
+      runtimeParts: [{
+        id: actionId,
+        type: 'permission',
+        status: 'pending',
+        actionId,
+        title: '执行任务需要授权',
+        description: '允许后，AgentHub 会在当前 workspace 内启动该角色的 Runtime 执行任务；拒绝则不会运行 Runtime，也不会产生文件或命令副作用。',
+        riskLevel,
+        actionKind: 'runtime_invoke',
+        workspaceRoot: input.workspaceRoot,
+        cwd: input.cwd,
+        targetPaths: [input.workspaceRoot],
+        commandPreview: command,
+        permissionMode: input.permissionMode,
+      }],
+    },
+  })
+
+  return {
+    status: 'waiting',
+    actionId,
+    riskLevel,
+    actionKind: 'runtime_invoke',
+    commandPreview: command,
+    workspaceRoot: input.workspaceRoot,
+    cwd: input.cwd,
+    targetPaths: [input.workspaceRoot],
   }
 }
 
@@ -1500,6 +1660,22 @@ export async function dispatchPreparedRuntimeInvokeNode(
     await db.from('plan_nodes').update({ status: 'failed', result: { error } }).eq('id', input.node.id)
     return { status: 'unavailable', error }
   }
+  const effectivePermissionMode = input.permissionMode ?? payloadString(payload, 'permissionMode') ?? null
+  if (normalizePermissionMode(effectivePermissionMode) && !isAutomaticPermissionMode(effectivePermissionMode)) {
+    return createRuntimeInvokeNodePreapproval(db, {
+      userId: input.userId,
+      sessionId: input.sessionId,
+      node: input.node,
+      role: input.role,
+      runtimeType: input.runtimeType,
+      permissionMode: effectivePermissionMode as string,
+      workspaceRoot: payloadString(payload, 'workspaceRoot') ?? cwd,
+      cwd,
+      attemptId: input.attemptId,
+      mailboxItemId: input.mailboxItemId,
+      mailboxContextPackage: input.mailboxContextPackage,
+    })
+  }
   const runtimeSession = await createSession({
     sessionId: input.sessionId,
     endpoint,
@@ -1524,7 +1700,7 @@ export async function dispatchPreparedRuntimeInvokeNode(
     workspaceRoot: payloadString(payload, 'workspaceRoot') ?? cwd,
     endpointId: endpoint.id ?? undefined,
     runtimeType: input.runtimeType,
-    permissionMode: input.permissionMode ?? payloadString(payload, 'permissionMode') ?? null,
+    permissionMode: effectivePermissionMode,
     roleAgentId: input.role?.id ?? null,
     nativeSessionId: runtimeSession.nativeSessionId ?? null,
     cwd: runtimeSession.cwd,

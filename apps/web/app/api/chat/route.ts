@@ -2382,6 +2382,7 @@ export async function POST(req: NextRequest) {
           let completed = false
           let terminalError: string | null = null
           let waitingReason: string | null = null
+          let backgroundedReason: string | null = null
           let autoContinuationDispatched = false
           const receivedHandoffs = handoffs
             .filter((handoff) => handoff.toRoleAgentId === currentRoleAgentId)
@@ -2675,6 +2676,28 @@ export async function POST(req: NextRequest) {
                 },
               })
               const subscribedEvents = runtimeEvents.current
+              if (dispatch.status === 'waiting' && dispatch.actionId) {
+                const approvalWorkspaceRoot = dispatch.workspaceRoot ?? dispatch.cwd ?? runtimeWorkspaceRoot ?? ''
+                const approvalCwd = dispatch.cwd ?? approvalWorkspaceRoot
+                yield {
+                  type: 'approval_requested',
+                  actionId: dispatch.actionId,
+                  title: '执行任务需要授权',
+                  description: '允许后，AgentHub 会在当前 workspace 内启动该角色的 Runtime 执行任务；拒绝则不会运行 Runtime，也不会产生文件或命令副作用。',
+                  riskLevel: dispatch.riskLevel ?? 'medium',
+                  actionKind: dispatch.actionKind ?? 'runtime_invoke',
+                  workspaceRoot: approvalWorkspaceRoot,
+                  cwd: approvalCwd,
+                  targetPaths: dispatch.targetPaths ?? [approvalWorkspaceRoot],
+                  commandPreview: dispatch.commandPreview,
+                }
+                yield {
+                  type: 'runtime_waiting',
+                  reason: 'Runtime 执行已进入权限审批，尚未启动该角色任务。',
+                  waitingFor: 'approval',
+                }
+                return
+              }
               if (dispatch.status !== 'queued' || !subscribedEvents) {
                 yield { type: 'endpoint_unavailable', reason: dispatch.error ?? 'Runtime 节点未投递。' }
                 yield { type: 'runtime_failed', error: dispatch.error ?? 'Runtime 节点未投递。' }
@@ -2757,6 +2780,7 @@ export async function POST(req: NextRequest) {
             if (evt.type === 'runtime_completed') completed = true
             if (evt.type === 'runtime_failed') terminalError = evt.error
             if (evt.type === 'runtime_waiting') waitingReason = evt.reason
+            if (evt.type === 'runtime_backgrounded') backgroundedReason = evt.reason
             controller.enqueue(encode(evt))
           }
           const latestRuntimeSession = await latestRuntimeSessionForTarget({
@@ -2998,6 +3022,25 @@ export async function POST(req: NextRequest) {
               return 'completed'
             }
             return continuation.status === 'waiting' ? 'waiting' : 'failed'
+          }
+          if (backgroundedReason && !terminalError && !waitingReason) {
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              content: `执行中：@${currentRoleName} 仍在运行，当前暂无新的可见输出。AgentHub 会继续等待真实完成状态。`,
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                planNodeId: target.nodeId,
+                roleName: currentRoleName,
+                phase: target.phase,
+                visibleStatus: '执行中',
+                runtimeBackgrounded: true,
+                reason: backgroundedReason,
+              },
+              emit: emitProcess,
+            })
           }
           if (target.nodeId) {
             if (!autoContinuationDispatched) {

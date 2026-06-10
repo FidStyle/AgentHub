@@ -280,7 +280,7 @@ function createAcceptancePlanSummary(input) {
     status: "validated",
     nodes: dispatch.targetRoleAgentIds.map((roleAgentId) => ({
       id: `node-${roleAgentId}`,
-      title: roleAgentId === "role-backend" ? "\u5B9E\u73B0 SQLite \u5386\u53F2\u8BB0\u5F55\u540E\u7AEF" : "\u5B9E\u73B0\u52A0\u51CF\u4E58\u9664\u7F51\u7AD9\u754C\u9762",
+      title: roleAgentId === "role-backend" ? "\u5B9E\u73B0 SQLite \u5386\u53F2\u8BB0\u5F55\u540E\u7AEF" : roleAgentId === "role-presentation" ? "\u751F\u6210\u6F14\u793A\u7A3F PPT \u4EA7\u7269" : "\u5B9E\u73B0\u52A0\u51CF\u4E58\u9664\u7F51\u7AD9\u754C\u9762",
       roleAgentId,
       dependsOn: [],
       expectedArtifact: "implementation-result",
@@ -385,6 +385,9 @@ function inferEngineeringRoleTargets(userMessage) {
   }
   if (normalized.includes("\u7F51\u7AD9") || normalized.includes("\u7F51\u9875") || normalized.includes("\u9875\u9762") || normalized.includes("\u524D\u7AEF") || normalized.includes("ui") || normalized.includes("\u52A0\u51CF\u4E58\u9664") || normalized.includes("\u56DB\u5219\u8FD0\u7B97")) {
     targets.add("role-frontend");
+  }
+  if (normalized.includes("ppt") || normalized.includes("powerpoint") || normalized.includes("presentation") || normalized.includes("deck") || normalized.includes("\u6F14\u793A\u7A3F") || normalized.includes("\u5E7B\u706F\u7247")) {
+    targets.add("role-presentation");
   }
   return [...targets];
 }

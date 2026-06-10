@@ -183,7 +183,25 @@ function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Rec
             }),
           }
         }
-        if (table === 'actions' || table === 'notifications') {
+        if (table === 'actions') {
+          return {
+            insert: (values: Record<string, unknown>) => {
+              writes.push({ table, values })
+              return {
+                data: { id: 'action-runtime-preapproval', ...values },
+                error: null,
+                select: () => ({ single: () => ({ data: { id: 'action-runtime-preapproval', ...values }, error: null }) }),
+              }
+            },
+            update: (values: Record<string, unknown>) => ({
+              eq: (_field: string, id: string) => {
+                writes.push({ table, values, id })
+                return { data: null, error: null }
+              },
+            }),
+          }
+        }
+        if (table === 'notifications') {
           return {
             insert: (values: Record<string, unknown>) => {
               writes.push({ table, values })
@@ -1227,7 +1245,7 @@ describe('dispatchRuntimeInvokeNode', () => {
     }))
   })
 
-  it('does not reuse a native Codex session for explicit retry mailbox dispatch', async () => {
+  it('does not reuse a native Codex session for explicit retry mailbox dispatch in full-control mode', async () => {
     const { dispatchPreparedRuntimeInvokeNode } = await import('@/lib/orchestrator/action-dispatcher')
     const { db } = dispatchDb()
 
@@ -1253,7 +1271,7 @@ describe('dispatchRuntimeInvokeNode', () => {
         runtime_type: 'codex',
       },
       runtimeType: 'codex',
-      permissionMode: 'standard',
+      permissionMode: 'full_control',
       attemptId: 'attempt-retry',
       mailboxItemId: 'mailbox-retry',
       mailboxContextPackage: {
@@ -1272,10 +1290,116 @@ describe('dispatchRuntimeInvokeNode', () => {
     expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
       runtimeSessionId: 'runtime-001',
       nativeSessionId: null,
-      permissionMode: 'standard',
+      permissionMode: 'full_control',
       attemptId: 'attempt-retry',
       mailboxItemId: 'mailbox-retry',
     }))
+  })
+
+  it('creates a runtime invoke approval before dispatching standard permission mailbox nodes', async () => {
+    const { dispatchPreparedRuntimeInvokeNode } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb()
+
+    const result = await dispatchPreparedRuntimeInvokeNode(db as never, {
+      userId: 'user-001',
+      sessionId: 'session-001',
+      node: {
+        id: 'node-standard-preapproval',
+        plan_id: 'plan-001',
+        label: '后端工程师执行',
+        action_payload: {
+          cwd: workspaceRoot,
+          workspaceRoot,
+          phase: 'worker',
+          userMessage: '创建文件',
+          permissionMode: 'standard',
+        },
+      },
+      workspaceId: 'ws-001',
+      executionDomain: 'cloud',
+      role: {
+        id: 'agent-be',
+        name: '后端工程师',
+        system_prompt: '你是后端工程师',
+        runtime_type: 'codex',
+      },
+      runtimeType: 'codex',
+      permissionMode: 'standard',
+      attemptId: 'attempt-standard',
+      mailboxItemId: 'mailbox-standard',
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      status: 'waiting',
+      actionId: 'action-runtime-preapproval',
+      actionKind: 'runtime_invoke',
+      commandPreview: 'Runtime 执行：@后端工程师',
+      workspaceRoot,
+      cwd: workspaceRoot,
+    }))
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        values: expect.objectContaining({
+          action_type: 'runtime_invoke',
+          status: 'pending',
+          requires_approval: true,
+          result: expect.objectContaining({
+            source: 'runtime_invoke_preapproval',
+            planNodeId: 'node-standard-preapproval',
+            permissionMode: 'standard',
+            runtimeType: 'codex',
+            attemptId: 'attempt-standard',
+            mailboxItemId: 'mailbox-standard',
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'plan_node_attempts',
+        id: 'attempt-standard',
+        values: expect.objectContaining({
+          status: 'waiting',
+          error: '等待用户确认是否允许 Runtime 执行。',
+        }),
+      }),
+      expect.objectContaining({
+        table: 'agent_mailbox_items',
+        id: 'mailbox-standard',
+        values: expect.objectContaining({
+          status: 'waiting',
+          error: '等待用户确认是否允许 Runtime 执行。',
+        }),
+      }),
+      expect.objectContaining({
+        table: 'plan_nodes',
+        id: 'node-standard-preapproval',
+        values: expect.objectContaining({
+          status: 'waiting',
+          result: expect.objectContaining({
+            actionId: 'action-runtime-preapproval',
+            permissionMode: 'standard',
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'messages',
+        values: expect.objectContaining({
+          message_type: 'approval',
+          metadata: expect.objectContaining({
+            runtimeParts: expect.arrayContaining([
+              expect.objectContaining({
+                type: 'permission',
+                status: 'pending',
+                actionId: 'action-runtime-preapproval',
+                permissionMode: 'standard',
+              }),
+            ]),
+          }),
+        }),
+      }),
+    ]))
   })
 
   it('fails closed when the cloud workspace root is missing', async () => {

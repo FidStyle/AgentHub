@@ -8,10 +8,11 @@ const heartbeatKey = (id: string) => `agenthub:runtime:hb:${id}`
 const workerAliveKey = 'agenthub:runtime:worker:alive'
 
 // subscribeEvents dual-timeout (env-configurable, with defaults). idle = max gap
-// between two events; total = absolute lifetime of one subscription. Either tripping
-// makes the generator emit a runtime_failed sentinel and return cleanly.
+// between two events; total = absolute lifetime of one subscription. Progress timeout is
+// advisory only: long Codex/Claude runs may spend minutes thinking or writing files without
+// emitting user-visible output, so it must not cancel the underlying runtime.
 const SUB_IDLE_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_IDLE_TIMEOUT_MS ?? 60_000)
-const SUB_TOTAL_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS ?? 600_000)
+const SUB_TOTAL_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS ?? 1_800_000)
 const SUB_PROGRESS_TIMEOUT_MS = Number(process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS ?? 180_000)
 
 export interface RuntimeJob {
@@ -87,7 +88,6 @@ export async function* subscribeEvents(
   let resolve: (() => void) | null = null
   let done = false
   let timedOut = false
-  let progressTimedOut = false
   let lastProgressAt = Date.now()
   const wake = () => { resolve?.(); resolve = null }
   await r.subscribe(eventChannel(runtimeSessionId), (msg) => {
@@ -110,7 +110,14 @@ export async function* subscribeEvents(
     idleTimer = totalTimer = progressTimer = null
   }
   const trip = () => { timedOut = true; done = true; wake() }
-  const tripProgress = () => { progressTimedOut = true; done = true; wake() }
+  const tripProgress = () => {
+    lastProgressAt = Date.now()
+    queue.push({
+      type: 'runtime_backgrounded',
+      reason: 'runtime progress timeout; keeping runtime alive while waiting for real terminal output',
+    })
+    wake()
+  }
   const armIdle = () => {
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = setTimeout(trip, SUB_IDLE_TIMEOUT_MS)
@@ -136,21 +143,6 @@ export async function* subscribeEvents(
         yield queue.shift()
       }
       if (done && queue.length === 0) break
-    }
-    if (progressTimedOut) {
-      let cancelError: string | null = null
-      try {
-        await setCancel(runtimeSessionId)
-      } catch (err) {
-        cancelError = err instanceof Error ? err.message : String(err)
-      }
-      yield {
-        type: 'runtime_failed',
-        error: cancelError
-          ? `runtime progress timeout; cancel signal failed: ${cancelError}`
-          : 'runtime progress timeout',
-      }
-      return
     }
     if (timedOut) {
       yield { type: 'runtime_failed', error: 'subscription timeout' }

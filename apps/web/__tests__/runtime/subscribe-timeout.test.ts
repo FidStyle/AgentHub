@@ -116,7 +116,7 @@ describe('subscribeEvents — dual timeout', () => {
     expect(events.some((e) => e.type === 'runtime_failed')).toBe(false)
   })
 
-  it('treats runtime_status heartbeats as non-progress and cancels the stalled runtime', async () => {
+  it('treats runtime_status heartbeats as non-progress without cancelling the live runtime', async () => {
     process.env.RUNTIME_SUB_IDLE_TIMEOUT_MS = '500'
     process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS = '35'
     process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS = '1000'
@@ -132,17 +132,45 @@ describe('subscribeEvents — dual timeout', () => {
       emit('heartbeat-only', { type: 'runtime_status', status: 'running' })
       await new Promise((r) => setTimeout(r, 10))
       emit('heartbeat-only', { type: 'runtime_status', status: 'running' })
+      await new Promise((r) => setTimeout(r, 50))
+      emit('heartbeat-only', { type: 'runtime_completed', summary: 'done' })
     })()
     for await (const e of gen) events.push(e)
 
-    const failed = events.find((e) => e.type === 'runtime_failed')
-    expect(failed?.error).toBe('runtime progress timeout')
-    expect(commandSets).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        key: 'agenthub:runtime:cancel:heartbeat-only',
-        value: '1',
-      }),
+    expect(events.some((e) => e.type === 'runtime_backgrounded')).toBe(true)
+    expect(events.some((e) => e.type === 'runtime_completed')).toBe(true)
+    expect(events.some((e) => e.type === 'runtime_failed')).toBe(false)
+    expect(commandSets).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'agenthub:runtime:cancel:heartbeat-only' }),
     ]))
     expect(subscriberSets).toEqual([])
+  })
+
+  it('treats observed tool actions as progress for long-running runtime work', async () => {
+    process.env.RUNTIME_SUB_IDLE_TIMEOUT_MS = '500'
+    process.env.RUNTIME_SUB_PROGRESS_TIMEOUT_MS = '35'
+    process.env.RUNTIME_SUB_TOTAL_TIMEOUT_MS = '1000'
+    vi.resetModules()
+    const { subscribeEvents } = await import('../../lib/runtime/redis-client')
+
+    const events: Array<{ type?: string; status?: string }> = []
+    const gen = subscribeEvents('observed-progress') as AsyncGenerator<{ type?: string; status?: string }>
+    void (async () => {
+      while (!subscribers.has('agenthub:runtime:events:observed-progress')) {
+        await new Promise((r) => setTimeout(r, 1))
+      }
+      emit('observed-progress', { type: 'runtime_status', status: 'running' })
+      await new Promise((r) => setTimeout(r, 20))
+      emit('observed-progress', { type: 'runtime_observed_action', status: 'running', toolName: 'command_execution' })
+      await new Promise((r) => setTimeout(r, 20))
+      emit('observed-progress', { type: 'runtime_completed', summary: 'done' })
+    })()
+    for await (const e of gen) events.push(e)
+
+    expect(events.some((e) => e.type === 'runtime_observed_action')).toBe(true)
+    expect(events.some((e) => e.type === 'runtime_completed')).toBe(true)
+    expect(events.some((e) => e.type === 'runtime_backgrounded')).toBe(false)
+    expect(events.some((e) => e.type === 'runtime_failed')).toBe(false)
+    expect(commandSets).toEqual([])
   })
 })

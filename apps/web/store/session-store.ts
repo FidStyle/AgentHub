@@ -707,6 +707,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         tunnel_disconnected: '⚠️ 本地运行时连接已断开，未收到回复',
         runtime_failed: '⚠️ 运行时执行失败，未收到回复',
         runtime_waiting: '',
+        runtime_backgrounded: '执行仍在继续，正在等待新的输出',
       }
       let systemNoticeShown = false
       const showSystemNotice = (text: string) => {

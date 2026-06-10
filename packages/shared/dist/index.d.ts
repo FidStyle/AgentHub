@@ -62,6 +62,8 @@ type RuntimeMessagePart = {
     cwd?: string;
     targetPaths?: string[];
     commandPreview?: string;
+    autoApproved?: boolean;
+    permissionMode?: string;
 } | {
     id: string;
     type: 'question';
@@ -69,6 +71,20 @@ type RuntimeMessagePart = {
     questionId?: string;
     title?: string;
     content: string;
+} | {
+    id: string;
+    type: 'change_summary';
+    status: 'created';
+    title?: string;
+    summary?: string;
+    files: Array<{
+        path: string;
+        status?: string;
+        staged?: boolean;
+        unstaged?: boolean;
+        untracked?: boolean;
+    }>;
+    diffCount?: number;
 } | {
     id: string;
     type: 'diff';
@@ -101,6 +117,37 @@ type RuntimeMessagePart = {
     downloadUrl?: string;
 } | {
     id: string;
+    type: 'image_preview';
+    status: 'created' | 'unavailable';
+    title: string;
+    url?: string;
+    sourcePath?: string;
+    downloadUrl?: string;
+    alt?: string;
+} | {
+    id: string;
+    type: 'document_preview';
+    status: 'created' | 'unavailable';
+    artifactId?: string;
+    title: string;
+    sourcePath?: string;
+    previewUrl?: string;
+    downloadUrl?: string;
+    summary?: string;
+    previewKind?: 'markdown' | 'pdf' | 'summary';
+} | {
+    id: string;
+    type: 'presentation_preview';
+    status: 'created' | 'unavailable';
+    artifactId?: string;
+    title: string;
+    sourcePath?: string;
+    previewUrl?: string;
+    downloadUrl?: string;
+    summary?: string;
+    previewKind?: 'pdf' | 'summary';
+} | {
+    id: string;
     type: 'web_preview';
     status: 'created' | 'unavailable';
     title: string;
@@ -114,7 +161,25 @@ type RuntimeMessagePart = {
     artifactId?: string;
     title: string;
     url?: string;
+    port?: number;
     message?: string;
+    error?: string;
+    startedAt?: string;
+    stoppedAt?: string;
+} | {
+    id: string;
+    type: 'agent_draft';
+    status: 'draft' | 'created';
+    draft: {
+        workspace_id: string;
+        name: string;
+        role_type: string;
+        system_prompt: string;
+        capability_tags: string[];
+        enabled_tool_ids: string[];
+        runtime_type: 'claude_code' | 'codex';
+        is_orchestrator: false;
+    };
 };
 interface Message {
     id: string;
@@ -567,6 +632,19 @@ type RuntimeGatewayEvent = {
     result?: unknown;
     endpointId?: string;
 } | {
+    type: 'runtime_observed_action';
+    actionId?: string | null;
+    toolName?: string;
+    actionKind?: string;
+    status?: 'running' | 'completed' | 'failed' | string;
+    commandPreview?: string;
+    endpointId?: string;
+    workspaceRoot?: string | null;
+    cwd?: string | null;
+    targetPaths?: string[];
+    permissionMode?: string | null;
+    autoApproved?: boolean;
+} | {
     type: 'approval_requested';
     actionId?: string;
     title?: string;
@@ -578,6 +656,20 @@ type RuntimeGatewayEvent = {
     cwd?: string;
     targetPaths?: string[];
     commandPreview?: string;
+} | {
+    type: 'approval_auto_approved';
+    actionId?: string | null;
+    title?: string;
+    description?: string;
+    riskLevel?: string;
+    endpointId?: string;
+    actionKind?: string;
+    workspaceRoot?: string;
+    cwd?: string;
+    targetPaths?: string[];
+    commandPreview?: string;
+    permissionMode?: string | null;
+    inline?: boolean;
 } | {
     type: 'question';
     questionId?: string;
@@ -597,6 +689,15 @@ type RuntimeGatewayEvent = {
     sourcePath?: string;
     contentRef?: string;
     endpointId?: string;
+} | {
+    type: 'runtime_waiting';
+    endpointId?: string;
+    reason: string;
+    waitingFor?: 'approval' | 'question' | 'continuation';
+} | {
+    type: 'runtime_backgrounded';
+    endpointId?: string;
+    reason: string;
 } | {
     type: 'runtime_completed';
     endpointId?: string;
@@ -676,7 +777,7 @@ declare class SeqGenerator {
     reset(): void;
 }
 
-type RuntimeEventType = 'started' | 'session_discovered' | 'text_delta' | 'tool_started' | 'tool_delta' | 'tool_completed' | 'approval_requested' | 'artifact_created' | 'completed' | 'failed' | 'cancelled';
+type RuntimeEventType = 'started' | 'session_discovered' | 'text_delta' | 'tool_started' | 'tool_delta' | 'tool_completed' | 'approval_requested' | 'artifact_created' | 'waiting' | 'completed' | 'failed' | 'cancelled';
 interface BaseRuntimeEvent {
     type: RuntimeEventType;
     sessionId: string;
@@ -832,7 +933,7 @@ interface ContextPackage {
     summary: string;
     sourceMessageId: string | null;
     target?: string;
-    phase?: 'direct' | 'planning' | 'worker' | 'summarizing';
+    phase?: 'direct' | 'planning' | 'worker' | 'artifact_closure' | 'summarizing';
     runtimeType?: 'claude_code' | 'codex' | null;
     pinnedMessageIds?: string[];
     artifacts?: {

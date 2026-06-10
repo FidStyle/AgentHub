@@ -24,6 +24,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 const RUN_MARKER = process.env.PERMISSION_BRANCH_RUN_ID || `PERMISSION-BRANCH-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
 const ARTIFACT_DIR = path.join(REPO_ROOT, 'e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07', RUN_MARKER)
 const CHAT_TIMEOUT_MS = Number(process.env.PERMISSION_BRANCH_CHAT_TIMEOUT_MS ?? 240_000)
+const MAX_ALLOW_APPROVALS = Number(process.env.PERMISSION_BRANCH_MAX_ALLOW_APPROVALS ?? 5)
 
 let passed = 0
 let failed = 0
@@ -173,6 +174,65 @@ async function poll<T>(label: string, fn: () => Promise<T | null>, timeoutMs = 1
   }
   record(fail(label, `timeoutMs=${timeoutMs}`))
   return null
+}
+
+async function waitForSideEffectFile(filePath: string | null, timeoutMs: number): Promise<string | null> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    if (filePath && fs.existsSync(filePath)) return fs.readFileSync(filePath, 'utf8')
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  return null
+}
+
+async function waitForPlanCompleted(pool: Pool, sessionId: string, timeoutMs: number): Promise<Awaited<ReturnType<typeof currentPlanStatus>> | null> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const plan = await currentPlanStatus(pool, sessionId)
+    if (plan?.status === 'completed') return plan
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  return null
+}
+
+async function nextPendingAction(pool: Pool, sessionId: string, excludeActionIds: string[]) {
+  return one<{
+    id: string
+    plan_node_id: string | null
+    status: string
+    command: string
+    result: Record<string, unknown> | null
+  }>(
+    pool,
+    `SELECT id::text, plan_node_id::text, status, command, result
+       FROM public.actions
+      WHERE session_id = $1
+        AND status = 'pending'
+        AND NOT (id = ANY($2::uuid[]))
+      ORDER BY created_at ASC
+      LIMIT 1`,
+    [sessionId, excludeActionIds],
+  )
+}
+
+async function currentPlanStatus(pool: Pool, sessionId: string) {
+  return one<{
+    id: string
+    status: string
+    active_nodes: string
+  }>(
+    pool,
+    `SELECT p.id::text,
+            p.status,
+            COALESCE(string_agg(pn.label || ':' || pn.status, ', ' ORDER BY pn.created_at) FILTER (WHERE pn.status IN ('pending','ready','waiting','running')), '') AS active_nodes
+       FROM public.plans p
+       LEFT JOIN public.plan_nodes pn ON pn.plan_id = p.id
+      WHERE p.session_id = $1
+      GROUP BY p.id, p.status
+      ORDER BY p.created_at DESC
+      LIMIT 1`,
+    [sessionId],
+  )
 }
 
 function runOpencli(args: string[], outputFile: string): Check {
@@ -355,30 +415,43 @@ async function runBranch(pool: Pool, kind: BranchKind) {
   )
   record(pendingCard?.status === 'pending' ? ok(`${kind} 原权限卡初始 pending`, JSON.stringify(pendingCard)) : fail(`${kind} 原权限卡初始 pending`, JSON.stringify(pendingCard)))
 
-  const approveResponse = await apiFetch(`/api/actions/${pendingAction.id}/approve`, {
-    method: 'POST',
-    body: JSON.stringify({ approved: kind === 'allow' }),
-  })
-  const approveBody = await approveResponse.text()
-  fs.writeFileSync(path.join(ARTIFACT_DIR, `${kind}-approve-response.json`), approveBody)
-  record(approveResponse.ok ? ok(`${kind} approval API`, approveBody) : fail(`${kind} approval API`, `status=${approveResponse.status}; ${approveBody}`))
-
+  const approvedActionIds: string[] = []
   if (kind === 'allow') {
-    const allowedAction = await poll('allow action 进入运行或终态', () => one<{
-      status: string
-      executed_at: string | null
-      result: Record<string, unknown> | null
-    }>(
-      pool,
-      'SELECT status, executed_at, result FROM public.actions WHERE id = $1 AND status IN (\'running\',\'completed\',\'failed\')',
-      [pendingAction.id],
-    ))
-    record(allowedAction?.executed_at ? ok('manual allow dispatches continuation', JSON.stringify({ status: allowedAction.status, executed_at: allowedAction.executed_at })) : fail('manual allow dispatches continuation', JSON.stringify(allowedAction)))
-    const sideEffect = await poll('manual allow side effect occurred inside workspace', async () => {
-      if (!sideEffectPath || !fs.existsSync(sideEffectPath)) return null
-      return fs.readFileSync(sideEffectPath, 'utf8')
-    }, 90_000)
+    let currentAction: typeof pendingAction | null = pendingAction
+    let sideEffect: string | null = null
+    let completedPlan: Awaited<ReturnType<typeof currentPlanStatus>> | null = null
+    for (let approvalIndex = 1; approvalIndex <= MAX_ALLOW_APPROVALS && currentAction; approvalIndex += 1) {
+      const actionId = currentAction.id
+      approvedActionIds.push(actionId)
+      const approveResponse = await apiFetch(`/api/actions/${actionId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ approved: true }),
+      })
+      const approveBody = await approveResponse.text()
+      fs.writeFileSync(path.join(ARTIFACT_DIR, `${kind}-approve-${approvalIndex}-response.json`), approveBody)
+      record(approveResponse.ok ? ok(`${kind} approval API #${approvalIndex}`, approveBody) : fail(`${kind} approval API #${approvalIndex}`, `status=${approveResponse.status}; ${approveBody}`))
+      const allowedAction = await poll(`allow action #${approvalIndex} 进入运行或终态`, () => one<{
+        status: string
+        executed_at: string | null
+        result: Record<string, unknown> | null
+      }>(
+        pool,
+        'SELECT status, executed_at, result FROM public.actions WHERE id = $1 AND status IN (\'running\',\'completed\',\'failed\')',
+        [actionId],
+      ))
+      record(allowedAction?.executed_at ? ok(`manual allow dispatches continuation #${approvalIndex}`, JSON.stringify({ actionId, status: allowedAction.status, executed_at: allowedAction.executed_at })) : fail(`manual allow dispatches continuation #${approvalIndex}`, JSON.stringify(allowedAction)))
+      sideEffect = sideEffect ?? await waitForSideEffectFile(sideEffectPath, 30_000)
+      completedPlan = await waitForPlanCompleted(pool, context.sessionId, sideEffect?.includes(`ALLOW ${marker}`) ? 30_000 : 5_000)
+      if (completedPlan?.status === 'completed') break
+      currentAction = await poll(`allow next pending action after approval #${approvalIndex}`, () => nextPendingAction(pool, context.sessionId, approvedActionIds), 90_000)
+      if (currentAction) {
+        record(ok(`manual allow found next permission card #${approvalIndex + 1}`, currentAction.id))
+      }
+    }
+    record(sideEffect ? ok('manual allow side effect occurred inside workspace', sideEffectPath ?? undefined) : fail('manual allow side effect occurred inside workspace', `approvedActionIds=${approvedActionIds.join(',')}`))
     record(sideEffect?.includes(`ALLOW ${marker}`) ? ok('manual allow side effect content', sideEffectPath ?? undefined) : fail('manual allow side effect content', String(sideEffect)))
+    const finalPlan = completedPlan ?? await currentPlanStatus(pool, context.sessionId)
+    record(finalPlan?.status === 'completed' ? ok('manual allow plan completed', JSON.stringify({ planId: finalPlan.id, approvedActionIds })) : fail('manual allow plan completed', JSON.stringify(finalPlan)))
     const allowCard = await poll('manual allow updates original permission card state', () => one<{ status: string | null; message_id: string | null }>(
       pool,
       `SELECT part.value->>'status' AS status, m.id::text AS message_id
@@ -394,6 +467,13 @@ async function runBranch(pool: Pool, kind: BranchKind) {
     record(allowCard && ['running', 'completed', 'failed'].includes(String(allowCard.status)) ? ok('manual allow updates original permission card state', JSON.stringify(allowCard)) : fail('manual allow updates original permission card state', JSON.stringify(allowCard)))
     await verifyOpencliReadback(kind, context.sessionId, context.workspaceId, marker, /已执行|已允许|已通过|running|completed|执行中|已完成/)
   } else {
+    const approveResponse = await apiFetch(`/api/actions/${pendingAction.id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ approved: false }),
+    })
+    const approveBody = await approveResponse.text()
+    fs.writeFileSync(path.join(ARTIFACT_DIR, `${kind}-approve-response.json`), approveBody)
+    record(approveResponse.ok ? ok(`${kind} approval API`, approveBody) : fail(`${kind} approval API`, `status=${approveResponse.status}; ${approveBody}`))
     await new Promise((resolve) => setTimeout(resolve, 1_000))
     const rejectedAction = await one<{ status: string; executed_at: string | null }>(pool, 'SELECT status, executed_at FROM public.actions WHERE id = $1', [pendingAction.id])
     record(rejectedAction?.status === 'rejected' && rejectedAction.executed_at === null ? ok('manual reject stops action execution') : fail('manual reject stops action execution', JSON.stringify(rejectedAction)))
@@ -440,6 +520,7 @@ async function runBranch(pool: Pool, kind: BranchKind) {
     workspaceId: context.workspaceId,
     sessionId: context.sessionId,
     actionId: pendingAction.id,
+    approvedActionIds,
     planNodeId: pendingAction.plan_node_id,
     workspaceRoot,
     sideEffectPath,
