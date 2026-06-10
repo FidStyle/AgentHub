@@ -134,7 +134,8 @@ User
 | Workspace 选择页 | P0 | 查看 Workspace，创建 Cloud 或 Local Desktop Workspace | `FR-WS-001` |
 | Workspace 创建向导 | P0 | 输入名称、选择执行域、绑定云端目录或等待 Desktop 选择本地目录 | `FR-WS-001`, `FR-DESK-001` |
 | 三栏 IM 工作台 | P0 | 左栏 Workspace/Session，中栏消息，右栏 Context/Changes/Artifacts | `FR-WEB-001`, `FR-CHAT-001` |
-| Role Agent 管理页/面板 | P0 | 模板创建、编辑名称、能力、System Prompt、Runtime 绑定 | `FR-AGENT-001`, `FR-RUNTIME-001` |
+| Role Agent 管理页/面板 | P0 | 查看和编辑已存在 Role Agent 的名称、能力、System Prompt、Runtime 绑定与诊断状态 | `FR-AGENT-001`, `FR-RUNTIME-001` |
+| Agent 创建助手 / 聊天内创建 | P0/P1 | 用户在正常聊天流中说“创建一个文档工程师”时生成草稿卡，确认后保存；可由专门 Agent 创建助手承接 | `FR-AGENT-001`, `FR-CHAT-001` |
 | 当前 Session 授权与变更 | P0 | 在会话中展示需要授权动作、运行结果、Git diff 和产物 | `FR-NOTIFY-001`, `FR-PERM-001`, `FR-RESULT-001` |
 | Workspace 设置页 | P0 | 查看执行域、权限策略、Desktop 连接状态 | `FR-WS-001`, `FR-PERM-001` |
 | Session 搜索/归档 | P1 | 搜索、置顶、归档、恢复、按最近活跃排序 | `FR-IM-101` |
@@ -202,6 +203,8 @@ User
 - `desktop-offline`: 本地预览依赖 Desktop Connector，但 Connector 不在线。
 
 Artifacts Tab 不提供“新建富文档”或“新建演示稿”按钮。创建文档、PPT、网页、服务或混合产物的入口仍然是聊天流和角色链路；右侧只负责展示、预览、启动/停止、下载、定位来源消息和回到上下文。
+
+右侧 Role Agent 面板同理只作为已存在角色的查看、编辑和诊断面。对话式创建 Agent 的主入口必须在聊天流中呈现为草稿卡，或由专门的 Agent 创建助手处理；普通产品交付 prompt 不得因为包含“后端工程师”“文档工程师”等词而被误路由为创建 Agent。
 
 对应需求：`FR-WEB-001`, `FR-CTX-001`, `FR-ACTION-001`。
 

@@ -308,6 +308,7 @@ Artifact 定义：
 - 一次产品交付只能创建一个主 `final_product_candidate`，用于启动、打开或发布；其他 Markdown、PPTX、图片、静态文件等使用 `supporting_product_artifact`，可以预览和下载，但不替代主启动入口。
 - PPT 内容生成不属于产物助手默认职责。演示稿工程师、PPT 助手或 `ppt_master` 角色负责生成 `.pptx`；产物助手负责注册、预览转换、下载和回链。
 - 右侧 Artifacts 面板从 Artifact API 读取 durable rows，不能提供绕过 IM 的富文档/演示稿本地新建入口。
+- 产物助手收口失败必须产生明确 terminal state：如果测试、启动脚本校验、manifest 解析或 artifact row 创建失败，plan node、runtime session、SSE 和 result card 必须进入 `failed` 或可恢复 `waiting`，并持久化失败原因；不得让 plan 长时间停在 `running` 后由 SSE timeout 兜底。
 
 P0 Artifact 类型：
 
@@ -541,6 +542,7 @@ flowchart LR
 | tool_started / tool_delta / tool_completed | 工具或命令执行过程 | Action 状态卡、诊断面板 |
 | approval_requested | Runtime 或权限策略要求用户确认 | Pending Approval |
 | question | Runtime/Orchestrator 需要用户补充信息 | Message 问题卡、Mobile 摘要 |
+| runtime_waiting | Runtime 正在等待用户授权、问题回答或 continuation | Plan/attempt/mailbox/runtime waiting 状态 |
 | permission_mode_changed | Runtime 权限模式变化 | 审计与状态提示 |
 | artifact_created | Runtime 产生文件、预览、Diff 等产物 | Artifact |
 | diff_created | Runtime 产生 Git diff/patch | Message diff 卡、Changes 面板、Artifact |
@@ -572,6 +574,7 @@ type ArtifactCreatedEvent = {
 - `runtime_output.delta` 聚合为同一条 agent message 的 Markdown 文本。
 - `tool_started/tool_delta/tool_completed`、`approval_requested`、`question`、`diff_created`、`artifact_created` 归一化为 `RuntimeMessagePart[]`，在前端即时渲染 rich cards。
 - Runtime 完成时，后端把 `RuntimeMessagePart[]` 写入 agent message 的 `metadata.runtimeParts`；刷新后 Web 和 Mobile/PWA 都从同一消息 metadata 重建工具卡、权限卡、问题卡、diff 卡和 artifact 卡。
+- `approval_requested` 和 `question` 之后必须跟随可终止订阅的 `runtime_waiting` 或等价 durable waiting state。权限等待不是 runtime failure，不得显示为“运行时执行失败”；真实 executor 缺失、超时、越界和命令错误才进入 `failed`。
 - 如果 runtime 失败或 endpoint unavailable，不落成功 agent message，只展示系统错误态；避免把失败事件持久化成假成功回复。
 
 ### 10.4 Claude Code 与 Codex 策略
@@ -740,6 +743,8 @@ flowchart TD
 | @ 单个非 Orchestrator Role Agent | Direct Role Flow |
 | @ 多个 Role Agent | Orchestrated Flow |
 | Direct Role 判断需多角色 | 请求用户升级到 Orchestrated Flow |
+| 明确“创建一个 X 工程师/助手/Agent” | 进入聊天内 Agent 草稿创建或专门 Agent 创建助手 |
+| 普通产品交付 prompt 中提到前端/后端/文档/PPT 工程师 | 仍按 Orchestrated Flow 分派任务，不得误路由为 Agent 草稿创建 |
 
 ### 11.5 自动推进
 

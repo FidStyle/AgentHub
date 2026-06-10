@@ -26,13 +26,13 @@
 |------|------|
 | **优先级** | P0/P1 |
 | **绑定 FR-ID** | FR-ORCH-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-DOCS-201, FR-PUBLISH-201 |
-| **对应计划** | 用户 2026-06-10 确认的产物助手方向；`.trellis/spec/cross-layer/im-conversation-artifact-contract.md`；`.trellis/spec/cross-layer/real-flow-product-delivery.md` |
-| **当前状态** | ✅ focused implementation passed（2026-06-10）：已在代码层落地内置 `产物助手` 作为产品交付收口角色，并同步更新 PRD、产品设计、技术设计、模块文档和决策记录。 |
+| **对应计划** | 用户 2026-06-10 确认的产物助手方向；`research/contracts/ARTIFACT-ASSISTANT-CLOSURE-2026-06-10.md`；`.trellis/spec/cross-layer/im-conversation-artifact-contract.md`；`.trellis/spec/cross-layer/real-flow-product-delivery.md` |
+| **当前状态** | ⚠️ implementation present / fresh UAT reopened（2026-06-10）：代码和文档层已落地内置 `产物助手` 收口能力，但后续未入账 fresh strict/manual runs 出现 P0 失败，因此不能继续按“全链路完成”记账。 |
 | **目标** | 在前端、后端、文档、PPT 等角色完成后，由 `产物助手` 判断产物类型，主动创建主产物和辅助产物，在 IM 中生成 artifact/preview/publish 卡，并同步右侧 Artifacts；标准权限由用户启动/确认，完全权限可自动启动但必须留下审计卡。 |
 | **方案摘要** | 新增默认角色 `产物助手`；产品交付 DAG 在 worker 后、架构师汇总前追加 `产物助手收口`；结果卡作者归属产物助手；支持一个 `final_product_candidate` 和多个 `supporting_product_artifact`；服务型产物支持启动脚本/发布状态，Markdown/PPT/图片等辅助产物走预览/下载；右侧 Artifacts 移除聊天外“新建富文档 / 新建演示稿”入口。 |
-| **测试证据** | Commit `e142487 实现产物助手收口流程`；`pnpm --filter @agenthub/web test -- api/chat.test.ts message-markdown.test.ts orchestrator.test.ts` PASS；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/web lint` PASS；`git diff --check` PASS。 |
-| **阻塞问题** | 本条 focused tests 通过，但没有在本轮重新跑 fresh full-control + manual allow/reject + Web/Mobile/Desktop 全真实 UAT；因此不能替代 `BYTEDANCE-P0-P1-REAL-STEP-UAT` 的 fresh gate。PPT 转 PDF、ppt-master 角色化、完整部署平台仍按 P2/后续验收处理。 |
-| **下一步动作** | 后续任何“产物助手全链路完成”声明必须重跑标准权限允许后续跑、完全权限自动启动、聊天内 Git/Diff/Iframe/产物卡、右侧 Artifacts 读回、刷新状态不丢和停止服务的 E2E/UAT。 |
+| **测试证据** | 历史 focused evidence：Commit `e142487 实现产物助手收口流程`；focused tests/type-check/lint/`git diff --check` PASS。当前 blocker evidence：`STRICT-SPD-1781034360339-3a63e1` FAIL（65/12，`finalArtifactId=null`，plan still running，生成项目 `npm test` 缺 `supertest`）；`PERMISSION-BRANCH-1781034038005-a684c9` FAIL（preflight 缺 real runtime executor / live runtime worker）；`PERMISSION-BRANCH-1781034095538-b05c35` FAIL（allow/reject 被 Agent 草稿路径截走，未进入目标权限审批链路）。 |
+| **阻塞问题** | 产物助手合同已补，但当前 fresh UAT 证据显示：服务型交付未稳定终态、产物 row/result card 未生成、标准权限分支测试 harness 和对话路由不稳定。PPT 转 PDF、ppt-master 角色化、完整部署平台仍按 P2/后续验收处理。 |
+| **下一步动作** | 先修复 strict product delivery 和 manual permission branch blockers，再重跑标准权限允许后续跑、完全权限自动启动、聊天内 Git/Diff/Iframe/产物卡、右侧 Artifacts 读回、刷新状态不丢和停止服务的 E2E/UAT。 |
 
 ### BYTEDANCE-P0-P1-REAL-STEP-UAT: Bytedance P0/P1 Real-Step UAT 当前验收
 
@@ -42,12 +42,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
 | **对应计划** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md` |
 | **合同路径** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md`；`.trellis/spec/cross-layer/real-flow-bytedance-uat.md` |
-| **当前状态** | ✅ completed / fresh real-step UAT passed（2026-06-10）：最新代码下 full-control 产品交付主链路和标准/非完全权限 allow/reject 分支均通过；P2 未完全实现项继续按用户要求排除。 |
+| **当前状态** | ⚠️ reopened / latest fresh evidence failed（2026-06-10）：`BYTEDANCE-CURRENT-FINAL-1781025161` 与 `BYTEDANCE-PERMISSION-FINAL-1781025780` 保留为历史 pass，但后续更新的 fresh runs 已失败；按 fail-closed 规则，当前不能声明 Bytedance P0/P1 完成。 |
 | **目标** | 按 Bytedance P0/P1 当前验收口径，验证 AI 对话过程中的 Git diff、产物、iframe/web preview、发布状态卡、权限交互卡、用户允许后续跑、服务型产物启动命令和 Web/Mobile/Desktop readback。 |
 | **验收方式** | Fresh strict single-prompt product delivery gate + fresh manual permission branch gate + OpenCLI Web/Mobile readback + accepted Desktop/Electron Playwright fallback + focused API/runtime/UI tests + type-check/lint + `git diff --check`。 |
-| **测试证据** | Report: `research/execution-reports/bytedance-current-flow-fix-2026-06-10.md`；Full-control run `BYTEDANCE-CURRENT-FINAL-1781025161` PASS（78 passed / 0 failed / 0 warned），workspace `0b827668-5d74-49a4-bc3b-2d56263cfc92`，session `61912ccb-78a7-4b26-b7d7-d4cd194f06a6`，plan `fa73a80d-7c7d-4ab6-befe-930564ec1e47`，artifact `45a0a70e-1f46-4b6c-88d1-1592501c1e9d`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/BYTEDANCE-CURRENT-FINAL-1781025161/`；Manual permission run `BYTEDANCE-PERMISSION-FINAL-1781025780` PASS（38 passed / 0 failed / 0 warned），allow session `b780798e-f309-4982-a197-f0d1f1294bc7` action `0d53810f-1762-424c-819a-ff281946e2f2`，reject session `339ba0c9-a07f-4f96-a9e6-e5d0c4c2013b` action `0680ad29-ee12-4abf-b3be-7ca1819f65c1`，evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/BYTEDANCE-PERMISSION-FINAL-1781025780/`；focused tests PASS（6 files / 127 tests）；type-check PASS；lint PASS；`git diff --check` PASS。 |
-| **阻塞问题** | 无当前 P0/P1 blocker。Desktop/Electron 仍按当前合同使用已接受的 Playwright fallback；最终 Demo 包、3 分钟素材、未完全实现的纯 P2 项继续排除。 |
-| **下一步动作** | 本轮完成后自动提交；后续任何 Bytedance P0/P1 完成声明必须继续使用 fresh full-control + manual allow/reject 证据，不得复用历史 pass。 |
+| **测试证据** | Historical pass report: `research/execution-reports/bytedance-current-flow-fix-2026-06-10.md`；Full-control `BYTEDANCE-CURRENT-FINAL-1781025161` PASS（78/0/0）；Manual permission `BYTEDANCE-PERMISSION-FINAL-1781025780` PASS（38/0/0）。Current reopened evidence：`STRICT-SPD-1781034360339-3a63e1` FAIL（65/12，workspace `02c51200-599e-4355-8969-d8ee6bcf372b`，session `459b1e98-b2aa-4d7e-9934-6b8e85ba9bf3`，plan `82ac46de-3300-4cdd-b237-4fbfce917a18`，`finalArtifactId=null`）；`PERMISSION-BRANCH-1781034038005-a684c9` FAIL（preflight）；`PERMISSION-BRANCH-1781034095538-b05c35` FAIL（manual branch route）。 |
+| **阻塞问题** | P0 blocker reopened：full-control strict run 未完成产物交付闭环；manual permission branch 当前不能证明标准权限卡 allow/reject 续跑；E2E harness/runtime executor preflight 未稳定。Desktop/Electron fallback、最终 Demo 包、3 分钟素材、纯 P2 项仍按原边界处理。 |
+| **下一步动作** | 修复以上 blocker 后重跑 fresh full-control + manual allow/reject + Web/Mobile/Desktop readback；通过前不得使用历史 pass 宣称 Bytedance P0/P1 完成。 |
 
 ### 06-07-fix-bytedance-real-step-uat-blockers: 修复 Bytedance 全真实逐步 UAT 阻断
 
@@ -57,12 +57,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-07-fix-bytedance-real-step-uat-blockers` |
 | **合同路径** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
-| **当前状态** | ✅ completed / 最新 fresh 验证通过（2026-06-08）：已修复 fresh real-step UAT 暴露的 Web/runtime/session/mobile/IM 读回缺口，并补充 fresh full-control 与 manual permission allow/reject 验收；2026-06-08 追加修复 canonical prompt 下最终产物推荐/确认缺口。 |
+| **当前状态** | historical completed / superseded by 2026-06-10 reopened evidence：本任务在 2026-06-08 的 fresh 验证曾通过；但后续 `STRICT-SPD-1781034360339-3a63e1` 和 `PERMISSION-BRANCH-*` 失败已重新打开 Bytedance P0/P1 gate。 |
 | **目标** | 用户只发送固定 prompt 时，full-control 权限下能自动跑到最终产物；manual allow 能从原权限卡继续并写入 workspace side-effect；manual reject 能停止 side-effect 并保留清晰等待下一次输入的用户可见状态。 |
 | **验收方式** | Fresh full-control strict gate + fresh manual permission branch gate + OpenCLI Web/Mobile readback + accepted Desktop/Electron fallback + focused API/store/runtime tests + type-check/lint/build + Trellis validate + `git diff --check`。 |
 | **测试证据** | Report: `research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md` and `research/execution-reports/remaining-p1-features-2026-06-05.md`；Latest full-control `REAL-TOOLS-UAT-1780892500-FULL` PASS（74 passed / 0 failed / 0 warned），workspace `d3cbf9e1-b2ce-48e9-ac40-6a96b3ec4bc6`，session `41ab5f3b-31fd-4c53-a1d1-4b4561b1db58`，plan `04bbfa1b-e408-4097-a3da-260e7e7e3bf8`，artifact `68bc13e6-9184-4ec3-be78-9c421a9904f3`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-TOOLS-UAT-1780892500-FULL/`；Latest manual permission `REAL-TOOLS-PERMISSION-UAT-1780892500` PASS（38 passed / 0 failed / 0 warned），allow action `20a8620d-230f-4825-9740-ff552df4a4f2`，reject action `4365a754-6857-4816-9de9-4cd23e70f622`，evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-TOOLS-PERMISSION-UAT-1780892500/`；focused chat regression PASS（17 tests）；此前 `REAL-STEP-UAT-1780840500-FULL` / `REAL-PERMISSION-UAT-1780841300` 仍保留为历史 pass 证据。 |
-| **风险/说明** | 当前范围内无剩余 P0/P1 验收缺口。最终 Demo 包、3 分钟素材、未启动纯 P2 继续按用户要求排除。 |
-| **下一步动作** | 自动提交本轮修复与证据；后续同类验收必须继续使用 fresh full-control + manual permission branch gates。 |
+| **风险/说明** | 历史通过结论保留为回归参考；不再代表当前 P0/P1 完成状态。最终 Demo 包、3 分钟素材、未启动纯 P2 继续按用户要求排除。 |
+| **下一步动作** | 以后续 reopened blocker 修复后的 fresh full-control + manual permission branch gates 为准。 |
 
 ### BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE: Bytedance P0/P1 全量最终完成门禁
 
@@ -72,12 +72,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-07-bytedance-p0-p1-final-completion-gate` |
 | **合同路径** | `research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md` |
-| **当前状态** | ✅ pass / latest real-step UAT passed（2026-06-08）：已按用户要求重新跑 fresh full-control 和 manual allow/reject。Latest full-control run `REAL-TOOLS-UAT-1780892500-FULL` PASS（74 passed / 0 failed / 0 warned）；latest fresh manual permission run `REAL-TOOLS-PERMISSION-UAT-1780892500` PASS（38 passed / 0 failed / 0 warned）。旧失败 run `REAL-STEP-UAT-1780819586-FULL` 和 `REAL-TOOLS-UAT-1780891400-FULL` 保留为已修复历史证据。 |
+| **当前状态** | historical pass / superseded by 2026-06-10 reopened evidence：`REAL-TOOLS-UAT-1780892500-FULL` 和 `REAL-TOOLS-PERMISSION-UAT-1780892500` 曾通过；但后续更新 fresh runs 失败，当前最终完成门禁已重新打开。 |
 | **目标** | 只闭环 Bytedance P0/P1：IM 主链路、权限链路、工作台链路、产物推荐/确认和三端读回；最终 Demo 包、3 分钟素材、未开始纯 P2 继续排除。 |
 | **验收方式** | Latest standard is full real-step UAT: real Web entry + per-step UI/API/DB/runtime/action/artifact verification + Web/Mobile/Desktop readback. Fixed prompt：`做一个加减乘除的简单网站，使用sqlite存储历史记录`。 |
 | **测试证据** | Latest reports: `research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md` and `research/execution-reports/remaining-p1-features-2026-06-05.md`；Full-control run `REAL-TOOLS-UAT-1780892500-FULL` PASS（74/0/0），workspace `d3cbf9e1-b2ce-48e9-ac40-6a96b3ec4bc6`，session `41ab5f3b-31fd-4c53-a1d1-4b4561b1db58`，plan `04bbfa1b-e408-4097-a3da-260e7e7e3bf8`，artifact `68bc13e6-9184-4ec3-be78-9c421a9904f3`，evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-TOOLS-UAT-1780892500-FULL/`；Manual permission run `REAL-TOOLS-PERMISSION-UAT-1780892500` PASS（38/0/0），allow session `b44807dd-b465-4f2c-9a8f-50406e581b29` action `20a8620d-230f-4825-9740-ff552df4a4f2`，reject session `3512765a-7adc-4f87-afeb-a6c802c0aabb` action `4365a754-6857-4816-9de9-4cd23e70f622`，evidence dir `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-TOOLS-PERMISSION-UAT-1780892500/`。 |
-| **阻塞问题** | 无当前 P0/P1 blocker。Desktop/Electron 仍按当前合同使用已接受的 Playwright fallback；最终 Demo 包、3 分钟素材、未开始纯 P2 仍排除。 |
-| **下一步动作** | 已通过当前 Bytedance P0/P1 real-step gate；后续任何完成结论必须继续使用 fresh full-control + manual allow/reject 证据，不能复用历史静态 pass。 |
+| **阻塞问题** | 当前 blocker 见 `BYTEDANCE-P0-P1-REAL-STEP-UAT` 和 `REG-20260610-001`：strict product delivery、manual permission branch 和 E2E harness 均需修复后重跑。Desktop/Electron fallback、最终 Demo 包、3 分钟素材、未开始纯 P2 仍排除。 |
+| **下一步动作** | 不再用本段历史 pass 宣称当前完成；修复 reopened blocker 后重跑 fresh full-control + manual allow/reject。 |
 
 ### WORKBENCH-RESIZE-FILETREE-UX-2026-06-06: 右侧工作台拖动与文件树体验修复
 

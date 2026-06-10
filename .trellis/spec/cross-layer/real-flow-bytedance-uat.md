@@ -14,6 +14,7 @@
 ### 3. Contracts
 
 - Do not reuse historical pass as final acceptance.
+- Newer fresh failures reopen the gate even if older fresh markers passed. Keep older pass markers as comparison evidence only.
 - Verify each step before taking the next user action.
 - Cover full-control, manual allow, manual reject, Git/file/code/artifact/publish readback, and three surfaces.
 - Fail closed: any P0/P1 partial/blocked/not-run/failed item means final result is not complete.
@@ -23,6 +24,7 @@
 | Condition | Required behavior |
 | --- | --- |
 | Historical evidence only | not accepted |
+| Older pass plus newer fresh fail | not final pass; fix the newer blocker and rerun |
 | One surface missing | not final pass |
 | Permission path skipped | not final pass |
 | Fake/mock runtime success | not final pass |
@@ -31,6 +33,7 @@
 
 - Good: Fresh marker run proves IM, permission, Git/file/artifact/publish, and Web/Mobile/Desktop readback.
 - Bad: Report lists old screenshots without a fresh session.
+- Bad: Report cites `BYTEDANCE-CURRENT-FINAL-1781025161` while ignoring a newer failing `STRICT-SPD-*` or `PERMISSION-BRANCH-*` marker.
 
 ### 6. Tests Required
 

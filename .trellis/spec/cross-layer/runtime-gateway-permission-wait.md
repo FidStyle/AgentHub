@@ -17,6 +17,7 @@
 
 - Only `permissionMode="full_control"` and `permissionMode="dangerous_bypass"` may auto-approve native CLI tool execution.
 - `standard`, `sandbox`, `auto`, null, and unknown modes must create a pending action and visible permission card before side effects execute.
+- Manual permission branch verifiers must run with a real runtime executor and live runtime worker. A preflight such as `real runtime executor and live runtime worker are required` is a failed acceptance run, not a skipped product state.
 - Full-control auto-approved native CLI activity must still produce durable IM permission parts with `autoApproved: true`, `status: "completed"` or `"failed"`, and `permissionMode`, so Web/Mobile refresh readback shows the audit card instead of hiding the action in backend logs.
 - A permission or user-question boundary is not a runtime failure. Emit `approval_requested` or `question`, then emit `runtime_waiting` so Redis/SSE subscribers terminate without timeout.
 - Do not emit `runtime_failed` for permission wait boundaries. Real unavailable, timeout, path escape, and executor errors must still emit `runtime_failed`.
@@ -32,6 +33,8 @@
 | Full-control observed CLI action | Persist completed/failed audit action and runtime permission part with `autoApproved: true` |
 | Runtime CLI missing or times out | Emit `runtime_failed`, mark runtime/session rows failed |
 | Approved continuation reaches next permission | Previous action stays completed; new action pending; node waits |
+| Manual permission UAT lacks live runtime worker or real executor | Fail preflight and reopen the permission blocker |
+| Manual permission prompt is routed to Agent draft creation | Fail the permission branch; the verifier did not exercise approval_requested/allow/reject |
 
 ### 5. Good/Base/Bad Cases
 
@@ -39,6 +42,7 @@
 - Base: Full-control canonical product delivery has no manual pending permission card and still has action audit rows plus auto-approved IM permission cards.
 - Bad: `approval_requested` is followed by `runtime_failed` and the UI displays "运行时执行失败".
 - Bad: Redis subscription times out after a permission card because no terminal wait event was emitted.
+- Bad: A permission allow/reject verifier only produces an `agent_draft` result card and never creates `approval_requested`.
 
 ### 6. Tests Required
 
@@ -47,6 +51,7 @@
 - API chat test: question/permission wait persists message parts and visible status `等待授权`.
 - Store/component test: permission cards render without duplicate cards and without a failure notice.
 - Full-control regression: auto-approved actions continue, durable IM cards have `autoApproved: true`, and the product delivery path completes.
+- Manual branch regression: prompts used for allow/reject must be classified as implementation/tool-action requests, not conversational Agent creation requests.
 
 ### 7. Wrong vs Correct
 

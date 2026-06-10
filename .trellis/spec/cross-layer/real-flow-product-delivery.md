@@ -22,6 +22,7 @@
 - Runnable service artifacts must be publishable through an architect-authored or system-generated launch script. For full-control delivery, the architect summarizing node should select the final product and write `.agenthub/start.sh` using `PORT="${PORT:-3000}"`, then write `.agenthub/delivery.json` with `title`, `source_path`, `artifact_type`, `start_command`, and `description`. Do not require generated products to store static files when the correct user-facing entry is a startup script, backend service, full-stack script, or `npm run ...`.
 - Backend correctness is insufficient; frontend files must be visible and browser-exercised.
 - Product tests run from the generated workspace. Dependencies, DB files, logs, and cleanup stay inside that workspace.
+- Generated product tests must be self-contained: if generated tests import packages such as `supertest`, those packages must be declared and installable in the generated workspace, or the generated tests must use Node built-ins. A missing dependency is a product-delivery failure, not an acceptable verifier quirk.
 - Completion cannot be derived from assistant text alone.
 
 ### 4. Validation & Error Matrix
@@ -36,6 +37,8 @@
 | Completed full-control product prompt has no static entry and no runnable package script | Fail visibly with missing artifact entry guidance; do not claim completion |
 | Canonical calculator prompt completes but has no final artifact row/result card | Fail the gate; fix `/api/chat` delivery-intent/artifact recommendation instead of relaxing the verifier |
 | Final artifact recommendation creates multiple primary launch artifacts | Fail; recommend one browser/service entry candidate only. Supporting document/PPT/image artifacts may be registered separately as non-launch artifacts |
+| Generated product test command fails because a dependency is missing | Fail visibly, mark plan/node/runtime terminal failed or recoverable waiting; do not leave plan running until SSE timeout |
+| Artifact assistant closure cannot create final artifact row/result card | Fail the gate with `finalArtifactId=null`; do not claim product delivery completed |
 
 ### 5. Good/Base/Bad Cases
 
@@ -46,6 +49,7 @@
 - Bad: The final artifact only appears when the user appends `全自动完成直到交付产物`.
 - Bad: The final artifact gate fails solely because `public/index.html` is absent even though `package.json` exposes a working start/dev/preview/serve script.
 - Bad: The system chooses a product entry by hardcoded path even though the architect summarizing node produced a different delivery manifest.
+- Bad: `npm test` fails inside the generated workspace, but the plan remains `running` until the chat SSE times out.
 
 ### 6. Tests Required
 
@@ -53,6 +57,7 @@
 - Browser UI behavior assertions for the generated product.
 - Workspace file/Git/artifact readback.
 - API/unit regression: canonical calculator prompt under full-control persists the final artifact row and result-card metadata.
+- Regression for generated-product test dependencies: generated tests must either declare their dependencies in `package.json` or avoid external dependencies.
 - Web, Mobile/PWA, and Desktop/Electron evidence when claiming three-surface pass.
 
 ### 7. Wrong vs Correct

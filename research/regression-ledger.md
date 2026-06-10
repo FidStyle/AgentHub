@@ -51,14 +51,29 @@
 | --- | --- |
 | **类型** | P0 blocker / runtime-permission-regression / acceptance-coverage-gap |
 | **优先级** | P0 |
-| **状态** | `fixed_pending_verify`（2026-06-09，代码修复与聚焦测试已通过；等待 fresh full-control + manual allow/reject + standard/sandbox/auto 实跑复验后关闭） |
+| **状态** | `open`（2026-06-10 reopened：历史 pass 存在，但后续 fresh manual permission runs 失败；必须修复并重跑后才能关闭） |
 | **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-UI-001, FR-ARTIFACT-001 |
 | **关联任务/合同** | `.trellis/tasks/06-09-standard-permission-approval-card`；`.trellis/spec/cross-layer/runtime-gateway-permission-wait.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
 | **影响功能面** | Web IM runtime 执行、权限模式、授权卡、计划节点等待/续跑、Redis/SSE 订阅、Bytedance single-prompt product delivery 完整验收 |
 | **发现方式** | 用户实测：标准权限下 Runtime 已连接但无授权卡，反复 `runtime_status=running` 后 `Runtime 输出空闲超时，已终止。`；完全权限下同一链路可继续输出。用户进一步明确：不只是标准权限，所有非完全权限都必须有询问/授权卡，并纳入完整流程验收。 |
-| **证据** | 原失败 SSE 包含 `runtime_status` 多次后 `runtime_failed: Runtime 输出空闲超时，已终止。`，聊天显示“运行时执行失败，未收到回复”；无 `message-permission-card`。本轮修复新增 `runtime_waiting` 事件，`standard/sandbox/auto/null/unknown` 非完全权限创建 pending action 并等待授权，只有 `full_control/dangerous_bypass` 自动授权。聚焦测试：`pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts __tests__/runtime/subscribe-timeout.test.ts __tests__/api/chat.test.ts __tests__/session-store.test.ts` PASS（88/88）；`type-check` PASS；`lint` PASS；`git diff --check` PASS。 |
+| **证据** | 原失败 SSE 包含 `runtime_status` 多次后 `runtime_failed: Runtime 输出空闲超时，已终止。`，聊天显示“运行时执行失败，未收到回复”；无 `message-permission-card`。修复后聚焦测试曾 PASS（88/88），历史 full-control/manual runs `BYTEDANCE-CURRENT-FINAL-1781025161` / `BYTEDANCE-PERMISSION-FINAL-1781025780` 也曾 PASS。当前重新打开原因：后续 fresh `PERMISSION-BRANCH-1781034038005-a684c9` FAIL，fatalError 为 `permission branch preflight failed: real runtime executor and live runtime worker are required`；`PERMISSION-BRANCH-1781034095538-b05c35` FAIL，allow/reject SSE 只生成 `agent_draft` result card，被对话式 Agent 草稿路径截走，未进入权限审批路径。 |
 | **关闭条件** | Fresh UAT 证明：standard/sandbox/auto 模式触发工具请求时出现 `message-permission-card`，API/DB 读回 `actions.status=pending`、plan/attempt/mailbox/runtime waiting，SSE 无误导性 `runtime_failed`；允许后从同一节点续跑并写入副作用；拒绝后无副作用且状态可读回；full-control 仍可完成 canonical calculator+SQLite 产物并生成 artifact/result card；Web/Mobile/Desktop 读回一致。 |
-| **下一步** | 跑 fresh full-control product delivery gate + fresh manual allow/reject gate，并追加标准/沙箱/自动规划三种非完全权限实跑证据；通过后更新 tracker/report 并关闭本项。 |
+| **下一步** | 先修复 manual permission branch preflight/runtime worker 要求与“创建 Agent 草稿”误路由，再跑 fresh manual allow/reject gate，并追加 standard/sandbox/auto 三种非完全权限实跑证据；通过后更新 tracker/report 并关闭本项。 |
+
+### REG-20260610-001 — 产物助手收口和 strict product delivery 最新 fresh gate 失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | P0 blocker / artifact-closure-regression / acceptance-evidence-conflict |
+| **优先级** | P0 |
+| **状态** | `open` |
+| **关联 FR/PRD** | FR-ORCH-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001 |
+| **关联任务/合同** | `research/contracts/ARTIFACT-ASSISTANT-CLOSURE-2026-06-10.md`；`research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md`；`.trellis/spec/cross-layer/real-flow-product-delivery.md` |
+| **影响功能面** | 产物助手收口、主产物 durable artifact row、IM result card、Git/Diff/Iframe/Web preview/publish status 卡、服务型产物启动命令、架构师汇总节点和 SSE 终态 |
+| **发现方式** | 用户要求更新当前方向文档时，Codex 只读复核工作区最新 fresh UAT 证据，发现历史 pass 之后又产生未入账失败 marker。 |
+| **证据** | `STRICT-SPD-1781034360339-3a63e1/summary.json`：`FAIL`，65 passed / 12 failed，workspace `02c51200-599e-4355-8969-d8ee6bcf372b`，session `459b1e98-b2aa-4d7e-9934-6b8e85ba9bf3`，plan `82ac46de-3300-4cdd-b237-4fbfce917a18`，`finalArtifactId=null`。`chat-timeout-db-snapshot.json` 显示 plan 仍 `running`，产物助手/架构师汇总未形成可验收终态；runtime action `/bin/zsh -lc 'npm test'` 失败，原因是生成项目测试引用 `supertest` 但依赖未安装；SSE 之后持续 `runtime_status=running` 直到 360000ms timeout。 |
+| **关闭条件** | Fresh strict product delivery gate 重新通过：计划所有节点 completed；产物助手创建一个 `final_product_candidate` 和必要 `supporting_product_artifact`；IM result card 内联 `change_summary/diff/artifact/web_preview/publish_status`；生成项目测试或验收脚本不缺依赖；Web/Mobile/Desktop readback 一致；服务型产物可启动、打开、刷新状态不丢、停止。 |
+| **下一步** | 修复生成项目测试依赖/验收策略、runtime 失败后的 plan 终态传播、产物助手收口触发条件和 result card 写入；随后重跑 fresh strict product delivery gate。 |
 
 ### REG-20260606-001 — Web 工作台前端没有完整呈现开发过程、Git、代码引用和可启动产物
 
