@@ -6,6 +6,7 @@ export type ConversationRow = {
   id: string
   title: string
   roleAgentId?: string | null
+  isOrchestrator?: boolean
   sessionId?: string | null
   isPinned: boolean
   lastActivityAt: string
@@ -95,6 +96,7 @@ export function buildConversationRows(input: {
       id: `contact:${role.id}`,
       title: role.name,
       roleAgentId: role.id,
+      isOrchestrator: Boolean(role.is_orchestrator),
       sessionId: direct?.id ?? null,
       isPinned: Boolean(direct?.is_pinned),
       lastActivityAt: direct?.last_activity_at ?? lastMessage?.created_at ?? direct?.updated_at ?? role.updated_at ?? role.created_at ?? '',

@@ -15,6 +15,12 @@ interface WorkspaceRow {
 
 type ConversationStatus = 'active' | 'archived'
 
+type GroupContact = {
+  title: string
+  roleAgentId?: string | null
+  isOrchestrator?: boolean
+}
+
 function formatRelativeTime(value: string) {
   if (!value) return '暂无'
   const date = new Date(value)
@@ -29,6 +35,22 @@ function formatRelativeTime(value: string) {
 
 function domainLabel(domain: string) {
   return domain === 'cloud' ? '云端' : '本地'
+}
+
+function isOrchestratorContact(contact: GroupContact) {
+  return Boolean(contact.isOrchestrator) || contact.title === '架构师' || contact.title === 'Orchestrator'
+}
+
+function sortedGroupContacts<T extends GroupContact>(contacts: T[]) {
+  return [...contacts].sort((a, b) => {
+    if (isOrchestratorContact(a) !== isOrchestratorContact(b)) return isOrchestratorContact(a) ? -1 : 1
+    return 0
+  })
+}
+
+function defaultGroupParticipantIds(contacts: GroupContact[]) {
+  const orchestrator = contacts.find((contact) => isOrchestratorContact(contact) && contact.roleAgentId)
+  return orchestrator?.roleAgentId ? [orchestrator.roleAgentId] : []
 }
 
 export default function MobileHomePage() {
@@ -142,7 +164,18 @@ export default function MobileHomePage() {
   }
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWs) ?? null
-  const contacts = conversations.filter((conversation) => conversation.kind === 'contact' && conversation.roleAgentId)
+  const contacts = useMemo(
+    () => sortedGroupContacts(conversations.filter((conversation) => conversation.kind === 'contact' && conversation.roleAgentId)),
+    [conversations],
+  )
+  const toggleGroupCreator = () => {
+    setCreatingGroup((value) => {
+      const next = !value
+      setSelectedParticipants(next ? defaultGroupParticipantIds(contacts) : [])
+      return next
+    })
+  }
+
   const normalizedQuery = query.trim().toLowerCase()
   const filteredConversations = useMemo(() => {
     if (!normalizedQuery) return conversations
@@ -211,7 +244,7 @@ export default function MobileHomePage() {
                   {selectedWorkspace.name} · {domainLabel(selectedWorkspace.execution_domain)}
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setCreatingGroup((value) => !value)}>
+              <Button size="sm" variant="outline" onClick={toggleGroupCreator}>
                 <UsersRound className="mr-1 h-3.5 w-3.5" />
                 群聊
               </Button>

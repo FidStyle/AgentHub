@@ -6,6 +6,12 @@ import { Archive, Clock, MessageSquareText, Pin, PinOff, Plus, RotateCcw, Search
 import { useSessionStore } from '@/store/session-store'
 import { AgentHubAvatar } from './AgentHubAvatar'
 
+type GroupContact = {
+  title: string
+  roleAgentId?: string | null
+  isOrchestrator?: boolean
+}
+
 function formatSessionTime(value: string) {
   if (!value) return '暂无时间'
   const date = new Date(value)
@@ -16,6 +22,22 @@ function formatSessionTime(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
+}
+
+function isOrchestratorContact(contact: GroupContact) {
+  return Boolean(contact.isOrchestrator) || contact.title === '架构师' || contact.title === 'Orchestrator'
+}
+
+function sortedGroupContacts<T extends GroupContact>(contacts: T[]) {
+  return [...contacts].sort((a, b) => {
+    if (isOrchestratorContact(a) !== isOrchestratorContact(b)) return isOrchestratorContact(a) ? -1 : 1
+    return 0
+  })
+}
+
+function defaultGroupParticipantIds(contacts: GroupContact[]) {
+  const orchestrator = contacts.find((contact) => isOrchestratorContact(contact) && contact.roleAgentId)
+  return orchestrator?.roleAgentId ? [orchestrator.roleAgentId] : []
 }
 
 export function SessionList() {
@@ -45,6 +67,10 @@ export function SessionList() {
       session.lastMessage.toLowerCase().includes(normalized),
     )
   }, [normalized, sessions])
+  const contacts = useMemo(
+    () => sortedGroupContacts(sessions.filter((session) => session.kind === 'contact' && session.roleAgentId)),
+    [sessions],
+  )
 
   if (loading) {
     return <div data-testid="session-list"><StateCard variant="loading" /></div>
@@ -72,7 +98,13 @@ export function SessionList() {
     if (!confirm(`确定删除聊天「${title}」吗？相关消息、计划和运行记录会一并删除。`)) return
     await deleteSession(sessionId)
   }
-  const contacts = sessions.filter((session) => session.kind === 'contact' && session.roleAgentId)
+  const openGroupCreator = () => {
+    setCreatingGroup((value) => {
+      const next = !value
+      setSelectedParticipants(next ? defaultGroupParticipantIds(contacts) : [])
+      return next
+    })
+  }
   const submitGroup = async () => {
     if (!activeWorkspaceId || !groupName.trim() || selectedParticipants.length === 0) return
     await createGroupConversation({ workspaceId: activeWorkspaceId, name: groupName.trim(), participantRoleAgentIds: selectedParticipants })
@@ -96,7 +128,7 @@ export function SessionList() {
               aria-label="新建群聊"
               data-testid="new-group-conversation"
               className="relative rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={() => setCreatingGroup((value) => !value)}
+              onClick={openGroupCreator}
             >
               <UsersRound className="h-3.5 w-3.5" />
               <Plus className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-background" />

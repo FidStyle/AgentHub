@@ -9,6 +9,7 @@ export interface Session {
   status: 'active' | 'archived'
   kind?: 'contact' | 'group'
   roleAgentId?: string | null
+  isOrchestrator?: boolean
   sessionId?: string | null
   isPinned?: boolean
   participants?: Array<{ roleAgentId: string; name: string }>
@@ -296,6 +297,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         status: s.status === 'archived' ? 'archived' : 'active',
         kind: s.kind === 'contact' ? 'contact' : 'group',
         roleAgentId: (s.roleAgentId as string | null | undefined) ?? null,
+        isOrchestrator: Boolean(s.isOrchestrator),
         sessionId: (s.sessionId as string | null | undefined) ?? null,
         isPinned: Boolean(s.isPinned),
         participants: Array.isArray(s.participants) ? s.participants as Array<{ roleAgentId: string; name: string }> : [],
