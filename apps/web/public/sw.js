@@ -1,6 +1,6 @@
 const CACHE_NAME = 'agenthub-mobile-v2'
 const LEGACY_CACHE_NAMES = ['agenthub-v1']
-const PRECACHE = ['/m', '/m/approve', '/m/preview']
+const PRECACHE = ['/m', '/m/login', '/m/approve', '/m/preview']
 
 function isMobilePwaRequest(request) {
   const url = new URL(request.url)

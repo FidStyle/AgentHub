@@ -71,7 +71,7 @@ describe('service worker fetch routing', () => {
     expect(waitUntil).toHaveBeenCalledTimes(1)
     await waitUntil.mock.calls[0][0]
     const openedCache = await context.caches.open.mock.results[0].value
-    expect(openedCache.addAll).toHaveBeenCalledWith(['/m', '/m/approve', '/m/preview'])
+    expect(openedCache.addAll).toHaveBeenCalledWith(['/m', '/m/login', '/m/approve', '/m/preview'])
   })
 
   it('deletes legacy root-scope caches during activation', async () => {
