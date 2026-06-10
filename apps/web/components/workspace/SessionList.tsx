@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Badge, Button, StateCard, Tooltip } from '@agenthub/ui'
-import { Archive, Clock, MessageSquareText, Pin, PinOff, Plus, RotateCcw, Search, Trash2, UsersRound } from 'lucide-react'
+import { Archive, Check, Clock, MessageSquareText, Pin, PinOff, Plus, RotateCcw, Search, Trash2, UsersRound } from 'lucide-react'
 import { useSessionStore } from '@/store/session-store'
 import { AgentHubAvatar } from './AgentHubAvatar'
 
@@ -11,6 +12,17 @@ type GroupContact = {
   roleAgentId?: string | null
   isOrchestrator?: boolean
 }
+
+type FloatingPosition = {
+  top: number
+  left: number
+  width: number
+  maxHeight: number
+}
+
+const FLOATING_MARGIN = 8
+const FLOATING_GAP = 6
+const GROUP_POPOVER_WIDTH = 320
 
 function formatSessionTime(value: string) {
   if (!value) return '暂无时间'
@@ -40,6 +52,20 @@ function defaultGroupParticipantIds(contacts: GroupContact[]) {
   return orchestrator?.roleAgentId ? [orchestrator.roleAgentId] : []
 }
 
+function computeGroupPopoverPosition(trigger: DOMRect): FloatingPosition {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(GROUP_POPOVER_WIDTH, vw - FLOATING_MARGIN * 2)
+  const spaceBelow = vh - trigger.bottom - FLOATING_GAP - FLOATING_MARGIN
+  const spaceAbove = trigger.top - FLOATING_GAP - FLOATING_MARGIN
+  const below = spaceBelow >= Math.min(360, spaceAbove)
+  const available = Math.max(0, below ? spaceBelow : spaceAbove)
+  const maxHeight = Math.min(420, available)
+  const top = below ? trigger.bottom + FLOATING_GAP : Math.max(FLOATING_MARGIN, trigger.top - FLOATING_GAP - maxHeight)
+  const left = Math.max(FLOATING_MARGIN, Math.min(trigger.right - width, vw - width - FLOATING_MARGIN))
+  return { top, left, width, maxHeight }
+}
+
 export function SessionList() {
   const {
     sessions,
@@ -59,6 +85,8 @@ export function SessionList() {
   const [creatingGroup, setCreatingGroup] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([])
+  const [groupPopoverPos, setGroupPopoverPos] = useState<FloatingPosition | null>(null)
+  const groupTriggerRef = useRef<HTMLButtonElement>(null)
   const normalized = query.trim().toLowerCase()
   const filtered = useMemo(() => {
     if (!normalized) return sessions
@@ -71,6 +99,28 @@ export function SessionList() {
     () => sortedGroupContacts(sessions.filter((session) => session.kind === 'contact' && session.roleAgentId)),
     [sessions],
   )
+
+  useLayoutEffect(() => {
+    if (!creatingGroup || !groupTriggerRef.current) return
+    const update = () => {
+      if (!groupTriggerRef.current) return
+      setGroupPopoverPos(computeGroupPopoverPosition(groupTriggerRef.current.getBoundingClientRect()))
+    }
+    update()
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      if (groupTriggerRef.current?.contains(target as Node) || target?.closest('[data-testid="group-create-form"]')) return
+      setCreatingGroup(false)
+    }
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [creatingGroup])
 
   if (loading) {
     return <div data-testid="session-list"><StateCard variant="loading" /></div>
@@ -124,6 +174,7 @@ export function SessionList() {
           <Badge variant="secondary">{filtered.length}/{sessions.length}</Badge>
           <Tooltip content="新建群聊">
             <button
+              ref={groupTriggerRef}
               type="button"
               aria-label="新建群聊"
               data-testid="new-group-conversation"
@@ -136,37 +187,21 @@ export function SessionList() {
           </Tooltip>
         </div>
       </div>
-      {creatingGroup && (
-        <div data-testid="group-create-form" className="rounded-md border border-border bg-background p-2 text-xs">
-          <input
-            value={groupName}
-            onChange={(event) => setGroupName(event.target.value)}
-            placeholder="群聊名称"
-            className="h-8 w-full rounded-md border border-input bg-background px-2 outline-none focus:ring-2 focus:ring-ring"
-          />
-          <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
-            {contacts.map((contact) => (
-              <label key={contact.roleAgentId} className="flex items-center gap-2 rounded-sm px-1 py-1 hover:bg-muted">
-                <input
-                  type="checkbox"
-                  checked={selectedParticipants.includes(contact.roleAgentId ?? '')}
-                  onChange={(event) => {
-                    const id = contact.roleAgentId ?? ''
-                    setSelectedParticipants((current) => event.target.checked
-                      ? [...current, id]
-                      : current.filter((item) => item !== id))
-                  }}
-                />
-                <span className="truncate">{contact.title}</span>
-              </label>
-            ))}
-          </div>
-          <div className="mt-2 flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => setCreatingGroup(false)}>取消</Button>
-            <Button size="sm" disabled={!groupName.trim() || selectedParticipants.length === 0} onClick={() => void submitGroup()}>创建</Button>
-          </div>
-        </div>
-      )}
+      <GroupCreatePopover
+        open={creatingGroup}
+        pos={groupPopoverPos}
+        contacts={contacts}
+        groupName={groupName}
+        selectedParticipants={selectedParticipants}
+        onNameChange={setGroupName}
+        onToggleParticipant={(id) => {
+          setSelectedParticipants((current) => current.includes(id)
+            ? current.filter((item) => item !== id)
+            : [...current, id])
+        }}
+        onCancel={() => setCreatingGroup(false)}
+        onSubmit={() => void submitGroup()}
+      />
       <SessionStatusTabs value={sessionStatusFilter} onChange={setSessionStatusFilter} />
       <label className="flex h-8 items-center gap-2 rounded-md border border-input bg-background px-2 focus-within:ring-2 focus-within:ring-ring">
         <Search className="h-3.5 w-3.5 text-muted-foreground" />
@@ -271,6 +306,83 @@ export function SessionList() {
         ))}
       </div>
     </div>
+  )
+}
+
+function GroupCreatePopover({
+  open,
+  pos,
+  contacts,
+  groupName,
+  selectedParticipants,
+  onNameChange,
+  onToggleParticipant,
+  onCancel,
+  onSubmit,
+}: {
+  open: boolean
+  pos: FloatingPosition | null
+  contacts: GroupContact[]
+  groupName: string
+  selectedParticipants: string[]
+  onNameChange: (value: string) => void
+  onToggleParticipant: (id: string) => void
+  onCancel: () => void
+  onSubmit: () => void
+}) {
+  if (!open) return null
+  return createPortal(
+    <div
+      data-testid="group-create-form"
+      style={{
+        top: pos?.top ?? 0,
+        left: pos?.left ?? 0,
+        width: pos?.width ?? GROUP_POPOVER_WIDTH,
+        maxHeight: pos?.maxHeight ?? 420,
+        visibility: pos ? 'visible' : 'hidden',
+      }}
+      className="fixed z-50 overflow-y-auto rounded-lg border border-border bg-card p-3 text-xs text-card-foreground shadow-lg"
+    >
+      <input
+        value={groupName}
+        onChange={(event) => onNameChange(event.target.value)}
+        placeholder="群聊名称"
+        className="h-8 w-full rounded-md border border-input bg-background px-2 outline-none focus:ring-2 focus:ring-ring"
+      />
+      <div className="mt-3 space-y-1">
+        {contacts.map((contact) => {
+          const id = contact.roleAgentId ?? ''
+          const selected = selectedParticipants.includes(id)
+          return (
+            <button
+              key={id}
+              type="button"
+              data-testid={`group-participant-option-${id}`}
+              aria-pressed={selected}
+              className={`flex w-full items-center gap-2 rounded-md border px-2 py-2 text-left transition-colors ${
+                selected ? 'border-primary bg-primary/5' : 'border-transparent hover:border-border hover:bg-muted'
+              }`}
+              onClick={() => {
+                if (id) onToggleParticipant(id)
+              }}
+            >
+              <AgentHubAvatar name={contact.title} id={id} size="sm" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{contact.title}</span>
+                {isOrchestratorContact(contact) && <Badge variant="warning" className="mt-1">架构师</Badge>}
+              </span>
+              {selected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+            </button>
+          )
+        })}
+        {contacts.length === 0 && <p className="px-2 py-3 text-muted-foreground">当前工作区还没有可加入的联系人。</p>}
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={onCancel}>取消</Button>
+        <Button size="sm" disabled={!groupName.trim() || selectedParticipants.length === 0} onClick={onSubmit}>创建</Button>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

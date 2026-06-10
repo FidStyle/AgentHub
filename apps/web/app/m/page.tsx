@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge, Button, StateCard } from '@agenthub/ui'
-import { Clock, MessageCircle, Search, UsersRound } from 'lucide-react'
+import { Check, Clock, MessageCircle, Search, UsersRound } from 'lucide-react'
 import { AgentHubAvatar } from '@/components/workspace/AgentHubAvatar'
 import type { ConversationRow } from '@/lib/conversations'
 
@@ -289,22 +289,34 @@ export default function MobileHomePage() {
                 className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
               <div className="mt-3 max-h-40 space-y-1 overflow-y-auto">
-                {contacts.map((contact) => (
-                  <label key={contact.roleAgentId} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
-                    <input
-                      type="checkbox"
-                      checked={selectedParticipants.includes(contact.roleAgentId ?? '')}
-                      onChange={(event) => {
-                        const id = contact.roleAgentId ?? ''
-                        setSelectedParticipants((current) => event.target.checked
-                          ? [...current, id]
-                          : current.filter((item) => item !== id))
+                {contacts.map((contact) => {
+                  const id = contact.roleAgentId ?? ''
+                  const selected = selectedParticipants.includes(id)
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      data-testid={`mobile-group-participant-option-${id}`}
+                      aria-pressed={selected}
+                      className={`flex w-full items-center gap-2 rounded-md border px-2 py-2 text-left text-sm transition-colors ${
+                        selected ? 'border-primary bg-primary/5' : 'border-transparent hover:border-border hover:bg-muted'
+                      }`}
+                      onClick={() => {
+                        if (!id) return
+                        setSelectedParticipants((current) => current.includes(id)
+                          ? current.filter((item) => item !== id)
+                          : [...current, id])
                       }}
-                    />
-                    <AgentHubAvatar name={contact.title} id={contact.roleAgentId} size="sm" />
-                    <span className="min-w-0 flex-1 truncate">{contact.title}</span>
-                  </label>
-                ))}
+                    >
+                      <AgentHubAvatar name={contact.title} id={id} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{contact.title}</span>
+                        {isOrchestratorContact(contact) && <Badge variant="warning" className="mt-1">架构师</Badge>}
+                      </span>
+                      {selected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                    </button>
+                  )
+                })}
                 {contacts.length === 0 && <p className="text-xs text-muted-foreground">当前工作区还没有可加入的联系人。</p>}
               </div>
               <div className="mt-3 flex justify-end gap-2">
