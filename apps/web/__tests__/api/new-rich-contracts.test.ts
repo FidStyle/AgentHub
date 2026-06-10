@@ -122,6 +122,9 @@ describe('new rich IM/API contracts', () => {
     })
     expect(presentationRole?.enabled_tool_ids).toEqual(expect.arrayContaining(['file_read', 'file_write', 'artifact_store', 'ppt_master']))
     expect(presentationRole?.capability_tags).toEqual(expect.arrayContaining(['演示稿', 'PPT', 'PDF预览']))
+    expect(presentationRole?.system_prompt).toContain('不要假设 presentation skill 的 profile 文件名')
+    expect(presentationRole?.system_prompt).toContain('缺少 @oai/artifact-tool')
+    expect(presentationRole?.system_prompt).toContain('继续生成可交付文档和 PPTX')
   })
 
   it('creates an apply-diff approval action for a valid unified diff', async () => {

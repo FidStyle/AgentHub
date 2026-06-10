@@ -854,13 +854,7 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
           autoApproved: isAutomaticPermissionMode(job.permissionMode) && chunk.observedAction.status !== 'running',
         })
         if (chunk.observedAction.status === 'failed') {
-          const commandLabel = observedActionCommandLabel(chunk.observedAction)
-          const error = [
-            `Runtime 工具执行失败：${commandLabel}`,
-            typeof chunk.observedAction.exitCode === 'number' ? `退出码：${chunk.observedAction.exitCode}` : null,
-            chunk.observedAction.output ? chunk.observedAction.output.slice(-4000) : null,
-          ].filter(Boolean).join('\n')
-          throw new Error(error)
+          continue
         }
         continue
       }

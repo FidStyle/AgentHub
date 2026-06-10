@@ -20,6 +20,20 @@
 
 ## P0 任务
 
+### REG-20260611-001: Runtime observed tool failure recovery
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-ACTION-001, FR-ARTIFACT-001, FR-UI-001 |
+| **对应计划** | `.trellis/tasks/06-10-ppt`；`research/regression-ledger.md#reg-20260611-001--runtime-observed-tool-失败被过早升级为计划节点失败`；`.trellis/spec/cross-layer/runtime-gateway-worker.md` |
+| **当前状态** | fixed_pending_verify（2026-06-11）：Runtime worker 不再把 full-control/auto-approved observed tool failure 升级为节点失败；observed shell exit code 只进入审计记录。 |
+| **目标** | 用户运行文档/PPT、代码生成或其他 Agent 任务时，命令探测失败、缺依赖、缺专用工具等 Runtime 内部错误必须作为模型/流程可见观测和审计记录，不能单独决定计划节点失败；真正失败仍来自 Runtime 进程错误、超时、权限边界、取消或失联。 |
+| **验收方式** | Runtime worker 单测 + Web type-check；真实 OpenCLI UAT 需用户看屏并走 GitHub 登录、新 workspace、新群组、文档+PPT prompt、产物预览。 |
+| **测试证据** | `pnpm --filter @agenthub/web test -- __tests__/runtime/executor.test.ts` PASS（56/56）；`pnpm --filter @agenthub/web type-check` PASS。 |
+| **阻塞问题** | 尚未跑真实 OpenCLI/GitHub 登录路径；不能声明端到端已关闭。 |
+| **下一步动作** | 用户看屏后执行真实 OpenCLI UAT；通过后关闭 `REG-20260611-001` 并补 UAT 证据。 |
+
 ### standard-permission-approval-card
 
 | 字段 | 内容 |

@@ -745,7 +745,7 @@ describe('processJob — FakeExecutor regression', () => {
     expect(String(failed!.event.error)).toContain('not found')
   })
 
-  it('fails immediately when an observed full-control command exits non-zero', async () => {
+  it('keeps full-control observed command failures recoverable until the runtime stops', async () => {
     const executor: RuntimeExecutor = {
       async *execute() {
         yield {
@@ -759,7 +759,7 @@ describe('processJob — FakeExecutor regression', () => {
             exitCode: 1,
           },
         }
-        yield { delta: 'this should not stream after failed command' }
+        yield { delta: 'Dependency missing, using a fallback renderer instead.' }
       },
     }
 
@@ -776,7 +776,7 @@ describe('processJob — FakeExecutor regression', () => {
       mailboxItemId: 'mailbox-runtime-failed-observed',
     }, executor)
 
-    expect(result).toBe('failed')
+    expect(result).toBe('completed')
     expect(published).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event: expect.objectContaining({
@@ -788,17 +788,67 @@ describe('processJob — FakeExecutor regression', () => {
       }),
       expect.objectContaining({
         event: expect.objectContaining({
-          type: 'runtime_failed',
-          error: expect.stringContaining("Cannot find module 'supertest'"),
+          type: 'runtime_output',
+          delta: 'Dependency missing, using a fallback renderer instead.',
         }),
       }),
     ]))
-    expect(published.some((p) => p.event.type === 'runtime_output' && p.event.delta === 'this should not stream after failed command')).toBe(false)
+    expect(published.some((p) => p.event.type === 'runtime_failed')).toBe(false)
     expect(dbUpdates).toEqual(expect.arrayContaining([
-      expect.objectContaining({ table: 'runtime_sessions', status: 'failed' }),
-      expect.objectContaining({ table: 'plan_node_attempts', status: 'failed', error: expect.stringContaining('Runtime 工具执行失败') }),
-      expect.objectContaining({ table: 'agent_mailbox_items', status: 'failed', error: expect.stringContaining('Runtime 工具执行失败') }),
-      expect.objectContaining({ table: 'plan_nodes', status: 'failed' }),
+      expect.objectContaining({ table: 'runtime_sessions', status: 'completed' }),
+      expect.objectContaining({ table: 'plan_node_attempts', status: 'completed' }),
+      expect.objectContaining({ table: 'agent_mailbox_items', status: 'completed' }),
+      expect.objectContaining({ table: 'plan_nodes', status: 'completed' }),
+    ]))
+  })
+
+  it('does not turn an observed full-control command failure into a runtime failure by itself', async () => {
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          observedAction: {
+            id: 'cmd-failed',
+            toolName: 'command_execution',
+            actionKind: 'shell_command',
+            status: 'failed',
+            commandPreview: 'npm test',
+            output: "Error: Cannot find module 'supertest'",
+            exitCode: 1,
+          },
+        }
+      },
+    }
+
+    const result = await processJob({
+      runtimeSessionId: 'runtime-observed-unrecovered',
+      prompt: 'run failing test',
+      permissionMode: 'full_control',
+      workspaceRoot: '/workspace',
+      cwd: '/workspace',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      planNodeId: 'node-runtime-001',
+      attemptId: 'attempt-runtime-unrecovered-observed',
+      mailboxItemId: 'mailbox-runtime-unrecovered-observed',
+    }, executor)
+
+    expect(result).toBe('completed')
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_observed_action',
+          status: 'failed',
+          commandPreview: 'npm test',
+          autoApproved: true,
+        }),
+      }),
+    ]))
+    expect(published.some((p) => p.event.type === 'runtime_failed')).toBe(false)
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'runtime_sessions', status: 'completed' }),
+      expect.objectContaining({ table: 'plan_node_attempts', status: 'completed' }),
+      expect.objectContaining({ table: 'agent_mailbox_items', status: 'completed' }),
+      expect.objectContaining({ table: 'plan_nodes', status: 'completed' }),
     ]))
   })
 

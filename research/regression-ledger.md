@@ -30,6 +30,21 @@
 >
 > ✅ **最终验收硬化闭环（2026-06-01，ACCEPTANCE-HARDENING-2026-06-01）**：本轮关闭验收前 P0 硬化项：根级 lint/type-check/test/build、验收环境 smoke、Web worker/no-worker E2E、Desktop Electron GUI/runtime E2E、Mobile PWA worker/no-worker E2E、RN test/type/build/Metro 入口均已通过。新增修复包括 Mobile PWA service worker 开发态导航干扰、无效 `/m/sessions` 预缓存、Mobile `expo start` 假入口、Desktop E2E 过期端口/文案断言等。最终报告见 `research/execution-reports/acceptance-final-uat-governance-2026-06-01.md`。
 
+### REG-20260611-001 — Runtime observed tool 失败被过早升级为计划节点失败
+
+| 字段 | 内容 |
+| --- | --- |
+| **类型** | P0 regression / runtime-recovery-regression / user-flow-blocker |
+| **优先级** | P0 |
+| **状态** | `fixed_pending_verify`（2026-06-11：worker 单测已覆盖 observed tool failure 不再单独导致 runtime_failed；待真实 OpenCLI/GitHub 登录路径复验） |
+| **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-ACTION-001, FR-ARTIFACT-001, FR-UI-001 |
+| **关联任务/合同** | `.trellis/tasks/06-10-ppt`；`research/contracts/ARTIFACT-ASSISTANT-CLOSURE-2026-06-10.md`；`.trellis/spec/cross-layer/runtime-gateway-worker.md` |
+| **影响功能面** | Web IM runtime 执行、full-control 自动权限审计、文档/PPT 产物生成、计划节点终态、retry/resume 体验 |
+| **发现方式** | 用户真实运行“创作一个关于字节跳动的文档以及 PPT”后，演示稿工程师 Runtime 执行 `require.resolve('@oai/artifact-tool/presentation-jsx')` 失败，AgentHub 立即把 worker 节点置 failed；用户指出独立 Codex 会把命令失败作为观测并自行尝试替代路径。 |
+| **证据** | 原失败命令：`node -e "try{console.log(require.resolve('@oai/artifact-tool/presentation-jsx'))}catch(e){console.error(e.message); process.exit(1)}"`；输出 `Cannot find module '@oai/artifact-tool/presentation-jsx'`；计划随后显示演示稿工程师失败/queued stuck，无法继续产出 PPT。 |
+| **关闭条件** | Full-control/auto-approved observed tool failure 不再立即终止 Runtime，也不能在 Runtime 正常结束时单独造成 `runtime_failed`；失败观测会持久化到审计日志；真正失败仍来自 Runtime CLI 非 0 退出、超时、权限边界、取消或失联；真实 OpenCLI 路径用 GitHub 登录、新 workspace、新群组和文档+PPT prompt 证明计划能继续到产物预览。 |
+| **下一步** | 代码修复已完成：`apps/web/server/runtime-worker.ts` 将 failed observed action 改为纯审计观测；`apps/web/config/role-agents/defaults.json` 加固演示稿角色 fallback 提示；`apps/web/__tests__/runtime/executor.test.ts` 覆盖 observed failure 不再单独导致 runtime failed。下一步在用户看屏时跑真实 OpenCLI UAT。 |
+
 ### REG-20260607-001 — Bytedance P0/P1 全真实逐步 UAT 失败
 
 | 字段 | 内容 |
