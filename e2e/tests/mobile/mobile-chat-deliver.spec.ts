@@ -57,9 +57,15 @@ test.describe('MOBILE-CHAT-DELIVER Mobile 发送走 /api/chat runtime 链路', (
     await page.goto('/m')
     await page.waitForLoadState('domcontentloaded')
     await page.getByText(`E2E-MOBILE-DELIVER-${ts}`).click()
-    await page.getByText(`M-DELIVER-${ts}`).click()
+    await expect(page.getByTestId('mobile-conversation-list')).toBeVisible({ timeout: 10000 })
+    const sessionRow = page.locator('[data-testid^="mobile-conversation-item-"]', { hasText: `M-DELIVER-${ts}` }).first()
+    await expect(sessionRow).toBeVisible({ timeout: 10000 })
+    await sessionRow.click()
     await page.waitForURL(`/m/sessions/${sessionId}`)
     await expect(page.getByTestId('mobile-session')).toBeVisible()
+    await expect(page.getByTestId('mobile-chat-session')).toBeVisible()
+    await expect(page.getByTestId('mobile-chat-header')).toContainText(`M-DELIVER-${ts}`)
+    await expect(page.getByTestId('mobile-message-composer')).toBeVisible()
 
     // 监听 POST /api/chat 被调用（修复前只会打 /api/messages）。
     let chatCalled = false
@@ -69,8 +75,11 @@ test.describe('MOBILE-CHAT-DELIVER Mobile 发送走 /api/chat runtime 链路', (
 
     const msg = `MOBILE-DELIVER-ASK-${ts}`
     // 等默认角色解析就绪（发送按钮在 defaultRole 解析前禁用，避免无角色上下文发送）。
-    await expect(page.getByText(/将发送给 @/)).toBeVisible({ timeout: 10000 })
-    await page.getByPlaceholder(/输入消息/).fill(msg)
+    const composer = page.getByTestId('mobile-message-composer')
+    await expect(composer.getByText(/@/)).toBeVisible({ timeout: 10000 })
+    const composerInput = page.getByPlaceholder(/输入给 .* 的消息/)
+    await expect(composerInput).toBeVisible({ timeout: 10000 })
+    await composerInput.fill(msg)
     await page.getByRole('button', { name: /发送/ }).click()
 
     // 用户气泡先可见（乐观插入 / 落库）。
@@ -102,11 +111,12 @@ test.describe('MOBILE-CHAT-DELIVER Mobile 发送走 /api/chat runtime 链路', (
       })
       await expect(notice.first()).toBeVisible({ timeout: 15000 })
 
-      // reload：用户消息持久化；明确错误态本身不应被误存为 agent 回复（无 role badge）。
+      // reload：用户消息持久化；过程消息可以回读，但不得出现伪成功回复。
       await page.reload()
       await page.waitForLoadState('domcontentloaded')
       await expect(page.locator('.bg-primary', { hasText: msg }).first()).toBeVisible({ timeout: 10000 })
-      await expect(page.getByTestId('message-role-badge')).toHaveCount(0)
+      await expect(page.locator('.bg-muted p', { hasText: /执行中|Runtime 未就绪|运行时执行失败|未收到回复|运行时连接已断开|运行时离线/ }).first()).toBeVisible({ timeout: 10000 })
+      await expect(page.locator('.bg-muted p', { hasText: '返回的回复' })).toHaveCount(0)
     }
 
     // 硬断言：发送确实走了 /api/chat runtime 链路（非旧的纯 /api/messages 写库）。

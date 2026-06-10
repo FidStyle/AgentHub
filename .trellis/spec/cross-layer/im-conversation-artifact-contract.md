@@ -24,6 +24,7 @@
 
 - Contact rows are derived from `role_agents`; they are not deleted or hidden by archiving a direct session.
 - Web IM entry points are contacts and groups. Loading a workspace must not auto-create an empty chat or auto-open the first row; users choose a contact or group, and direct sessions are created lazily only after selecting a contact.
+- Mobile/PWA `/m` uses the same conversation entry model as Web: workspace selection must load `GET /api/conversations` and render contact/group rows. It must not regress to the legacy `/api/sessions` blank-chat list or expose a generic “new empty chat” primary path. Contact taps lazily create direct sessions through `POST /api/sessions` with `chat_kind="direct"` and `direct_role_agent_id`; group rows open their existing `sessionId`.
 - Direct sessions bind one `direct_role_agent_id`; `/api/chat` rejects attempts to target a different role.
 - Group sessions bind participant role IDs; `/api/chat` rejects mentions outside participants and defaults to the group orchestrator or all participants.
 - Conversation sorting is pinned first, then `lastActivityAt desc`.
@@ -91,6 +92,7 @@
 - Store/component tests for `/api/conversations` consumption and contact/group rendering.
 - E2E tests must enter direct chat by clicking a contact and group chat by creating/selecting a group; do not use a blank "new session" button as setup.
 - Type-checks for shared `RuntimeMessagePart` union consumers, including Mobile/PWA.
+- Mobile/PWA E2E must assert the `/m` conversation list, chat header, composer, and `/api/chat` send path. In no-worker runtime mode, immediate explicit error/notice is required, but persisted role process messages may remain visible after reload; tests must reject fake success replies rather than requiring zero role badges.
 
 ### 7. Wrong vs Correct
 
