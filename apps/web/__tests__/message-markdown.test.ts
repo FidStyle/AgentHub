@@ -751,6 +751,16 @@ describe('IM-first orchestration contract', () => {
     expect(source).not.toContain('data-testid="create-presentation-artifact"')
     expect(source).not.toContain("metadata: { source: 'web_artifact_panel'")
   })
+
+  it('keeps Mobile/PWA presentation preview on the real artifact preview contract', () => {
+    const source = readFileSync(fileURLToPath(new URL('../app/m/preview/page.tsx', import.meta.url)), 'utf8')
+
+    expect(source).toContain("kind === 'presentation'")
+    expect(source).toContain("fetch(`/api/artifacts/${artifact.id}/preview`, { method: 'POST' })")
+    expect(source).toContain("kind: 'pdf'")
+    expect(source).toContain("kind: 'presentation'")
+    expect(source).toContain('slidesToText')
+  })
 })
 
 describe('MobileActionCard', () => {

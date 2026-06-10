@@ -4,6 +4,7 @@ import { useConsoleStore } from '../../store/console-store'
 import { ActivityPanel } from '../console/ActivityPanel'
 import { PolicyPanel } from '../console/PolicyPanel'
 import { getElectronAPI } from '../../utils/electron-api'
+import { useOpenWebWorkspace } from '../../hooks/useOpenWebWorkspace'
 
 const RUNTIME_LABELS: Record<string, string> = {
   claude_code: 'Claude Code',
@@ -34,6 +35,7 @@ export function DesktopAgentSession() {
   const [input, setInput] = React.useState('')
   const [sending, setSending] = React.useState(false)
   const [diagnosing, setDiagnosing] = React.useState(false)
+  const { openWebWorkspace, loading: openingWebWorkspace } = useOpenWebWorkspace()
   const selectedRuntimeType = selectedAgent ? toSupportedRuntimeType(selectedAgent.id) : null
   const selectedRuntime = selectedRuntimeType ? runtimes.find((rt) => rt.type === selectedRuntimeType) : null
   const selectedAgentId = selectedAgent?.id ?? ''
@@ -233,6 +235,16 @@ export function DesktopAgentSession() {
             <p className="text-sm text-muted-foreground">
               {selectedAgent ? `当前 Agent: ${selectedAgent.name}` : '选择已接入的 Agent 开始轻量会话'}
             </p>
+            <Button
+              data-testid="desktop-open-artifacts-workbench"
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              disabled={openingWebWorkspace}
+              onClick={() => void openWebWorkspace()}
+            >
+              {openingWebWorkspace ? '正在打开' : '打开 Web 产物工作台'}
+            </Button>
             {!selectedAgent && (
               <div className="flex gap-2 justify-center mt-3">
                 {connectedAgents.map(agent => (

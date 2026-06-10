@@ -8,6 +8,7 @@ import { createClient } from '@/lib/app-db-client'
 import { createSession, resolveEndpoint } from '@/lib/runtime/gateway'
 import { enqueue, isWorkerAlive, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { assertRoleAgentTool, loadRoleAgentForTool } from '@/lib/role-agents/tools'
+import { createPresentationArtifact } from '@/lib/artifacts/presentation-artifact'
 import type { RoleAgentToolId } from '@agenthub/shared'
 
 type AppDb = Awaited<ReturnType<typeof createClient>>
@@ -653,6 +654,67 @@ async function dispatchDeployAction(
   return { status: 'completed' }
 }
 
+async function dispatchPresentationGenerateAction(
+  db: AppDb,
+  action: ActionRecordForDispatch,
+  workspaceId: string,
+  workspaceRoot: string,
+): Promise<ActionDispatchResult> {
+  const result = objectValue(action.result)
+  const title = stringValue(result?.title)
+    ?? stringValue(result?.presentationTitle)
+    ?? stringValue(result?.artifactTitle)
+    ?? 'AgentHub 演示稿'
+  const prompt = stringValue(result?.prompt)
+    ?? stringValue(result?.instruction)
+    ?? action.command
+  const sourcePath = stringValue(result?.source_path)
+    ?? stringValue(result?.sourcePath)
+  try {
+    const generated = await createPresentationArtifact({
+      db,
+      userId: action.owner_id,
+      workspaceId,
+      workspaceRoot,
+      sessionId: action.session_id,
+      title,
+      prompt,
+      sourcePath,
+      persistMessage: true,
+    })
+    const now = new Date().toISOString()
+    const nextResult = dispatchResult(action, {
+      dispatch: 'completed',
+      artifactId: String((generated.artifact as { id?: unknown }).id ?? ''),
+      pptxPath: generated.pptxPath,
+      at: now,
+    })
+    await db.from('actions').update({
+      status: 'completed',
+      executed_at: now,
+      result: nextResult,
+    }).eq('id', action.id)
+    if (action.plan_node_id) {
+      await db.from('plan_nodes').update({
+        status: 'completed',
+        completed_at: now,
+        result: nextResult,
+      }).eq('id', action.plan_node_id)
+    }
+    await db.from('notifications').insert({
+      user_id: action.owner_id,
+      type: 'presentation_generated',
+      title: '演示稿已生成',
+      body: `PPTX：${generated.pptxPath}`,
+      ref_type: 'action',
+      ref_id: action.id,
+    })
+    return { status: 'completed' }
+  } catch (error) {
+    return recordDispatchFailure(db, action, 'unavailable', error instanceof Error ? error.message : 'PPTX 生成失败')
+  }
+}
+
 async function dispatchApplyDiffAction(
   db: AppDb,
   action: ActionRecordForDispatch,
@@ -736,6 +798,9 @@ export async function dispatchApprovedAction(
   }
   if (action.action_type === 'deploy') {
     return dispatchDeployAction(db, action, workspace.id, workspaceRoot)
+  }
+  if (action.action_type === 'presentation_generate' || action.action_type === 'ppt_generation') {
+    return dispatchPresentationGenerateAction(db, action, workspace.id, workspaceRoot)
   }
   if (action.action_type === 'apply_diff') {
     return dispatchApplyDiffAction(db, action, workspaceRoot)

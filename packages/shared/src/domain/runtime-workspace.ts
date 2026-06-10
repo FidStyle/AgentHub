@@ -472,7 +472,11 @@ export function createAcceptancePlanSummary(input: {
     status: 'validated',
     nodes: dispatch.targetRoleAgentIds.map((roleAgentId) => ({
       id: `node-${roleAgentId}`,
-      title: roleAgentId === 'role-backend' ? '实现 SQLite 历史记录后端' : '实现加减乘除网站界面',
+      title: roleAgentId === 'role-backend'
+        ? '实现 SQLite 历史记录后端'
+        : roleAgentId === 'role-presentation'
+          ? '生成演示稿 PPT 产物'
+          : '实现加减乘除网站界面',
       roleAgentId,
       dependsOn: [],
       expectedArtifact: 'implementation-result',
@@ -630,6 +634,16 @@ function inferEngineeringRoleTargets(userMessage: string): string[] {
     normalized.includes('四则运算')
   ) {
     targets.add('role-frontend')
+  }
+  if (
+    normalized.includes('ppt') ||
+    normalized.includes('powerpoint') ||
+    normalized.includes('presentation') ||
+    normalized.includes('deck') ||
+    normalized.includes('演示稿') ||
+    normalized.includes('幻灯片')
+  ) {
+    targets.add('role-presentation')
   }
   return [...targets]
 }

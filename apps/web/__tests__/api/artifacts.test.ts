@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -120,6 +120,77 @@ describe('/api/artifacts', () => {
     expect(presentationResult.status).toBe(201)
     expect(presentationResult.data.artifact_type).toBe('presentation')
     expect(JSON.parse(presentationResult.data.content).slides.length).toBeGreaterThan(0)
+  })
+
+  it('generates a real PPTX file and writes an IM presentation preview card', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'agenthub-ppt-generate-'))
+    tmpDirs.push(root)
+    const insertedMessages: Record<string, unknown>[] = []
+    const base = createPostgresChain(
+      undefined,
+      [{ ...mockWorkspace, cloud_project_dir: root }],
+      undefined,
+      [],
+      [{
+        id: 'agent-artifact',
+        workspace_id: 'ws-001',
+        name: '产物助手',
+        role_type: 'assistant',
+        system_prompt: '负责产物收口',
+        capability_tags: ['产物'],
+        enabled_tool_ids: ['artifact_store'],
+        runtime_type: 'codex',
+        is_orchestrator: false,
+      }],
+      [],
+    )
+    setupMockClient(() => {
+      const client = base()
+      const origFrom = client.from
+      client.from = ((table: string) => {
+        const t = origFrom(table)
+        if (table === 'messages') {
+          const origInsert = t.insert
+          t.insert = (vals: Record<string, unknown>) => {
+            insertedMessages.push(vals)
+            return origInsert(vals)
+          }
+        }
+        return t
+      }) as typeof client.from
+      return client
+    })
+
+    const { POST } = await import('@/app/api/artifacts/presentations/generate/route')
+    const result = await callRoute<{ artifact: { artifact_type: string; title: string }; pptxPath: string }>(
+      POST,
+      'POST',
+      '/api/artifacts/presentations/generate',
+      {
+        workspace_id: 'ws-001',
+        session_id: 'session-001',
+        title: '项目汇报',
+        prompt: '生成一份三页项目汇报 PPT',
+      },
+    )
+
+    expect(result.status).toBe(201)
+    expect(result.data.artifact.artifact_type).toBe('presentation')
+    expect(result.data.pptxPath).toBe('artifacts/项目汇报/deck.pptx')
+    const pptxBytes = await readFile(path.join(root, result.data.pptxPath))
+    expect(pptxBytes.subarray(0, 4).toString('hex')).toBe('504b0304')
+    expect(insertedMessages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role_agent_id: 'agent-artifact',
+        message_type: 'result_card',
+        metadata: expect.objectContaining({
+          runtimeParts: expect.arrayContaining([
+            expect.objectContaining({ type: 'artifact', artifactType: 'presentation' }),
+            expect.objectContaining({ type: 'presentation_preview', title: '项目汇报' }),
+          ]),
+        }),
+      }),
+    ]))
   })
 
   it('updates artifact content and records edit requests durably', async () => {

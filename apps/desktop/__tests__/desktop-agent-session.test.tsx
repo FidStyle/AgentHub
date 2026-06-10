@@ -168,6 +168,14 @@ describe('DesktopAgentSession 真实 runtime 执行（PRGA-002）', () => {
     expect(screen.getByPlaceholderText('输入给 Claude Code 的消息...')).toBeInTheDocument()
   })
 
+  it('桌面端提供 Web 产物工作台入口，保持连接器而非完整编辑器定位', () => {
+    render(<DesktopAgentSession />)
+
+    const openArtifacts = screen.getByTestId('desktop-open-artifacts-workbench')
+    expect(openArtifacts).toBeInTheDocument()
+    expect(openArtifacts).toHaveTextContent('打开 Web 产物工作台')
+  })
+
   it('无 runtime：发送后渲染明确失败错误态，且未伪造执行', async () => {
     // window.electronAPI 未设置（runtime 不可用）
     const user = userEvent.setup()

@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { NextRequest } from 'next/server'
 import { requireAuth } from '@/lib/auth-guard'
@@ -208,6 +208,10 @@ function roleMatchesArchitectDispatchTarget(role: SelectedRoleAgent, targetRoleA
   }
   if (targetRoleAgentId === 'role-frontend') {
     return text.includes('front') || text.includes('ui') || text.includes('web') || text.includes('前端') || text.includes('页面') || text.includes('界面')
+  }
+  if (targetRoleAgentId === 'role-presentation') {
+    const tools = Array.isArray(role.enabled_tool_ids) ? role.enabled_tool_ids.map((item) => String(item)).join(' ') : ''
+    return text.includes('ppt') || text.includes('presentation') || text.includes('deck') || text.includes('演示稿') || text.includes('幻灯片') || tools.includes('ppt_master')
   }
   return false
 }
@@ -1317,6 +1321,31 @@ async function workspaceFileCandidate(input: {
   }
 }
 
+async function walkWorkspaceFiles(
+  workspaceRoot: string,
+  options: { maxFiles: number; maxDepth: number },
+  current = workspaceRoot,
+  depth = 0,
+  collected: string[] = [],
+): Promise<string[]> {
+  if (depth > options.maxDepth || collected.length >= options.maxFiles) return collected
+  const entries = await readdir(current, { withFileTypes: true }).catch(() => [])
+  for (const entry of entries) {
+    if (collected.length >= options.maxFiles) break
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.next' || entry.name === 'dist' || entry.name === 'build') continue
+    const fullPath = path.join(current, entry.name)
+    if (entry.isDirectory()) {
+      await walkWorkspaceFiles(workspaceRoot, options, fullPath, depth + 1, collected)
+      continue
+    }
+    if (!entry.isFile()) continue
+    const relativePath = path.relative(workspaceRoot, fullPath).replace(/\\/g, '/')
+    if (!relativePath || relativePath.split('/').includes('..')) continue
+    collected.push(relativePath)
+  }
+  return collected
+}
+
 async function findDeliveredArtifactCandidates(workspaceRoot: string, workspaceId: string): Promise<DeliveredArtifactCandidate[]> {
   const manifestCandidate = await findManifestDeliveredArtifactCandidate(workspaceRoot, workspaceId)
   const candidates: DeliveredArtifactCandidate[] = []
@@ -1345,6 +1374,24 @@ async function findDeliveredArtifactCandidates(workspaceRoot: string, workspaceI
     'presentation.pptx',
   ]
   for (const sourcePath of renderableCandidates) {
+    const candidate = await workspaceFileCandidate({ workspaceRoot, workspaceId, sourcePath })
+    if (candidate) candidates.push(candidate)
+  }
+
+  const discoveredPresentationPaths = (await walkWorkspaceFiles(workspaceRoot, {
+    maxFiles: 500,
+    maxDepth: 4,
+  }))
+    .filter((sourcePath) => /\.(pptx?|odp)$/i.test(sourcePath))
+    .sort((a, b) => {
+      const score = (value: string) => (
+        value === 'slides.pptx' || value === 'presentation.pptx' ? 0
+          : /^artifacts\/[^/]+\/deck\.pptx$/i.test(value) ? 1
+            : value.split('/').length
+      )
+      return score(a) - score(b) || a.localeCompare(b)
+    })
+  for (const sourcePath of discoveredPresentationPaths) {
     const candidate = await workspaceFileCandidate({ workspaceRoot, workspaceId, sourcePath })
     if (candidate) candidates.push(candidate)
   }

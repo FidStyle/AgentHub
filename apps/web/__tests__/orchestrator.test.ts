@@ -198,6 +198,22 @@ describe('DAG Generator', () => {
     expect(summarizer?.depends_on).toEqual([artifactClosure?.id])
   })
 
+  it('runs presentation engineer before artifact assistant closure for PPT delivery tasks', () => {
+    const result = generateOrchestration([
+      roles[0]!,
+      { id: 'agent-ppt', name: '演示稿工程师', role_type: 'engineer', capability_tags: ['演示稿', 'PPT'], is_orchestrator: false },
+      roles[3]!,
+    ], '生成一份项目汇报 PPT，并提供预览')
+
+    expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '演示稿工程师执行', '产物助手收口', '架构师汇总'])
+    const presentation = result.planNodes.find((node) => node.label === '演示稿工程师执行')
+    const artifactClosure = result.planNodes.find((node) => node.label === '产物助手收口')
+    const summarizer = result.planNodes.find((node) => node.label === '架构师汇总')
+
+    expect(artifactClosure?.depends_on).toContain(presentation?.id)
+    expect(summarizer?.depends_on).toEqual([artifactClosure?.id])
+  })
+
   it('serializes frontend after backend when the task requires API or database contract first', () => {
     const result = generateOrchestration(roles, '先定义后端接口和数据库 schema，再让前端调用后端 API')
 

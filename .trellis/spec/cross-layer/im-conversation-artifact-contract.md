@@ -17,6 +17,7 @@
 - `POST /api/chat` with normal user text that expresses Agent creation intent, e.g. `创建一个文档工程师`
 - `POST /api/artifacts/presentations/generate` with `{ workspace_id, session_id?, source_path?, prompt?, title? }`
 - `POST /api/artifacts/:id/preview`
+- Approved action dispatch for `action_type="presentation_generate"` or `action_type="ppt_generation"`.
 - `POST /api/workspaces/:id/diff/apply` with `{ session_id, message_id?, diff }`
 - DB: `sessions.chat_kind`, `sessions.direct_role_agent_id`, `sessions.participant_role_agent_ids`, `sessions.is_pinned`, `sessions.pinned_at`, `sessions.last_activity_at`, `session_participants`, `role_agents.capability_tags`, `role_agents.enabled_tool_ids`.
 
@@ -36,11 +37,13 @@
 - Rich IM cards must use `RuntimeMessagePart` discriminants, not parse arbitrary text to infer card kinds.
 - Diff apply creates a pending action; it does not directly mutate files before approval.
 - Presentation generation must create a durable `presentation` artifact and a real `.pptx` file, or return an explicit dependency/workspace error.
+- `presentation_generate` / `ppt_generation` actions are first-class `ppt_master` executions: after approval they must call the same presentation artifact service as `POST /api/artifacts/presentations/generate`, create the `.pptx`, persist the artifact row, and insert the IM `artifact` + `presentation_preview` result card. They must not fall through to generic Runtime enqueue after merely passing tool validation.
 - Final artifact recommendation is agent/manifest first: if `.agenthub/delivery.json` exists, use its `source_path`, `artifact_type`, and optional `start_command` instead of asking the user to choose a file. Without a manifest, fallback scanning is typed: HTML -> `web_preview` iframe, Markdown/document -> `document_preview`, PPT/PPTX -> `presentation_preview`, runnable `package.json` -> service publish/start command.
 - `publish_status` cards are only for artifacts with an explicit service start instruction (`startCommand` or `packageScript`). Static HTML and document-like artifacts must show preview/download cards and must not be forced through a publish command path.
 - `full_control` and `dangerous_bypass` may auto-start a service artifact after final recommendation and must show a `publish_status` audit card with `status="running"` or `status="failed"`. Standard/sandbox/auto modes can recommend the same artifact after user-approved flow completion, but service start remains a user action through the publish controls.
 - `full_control` / `dangerous_bypass` auto-approved permission cards are completed audit records, not pending approval boundaries. If runtime later fails after completed auto-approval cards, the plan/node must fail closed rather than showing `等待授权`.
 - Product-delivery orchestration must include the built-in `产物助手` as the artifact closure role after implementation workers and before architect summary whenever the session membership allows it. `产物助手` owns final artifact registration, IM artifact/preview/publish cards, and right-side artifact list synchronization. It does not generate PPT content by default; PPT content generation belongs to `演示稿工程师` or another PPT-specific role such as a `ppt_master` role.
+- PPT/product-delivery orchestration must route PPT intent (`PPT`, `演示稿`, `幻灯片`, `presentation`, `deck`) to `演示稿工程师` before `产物助手收口` when that role is available. Pure PPT tasks do not need frontend/backend workers unless the user also asks for web/service implementation.
 - The right artifact panel is a read/operate surface for produced artifacts. It must not expose chat-bypassing “新建富文档” or “新建演示稿” buttons; users create or request artifacts in the conversation, and `产物助手` performs the delivery closure.
 - A delivery run has one primary `final_product_candidate` used for launch/publish. Additional Markdown/document/PPT/image/static files found in the same closure may be inserted as `supporting_product_artifact` rows and preview parts so the right artifact list can show mixed outputs without redefining the launch entry.
 
@@ -59,6 +62,8 @@
 | Invalid diff | `400 不是合法 unified diff` |
 | Diff path outside workspace | `400 Diff 包含 workspace 外路径` |
 | Presentation preview without `soffice` | `summary` fallback with slide summaries, not a claimed PDF preview |
+| Approved `presentation_generate` action | Validate `ppt_master`, create `.pptx` + durable `presentation` row + IM preview card, then mark action completed |
+| Approved `presentation_generate` cannot write/read source inside workspace | Fail the action and notification with an explicit workspace/dependency error; do not enqueue generic Runtime as fake completion |
 | Final artifact is Markdown/document/PPT | Render preview/download card, no publish card unless manifest also declares a start command |
 | Final artifact is service with start command | Persist artifact metadata and expose publish start/stop controls; full-control may auto-start and write running/failed status into the IM card |
 | Product run generates web + Markdown/PPT | Web/service entry remains the primary final product; Markdown/PPT files are supporting artifacts with document/presentation preview cards |
@@ -70,6 +75,7 @@
 - Good: user sends `创建一个文档工程师`, the chat transcript shows an `Agent 草稿` card with System Prompt, tags, runtime, concrete tools, and a `确认保存` action.
 - Good: final architect summary writes `.agenthub/delivery.json` for a generated service, and the IM result card contains change summary, diff, artifact, web/service preview, and running publish status in full-control.
 - Good: product delivery DAG shows `产物助手收口`; the result card is authored by `产物助手`, not the architect, and right-side artifacts are derived from the same durable artifact rows.
+- Good: a PPT-only request creates `架构师规划 -> 演示稿工程师执行 -> 产物助手收口 -> 架构师汇总`, and the generated PPTX appears as a downloadable `presentation` artifact with a mobile preview fallback.
 - Base: a generated Markdown file becomes a document preview card and downloadable artifact without a deployment button.
 - Bad: `fetchSessions` auto-creates a blank session or auto-opens the first conversation, reintroducing a duplicate "new session" product path.
 - Bad: self-built Agent creation only exists as a right-side form and cannot be started from normal chat.
@@ -78,6 +84,7 @@
 - Bad: UI hides the role picker for direct chat but `/api/chat` still accepts a different `roleAgentIds` target.
 - Bad: diff card applies patches immediately from the browser click without creating an approval action.
 - Bad: PPT endpoint returns success while only storing JSON and no downloadable PPTX file.
+- Bad: `presentation_generate` passes `ppt_master` validation but then queues a generic Runtime job instead of creating the PPTX/artifact/card.
 - Bad: every artifact receives a publish card even when it is a Markdown/PPT/document render artifact.
 
 ### 6. Tests Required
@@ -90,6 +97,7 @@
 - Chat API tests for direct/group recipient enforcement when those session fields are present.
 - Chat API tests for final artifact recommendation by type: static HTML iframe without publish card, service manifest/package with publish status, and render-only document/presentation preview cards.
 - Chat API tests for artifact-assistant closure role ownership, including result-card `role_agent_id`, plan node label `产物助手收口`, and mixed supporting artifacts when present.
+- Dispatch tests for approved `presentation_generate` / `ppt_generation`: `ppt_master` validation, real `.pptx` write, artifact row, IM `presentation_preview`, action completion, and no generic Runtime enqueue.
 - Store/component tests for `/api/conversations` consumption and contact/group rendering.
 - E2E tests must enter direct chat by clicking a contact and group chat by creating/selecting a group; do not use a blank "new session" button as setup.
 - Type-checks for shared `RuntimeMessagePart` union consumers, including Mobile/PWA.

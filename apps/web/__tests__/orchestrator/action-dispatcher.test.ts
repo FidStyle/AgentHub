@@ -7,12 +7,14 @@ const {
   enqueueMock,
   execFileMock,
   spawnMock,
+  spawnSyncMock,
   workspaceRoot,
   fileStore,
   readFileMock,
   readdirMock,
   writeFileMock,
   mkdirMock,
+  accessMock,
 } = vi.hoisted(() => {
   const files = new Map<string, string>()
   const makeDirent = (name: string, type: 'file' | 'directory') => ({
@@ -33,6 +35,7 @@ const {
     pid: 4321,
     unref: vi.fn(),
   })),
+  spawnSyncMock: vi.fn(() => ({ status: 0, stdout: '', stderr: '' })),
   fileStore: files,
   readFileMock: vi.fn(async (filePath: string) => {
     const content = files.get(String(filePath))
@@ -55,11 +58,13 @@ const {
     files.set(String(filePath), String(content))
   }),
   mkdirMock: vi.fn(async () => undefined),
+  accessMock: vi.fn(async () => undefined),
 }})
 
 vi.mock('node:child_process', () => ({
   execFile: execFileMock,
   spawn: spawnMock,
+  spawnSync: spawnSyncMock,
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -68,11 +73,13 @@ vi.mock('node:fs/promises', () => ({
     readdir: readdirMock,
     writeFile: writeFileMock,
     mkdir: mkdirMock,
+    access: accessMock,
   },
   readFile: readFileMock,
   readdir: readdirMock,
   writeFile: writeFileMock,
   mkdir: mkdirMock,
+  access: accessMock,
 }))
 
 vi.mock('@/lib/runtime/gateway', () => ({
@@ -96,8 +103,21 @@ function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Rec
     name: '后端工程师',
     system_prompt: '你是后端工程师',
     runtime_type: 'codex',
+    workspace_id: 'ws-001',
+    enabled_tool_ids: ['file_read', 'file_write', 'shell', 'artifact_store', 'publish_service', 'diff_apply', 'ppt_master'],
     ...overrides.role,
   }
+  const roles = [
+    role,
+    {
+      id: 'agent-artifact',
+      workspace_id: 'ws-001',
+      name: '产物助手',
+      system_prompt: '你是产物助手',
+      runtime_type: 'codex',
+      enabled_tool_ids: ['file_read', 'artifact_store', 'publish_service'],
+    },
+  ]
 
   return {
     writes,
@@ -112,8 +132,9 @@ function dispatchDb(overrides: { role?: Record<string, unknown>; workspace?: Rec
         if (table === 'role_agents') {
           return {
             select: () => ({
-              eq: () => ({
-                single: () => ({ data: role, error: null }),
+              eq: (field: string, value: string) => ({
+                single: () => ({ data: field === 'id' ? roles.find((item) => item.id === value) ?? null : role, error: null }),
+                order: () => ({ data: field === 'workspace_id' ? roles.filter((item) => item.workspace_id === value) : roles, error: null }),
                 eq: () => ({ single: () => ({ data: role, error: null }) }),
               }),
             }),
@@ -202,10 +223,12 @@ describe('dispatchApprovedAction', () => {
     enqueueMock.mockClear()
     execFileMock.mockClear()
     spawnMock.mockClear()
+    spawnSyncMock.mockClear()
     readFileMock.mockClear()
     readdirMock.mockClear()
     writeFileMock.mockClear()
     mkdirMock.mockClear()
+    accessMock.mockClear()
     fileStore.clear()
     fileStore.set(`${workspaceRoot}/package.json`, '{"name":"sample"}')
     fileStore.set(`${workspaceRoot}/public/index.html`, '<!doctype html>')
@@ -445,6 +468,83 @@ describe('dispatchApprovedAction', () => {
           type: 'deployment_completed',
           ref_type: 'action',
           ref_id: 'action-deploy-approval',
+        }),
+      }),
+    ]))
+  })
+
+  it('completes approved presentation generation with a PPTX artifact and IM preview card', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb({
+      role: {
+        id: 'agent-ppt',
+        name: '演示稿工程师',
+        enabled_tool_ids: ['ppt_master', 'artifact_store', 'file_read', 'file_write'],
+      },
+    })
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-ppt-001',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'presentation_generate',
+      command: '生成一份三页项目汇报 PPT',
+      cwd: workspaceRoot,
+      role_agent_id: 'agent-ppt',
+      result: {
+        title: '项目汇报',
+        prompt: '生成一份三页项目汇报 PPT',
+      },
+    })
+
+    expect(result).toEqual({ status: 'completed' })
+    expect(resolveEndpointMock).not.toHaveBeenCalled()
+    expect(createSessionMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(mkdirMock).toHaveBeenCalledWith(`${workspaceRoot}/artifacts/项目汇报`, { recursive: true })
+    expect(writeFileMock).toHaveBeenCalledWith(`${workspaceRoot}/artifacts/项目汇报/deck.pptx`, expect.any(Buffer))
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'artifacts',
+        values: expect.objectContaining({
+          artifact_type: 'presentation',
+          title: '项目汇报',
+          source_path: 'artifacts/项目汇报/deck.pptx',
+          metadata: expect.objectContaining({
+            kind: 'presentation_generated',
+            previewKind: 'presentation',
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'messages',
+        values: expect.objectContaining({
+          role_agent_id: 'agent-artifact',
+          message_type: 'result_card',
+          metadata: expect.objectContaining({
+            runtimeParts: expect.arrayContaining([
+              expect.objectContaining({ type: 'artifact', artifactType: 'presentation' }),
+              expect.objectContaining({ type: 'presentation_preview', title: '项目汇报' }),
+            ]),
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-ppt-001',
+        values: expect.objectContaining({
+          status: 'completed',
+          result: expect.objectContaining({
+            dispatch: 'completed',
+            pptxPath: 'artifacts/项目汇报/deck.pptx',
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'notifications',
+        values: expect.objectContaining({
+          type: 'presentation_generated',
+          ref_id: 'action-ppt-001',
         }),
       }),
     ]))

@@ -18,6 +18,13 @@ interface PreviewState {
   downloadUrl?: string
 }
 
+function slidesToText(slides: Array<{ index?: number; title?: string; body?: string[] }>) {
+  return slides.map((slide, index) => [
+    `第 ${slide.index ?? index + 1} 页：${slide.title ?? '未命名页面'}`,
+    ...(Array.isArray(slide.body) ? slide.body.map((line) => `- ${line}`) : []),
+  ].join('\n')).join('\n\n')
+}
+
 function renderPreview(preview: PreviewState) {
   if (preview.kind === 'html') {
     return (
@@ -82,8 +89,37 @@ function MobilePreviewContent() {
           if (!res.ok) throw new Error('产物预览加载失败')
           return res.json()
         })
-        .then((artifact: { id: string; title?: string; artifact_type?: PreviewKind; content?: string | null; metadata?: { manifest?: unknown; previewPdfPath?: string } | null; workspace_id?: string }) => {
+        .then(async (artifact: { id: string; title?: string; artifact_type?: PreviewKind; content?: string | null; metadata?: { manifest?: unknown; previewPdfPath?: string } | null; workspace_id?: string }) => {
           const kind = artifact.artifact_type ?? 'generic_file'
+          if (kind === 'presentation') {
+            const previewRes = await fetch(`/api/artifacts/${artifact.id}/preview`, { method: 'POST' })
+            const previewBody = await previewRes.json().catch(() => ({})) as {
+              status?: string
+              url?: string
+              message?: string
+              slides?: Array<{ index?: number; title?: string; body?: string[] }>
+            }
+            if (previewRes.ok && previewBody.status === 'pdf' && previewBody.url) {
+              setPreview({
+                id: artifact.id,
+                title: artifact.title ?? title,
+                source: `artifact:${artifact.id}`,
+                kind: 'pdf',
+                content: '',
+                downloadUrl: previewBody.url,
+              })
+              return
+            }
+            setPreview({
+              id: artifact.id,
+              title: artifact.title ?? title,
+              source: `artifact:${artifact.id}`,
+              kind: 'presentation',
+              content: slidesToText(previewBody.slides ?? []) || previewBody.message || artifact.content || '暂无演示稿摘要',
+              downloadUrl: `/api/artifacts/${artifact.id}/download`,
+            })
+            return
+          }
           const pdfPath = typeof artifact.metadata?.previewPdfPath === 'string' ? artifact.metadata.previewPdfPath : null
           const content = kind === 'folder'
             ? JSON.stringify(artifact.metadata?.manifest ?? {}, null, 2)

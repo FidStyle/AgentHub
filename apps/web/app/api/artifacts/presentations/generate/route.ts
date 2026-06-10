@@ -1,53 +1,13 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { spawnSync } from 'node:child_process'
-import path from 'node:path'
 import { createClient } from '@/lib/app-db-client'
-import { createPptxBuffer } from '@/lib/artifacts/rich-artifact-export'
-import { defaultPresentationDeck, parsePresentationDeck, serializePresentationDeck } from '@/lib/artifacts/rich-artifacts'
+import { createPresentationArtifact } from '@/lib/artifacts/presentation-artifact'
 import { requireAuth } from '@/lib/auth-guard'
 import { loadCloudWorkspaceRoot, loadOwnedWorkspace } from '@/lib/workspace/workspace-api'
 import { NextResponse } from 'next/server'
-
-function slugify(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, '-').replace(/^-|-$/g, '').slice(0, 64) || `deck-${Date.now()}`
-}
 
 async function assertSessionInWorkspace(db: Awaited<ReturnType<typeof createClient>>, sessionId: string | null, workspaceId: string) {
   if (!sessionId) return true
   const { data } = await db.from('sessions').select('workspace_id').eq('id', sessionId).single()
   return Boolean(data && (data as { workspace_id?: string }).workspace_id === workspaceId)
-}
-
-async function writePptxWithGenerator(input: {
-  deck: ReturnType<typeof parsePresentationDeck>
-  artifactDir: string
-  pptxPath: string
-}) {
-  const command = process.env.PPT_MASTER_GENERATE_COMMAND || process.env.PPT_MASTER_COMMAND
-  if (!command) {
-    await writeFile(input.pptxPath, createPptxBuffer(input.deck))
-    return { generator: 'agenthub-openxml-fallback', pptMasterStatus: process.env.PPT_MASTER_HOME ? 'configured_not_used' : 'not_configured' }
-  }
-
-  const deckJsonPath = path.join(input.artifactDir, 'deck.agenthub.json')
-  await writeFile(deckJsonPath, JSON.stringify(input.deck, null, 2), 'utf8')
-  const generated = spawnSync(command, [deckJsonPath, input.pptxPath], { encoding: 'utf8', timeout: 120_000 })
-  if (generated.status === 0) {
-    try {
-      await access(input.pptxPath)
-      return { generator: 'ppt-master-wrapper', pptMasterStatus: 'used', pptMasterCommand: command }
-    } catch {
-      // fall through to fallback below
-    }
-  }
-
-  await writeFile(input.pptxPath, createPptxBuffer(input.deck))
-  return {
-    generator: 'agenthub-openxml-fallback',
-    pptMasterStatus: 'fallback_after_error',
-    pptMasterCommand: command,
-    pptMasterError: generated.stderr || 'ppt-master wrapper 未生成 PPTX，已回退到内置 OpenXML 生成器。',
-  }
 }
 
 export async function POST(request: Request) {
@@ -71,50 +31,18 @@ export async function POST(request: Request) {
   if (!cloud.ok) return NextResponse.json({ error: cloud.error }, { status: cloud.status })
 
   try {
-    const sourceContent = sourcePath
-      ? await readFile(path.join(cloud.root, sourcePath), 'utf8').catch(() => '')
-      : ''
-    const deck = sourceContent
-      ? parsePresentationDeck(sourceContent, title)
-      : prompt
-        ? {
-            ...defaultPresentationDeck(title),
-            slides: [
-              { title, body: [prompt.slice(0, 120), '由 AgentHub 根据对话需求生成，可下载为可编辑 PPTX。'] },
-              ...defaultPresentationDeck(title).slides.slice(1),
-            ],
-          }
-        : defaultPresentationDeck(title)
-    const content = serializePresentationDeck(deck)
-    const slug = slugify(title)
-    const artifactDir = path.join(cloud.root, 'artifacts', slug)
-    await mkdir(artifactDir, { recursive: true })
-    const pptxPath = path.join(artifactDir, 'deck.pptx')
-    const generatorMetadata = await writePptxWithGenerator({ deck, artifactDir, pptxPath })
-    const sourceArtifactPath = path.relative(cloud.root, pptxPath).replace(/\\/g, '/')
-
-    const { data, error } = await db.from('artifacts').insert({
-      workspace_id: workspaceId,
-      session_id: sessionId,
-      source_message_id: typeof body.source_message_id === 'string' ? body.source_message_id : null,
-      source_run_id: null,
-      source_path: sourceArtifactPath,
-      artifact_type: 'presentation',
+    const result = await createPresentationArtifact({
+      db,
+      userId: user.id,
+      workspaceId,
+      workspaceRoot: cloud.root,
+      sessionId,
       title,
-      content,
-      content_ref: `workspace-file:${workspaceId}:${sourceArtifactPath}`,
-      metadata: {
-        ...generatorMetadata,
-        sourcePath,
-        pptxPath: sourceArtifactPath,
-        workspaceDownloadUrl: `/api/workspaces/${workspaceId}/files/download?path=${encodeURIComponent(sourceArtifactPath)}`,
-        previewStatus: 'summary',
-        slides: deck.slides.map((slide, index) => ({ index: index + 1, title: slide.title, body: slide.body })),
-      },
-      created_by: user.id,
-    }).select().single()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ artifact: data, pptxPath: sourceArtifactPath }, { status: 201 })
+      prompt,
+      sourcePath,
+      sourceMessageId: typeof body.source_message_id === 'string' ? body.source_message_id : null,
+    })
+    return NextResponse.json({ artifact: result.artifact, pptxPath: result.pptxPath }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'PPTX 生成失败' }, { status: 500 })
   }
