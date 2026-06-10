@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/cross-layer/real-flow-product-delivery.md", "reason": "权威契约：delivery.json+start.sh 为产物主来源、PORT=${PORT:-3000} 约定、静态 public/index.html fallback、无静态入口但有 package 脚本时的处理（line 20/22/36/37）"}
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "工作区文件读写/脚本生成的边界契约，约束 .agenthub 内脚本生成与路径安全"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量门槛——根因修复、测试不得 skip、type-check 全绿"}

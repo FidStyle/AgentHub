@@ -13,7 +13,7 @@ import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import { sessionParticipantIds } from '@/lib/conversations'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
-import { detectWorkspaceRunnablePackage, previewKindForPath, readWorkspaceGitDiff, readWorkspaceGitStatus, writeWorkspaceFile, type WorkspaceGitChange, type WorkspaceRunnablePackage } from '@/lib/workspace/cloud-workspace-fs'
+import { detectWorkspaceRunnablePackage, ensureWorkspaceWebStartScript, previewKindForPath, readWorkspaceGitDiff, readWorkspaceGitStatus, writeWorkspaceFile, type WorkspaceGitChange, type WorkspaceRunnablePackage } from '@/lib/workspace/cloud-workspace-fs'
 import { artifactTypeForPath, type ArtifactDbType } from '@/lib/artifacts/rich-artifacts'
 import { startArtifactPublish, type PublishArtifactRow } from '@/lib/artifacts/publish-service'
 import { createRoleAgentDraft, isRoleAgentCreationIntent } from '@/lib/role-agents/draft'
@@ -855,6 +855,44 @@ function attachRunnableLaunch(candidate: DeliveredArtifactCandidate, runnable: W
   }
 }
 
+function isWebProductCandidate(candidate: DeliveredArtifactCandidate) {
+  return candidate.artifactType === 'html' || candidate.artifactType === 'folder'
+}
+
+// Closure-stage fallback: when the selected primary is a browser-visible web
+// product (static HTML or folder) that still lacks a launch instruction, ask the
+// workspace layer to generate a standard `.agenthub/start.sh` (static products get
+// http-server, dynamic products get the package script). On success, stamp
+// `startCommand: 'bash .agenthub/start.sh'` onto the candidate so
+// `candidateHasStartInstruction` becomes true and the static product enters the
+// auto-publish branch. Model-authored start.sh is never overwritten.
+async function attachGeneratedWebLaunch(
+  workspaceRoot: string,
+  candidate: DeliveredArtifactCandidate,
+): Promise<DeliveredArtifactCandidate> {
+  if (candidateHasStartInstruction(candidate)) return candidate
+  if (!isWebProductCandidate(candidate)) return candidate
+  const generated = await ensureWorkspaceWebStartScript(workspaceRoot).catch(() => null)
+  if (!generated) return candidate
+  const reasonSuffix = generated.kind === 'dynamic'
+    ? `系统已生成 .agenthub/start.sh，以 npm run ${generated.packageScript} 启动动态网页服务。`
+    : '系统已生成 .agenthub/start.sh，以 http-server 在统一端口提供静态网页预览。'
+  return {
+    ...candidate,
+    recommendationReason: `${candidate.recommendationReason} ${reasonSuffix}`,
+    metadata: {
+      ...candidate.metadata,
+      deliveryKind: 'runnable_service',
+      publishKind: 'agent_start_script',
+      startCommand: generated.startCommand,
+      startScriptKind: generated.kind,
+      ...(generated.packageScript ? { packageScript: generated.packageScript } : {}),
+      launchSourcePath: generated.scriptPath,
+    },
+    displaySource: `${candidate.sourcePath}（${generated.startCommand}）`,
+  }
+}
+
 function dedupeDeliveredArtifactCandidates(candidates: DeliveredArtifactCandidate[]) {
   const seen = new Set<string>()
   return candidates.filter((candidate) => {
@@ -1170,7 +1208,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   // products that also expose a package start script), mirroring the previous
   // index-0 enrichment but anchored to the intent-selected primary.
   const runnable = await detectWorkspaceRunnablePackage(input.workspaceRoot)
-  const candidate = attachRunnableLaunch(primary, runnable)
+  const candidate = await attachGeneratedWebLaunch(input.workspaceRoot, attachRunnableLaunch(primary, runnable))
   const supportingCandidates = rest
 
   const now = new Date().toISOString()

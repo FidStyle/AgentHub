@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/cross-layer/real-flow-product-delivery.md", "reason": "验收口径：start.sh/delivery.json 主来源、PORT 约定、静态/服务型产物的发布预览契约与 Validation 矩阵"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "验收质量门槛——测试不得 skip、根因修复、type-check 全绿"}

@@ -10,6 +10,7 @@ import {
   cloudWorkspaceRoot,
   createWorkspaceArtifactLaunchScript,
   detectWorkspaceRunnablePackage,
+  ensureWorkspaceWebStartScript,
   commitWorkspaceGit,
   createWorkspaceSelectionPatchDraft,
   deleteWorkspaceEntry,
@@ -219,6 +220,95 @@ describe('workspace file preview and artifact bundle helpers', () => {
 
     await expect(createWorkspaceArtifactLaunchScript(root, 'artifact-001', '../outside/index.html'))
       .rejects.toThrow('路径超出工作区范围')
+  })
+
+  it('generates a static http-server start.sh when only HTML exists', async () => {
+    const root = await makeWorkspace()
+    await mkdir(path.join(root, 'public'), { recursive: true })
+    await writeFile(path.join(root, 'public/index.html'), '<h1>static</h1>')
+
+    const generated = await ensureWorkspaceWebStartScript(root)
+    expect(generated).toMatchObject({
+      scriptPath: '.agenthub/start.sh',
+      startCommand: 'bash .agenthub/start.sh',
+      kind: 'static',
+      htmlEntry: 'public/index.html',
+      created: true,
+    })
+
+    const scriptPreview = await readCloudWorkspacePreview(root, '.agenthub/start.sh')
+    expect(scriptPreview.content).toContain('PORT="${PORT:-3000}"')
+    expect(scriptPreview.content).toContain("SERVE_PATH='public'")
+    expect(scriptPreview.content).toContain('npx --yes http-server "$SERVE_PATH" -a 127.0.0.1 -p "$PORT"')
+    // The produced command must satisfy the launch-command contract.
+    await expect(createWorkspaceArtifactLaunchScript(root, 'artifact-static-long', {
+      sourcePath: 'public/index.html',
+      startCommand: generated?.startCommand ?? '',
+    })).resolves.toMatchObject({ startCommand: 'bash .agenthub/start.sh' })
+  })
+
+  it('serves the workspace root when index.html sits at the top level', async () => {
+    const root = await makeWorkspace()
+    await writeFile(path.join(root, 'index.html'), '<h1>root static</h1>')
+
+    const generated = await ensureWorkspaceWebStartScript(root)
+    expect(generated?.kind).toBe('static')
+    const scriptPreview = await readCloudWorkspacePreview(root, '.agenthub/start.sh')
+    expect(scriptPreview.content).toContain("SERVE_PATH='.'")
+  })
+
+  it('generates a dynamic npm-run start.sh when package.json exposes a dev script', async () => {
+    const root = await makeWorkspace()
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' } }))
+    await writeFile(path.join(root, 'index.html'), '<h1>dynamic</h1>')
+
+    const generated = await ensureWorkspaceWebStartScript(root)
+    expect(generated).toMatchObject({
+      scriptPath: '.agenthub/start.sh',
+      startCommand: 'bash .agenthub/start.sh',
+      kind: 'dynamic',
+      packageScript: 'dev',
+      created: true,
+    })
+
+    const scriptPreview = await readCloudWorkspacePreview(root, '.agenthub/start.sh')
+    expect(scriptPreview.content).toContain('PORT="${PORT:-3000}"')
+    expect(scriptPreview.content).toContain("PACKAGE_SCRIPT='dev'")
+    expect(scriptPreview.content).toContain('if [ ! -d node_modules ]; then')
+    expect(scriptPreview.content).toContain('npm install')
+    expect(scriptPreview.content).toContain('npm run "$PACKAGE_SCRIPT" -- --host 127.0.0.1 --port "$PORT"')
+  })
+
+  it('never overwrites a model-authored .agenthub/start.sh', async () => {
+    const root = await makeWorkspace()
+    await mkdir(path.join(root, '.agenthub'), { recursive: true })
+    await writeFile(path.join(root, 'index.html'), '<h1>static</h1>')
+    const authored = [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'PORT="${PORT:-3000}"',
+      'python3 -m http.server "$PORT"',
+      '',
+    ].join('\n')
+    await writeFile(path.join(root, '.agenthub/start.sh'), authored)
+
+    const generated = await ensureWorkspaceWebStartScript(root)
+    expect(generated).toMatchObject({
+      scriptPath: '.agenthub/start.sh',
+      startCommand: 'bash .agenthub/start.sh',
+      created: false,
+    })
+    const scriptPreview = await readCloudWorkspacePreview(root, '.agenthub/start.sh')
+    expect(scriptPreview.content).toBe(authored)
+    expect(scriptPreview.content).not.toContain('http-server')
+  })
+
+  it('returns null when the workspace is not a web product', async () => {
+    const root = await makeWorkspace()
+    await writeFile(path.join(root, 'notes.md'), '# notes\n')
+
+    const generated = await ensureWorkspaceWebStartScript(root)
+    expect(generated).toBeNull()
   })
 
   it('writes, renames, deletes and reports git changes inside the workspace', async () => {

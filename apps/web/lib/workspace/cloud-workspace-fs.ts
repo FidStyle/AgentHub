@@ -125,6 +125,25 @@ export type WorkspaceArtifactLaunchSource = string | {
   startCommand?: string | null
 }
 
+export type WorkspaceWebStartScript = {
+  scriptPath: string
+  startCommand: string
+  kind: 'dynamic' | 'static'
+  packageScript?: string | null
+  htmlEntry?: string | null
+  created: boolean
+}
+
+// Standard web-entry candidates the closure step uses to decide a workspace is a
+// browser-visible product when no runnable package script exists.
+const STATIC_WEB_ENTRY_CANDIDATES = [
+  'public/index.html',
+  'index.html',
+  'dist/index.html',
+  'build/index.html',
+  'out/index.html',
+] as const
+
 const RUNNABLE_PACKAGE_SCRIPT_NAMES = ['start', 'dev', 'preview', 'serve'] as const
 const RUNNABLE_PACKAGE_SCRIPT_SET = new Set<string>(RUNNABLE_PACKAGE_SCRIPT_NAMES)
 
@@ -697,6 +716,93 @@ export async function createWorkspaceArtifactLaunchScript(
     sourcePath: source.relativePath,
     ...(packageScript ? { packageScript } : {}),
     ...(agentLaunch ? { startCommand: agentLaunch.command } : {}),
+  }
+}
+
+async function findStaticWebEntry(rootDir: string): Promise<string | null> {
+  for (const candidate of STATIC_WEB_ENTRY_CANDIDATES) {
+    const resolved = resolveWorkspacePath(rootDir, candidate)
+    const info = await stat(resolved.fullPath).catch(() => null)
+    if (info?.isFile()) return resolved.relativePath
+  }
+  return null
+}
+
+const WORKSPACE_WEB_START_SCRIPT_PATH = '.agenthub/start.sh'
+
+// Closure-stage fallback: generate a standard `.agenthub/start.sh` for a
+// browser-visible web product when the model did not author one. Dynamic
+// products (package.json with start/dev/preview/serve) start the real service;
+// pure static HTML products serve the entry directory with http-server. Both
+// honor `PORT="${PORT:-3000}"` and bind to 127.0.0.1 per the delivery contract.
+// Never overwrites an existing start.sh (model authorship wins). Returns null
+// when the workspace is not a web product (no runnable package and no HTML entry).
+export async function ensureWorkspaceWebStartScript(rootDir: string): Promise<WorkspaceWebStartScript | null> {
+  const existing = resolveWorkspacePath(rootDir, WORKSPACE_WEB_START_SCRIPT_PATH)
+  const existingInfo = await stat(existing.fullPath).catch(() => null)
+
+  const runnable = await detectWorkspaceRunnablePackage(rootDir)
+  const htmlEntry = runnable ? null : await findStaticWebEntry(rootDir)
+  if (!runnable && !htmlEntry) return null
+
+  const startCommand = `bash ${WORKSPACE_WEB_START_SCRIPT_PATH}`
+  // Validate the produced command satisfies the launch-command contract.
+  scriptPathFromStartCommand(startCommand)
+
+  if (existingInfo?.isFile()) {
+    return {
+      scriptPath: WORKSPACE_WEB_START_SCRIPT_PATH,
+      startCommand,
+      kind: runnable ? 'dynamic' : 'static',
+      ...(runnable ? { packageScript: runnable.packageScript } : {}),
+      ...(htmlEntry ? { htmlEntry } : {}),
+      created: false,
+    }
+  }
+
+  let script: string
+  if (runnable) {
+    script = [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'cd "$(dirname "$0")/.."',
+      '',
+      'PORT="${PORT:-3000}"',
+      'export PORT',
+      `PACKAGE_SCRIPT=${shellSingleQuote(runnable.packageScript)}`,
+      '',
+      'if [ ! -d node_modules ]; then',
+      '  npm install',
+      'fi',
+      'npm run "$PACKAGE_SCRIPT" -- --host 127.0.0.1 --port "$PORT"',
+      '',
+    ].join('\n')
+  } else {
+    const entryDir = path.posix.dirname(htmlEntry as string)
+    const serveDir = entryDir === '.' ? '.' : entryDir
+    script = [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'cd "$(dirname "$0")/.."',
+      '',
+      'PORT="${PORT:-3000}"',
+      'export PORT',
+      `SERVE_PATH=${shellSingleQuote(serveDir)}`,
+      '',
+      'npx --yes http-server "$SERVE_PATH" -a 127.0.0.1 -p "$PORT"',
+      '',
+    ].join('\n')
+  }
+
+  const written = await writeWorkspaceFile(rootDir, WORKSPACE_WEB_START_SCRIPT_PATH, script)
+  await chmod(resolveWorkspacePath(rootDir, written).fullPath, 0o755)
+  return {
+    scriptPath: written,
+    startCommand,
+    kind: runnable ? 'dynamic' : 'static',
+    ...(runnable ? { packageScript: runnable.packageScript } : {}),
+    ...(htmlEntry ? { htmlEntry } : {}),
+    created: true,
   }
 }
 

@@ -6,7 +6,7 @@
  * and role_agent_id persistence on the user message.
  */
 
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
@@ -1797,6 +1797,62 @@ describe('POST /api/chat — role-chat-core', () => {
       message: expect.stringContaining('full-control 已自动启动发布'),
     })
     expect(startArtifactPublishMock).toHaveBeenCalled()
+  })
+
+  it('generates .agenthub/start.sh and auto-publishes a pure static HTML product under full-control', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    setupStrictDeliveryClient()
+    // package.json only exposes `test` (not runnable) → workspace stays static.
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    await writeWorkspaceFixture('public/index.html', '<!doctype html><h1>calc STATIC-SPD-UNIT</h1>')
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '全自动做一个加减乘除的简单网站，使用sqlite存储历史记录',
+      permissionMode: 'full_control',
+      runMarker: 'STATIC-SPD-UNIT',
+    })
+
+    expect(status).toBe(200)
+
+    // System fallback wrote a standard .agenthub/start.sh pointing at the static entry.
+    const startScript = await readFile(path.join(mockWorkspaceRoot, '.agenthub/start.sh'), 'utf8')
+    expect(startScript).toContain('PORT="${PORT:-3000}"')
+    expect(startScript).toContain('npx --yes http-server "$SERVE_PATH" -a 127.0.0.1 -p "$PORT"')
+    expect(startScript).toContain("SERVE_PATH='public'")
+
+    // The final candidate now carries a launch instruction so it enters auto-publish.
+    const finalArtifact = finalArtifactRow()
+    expect(finalArtifact?.source_path).toBe('public/index.html')
+    expect(finalArtifact?.artifact_type).toBe('html')
+    expect(finalArtifact?.metadata).toMatchObject({
+      kind: 'final_product_candidate',
+      deliveryKind: 'runnable_service',
+      startCommand: 'bash .agenthub/start.sh',
+      startScriptKind: 'static',
+    })
+
+    // Delivery manifest start_command points at the generated start.sh.
+    const manifest = JSON.parse(await readFile(path.join(mockWorkspaceRoot, '.agenthub/delivery.json'), 'utf8'))
+    expect(manifest.start_command).toBe('bash .agenthub/start.sh')
+
+    // Auto-publish ran and returned a 127.0.0.1:PORT preview.
+    expect(startArtifactPublishMock).toHaveBeenCalled()
+    const artifactResultMessage = insertedMessages.find((message) => (
+      message.message_type === 'result_card'
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactRecommendation)
+      && Boolean((message.metadata as Record<string, unknown> | null)?.artifactConfirmation)
+    ))
+    expect(partsFromMessage(artifactResultMessage).find((part) => part.type === 'publish_status')).toMatchObject({
+      status: 'running',
+      url: 'http://127.0.0.1:4100',
+      message: expect.stringContaining('full-control 已自动启动发布'),
+    })
   })
 
   it('uses the architect delivery manifest as the final artifact source before fallback scanning', async () => {
