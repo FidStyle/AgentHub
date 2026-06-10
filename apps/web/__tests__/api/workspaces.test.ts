@@ -45,6 +45,13 @@ function createDeleteErrorChain() {
           }),
         }
       }
+      if (table === 'sessions') {
+        return {
+          delete: () => ({
+            eq: () => ({ data: null, error: null }),
+          }),
+        }
+      }
       return {
         select: () => ({
           eq: () => ({

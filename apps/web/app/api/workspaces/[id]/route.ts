@@ -62,6 +62,12 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     .single()
   if (!workspace) return NextResponse.json({ error: '工作区不存在' }, { status: 404 })
 
+  const { error: sessionsDeleteError } = await db
+    .from('sessions')
+    .delete()
+    .eq('workspace_id', id)
+  if (sessionsDeleteError) return NextResponse.json({ error: sessionsDeleteError.message }, { status: 500 })
+
   const { error } = await db
     .from('workspaces')
     .delete()

@@ -48,7 +48,64 @@ Questions to answer:
 
 <!-- Database-related mistakes your team has made -->
 
-(To be filled by the team)
+- Do not delete `workspaces` before deleting the selected workspace's `sessions`; session-owned rows such as messages, plan nodes, and role-agent references can block the workspace delete through downstream foreign keys.
+
+---
+
+## Scenario: Workspace Deletion Cascade Order
+
+### 1. Scope / Trigger
+
+- Trigger: modifying `DELETE /api/workspaces/[id]`, cleanup scripts, or any backend path that removes a real Workspace row.
+
+### 2. Signatures
+
+- API: `DELETE /api/workspaces/:id`
+- DB tables: `public.workspaces`, `public.sessions`, `public.messages`, `public.plan_nodes`, `public.role_agents`, `public.artifacts`
+- Filesystem side effect: remove `workspace.cloud_project_dir` only after the DB delete path has run.
+
+### 3. Contracts
+
+- Load the workspace by `id` and authenticated `owner_id` before deletion.
+- Delete `sessions` with `workspace_id = :id` before deleting the `workspaces` row.
+- Then delete `workspaces.id = :id` and `owner_id = :userId`.
+- Local workspace-directory removal is best-effort after DB removal; a filesystem `EPERM` must be handled as cleanup debt, not proof that the DB row still exists.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Workspace missing or not owned by user | return 404 |
+| Session delete fails | return 500 and do not attempt workspace delete |
+| Workspace delete fails | return 500 with the DB error |
+| Directory removal fails after DB delete | surface the failure to caller and verify/prune orphan dirs separately |
+
+### 5. Good/Base/Bad Cases
+
+- Good: delete sessions first, delete workspace second, then remove the cloud project dir.
+- Base: workspace has no sessions; the sessions delete is still safe and idempotent.
+- Bad: delete workspace first and rely on database cascades to discover session-owned foreign-key edges.
+
+### 6. Tests Required
+
+- Unit-test `DELETE /api/workspaces/[id]` with a mock `sessions.delete().eq('workspace_id', id)` before the workspace delete chain.
+- Regression-test DB cleanup scripts against a workspace with sessions and role agents.
+- After bulk cleanup, verify the DB count and run an orphan-directory prune pass.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await db.from('workspaces').delete().eq('id', id).eq('owner_id', userId)
+```
+
+#### Correct
+
+```typescript
+await db.from('sessions').delete().eq('workspace_id', id)
+await db.from('workspaces').delete().eq('id', id).eq('owner_id', userId)
+```
 
 ---
 
