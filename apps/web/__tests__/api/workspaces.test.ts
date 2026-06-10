@@ -63,6 +63,74 @@ function createDeleteErrorChain() {
   }))
 }
 
+function createLocalDesktopChain() {
+  const runtimeCapabilities = [
+    {
+      capability: 'runtime_detection',
+      value: [{ type: 'codex', available: true, authenticated: true, launchable: true }],
+    },
+    {
+      capability: 'workspace_roots',
+      value: [
+        { path: '/Users/test/.agenthub/workspaces/default', healthy: true },
+        { path: '/Volumes/offline', healthy: false },
+      ],
+    },
+  ]
+
+  return vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      if (table === 'devices') {
+        return {
+          select: () => ({
+            eq: () => ({ data: [{ id: 'device-001', type: 'desktop' }], error: null }),
+          }),
+        }
+      }
+      if (table === 'device_runtime_channels') {
+        return {
+          select: () => ({
+            eq: () => ({
+              data: [{ endpoint_id: 'endpoint-001', status: 'connected' }],
+              error: null,
+            }),
+          }),
+        }
+      }
+      if (table === 'runtime_capabilities') {
+        return {
+          select: () => ({
+            eq: () => ({ data: runtimeCapabilities, error: null }),
+          }),
+        }
+      }
+      if (table === 'workspaces') {
+        return {
+          select: () => ({
+            eq: () => ({ order: () => ({ data: [], error: null }) }),
+          }),
+          insert: (vals: Record<string, unknown>) => ({
+            select: () => ({
+              single: () => ({ data: { id: 'ws-local', ...vals }, error: null }),
+            }),
+          }),
+        }
+      }
+      if (table === 'role_agents') {
+        return {
+          select: () => ({
+            eq: () => ({ data: [], error: null }),
+          }),
+          insert: (vals: Record<string, unknown>[]) => ({
+            select: () => ({ data: vals, error: null }),
+          }),
+        }
+      }
+      return { select: () => ({ data: [], error: null }) }
+    }),
+  }))
+}
+
 // ---------------------------------------------------------------------------
 // Helper: call a route handler and extract status + body
 // ---------------------------------------------------------------------------
@@ -228,6 +296,34 @@ describe('POST /api/workspaces', () => {
     })
     expect(result.status).toBe(500)
     expect((result.data as { error: string }).error).toBe('Database error')
+  })
+
+  it('requires a Desktop-authorized local root for local_desktop workspaces', async () => {
+    const { POST } = await import('@/app/api/workspaces/route')
+    setupMockClient(createLocalDesktopChain())
+    const result = await callRoute(POST, 'POST', {
+      body: { name: '本地工作区', execution_domain: 'local_desktop' },
+    })
+    expect(result.status).toBe(400)
+    expect((result.data as { error: string }).error).toBe('请选择 Desktop 已授权的本地工作目录')
+  })
+
+  it('stores the selected Desktop-authorized local root for local_desktop workspaces', async () => {
+    const { POST } = await import('@/app/api/workspaces/route')
+    setupMockClient(createLocalDesktopChain())
+    const result = await callRoute(POST, 'POST', {
+      body: {
+        name: '本地工作区',
+        execution_domain: 'local_desktop',
+        local_root_display: '/Users/test/.agenthub/workspaces/default',
+      },
+    })
+    expect(result.status).toBe(201)
+    expect(result.data).toMatchObject({
+      id: 'ws-local',
+      execution_domain: 'local_desktop',
+      local_root_display: '/Users/test/.agenthub/workspaces/default',
+    })
   })
 })
 

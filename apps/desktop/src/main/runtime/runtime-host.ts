@@ -1,10 +1,11 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import type { RuntimeEvent, RequestFrame } from '@agenthub/shared'
 import { StreamAdapter } from './stream-adapter'
 import { LocalRuntimeAdapter, type RuntimePromptRequest } from './local-adapter'
 import { RuntimeDetector, type RuntimeInfo } from './runtime-detector'
 import { RuntimeConfigStore } from './runtime-config-store'
 import type { DeviceChannel } from '../device-channel'
+import { getDesktopWorkspaceRoots, isPathInsideAllowedWorkspaceRoots, type DesktopWorkspaceRoot } from './workspace-roots'
 
 export class RuntimeHost {
   private detector = new RuntimeDetector()
@@ -31,10 +32,20 @@ export class RuntimeHost {
   private registerIPC() {
     ipcMain.handle('runtime:detect', async () => {
       this.cachedRuntimes = await this.detector.detectAll()
+      const roots = getDesktopWorkspaceRoots()
       this.channel?.sendEvent('runtime_detection', { runtimes: this.cachedRuntimes })
+      this.channel?.sendEvent('workspace_roots', { roots })
+      this.notifyRenderer({ type: 'workspace_roots', roots })
       return this.cachedRuntimes
     })
     ipcMain.handle('runtime:cached', () => this.cachedRuntimes)
+    ipcMain.handle('runtime:workspace-roots', () => getDesktopWorkspaceRoots())
+  }
+
+  private notifyRenderer(payload: RuntimeEvent | { type: 'workspace_roots'; roots: DesktopWorkspaceRoot[] }) {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('runtime-host:event', payload)
+    }
   }
 
   private async handleInvoke(frame: RequestFrame) {
@@ -52,6 +63,18 @@ export class RuntimeHost {
 
     const onEvent = (event: RuntimeEvent) => {
       this.channel?.sendEvent('runtime_event', event as unknown as Record<string, unknown>)
+      this.notifyRenderer(event)
+    }
+
+    if (!cwd || !isPathInsideAllowedWorkspaceRoots(cwd)) {
+      onEvent({
+        type: 'failed',
+        sessionId,
+        timestamp: Date.now(),
+        error: '本地工作目录不在 Desktop 授权范围内，已阻止执行。',
+      })
+      this.channel?.sendResponse(frame.requestId, false, '本地工作目录不在 Desktop 授权范围内，已阻止执行。')
+      return
     }
 
     if (payload.runtimeType && typeof payload.prompt === 'string') {
@@ -132,8 +155,12 @@ export class RuntimeHost {
   private async handleDetect(frame: RequestFrame) {
     this.cachedRuntimes = await this.detector.detectAll()
     this.channel?.sendEvent('runtime_detection', { runtimes: this.cachedRuntimes })
+    const roots = getDesktopWorkspaceRoots()
+    this.channel?.sendEvent('workspace_roots', { roots })
+    this.notifyRenderer({ type: 'workspace_roots', roots })
     this.channel?.sendResponse(frame.requestId, true, undefined, {
       runtimes: this.cachedRuntimes,
+      workspaceRoots: roots,
     })
   }
 }

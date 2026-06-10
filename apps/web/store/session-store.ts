@@ -300,7 +300,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         isPinned: Boolean(s.isPinned),
         participants: Array.isArray(s.participants) ? s.participants as Array<{ roleAgentId: string; name: string }> : [],
       }))
-      set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: null, messages: [], loading: false })
+      const current = get().activeSessionId
+      const preferredSession = sessions.find((session) => session.sessionId || session.kind !== 'contact') ?? null
+      const nextActive = current ?? (preferredSession ? (preferredSession.sessionId ?? preferredSession.id) : null)
+      set({ sessions, activeWorkspaceId: workspaceId, activeSessionId: nextActive, messages: [], loading: false })
+      if (nextActive) await get().fetchMessages(nextActive)
     } catch (e) {
       set({ error: (e as Error).message, loading: false })
     }
@@ -660,7 +664,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         runtime_failed: '⚠️ 运行时执行失败，未收到回复',
         runtime_waiting: '',
       }
+      let systemNoticeShown = false
       const showSystemNotice = (text: string) => {
+        if (!text || systemNoticeShown) return
+        systemNoticeShown = true
         set((state) => ({
           messages: [
             ...state.messages,
@@ -750,9 +757,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if ((evt.type === 'approval_requested' || evt.type === 'approval_auto_approved') && evt.actionId && processPermissionActionIds.has(evt.actionId)) {
             continue
           }
-          if (evt.type === 'runtime_status' && !replyCreated) {
-            upsertReply()
-          }
+          if (evt.type === 'runtime_status') continue
           if (evt.type === 'role_acknowledgement' && evt.content) {
             if (replyCreated && (reply || runtimeParts.length > 0)) {
               finishReply(replyId)
@@ -783,7 +788,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           if (evt.type === 'runtime_output' && evt.delta) {
             reply = replyAccumulator.append(evt as RuntimeOutputEvent)
             upsertReply()
-          } else if (evt.type && statusText[evt.type] && !replyCreated) {
+          } else if (evt.type && statusText[evt.type]) {
             showSystemNotice(statusText[evt.type])
           }
         }

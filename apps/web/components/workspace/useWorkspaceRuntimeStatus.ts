@@ -23,6 +23,7 @@ export type WorkspaceRuntimeStatus = {
     status: 'connected' | 'disconnected' | 'not_bound'
     connected: boolean
     device: { id: string; name: string; last_heartbeat: string | null } | null
+    workspaceRoots: Array<{ path: string; healthy: boolean }>
   }
   runtime: {
     status: 'ready' | 'unavailable'

@@ -70,6 +70,22 @@ function runtimeDoctorReady(capabilities: RuntimeCapabilityRow[]) {
   }
 }
 
+function parseWorkspaceRoots(capabilities: RuntimeCapabilityRow[]) {
+  const rootsCapability = capabilities.find((capability) => capability.capability === 'workspace_roots')
+  const value = parseCapabilityValue(rootsCapability?.value)
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((root) => {
+    if (!root || typeof root !== 'object') return []
+    const record = root as { path?: unknown; healthy?: unknown }
+    if (typeof record.path !== 'string' || !record.path.trim()) return []
+    return [{
+      path: record.path,
+      healthy: record.healthy === true,
+    }]
+  })
+}
+
 export async function GET() {
   const db = await createClient()
   const { user, error: authError } = await requireAuth()
@@ -114,6 +130,7 @@ export async function GET() {
   }
 
   const doctor = runtimeDoctorReady(capabilities)
+  const workspaceRoots = parseWorkspaceRoots(capabilities)
   const blockReason: BlockReason | null = !connectedDevice
     ? desktopDevices.length > 0 ? 'desktop_offline' : 'desktop_not_bound'
     : !doctor.known
@@ -155,6 +172,7 @@ export async function GET() {
             last_heartbeat: connectedChannel?.last_heartbeat ?? connectedDevice.last_heartbeat ?? null,
           }
         : null,
+      workspaceRoots,
     },
     runtime: {
       status: operable ? 'ready' : 'unavailable',

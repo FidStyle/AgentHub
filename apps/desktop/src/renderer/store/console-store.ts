@@ -40,7 +40,7 @@ export interface PolicyPresetItem {
   enabled: boolean
 }
 
-export type DesktopPage = 'workspace' | 'agents' | 'policy' | 'settings'
+export type DesktopPage = 'workspace' | 'agents' | 'policy' | 'logs' | 'settings'
 
 export interface AuthUser {
   id: string
@@ -81,6 +81,7 @@ interface ConsoleState {
   setRuntimes: (runtimes: RuntimeInfo[]) => void
   setRuntimeLoading: (loading: boolean) => void
   addActivity: (entry: Omit<ActivityEntry, 'id' | 'time'>) => void
+  setWorkspaceDirs: (workspaceDirs: { path: string; healthy: boolean }[]) => void
   setPermissionPreset: (preset: PermissionPreset) => void
   setWebWorkspaceError: (error: string | null) => void
   setAuthError: (error: string | null) => void
@@ -142,6 +143,7 @@ export const useConsoleStore = create<ConsoleState>((set) => ({
   addActivity: (entry: Omit<ActivityEntry, 'id' | 'time'>) => set((s) => ({
     activities: [...s.activities, { ...entry, id: String(Date.now()), time: new Date().toLocaleTimeString('zh-CN') }],
   })),
+  setWorkspaceDirs: (workspaceDirs) => set({ workspaceDirs }),
   setPermissionPreset: (permissionPreset: PermissionPreset) => set((s) => ({
     permissionPreset,
     policyPresets: s.policyPresets.map((item) => ({ ...item, enabled: item.preset === permissionPreset })),

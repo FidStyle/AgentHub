@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState } from 'react'
 import { StateCard, IconButton, Badge } from '@agenthub/ui'
 import { AtSign, Copy, Pin, PinOff, Plus, Quote, RefreshCcw, Send, PanelRight, ShieldCheck, Square, WandSparkles, X } from 'lucide-react'
 import { useSessionStore, type Message, type Session } from '@/store/session-store'
@@ -43,9 +42,6 @@ interface UploadedAttachment {
   preview?: string
 }
 
-const MARGIN = 8
-const GAP = 4
-const ROLE_PICKER_MAX_WIDTH = 320
 const PERMISSION_MODES = [
   { value: 'sandbox', label: '沙箱', description: '写入和高风险动作需要授权' },
   { value: 'standard', label: '标准', description: '工具执行前需要授权确认' },
@@ -169,23 +165,6 @@ function EmptyConversationPanel({
   )
 }
 
-// role picker portal 定位（R1 portal-to-body / R2 flip / R3 clamp / R5 max-width / R8 popover 层）。
-// 语义默认向上展开（对齐裸 absolute 的 bottom-full）；上方空间不足时翻下方；宽度对齐 trigger 与上限取大并 clamp；
-// 高度受可用空间与视口 60% 双重 clamp，长列表内部滚动而非撑高页面。
-function computeRolePicker(trigger: DOMRect): { top: number; left: number; width: number; maxHeight: number; placement: 'above' | 'below' } {
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const spaceAbove = trigger.top - GAP - MARGIN
-  const spaceBelow = vh - trigger.bottom - GAP - MARGIN
-  const above = spaceAbove >= 120 || spaceAbove >= spaceBelow
-  const avail = Math.max(0, above ? spaceAbove : spaceBelow)
-  const maxHeight = Math.min(avail, Math.round(vh * 0.6))
-  const width = Math.min(ROLE_PICKER_MAX_WIDTH, vw - 2 * MARGIN)
-  const top = above ? Math.max(MARGIN, trigger.top - GAP) : trigger.bottom + GAP
-  const left = Math.max(MARGIN, Math.min(trigger.left, vw - width - MARGIN))
-  return { top, left, width, maxHeight, placement: above ? 'above' : 'below' }
-}
-
 function useRoleAgents(workspaceId: string | null) {
   const [roleAgents, setRoleAgents] = useState<RoleAgent[]>([])
 
@@ -282,7 +261,7 @@ function MessageList({
   }, [focusedMessageId, messagesRevision, scrollSignature, sessionMessages.length])
 
   const emptyFrame = (node: React.ReactNode) => (
-    <div data-testid="message-list-empty-frame" className="min-h-0 flex-1 overflow-y-auto p-6">
+    <div data-testid="message-list-empty-frame" className="min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]">
       {node}
     </div>
   )
@@ -309,7 +288,7 @@ function MessageList({
   }
 
   return (
-    <div data-testid="message-list-scroll" className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+    <div data-testid="message-list-scroll" className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
       <PinnedContextPanel pinnedMessages={pinnedMessages} roleName={roleName} onJumpToMessage={jumpToMessage} />
       {sessionMessages.map((msg) => {
         const role = msg.role === 'agent' ? roleById(roleAgents, msg.roleAgentId) : null
@@ -328,7 +307,7 @@ function MessageList({
           >
             <div className={`flex ${isProcessMessage ? 'max-w-[74%]' : 'max-w-[82%]'} items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
               {!isUser && <AgentHubAvatar name={name ?? '智能体'} id={msg.roleAgentId ?? name} size="sm" className="mt-0.5" />}
-              <div className={`min-w-0 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${isProcessMessage ? 'rounded-md border border-border bg-muted/35 px-3 py-2 shadow-none' : isUser ? 'rounded-2xl bg-muted px-4 py-3 text-foreground shadow-sm' : 'rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-sm'}`}>
+              <div className={`min-w-0 transition-shadow ${focusedMessageId === msg.id ? 'ring-2 ring-ring ring-offset-2 ring-offset-background' : ''} ${isProcessMessage ? 'rounded-md border border-border bg-muted/35 px-3 py-2 shadow-none' : isUser ? 'rounded-2xl bg-primary/10 px-4 py-3 text-foreground shadow-sm' : 'rounded-2xl border border-border bg-background/95 px-4 py-3 shadow-sm'}`}>
                 <div className={`${isProcessMessage ? 'mb-1.5' : 'mb-2'} flex items-start justify-between gap-3`}>
                   <div className="min-w-0">
                     {name && (
@@ -446,7 +425,6 @@ function MessageComposer({
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [slashOpen, setSlashOpen] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number; placement: 'above' | 'below' } | null>(null)
   const [mounted, setMounted] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -474,25 +452,16 @@ function MessageComposer({
     setInput((current) => current.trim() ? current : quotedMessage.suggestedPrompt ?? current)
   }, [quotedMessage])
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!pickerOpen || !triggerRef.current) return
-    const update = () => {
-      if (!triggerRef.current) return
-      setPos(computeRolePicker(triggerRef.current.getBoundingClientRect()))
-    }
-    update()
     // 点击 trigger / picker 之外关闭（不用全屏 backdrop，避免遮挡并拦截 trigger 二次点击）。
     const onPointerDown = (e: PointerEvent) => {
       const t = e.target as Element | null
       if (triggerRef.current?.contains(t as Node) || t?.closest('[data-testid="role-picker"]')) return
       setPickerOpen(false)
     }
-    window.addEventListener('scroll', update, true)
-    window.addEventListener('resize', update)
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => {
-      window.removeEventListener('scroll', update, true)
-      window.removeEventListener('resize', update)
       document.removeEventListener('pointerdown', onPointerDown, true)
     }
   }, [pickerOpen, roleAgents.length])
@@ -558,7 +527,7 @@ function MessageComposer({
     : 'shrink-0 px-5 pb-5 pt-2'
   const composerClass = variant === 'home'
     ? 'rounded-2xl border border-border bg-background/95 p-4 shadow-sm'
-    : 'rounded-3xl border border-border bg-background/95 p-3 shadow-sm'
+    : 'rounded-3xl border border-border bg-background/95 p-4 shadow-sm'
 
   return (
     <div data-testid="message-composer" className={containerClass}>
@@ -575,7 +544,7 @@ function MessageComposer({
         </div>
       )}
       <div className={composerClass}>
-        <div data-testid="composer-input-row" className="flex items-end gap-3">
+        <div data-testid="composer-input-row" className="grid grid-cols-[minmax(0,1fr)_40px] items-end gap-3">
           <textarea
             data-testid="composer-input"
             value={input}
@@ -596,9 +565,9 @@ function MessageComposer({
             className={`${variant === 'home' ? 'min-h-20 text-lg' : 'min-h-16 text-base'} max-h-40 flex-1 resize-none border-0 bg-transparent px-0 py-2 leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50`}
           />
           {sending ? (
-            <IconButton icon={Square} label="停止" data-testid="stop-btn" onClick={stopSending} disabled={!activeSessionId} className="h-10 w-10 rounded-full bg-muted text-foreground" />
+            <IconButton icon={Square} label="停止" data-testid="stop-btn" onClick={stopSending} disabled={!activeSessionId} className="h-10 w-10 shrink-0 rounded-full bg-muted text-foreground" />
           ) : (
-            <IconButton icon={Send} label="发送" data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || readOnly || uploadingAttachment} className="h-10 w-10 rounded-full bg-foreground text-background hover:bg-foreground/90" />
+            <IconButton icon={Send} label="发送" data-testid="send-btn" onClick={handleSend} disabled={!activeSessionId || !input.trim() || readOnly || uploadingAttachment} className="h-10 w-10 shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90" />
           )}
         </div>
         <div data-testid="composer-toolbar" className="mt-3 flex flex-wrap items-center gap-2">
@@ -616,7 +585,6 @@ function MessageComposer({
               />
               <RolePicker
                 open={mounted && pickerOpen}
-                pos={pos}
                 roleAgents={roleAgents}
                 onSelect={(r) => {
                   setSelectedRoles((current) => current.some((role) => role.id === r.id) ? current : [...current, r])
@@ -725,6 +693,7 @@ function MessageComposer({
                 <button
                   key={item.command}
                   type="button"
+                  data-testid={`slash-command-${item.command.slice(1)}`}
                   className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
                   onClick={() => {
                     setInput(item.template)
@@ -745,29 +714,18 @@ function MessageComposer({
 
 function RolePicker({
   open,
-  pos,
   roleAgents,
   onSelect,
 }: {
   open: boolean
-  pos: { top: number; left: number; width: number; maxHeight: number; placement: 'above' | 'below' } | null
   roleAgents: RoleAgent[]
   onSelect: (r: RoleAgent) => void
 }) {
   if (!open) return null
-  return createPortal(
+  return (
     <div
       data-testid="role-picker"
-      style={{
-        top: pos?.top ?? 0,
-        left: pos?.left ?? 0,
-        width: pos?.width ?? 0,
-        minWidth: 160,
-        maxHeight: pos?.maxHeight ?? 0,
-        transform: pos?.placement === 'above' ? 'translateY(-100%)' : undefined,
-        visibility: pos ? 'visible' : 'hidden',
-      }}
-      className="fixed z-50 overflow-y-auto rounded-md border border-border bg-card p-1 text-card-foreground shadow-md"
+      className="absolute left-0 top-full z-50 mt-1 max-h-72 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md border border-border bg-card p-1 text-card-foreground shadow-md"
     >
       {roleAgents.length === 0 ? (
         <div className="px-2 py-1.5 text-sm text-muted-foreground">暂无角色</div>
@@ -802,8 +760,7 @@ function RolePicker({
           </button>
         ))
       )}
-    </div>,
-    document.body,
+    </div>
   )
 }
 
@@ -857,24 +814,27 @@ export function ChatPanel({
 
   if (!activeSessionId) {
     return (
-      <div data-testid="chat-panel" className="flex h-full min-h-0 border-r border-border bg-background">
+      <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border bg-background">
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-background/80 p-4">
+          <h2 className="text-sm font-semibold">选择联系人或群聊</h2>
+          <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
+        </div>
         <div data-testid="chat-empty-selection" className="flex min-h-0 flex-1 items-center justify-center p-8">
           <p className="text-center text-xl font-medium text-muted-foreground">请选择联系人或者群聊</p>
         </div>
+        {composer}
       </div>
     )
   }
 
   return (
     <div data-testid="chat-panel" className="flex h-full min-h-0 flex-col border-r border-border bg-muted/20">
-      {!showHomeConversation && (
-        <div className="flex shrink-0 items-center justify-between border-b border-border bg-background/80 p-4">
-          <h2 className="text-sm font-semibold">
-            {activeSession?.title ?? '选择一个联系人或群聊'}
-          </h2>
-          <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
-        </div>
-      )}
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-background/80 p-4">
+        <h2 className="text-sm font-semibold">
+          {activeSession?.title ?? '选择一个联系人或群聊'}
+        </h2>
+        <IconButton icon={PanelRight} label="切换面板" variant="ghost" size="sm" data-testid="toggle-artifact-btn" onClick={onTogglePanel} />
+      </div>
       {showHomeConversation ? (
         <EmptyConversationPanel conversation={activeSession ?? null} composer={composer} />
       ) : (

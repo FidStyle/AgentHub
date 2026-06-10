@@ -30,16 +30,16 @@ async function ensureUserLocalEndpoint(userId: string, deviceId: string) {
   return data?.id as string | undefined
 }
 
-async function persistRuntimeDetection(endpointId: string, runtimes: unknown) {
+async function persistRuntimeCapability(endpointId: string, capability: string, value: unknown) {
   const db = await createAdminClient()
   await db
     .from('runtime_capabilities')
     .delete()
     .eq('endpoint_id', endpointId)
-    .eq('capability', 'runtime_detection')
+    .eq('capability', capability)
   await db
     .from('runtime_capabilities')
-    .insert({ endpoint_id: endpointId, capability: 'runtime_detection', value: runtimes })
+    .insert({ endpoint_id: endpointId, capability, value })
 }
 
 export function setupWebSocketGateway(server: Server) {
@@ -141,7 +141,14 @@ export function setupWebSocketGateway(server: Server) {
         case 'event':
           if (frame.eventType === 'runtime_detection') {
             const endpointId = await ensureUserLocalEndpoint(userId, deviceId)
-            if (endpointId) await persistRuntimeDetection(endpointId, (frame.payload as { runtimes?: unknown }).runtimes ?? [])
+            if (endpointId) {
+              await persistRuntimeCapability(endpointId, 'runtime_detection', (frame.payload as { runtimes?: unknown }).runtimes ?? [])
+            }
+          } else if (frame.eventType === 'workspace_roots') {
+            const endpointId = await ensureUserLocalEndpoint(userId, deviceId)
+            if (endpointId) {
+              await persistRuntimeCapability(endpointId, 'workspace_roots', (frame.payload as { roots?: unknown }).roots ?? [])
+            }
           } else if (frame.eventType === 'runtime_event') {
             deliverDeviceRuntimeEvent(frame.payload as never)
           }

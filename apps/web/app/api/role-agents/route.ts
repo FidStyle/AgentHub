@@ -55,20 +55,18 @@ export async function POST(request: Request) {
   if (authError) return authError
 
   const body = await request.json()
-  const { workspace_id, name, role_type, system_prompt, capability_tags, runtime_type, is_orchestrator, enabled_tool_ids } = body
+  const { workspace_id, name, role_type, system_prompt, runtime_type, is_orchestrator, enabled_tool_ids } = body
+  const capabilityTags = body.capability_tags ?? body.capabilities
 
   if (!workspace_id) return NextResponse.json({ error: '缺少 workspace_id' }, { status: 400 })
   if (!name) return NextResponse.json({ error: '缺少 name' }, { status: 400 })
-  if (body.capabilities !== undefined) {
-    return NextResponse.json({ error: 'capabilities 已废弃，请使用 capability_tags' }, { status: 400 })
-  }
   if (body.toolset_ids !== undefined) {
     return NextResponse.json({ error: 'toolset_ids 已废弃，请使用 enabled_tool_ids' }, { status: 400 })
   }
   if (runtime_type !== undefined && !isRuntimeType(runtime_type)) {
     return NextResponse.json({ error: 'runtime_type 必须是 claude_code 或 codex' }, { status: 400 })
   }
-  if (hasLegacyRuntimeTag(capability_tags)) {
+  if (hasLegacyRuntimeTag(capabilityTags)) {
     return NextResponse.json({ error: 'capability_tags 不能包含 runtime:* 旧标签，请使用 runtime_type' }, { status: 400 })
   }
   const tools = validateEnabledToolIds(enabled_tool_ids)
@@ -91,7 +89,7 @@ export async function POST(request: Request) {
       name,
       role_type: role_type || 'engineer',
       system_prompt: system_prompt || '',
-      capability_tags: normalizeRoleAgentCapabilityTags(capability_tags),
+      capability_tags: normalizeRoleAgentCapabilityTags(capabilityTags),
       enabled_tool_ids: tools.ids,
       runtime_type: runtime_type || 'claude_code',
       is_orchestrator: is_orchestrator || false,

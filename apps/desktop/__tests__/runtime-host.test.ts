@@ -10,6 +10,9 @@ const localExec = vi.hoisted(() => vi.fn())
 
 vi.mock('electron', () => ({
   ipcMain: ipc.ipcMain,
+  BrowserWindow: {
+    getAllWindows: () => [],
+  },
 }))
 
 vi.mock('../src/main/runtime/local-adapter', () => ({
@@ -23,6 +26,7 @@ import type { RequestFrame } from '@agenthub/shared'
 
 describe('RuntimeHost DeviceChannel runtime_invoke', () => {
   beforeEach(() => {
+    process.env.AGENTHUB_DESKTOP_WORKSPACE_ROOTS = '/tmp'
     localExec.mockReset()
     ipc.ipcMain.handle.mockReset()
   })
@@ -72,5 +76,49 @@ describe('RuntimeHost DeviceChannel runtime_invoke', () => {
     expect(events.map((event) => event.payload.type)).toEqual(['started', 'session_discovered', 'text_delta', 'completed'])
     expect(events[1].payload.nativeSessionId).toBe('native-1')
     expect(responses[0]).toMatchObject({ requestId: 'req-1', ok: true, payload: { exitCode: 0 } })
+  })
+
+  it('rejects runtime invoke when cwd is outside Desktop-authorized workspace roots', async () => {
+    const requests = new Map<string, (frame: RequestFrame) => void>()
+    const events: Array<{ type: string; payload: Record<string, unknown> }> = []
+    const responses: Array<Record<string, unknown>> = []
+    const channel = {
+      onRequest: vi.fn((type: string, handler: (frame: RequestFrame) => void) => requests.set(type, handler)),
+      sendEvent: vi.fn((type: string, payload: Record<string, unknown>) => events.push({ type, payload })),
+      sendResponse: vi.fn((requestId: string, ok: boolean, error?: string, payload?: Record<string, unknown>) => {
+        responses.push({ requestId, ok, error, payload })
+      }),
+    }
+
+    const host = new RuntimeHost()
+    host.setChannel(channel as never)
+
+    requests.get('runtime_invoke')?.({
+      type: 'request',
+      seq: 1,
+      requestId: 'req-blocked',
+      requestType: 'runtime_invoke',
+      payload: {
+        sessionId: 'rs-blocked',
+        runtimeType: 'codex',
+        prompt: 'hello',
+        cwd: '/private/agenthub-outside',
+      },
+    })
+
+    await vi.waitFor(() => expect(responses.length).toBe(1))
+    expect(localExec).not.toHaveBeenCalled()
+    expect(events[0]).toMatchObject({
+      type: 'runtime_event',
+      payload: {
+        type: 'failed',
+        error: '本地工作目录不在 Desktop 授权范围内，已阻止执行。',
+      },
+    })
+    expect(responses[0]).toMatchObject({
+      requestId: 'req-blocked',
+      ok: false,
+      error: '本地工作目录不在 Desktop 授权范围内，已阻止执行。',
+    })
   })
 })

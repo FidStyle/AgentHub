@@ -550,6 +550,7 @@ function AgentsTab() {
           <button
             key={a.id}
             type="button"
+            aria-label={a.name}
             onClick={() => { setSelectedId(a.id); setEditing(false) }}
             className={`flex w-full items-start gap-3 rounded-lg border border-l-4 border-border p-3 text-left hover:bg-muted ${roleMessageColorClass(a.id, a.name)} ${selected?.id === a.id && !editing ? 'ring-1 ring-ring' : ''}`}
           >

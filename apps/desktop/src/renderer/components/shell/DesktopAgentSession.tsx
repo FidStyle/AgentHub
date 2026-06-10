@@ -27,6 +27,7 @@ export function DesktopAgentSession() {
     addActivity,
     setRuntimes,
     setRuntimeLoading,
+    setWorkspaceDirs,
     nativeSessions,
     setNativeSession,
   } = useConsoleStore()
@@ -58,6 +59,10 @@ export function DesktopAgentSession() {
     try {
       const result = await runtime.detect()
       setRuntimes(result)
+      if (typeof runtime.workspaceRoots === 'function') {
+        const roots = await runtime.workspaceRoots()
+        if (Array.isArray(roots) && roots.length > 0) setWorkspaceDirs(roots)
+      }
       const summary = result
         .map((rt) => {
           const label = RUNTIME_LABELS[rt.type] ?? rt.type

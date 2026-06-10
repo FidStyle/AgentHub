@@ -17,6 +17,11 @@ export interface RuntimeExecResult {
   nativeSessionId?: string | null
 }
 
+export interface DesktopWorkspaceRoot {
+  path: string
+  healthy: boolean
+}
+
 export interface RuntimePromptRequest {
   runtimeType: 'claude_code' | 'codex'
   prompt: string
@@ -26,9 +31,11 @@ export interface RuntimePromptRequest {
 
 interface ElectronRuntimeApi {
   detect: () => Promise<RuntimeInfo[]>
+  workspaceRoots?: () => Promise<DesktopWorkspaceRoot[]>
   execute: (request: RuntimePromptRequest, cwd: string) => Promise<RuntimeExecResult>
   cancel?: () => Promise<boolean>
   available: () => Promise<boolean>
+  onHostEvent?: (callback: (event: unknown) => void) => (() => void) | void
 }
 
 interface ElectronApi {

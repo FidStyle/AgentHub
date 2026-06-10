@@ -31,6 +31,12 @@ function createRuntimeStatusChain() {
   const capabilities = [{
     capability: 'runtime_detection',
     value: JSON.stringify([{ available: true, authenticated: true, launchable: true }]),
+  }, {
+    capability: 'workspace_roots',
+    value: JSON.stringify([
+      { path: '/Users/test/.agenthub/workspaces/default', healthy: true },
+      { path: '/Volumes/missing', healthy: false },
+    ]),
   }]
 
   return vi.fn(() => ({
@@ -97,6 +103,9 @@ describe('/api/runtime/status', () => {
         nativeSessionDescription: string
         description: string
       }
+      desktop: {
+        workspaceRoots: Array<{ path: string; healthy: boolean }>
+      }
     }
     expect(response.status).toBe(200)
     expect(data.operable).toBe(true)
@@ -105,5 +114,9 @@ describe('/api/runtime/status', () => {
     expect(data.runtime.nativeSessionAvailable).toBe(true)
     expect(data.runtime.nativeSessionDescription).toContain('支持官方原生会话续接')
     expect(data.runtime.description).toContain('AgentHub 会记录并复用 native session id')
+    expect(data.desktop.workspaceRoots).toEqual([
+      { path: '/Users/test/.agenthub/workspaces/default', healthy: true },
+      { path: '/Volumes/missing', healthy: false },
+    ])
   })
 })

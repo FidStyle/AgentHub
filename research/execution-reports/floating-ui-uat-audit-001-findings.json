@@ -1,7 +1,7 @@
 {
   "task": "FLOATING-UI-UAT-AUDIT-001",
-  "generatedAt": "2026-05-30T19:19:29.581Z",
-  "method": "real browser (Chromium) + real DB (agenthub_p0_test) + real Auth.js session",
+  "generatedAt": "2026-06-10T11:34:21.360Z",
+  "method": "real browser (Chromium) + real DB (agenthub_acceptance) + real Auth.js session",
   "viewports": [
     "1440x900",
     "1280x800",
@@ -38,16 +38,16 @@
       "target": "role picker @角色",
       "selector": "[data-testid=\"role-picker\"]",
       "triggerBox": {
-        "x": 296,
-        "y": 188,
-        "width": 14,
-        "height": 14
+        "x": 317,
+        "y": 464,
+        "width": 36,
+        "height": 36
       },
       "floatingBox": {
-        "x": 296,
-        "y": 212,
+        "x": 317,
+        "y": 504,
         "width": 320,
-        "height": 62
+        "height": 288
       },
       "symptoms": [],
       "severity": "ok",
@@ -89,16 +89,16 @@
     {
       "id": "T1",
       "viewport": "1440x900",
-      "target": "tooltip 新建会话",
-      "selector": "[data-testid=\"new-session-btn\"]",
+      "target": "tooltip 新建群聊",
+      "selector": "[data-testid=\"new-group-conversation\"]",
       "triggerBox": {
         "x": 249,
-        "y": 69,
-        "width": 14,
-        "height": 14
+        "y": 65,
+        "width": 22,
+        "height": 22
       },
       "floatingBox": {
-        "x": 224,
+        "x": 228,
         "y": 35,
         "width": 64,
         "height": 24
@@ -106,7 +106,7 @@
       "symptoms": [],
       "severity": "ok",
       "reference": "R1/R2/R3/R5（已修母版对照）",
-      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-T1-tooltip-new-session.png",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1440x900-T1-tooltip-new-group.png",
       "suggestedTask": "无（回归确认）"
     },
     {
@@ -138,16 +138,16 @@
       "target": "role picker @角色",
       "selector": "[data-testid=\"role-picker\"]",
       "triggerBox": {
-        "x": 296,
-        "y": 188,
-        "width": 14,
-        "height": 14
+        "x": 317,
+        "y": 414,
+        "width": 36,
+        "height": 36
       },
       "floatingBox": {
-        "x": 296,
-        "y": 212,
+        "x": 317,
+        "y": 454,
         "width": 320,
-        "height": 62
+        "height": 288
       },
       "symptoms": [],
       "severity": "ok",
@@ -189,16 +189,16 @@
     {
       "id": "T1",
       "viewport": "1280x800",
-      "target": "tooltip 新建会话",
-      "selector": "[data-testid=\"new-session-btn\"]",
+      "target": "tooltip 新建群聊",
+      "selector": "[data-testid=\"new-group-conversation\"]",
       "triggerBox": {
         "x": 249,
-        "y": 69,
-        "width": 14,
-        "height": 14
+        "y": 65,
+        "width": 22,
+        "height": 22
       },
       "floatingBox": {
-        "x": 224,
+        "x": 228,
         "y": 35,
         "width": 64,
         "height": 24
@@ -206,7 +206,7 @@
       "symptoms": [],
       "severity": "ok",
       "reference": "R1/R2/R3/R5（已修母版对照）",
-      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-T1-tooltip-new-session.png",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/1280x800-T1-tooltip-new-group.png",
       "suggestedTask": "无（回归确认）"
     },
     {
@@ -238,16 +238,16 @@
       "target": "role picker @角色",
       "selector": "[data-testid=\"role-picker\"]",
       "triggerBox": {
-        "x": 16,
-        "y": 229,
-        "width": 14,
-        "height": 14
+        "x": 37,
+        "y": 490.5,
+        "width": 36,
+        "height": 36
       },
       "floatingBox": {
-        "x": 16,
-        "y": 253,
+        "x": 37,
+        "y": 530.5,
         "width": 320,
-        "height": 62
+        "height": 288
       },
       "symptoms": [],
       "severity": "ok",
@@ -307,16 +307,16 @@
     {
       "id": "T1",
       "viewport": "768x900",
-      "target": "tooltip 新建会话",
-      "selector": "[data-testid=\"new-session-btn\"]",
+      "target": "tooltip 新建群聊",
+      "selector": "[data-testid=\"new-group-conversation\"]",
       "triggerBox": {
         "x": 249,
-        "y": 69,
-        "width": 14,
-        "height": 14
+        "y": 65,
+        "width": 22,
+        "height": 22
       },
       "floatingBox": {
-        "x": 224,
+        "x": 228,
         "y": 35,
         "width": 64,
         "height": 24
@@ -324,7 +324,7 @@
       "symptoms": [],
       "severity": "ok",
       "reference": "R1/R2/R3/R5（已修母版对照）",
-      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-T1-tooltip-new-session.png",
+      "screenshot": "e2e/artifacts/floating-ui-uat-audit/768x900-T1-tooltip-new-group.png",
       "suggestedTask": "无（回归确认）"
     }
   ]

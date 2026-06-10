@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Button, Input, StateCard, Badge } from '@agenthub/ui'
+import { Button, Input, StateCard, Badge, MessageBubble, StatusPill } from '@agenthub/ui'
 import { ChevronLeft, ExternalLink, FileText, GitBranch, Globe2, Paperclip, PlayCircle, Presentation, RefreshCcw, Rocket, ShieldCheck, Square, UserPlus } from 'lucide-react'
 import { createRuntimeOutputAccumulator, type Message, type Plan, type PlanNode, type PlanNodeControl, type RuntimeMessagePart, type RuntimeOutputEvent } from '@agenthub/shared'
 import { AgentHubAvatar } from '@/components/workspace/AgentHubAvatar'
@@ -650,7 +650,7 @@ export default function MobileSessionPage() {
   }
 
   return (
-    <div data-testid="mobile-chat-session" className="flex h-[calc(100vh-120px)] flex-col overflow-hidden">
+    <div data-testid="mobile-chat-session" className="flex h-[calc(100vh-104px)] flex-col overflow-hidden">
       <header data-testid="mobile-chat-header" className="shrink-0 rounded-lg border border-border bg-card px-3 py-2.5">
         <div className="flex items-center gap-3">
           <Link href="/m" aria-label="返回聊天列表" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background hover:bg-muted">
@@ -665,13 +665,13 @@ export default function MobileSessionPage() {
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
               <h2 className="truncate text-sm font-semibold">{conversationTitle}</h2>
-              <Badge variant={isDirectSession ? 'secondary' : 'default'}>{isDirectSession ? '单聊' : '群聊'}</Badge>
+              <StatusPill label={isDirectSession ? '单聊' : '群聊'} tone={isDirectSession ? 'neutral' : 'info'} />
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {participantNames.length > 0 ? participantNames.join('、') : '等待联系人信息'}
             </p>
           </div>
-          {pendingActions.length > 0 && <Badge variant="warning">{pendingActions.length} 个待授权</Badge>}
+          {pendingActions.length > 0 && <StatusPill label={`${pendingActions.length} 个待授权`} tone="warning" dot />}
         </div>
       </header>
 
@@ -768,7 +768,7 @@ export default function MobileSessionPage() {
                       {time && <span className="text-[11px] text-muted-foreground">{time}</span>}
                     </div>
                   )}
-                  <div className={`rounded-lg px-3 py-2 shadow-sm ${isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                  <MessageBubble tone={isUser ? 'user' : isSystem ? 'system' : 'agent'} className="shadow-sm">
                     <p className="whitespace-pre-wrap break-words text-sm leading-5">{msg.content}</p>
                     {parts.map((part) => (
                       <MobilePartCard
@@ -779,7 +779,7 @@ export default function MobileSessionPage() {
                         publishingArtifactId={publishingArtifactId}
                       />
                     ))}
-                  </div>
+                  </MessageBubble>
                 </div>
               </div>
             )

@@ -197,7 +197,7 @@ describe('POST /api/role-agents', () => {
       body: { workspace_id: 'ws-001', name: 'Analyzer Agent', capabilities: ['runtime:codex', 'api'] },
     })
     expect(result.status).toBe(400)
-    expect((result.data as { error: string }).error).toBe('capabilities 已废弃，请使用 capability_tags')
+    expect((result.data as { error: string }).error).toBe('capability_tags 不能包含 runtime:* 旧标签，请使用 runtime_type')
   })
 
   it('AT-A010: returns 403 when workspace not owned on insert', async () => {

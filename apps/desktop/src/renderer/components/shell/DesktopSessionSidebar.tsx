@@ -1,5 +1,5 @@
 import { Badge } from '@agenthub/ui'
-import { FolderOpen, Bot, ShieldCheck, Settings, Github } from 'lucide-react'
+import { FolderOpen, Bot, ShieldCheck, Settings, Github, Activity } from 'lucide-react'
 import { useConsoleStore, type DesktopPage } from '../../store/console-store'
 import { useDesktopAuth } from '../../hooks/useDesktopAuth'
 import { getPolicyAuditRecords } from '../../utils/policy-audit'
@@ -8,6 +8,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   workspace: FolderOpen,
   agents: Bot,
   policy: ShieldCheck,
+  logs: Activity,
   settings: Settings,
 }
 
@@ -26,6 +27,7 @@ export function DesktopSessionSidebar() {
         <SidebarItem testId="desktop-nav-workspace" label="本地工作区" count={workspaceDirs.length} page="workspace" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-agents" label="本地 Agent" count={2} page="agents" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-policy" label="本机策略" count={policyAuditCount} highlight={policyAuditCount > 0} page="policy" currentPage={currentPage} onNavigate={navigateTo} />
+        <SidebarItem testId="desktop-nav-logs" label="执行日志" count={activities.length} page="logs" currentPage={currentPage} onNavigate={navigateTo} />
         <SidebarItem testId="desktop-nav-settings" label="设置" page="settings" currentPage={currentPage} onNavigate={navigateTo} />
       </nav>
       <div className="px-3 py-2 border-t border-border flex flex-col gap-2">

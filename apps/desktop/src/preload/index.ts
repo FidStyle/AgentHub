@@ -10,10 +10,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runtime: {
     detect: () => ipcRenderer.invoke('runtime:detect'),
     cached: () => ipcRenderer.invoke('runtime:cached'),
+    workspaceRoots: () => ipcRenderer.invoke('runtime:workspace-roots'),
     execute: (request: { runtimeType: 'claude_code' | 'codex'; prompt: string; nativeSessionId?: string | null; continueLast?: boolean }, cwd: string) =>
       ipcRenderer.invoke('runtime:execute', request, cwd),
     cancel: () => ipcRenderer.invoke('runtime:cancel'),
     available: () => ipcRenderer.invoke('runtime:available'),
+    onHostEvent: (callback: (event: unknown) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, event: unknown) => callback(event)
+      ipcRenderer.on('runtime-host:event', handler)
+      return () => { ipcRenderer.removeListener('runtime-host:event', handler) }
+    },
   },
   runtimeConfig: {
     get: () => ipcRenderer.invoke('runtime-config:get'),

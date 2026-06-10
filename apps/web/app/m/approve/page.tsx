@@ -37,7 +37,12 @@ export default function MobileApprovePage() {
   const pending = notifications.filter(n => n.type === 'approval_required')
 
   if (loading) {
-    return <StateCard variant="loading" />
+    return (
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium">远程监督与授权</h2>
+        <StateCard variant="loading" />
+      </div>
+    )
   }
 
   if (pending.length === 0) {

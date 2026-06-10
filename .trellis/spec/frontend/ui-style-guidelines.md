@@ -49,6 +49,7 @@
 - Desktop 是 Connector Console 和本地 Agent 轻量工作台，不是 Web 工作台复制品，也不是单页检测面板。
 - 启动后默认界面必须是桌面主壳：左侧导航/Session，中间本地 Agent 轻量会话，右侧 Agent 配置中心与 Runtime 状态。
 - 必须突出设备在线状态、Workspace 绑定、Runtime 检测、Agent 配置中心、本地 Agent 轻量会话、执行活动、本机策略和本机策略审计记录。
+- 左侧导航必须包含执行日志/活动入口；执行日志页展示 Runtime 转发、诊断、本机策略审计和 Web/Mobile 审批边界说明。
 - 本地 Claude Code / Codex 只展示安装、版本、CLI path、认证状态、能力声明、最近诊断、进入轻量会话动作和本机修复引导。
 - Agent 配置中心必须展示 Codex、Claude Code、OpenCode 和其他预留 Runtime；Codex/Claude Code 为 P0 已接入，OpenCode 等为“待接入”且不可进入会话。
 - 本地 Agent 轻量会话只服务当前 Local Desktop Workspace：最近消息、Runtime 流式输出、执行活动、本机策略摘要、授权记录和诊断。复杂 Context/Changes/Artifacts 仍跳转 Web 工作台。
@@ -78,6 +79,7 @@
 | Runtime 状态卡 | 展示 installed、version、CLI path、authStatus、capability snapshot、最近诊断。 | 不出现本地 CLI API Key 表单。 |
 | Desktop Agent 配置中心 | Codex、Claude Code、OpenCode 和其他 Runtime 卡片；P0 已接入与待接入状态清晰。 | OpenCode 等待接入项不可执行，不出现密钥表单。 |
 | Desktop 本地 Agent 会话 | 展示本地 Runtime/Role Agent 身份、最近消息、流式输出、执行活动、本机策略摘要和轻量输入框。 | 不复制 Web 三栏，不绕过 DeviceChannel 执行 shell。 |
+| Desktop 执行日志 | 展示本机 Runtime 转发、诊断、停止、失败、本机策略审计和连接状态。 | 有独立导航入口；不提供审批按钮，不替代 Web/Mobile 授权卡。 |
 | Context/Changes/Artifacts 面板 | 上下文整合固定消息和 Role Agents；变更展示编排、授权、Git diff、文件变更和运行结果；产物展示可复用 artifact。 | 右栏滚动正常，移动端独立视图不遮挡。 |
 
 ---
@@ -117,6 +119,7 @@
 - 本地 Runtime UI 不存在 `API Key`、`ANTHROPIC_API_KEY`、`OPENAI_API_KEY`、`Base URL` 等敏感配置入口。
 - 三端同状态截图必须能看出共享色板、圆角、按钮、Badge、消息气泡、输入框和状态卡来自同一视觉母版。
 - 关键页面必须断言共享组件或共享 token 生效；绕开共享组件临时堆样式时门禁失败。
+- Mobile/PWA 路由专项 E2E 不能用共享 `beforeEach` 先跳默认页再在用例内跳目标页；每个用例必须显式进入自己的目标路由并等待水合/必要请求稳定，避免 `/m` 与 `/m/approve` 互相打断导航。
 
 ### 6.3 推荐定位点
 

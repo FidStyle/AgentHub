@@ -476,8 +476,14 @@ describe('session store lifecycle actions', () => {
         participants: [],
       },
     ])
-    expect(useSessionStore.getState().activeSessionId).toBeNull()
-    expect(useSessionStore.getState().messages).toEqual([])
+    expect(useSessionStore.getState().activeSessionId).toBe('strict-session-001')
+    expect(useSessionStore.getState().messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sessionId: 'strict-session-001',
+        role: 'agent',
+        content: '已完成：@前端工程师 完成当前节点。',
+      }),
+    ]))
   })
 
   it('fetches active sessions with status filter and maps archived state', async () => {

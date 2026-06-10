@@ -1664,7 +1664,7 @@ export async function POST(req: NextRequest) {
 
   const { data: ws } = await db
     .from('workspaces')
-    .select('id, name, execution_domain, cloud_project_dir')
+    .select('id, name, execution_domain, cloud_project_dir, local_root_display')
     .eq('id', session.workspace_id)
     .eq('owner_id', user.id)
     .single()
@@ -1685,6 +1685,12 @@ export async function POST(req: NextRequest) {
   if (ws.execution_domain === 'local_desktop') {
     const operability = await localDesktopOperability(db, user.id)
     if (!operability.ok) return Response.json({ error: operability.error }, { status: 409 })
+    const workspaceRecord = ws as unknown as { local_root_display?: string | null }
+    const localRoot = typeof workspaceRecord.local_root_display === 'string' ? workspaceRecord.local_root_display.trim() : ''
+    if (!localRoot) {
+      return Response.json({ error: '本地工作区缺少 Desktop 授权目录，请重新创建或选择本地目录' }, { status: 409 })
+    }
+    runtimeWorkspaceRoot = localRoot
   }
 
   const existingRolesForWorkspace = async () => {

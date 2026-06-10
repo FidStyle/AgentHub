@@ -11,6 +11,7 @@ interface WorkspaceRow {
   name: string
   description: string
   execution_domain: 'cloud' | 'local_desktop'
+  local_root_display?: string | null
   created_at: string
 }
 
@@ -104,6 +105,11 @@ export default function WorkspacePage() {
                         : `只读：${reason}`
                       : '可操作：云端工作区'}
                   </p>
+                  {local && ws.local_root_display && (
+                    <p className="mt-2 truncate text-xs text-muted-foreground" title={ws.local_root_display}>
+                      本地目录：{ws.local_root_display}
+                    </p>
+                  )}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {local ? (
                       <>

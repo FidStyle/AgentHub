@@ -1,4 +1,4 @@
-import { Badge, Button } from '@agenthub/ui'
+import { Badge, Button, StatusPill } from '@agenthub/ui'
 import { useConsoleStore } from '../../store/console-store'
 import { useOpenWebWorkspace } from '../../hooks/useOpenWebWorkspace'
 
@@ -19,7 +19,11 @@ export function StatusBar() {
     <header className="flex items-center justify-between border-b border-border px-4 py-2.5 bg-card">
       <div className="flex items-center gap-3">
         <h1 className="text-sm font-semibold">AgentHub 桌面连接器</h1>
-        <Badge variant={state.variant}>{state.label}</Badge>
+        <StatusPill
+          label={state.label}
+          tone={state.variant === 'success' ? 'success' : state.variant === 'warning' ? 'warning' : state.variant === 'destructive' ? 'danger' : 'neutral'}
+          dot
+        />
         {selectedAgent && <Badge variant="default">{selectedAgent.name}</Badge>}
       </div>
       <div className="flex items-center gap-4 text-xs text-muted-foreground">

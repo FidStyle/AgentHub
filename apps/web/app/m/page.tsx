@@ -154,7 +154,17 @@ export default function MobileHomePage() {
   }, [conversations, normalizedQuery])
 
   if (loading) {
-    return <StateCard variant="loading" />
+    return (
+      <div className="flex min-h-[calc(100vh-104px)] flex-col gap-3">
+        <section className="space-y-2" data-testid="mobile-workspace-list">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">工作区</h2>
+            <Badge variant="secondary">加载中</Badge>
+          </div>
+        </section>
+        <StateCard variant="loading" />
+      </div>
+    )
   }
 
   if (error && workspaces.length === 0) {

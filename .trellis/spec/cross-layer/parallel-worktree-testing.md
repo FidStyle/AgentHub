@@ -23,6 +23,7 @@ HOST=127.0.0.1
 BASE_URL=http://127.0.0.1:<unique-port>
 NEXT_PUBLIC_APP_URL=http://127.0.0.1:<unique-port>
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:<unique-port>
+E2E_WEB_PORT=<unique-port>
 ```
 
 Playwright webServer 配置必须绑定同一 `PORT` / `url`：
@@ -56,6 +57,7 @@ webServer: {
 - 禁止使用框架自动递增端口作为通过证据。若 `3000` 被占用后服务自动跑到 `3001`，测试报告必须标记为配置错误并重跑。
 - 同一 lane 内如果需要多个服务，必须为每个服务声明唯一端口和用途，例如 `WEB_PORT=3102`、`PREVIEW_PORT=3202`、`WORKER_HEALTH_PORT=3302`。
 - 如果端口已被占用，先识别占用者；只能选择一个新的显式端口，并在报告中说明替代端口，不能让工具自动猜。
+- `e2e/playwright.config.ts` 和 `e2e/global-setup.ts` 必须读取同一个 `E2E_WEB_PORT`/`PORT`。当本机已有 3000 dev server 时，移动/Web E2E 必须显式使用例如 `E2E_WEB_PORT=3104` 的干净端口，禁止让 global setup 启动失败后继续访问旧服务。
 - 总控窗口在合并或验收多个 lane 前，必须检查各 lane 报告中的端口互不冲突。
 
 ### 4. Validation & Error Matrix
@@ -64,7 +66,7 @@ webServer: {
 | --- | --- | --- |
 | 顺序执行模式下有人建议新建 worktree/lane | 拒绝并回到当前分支队列，除非用户显式恢复并行 | 套用旧 lane 端口表继续并行 |
 | 当前任务未关闭或工作区 dirty | 停止启动下一个任务/服务 | 继续开新任务或新端口 |
-| 默认端口已被其他 lane 占用 | 失败并要求显式换端口重跑 | 框架自动递增端口后继续验收 |
+| 默认端口已被其他 lane 占用 | 使用 `E2E_WEB_PORT`/显式 `BASE_URL` 换端口重跑，并确认新服务启动日志 | global setup 报 `EADDRINUSE` 后继续访问旧 3000 服务 |
 | Playwright 连接到非本 lane URL | 测试失败，报告为环境配置错误 | 用旧页面截图宣称当前 lane 通过 |
 | dev server 命令未声明 `PORT` | 不接受为并行验收证据 | 报告“本地跑通” |
 | `BASE_URL` 与 `PORT` 不一致 | 测试失败 | 静默使用默认 URL |

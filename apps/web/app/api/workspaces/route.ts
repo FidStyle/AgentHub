@@ -29,6 +29,17 @@ function hasReadyRuntimeDetection(value: unknown) {
   })
 }
 
+function parseWorkspaceRoots(value: unknown) {
+  const parsed = parseCapabilityValue(value)
+  if (!Array.isArray(parsed)) return []
+  return parsed.flatMap((root) => {
+    if (!root || typeof root !== 'object') return []
+    const record = root as { path?: unknown; healthy?: unknown }
+    if (typeof record.path !== 'string' || !record.path.trim()) return []
+    return [{ path: record.path, healthy: record.healthy === true }]
+  })
+}
+
 async function hasConnectedDesktopRuntime(db: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: devices, error: devicesError } = await db
     .from('devices')
@@ -53,18 +64,20 @@ async function hasConnectedDesktopRuntime(db: Awaited<ReturnType<typeof createCl
 
     const { data: capabilities, error: capabilitiesError } = await db
       .from('runtime_capabilities')
-      .select('value')
+      .select('capability, value')
       .eq('endpoint_id', connected.endpoint_id)
-      .eq('capability', 'runtime_detection')
-      .limit(1)
     if (capabilitiesError) return { ok: false, error: capabilitiesError.message }
-    const row = Array.isArray(capabilities) ? capabilities[0] : capabilities
-    if (hasReadyRuntimeDetection((row as { value?: unknown } | null)?.value)) {
-      return { ok: true }
+    const rows = (capabilities ?? []) as unknown as Array<{ capability: string; value: unknown }>
+    const runtimeDetection = rows.find((row) => row.capability === 'runtime_detection')
+    if (hasReadyRuntimeDetection(runtimeDetection?.value)) {
+      const workspaceRoots = rows
+        .filter((row) => row.capability === 'workspace_roots')
+        .flatMap((row) => parseWorkspaceRoots(row.value))
+      return { ok: true, roots: workspaceRoots }
     }
   }
 
-  return { ok: false }
+  return { ok: false, roots: [] }
 }
 
 export async function GET() {
@@ -107,17 +120,32 @@ export async function POST(request: Request) {
   }
 
   const db = await createClient()
+  let localRootDisplay: string | null = null
   if (execution_domain === 'local_desktop') {
     const desktop = await hasConnectedDesktopRuntime(db, user.id)
     if (desktop.error) return NextResponse.json({ error: desktop.error }, { status: 500 })
     if (!desktop.ok) {
       return NextResponse.json({ error: '本地 Desktop 未连接或 Runtime 未通过检测，无法创建可执行的本地工作区' }, { status: 409 })
     }
+    localRootDisplay = typeof body.local_root_display === 'string' ? body.local_root_display.trim() : ''
+    if (!localRootDisplay) {
+      return NextResponse.json({ error: '请选择 Desktop 已授权的本地工作目录' }, { status: 400 })
+    }
+    const allowedRoots = (desktop.roots ?? []).filter((root) => root.healthy)
+    if (!allowedRoots.some((root) => root.path === localRootDisplay)) {
+      return NextResponse.json({ error: '所选本地工作目录不在当前 Desktop 授权范围内' }, { status: 409 })
+    }
   }
 
   const { data, error } = await db
     .from('workspaces')
-    .insert({ owner_id: user.id, name, execution_domain, description: description || '' })
+    .insert({
+      owner_id: user.id,
+      name,
+      execution_domain,
+      description: description || '',
+      local_root_display: localRootDisplay,
+    })
     .select()
     .single()
 
