@@ -41,6 +41,9 @@ export interface ExecutorChunk {
   toolRequest?: NativeCliToolRequest
   question?: NativeCliQuestionRequest
   observedAction?: NativeCliObservedAction
+  // Liveness signal: subprocess is alive but produced no output. Consumed internally by the
+  // worker to reset the idle watchdog; never persisted or published as a runtime event.
+  keepalive?: boolean
 }
 
 export interface ExecutorJob {
@@ -86,6 +89,11 @@ export interface CliExecutorOptions {
 }
 
 const CLI_BINARY: Record<CliRuntimeType, string> = { claude_code: 'claude', codex: 'codex' }
+
+// Emit a keepalive chunk this often while the CLI subprocess is alive but silent (model thinking
+// or a long child command). Must be well under the worker's output-idle window so a live run is
+// never falsely killed; the subprocess-liveness gate keeps a dead process from emitting any.
+const KEEPALIVE_INTERVAL_MS = Number(process.env.RUNTIME_EXECUTOR_KEEPALIVE_MS ?? 30_000)
 
 function runProbe(command: string, args: string[], timeout = 5000) {
   const result = spawnSync(command, args, {
@@ -723,14 +731,33 @@ export class CliRuntimeExecutor implements RuntimeExecutor {
       wake()
     })
 
+    let keepaliveTimer: ReturnType<typeof setTimeout> | null = null
+    const clearKeepalive = () => {
+      if (keepaliveTimer) {
+        clearTimeout(keepaliveTimer)
+        keepaliveTimer = null
+      }
+    }
     try {
       while (true) {
         if (spawnError) throw spawnError
         while (queue.length > 0) yield queue.shift()!
         if (done) break
-        await new Promise<void>((resolve) => { notify = resolve })
+        // Wait for the next real event (wake) OR a keepalive tick. The keepalive only resolves the
+        // wait so the loop can re-check liveness; it does not enqueue anything.
+        await new Promise<void>((resolve) => {
+          notify = () => { clearKeepalive(); resolve() }
+          keepaliveTimer = setTimeout(() => { keepaliveTimer = null; notify = null; resolve() }, KEEPALIVE_INTERVAL_MS)
+        })
+        clearKeepalive()
+        // Only emit keepalive when still genuinely idle (no queued output) and the subprocess is
+        // alive. A dead/exited/killed child emits none, so the worker watchdog can still kill it.
+        if (queue.length === 0 && !done && child.exitCode === null && !child.killed) {
+          yield { keepalive: true }
+        }
       }
     } finally {
+      clearKeepalive()
       if (!done && !child.killed) {
         child.kill('SIGTERM')
       }

@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "Runtime/worker 执行与 workspace 契约规范，约束 keepalive、超时、审批续跑的边界"}
+{"file": "research/execution-reports/standard-permission-approval-card-2026-06-10.md", "reason": "Bug 2 前序修复证据——证明 toolRequest 路径已覆盖、observedAction(Codex) 路径未覆盖，是 GAP A 的直接背景"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本次涉及 executor→worker→relay 跨层信号一致性，参照跨层思维指南避免只改一层"}

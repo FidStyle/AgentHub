@@ -71,6 +71,7 @@ beforeEach(() => {
   delete process.env.AGENTHUB_ALLOW_TEST_EXECUTOR
   delete process.env.RUNTIME_JOB_TIMEOUT_MS
   delete process.env.RUNTIME_OUTPUT_IDLE_TIMEOUT_MS
+  delete process.env.RUNTIME_EXECUTOR_KEEPALIVE_MS
 })
 
 describe('CliRuntimeExecutor — executor_unavailable', () => {
@@ -930,6 +931,71 @@ describe('processJob — FakeExecutor regression', () => {
     vi.useRealTimers()
   })
 
+  it('does not fail a live-but-silent runtime that emits keepalive chunks', async () => {
+    process.env.RUNTIME_JOB_TIMEOUT_MS = '100000'
+    process.env.RUNTIME_OUTPUT_IDLE_TIMEOUT_MS = '20'
+    // Yields several keepalive chunks (each resets the idle watchdog) then a real output and done.
+    // Without keepalive handling, the 20ms idle window would fire between chunks and fail the job.
+    let ticks = 0
+    const liveButSilent: RuntimeExecutor = {
+      execute() {
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next: async () => {
+                await new Promise((resolve) => setTimeout(resolve, 5))
+                ticks += 1
+                if (ticks <= 4) return { done: false, value: { keepalive: true } }
+                if (ticks === 5) return { done: false, value: { delta: 'done thinking' } }
+                return { done: true, value: undefined }
+              },
+            }
+          },
+        }
+      },
+    }
+
+    const result = await processJob({ runtimeSessionId: 's-keepalive', prompt: 'think long' }, liveButSilent)
+
+    expect(result).toBe('completed')
+    expect(published.some((p) => p.event.type === 'runtime_failed')).toBe(false)
+    // Keepalive is consumed internally — never persisted or published.
+    expect(published.some((p) => p.event.type === 'keepalive')).toBe(false)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event: expect.objectContaining({ type: 'runtime_output', delta: 'done thinking' }) }),
+    ]))
+  })
+
+  it('still fails a genuinely idle runtime that emits no keepalive', async () => {
+    vi.useFakeTimers()
+    process.env.RUNTIME_JOB_TIMEOUT_MS = '500'
+    process.env.RUNTIME_OUTPUT_IDLE_TIMEOUT_MS = '25'
+    const idleNoKeepalive: RuntimeExecutor = {
+      execute() {
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next: () => new Promise<IteratorResult<never>>(() => {}),
+              return: async () => ({ done: true, value: undefined }),
+            }
+          },
+        }
+      },
+    }
+    const run = processJob({ runtimeSessionId: 's-idle-no-keepalive', prompt: 'hang' }, idleNoKeepalive)
+
+    await vi.advanceTimersByTimeAsync(25)
+    const result = await run
+
+    expect(result).toBe('failed')
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({ type: 'runtime_failed', error: 'Runtime 输出空闲超时，已终止。' }),
+      }),
+    ]))
+    vi.useRealTimers()
+  })
+
   it('turns native CLI tool requests into pending approval events and stops before execution', async () => {
     const executor: RuntimeExecutor = {
       async *execute() {
@@ -1105,6 +1171,122 @@ describe('processJob — FakeExecutor regression', () => {
       expect.objectContaining({ table: 'agent_mailbox_items', status: 'waiting', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
       expect.objectContaining({ table: 'plan_nodes', status: 'waiting', completed_at: null }),
     ]))
+  })
+
+  it('consumes one repeated approved Codex observed command on resume without re-prompting approval', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const command = "printf 'hello' > agenthub-permission.txt"
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          observedAction: {
+            id: 'cmd-write-observed',
+            toolName: 'command_execution',
+            actionKind: 'shell_command',
+            status: 'running',
+            cwd: workspaceRoot,
+            commandPreview: command,
+            input: { command },
+          },
+        }
+        yield { delta: 'continued after approved observed command' }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-observed-approved-repeat',
+      prompt: 'approved observed continuation',
+      runtimeType: 'codex',
+      permissionMode: 'manual',
+      actionId: 'action-observed-approved',
+      planNodeId: 'node-observed-approved',
+      attemptId: 'attempt-observed-approved',
+      mailboxItemId: 'mailbox-observed-approved',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      approvedNativeTool: {
+        toolCallId: 'cmd-write-observed',
+        toolName: 'command_execution',
+        actionKind: 'shell_command',
+        commandPreview: command,
+        executed: true,
+        output: 'wrote file',
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('completed')
+    // No new pending approval action: the resume let the approved command through.
+    expect(dbInserts.some((insert) => insert.table === 'actions')).toBe(false)
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'approved_tool_result_consumed',
+          toolName: 'command_execution',
+          toolCallId: 'cmd-write-observed',
+          actionKind: 'shell_command',
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_output',
+          delta: 'continued after approved observed command',
+        }),
+      }),
+    ]))
+    expect(published.some((p) => p.event.type === 'approval_requested')).toBe(false)
+    expect(published.some((p) => p.event.type === 'runtime_waiting')).toBe(false)
+  })
+
+  it('does not consume a different Codex observed command than the approved one', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          observedAction: {
+            id: 'cmd-other-observed',
+            toolName: 'command_execution',
+            actionKind: 'shell_command',
+            status: 'running',
+            cwd: workspaceRoot,
+            commandPreview: 'rm -rf important-data',
+            input: { command: 'rm -rf important-data' },
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-observed-mismatch',
+      prompt: 'different observed command',
+      runtimeType: 'codex',
+      permissionMode: 'manual',
+      actionId: 'action-observed-mismatch',
+      planNodeId: 'node-observed-mismatch',
+      attemptId: 'attempt-observed-mismatch',
+      mailboxItemId: 'mailbox-observed-mismatch',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      approvedNativeTool: {
+        toolCallId: 'cmd-write-observed',
+        toolName: 'command_execution',
+        actionKind: 'shell_command',
+        commandPreview: "printf 'hello' > agenthub-permission.txt",
+        executed: true,
+        output: 'wrote file',
+      },
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('waiting')
+    expect(published.some((p) => p.event.type === 'approval_requested')).toBe(true)
+    expect(published.some((p) => p.event.type === 'approved_tool_result_consumed')).toBe(false)
   })
 
   it('auto-approves native CLI tool requests inline in full-control mode and continues the same session', async () => {

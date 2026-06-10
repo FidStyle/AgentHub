@@ -796,6 +796,9 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         await emit({ type: 'runtime_cancelled', endpointId: job.endpointId, reason: 'cancelled by request' })
         return 'cancelled'
       }
+      // Keepalive proves the subprocess is alive but silent. Receiving it already reset the idle
+      // watchdog (nextRuntimeChunk resolved); consume it internally without emitting/persisting.
+      if (chunk.keepalive) continue
       if (chunk.nativeSessionId && chunk.nativeSessionId !== lastNativeSessionId) {
         lastNativeSessionId = chunk.nativeSessionId
         await setNativeSessionId(id, chunk.nativeSessionId)
@@ -808,6 +811,20 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
       if (chunk.observedAction) {
         if (!isAutomaticPermissionMode(job.permissionMode) && chunk.observedAction.status === 'running') {
           const observedTool = observedActionAsToolRequest(chunk.observedAction)
+          // On approval resume, the CLI re-observes the now-approved command. Mirror the toolRequest
+          // path's dedup guard so the same tool is let through instead of re-prompting — otherwise
+          // Codex's observed path loops "approve -> re-prompt" forever.
+          if (!suppressedApprovedToolRequest && sameApprovedNativeToolRequest(job, observedTool)) {
+            suppressedApprovedToolRequest = true
+            await emit({
+              type: 'approved_tool_result_consumed',
+              endpointId: job.endpointId,
+              toolName: observedTool.toolName,
+              toolCallId: observedTool.id,
+              actionKind: observedTool.actionKind,
+            })
+            continue
+          }
           const toolCall = toolCallFromRequest(job, observedTool)
           if (!toolCall || !job.workspaceRoot || !job.workspaceId) {
             throw new Error('Runtime 权限请求缺少 workspace 上下文，已阻止执行。')
