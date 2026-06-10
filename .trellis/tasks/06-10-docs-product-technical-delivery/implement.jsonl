@@ -1,0 +1,6 @@
+{"file":"research/index.md","reason":"文档交付任务需要项目事实源、合同目录和治理入口。"}
+{"file":"research/product/product-design.md","reason":"产品文档内容应从现有产品设计事实源提炼。"}
+{"file":"research/architecture/technical-design.md","reason":"技术文档内容应从现有技术设计事实源提炼。"}
+{"file":".trellis/spec/guides/product-planning-guide.md","reason":"确保文档内容回溯 Bytedance PRD 与 FR-ID，不把计划中能力写成已完成。"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"确保验收和交付描述不使用假完成口径。"}
+{"file":".trellis/spec/cross-layer/index.md","reason":"跨 Web、Desktop、Backend 的交付文档需遵守跨层契约索引。"}

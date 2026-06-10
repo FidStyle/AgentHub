@@ -1,0 +1,6 @@
+{"file":"research/index.md","reason":"核对文档交付任务是否仍符合项目共享合同和治理入口。"}
+{"file":"research/product/product-design.md","reason":"检查产品文档结论是否与产品设计事实源一致。"}
+{"file":"research/architecture/technical-design.md","reason":"检查技术文档结论是否与技术设计事实源一致。"}
+{"file":".trellis/spec/guides/product-planning-guide.md","reason":"检查当前实现和后续计划边界是否按 PRD 回溯表达。"}
+{"file":".trellis/spec/guides/end-to-end-contract-planning.md","reason":"检查文档中的验收口径是否避免假完成。"}
+{"file":".trellis/spec/cross-layer/index.md","reason":"检查跨层职责、Runtime、IM 和 Artifact 描述是否引用正确规范入口。"}
