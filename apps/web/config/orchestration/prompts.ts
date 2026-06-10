@@ -2,7 +2,9 @@ export const DEFAULT_EXECUTION_DECISION_PROMPT = [
   'AgentHub 执行决策规则：',
   '对具体工程实现请求，如果技术栈、界面细节或历史记录策略能用保守默认值安全决定，不要调用 AskUserQuestion 或停下来询问可选项；直接选择默认方案并继续实现/派发。',
   '固定样本“做一个加减乘除的简单网站，使用 sqlite 存储历史记录”默认采用 Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS；历史记录全部保留，界面默认展示最近 20 条；除非继续执行会产生安全风险，否则不要向用户确认这些选项。',
+  '固定样本如果生成测试文件，测试必须自包含：优先使用 Node.js 内建 `node:test`、`assert` 和 `fetch`/`http`；不要导入未在 package.json 声明的 supertest、vitest、jest 或其他第三方测试库；如果确需导入，必须同时在 dependencies 或 devDependencies 中声明并确保可安装。',
   '固定样本的后端入口必须让 `node src/server.js` 直接启动 HTTP 服务；如果导出 createApp/startServer，也必须保留 `if (require.main === module) startServer()` 或等价入口，不能只导出函数后退出。',
+  '固定样本使用 SQLite/better-sqlite3 时，默认数据库路径必须位于 workspace 内的 `data/` 目录；打开数据库前必须创建目录，例如 `fs.mkdirSync(path.dirname(dbPath), { recursive: true })`，避免服务启动时报 Cannot open database because the directory does not exist。',
   '不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent；AgentHub 已经负责计划节点、任务状态和角色调度。需要说明计划时直接用普通文本输出，需要改文件或执行命令时只使用真实文件/命令工具。',
   '不要把 npm start、npm run dev、node server.js 或其他长驻服务作为必须保持运行的交付步骤；如需验证服务，请用临时端口/临时进程完成 HTTP 检查后退出，并在最终回复中说明用户可自行运行的命令。',
   '临时验证脚本、临时 SQLite 数据库、临时日志和清理命令也必须留在 selected workspace root 内；不要使用 /tmp、用户主目录、AgentHub 宿主仓库或任何 workspace 外路径来绕过权限边界。',
@@ -58,8 +60,9 @@ export function frontendWorkerPhaseBoundaryPrompt(fullAutoDelivery: boolean) {
 export function backendWorkerPhaseBoundaryPrompt(fullAutoDelivery: boolean) {
   return [
     '当前是后端工程师实现节点：负责 package.json、src/server.js、SQLite history、API 契约和必要的最小测试文件。',
+    'SQLite/better-sqlite3 目录契约：数据库默认路径必须是 workspace 内 `data/*.sqlite` 或等价 data 子路径；在 `new Database(dbPath)` 前必须 `fs.mkdirSync(path.dirname(dbPath), { recursive: true })`，不能假设 data 目录已经存在。',
     fullAutoDelivery
-      ? '固定样本 strict gate 会统一执行安装、node --test、HTTP API 和 SQLite 验证；本节点只写/更新后端文件并输出完成摘要，不要运行 npm install、npm test、node --test、node src/server.js、curl、pkill 或长驻服务。'
+      ? '固定样本 strict gate 会统一执行安装、node --test、HTTP API 和 SQLite 验证；本节点只写/更新后端文件并输出完成摘要，不要运行 npm install、npm test、node --test、node src/server.js、curl、pkill 或长驻服务。若创建 test/*.js，不要导入未在 package.json 声明的 supertest、vitest、jest 等第三方库；优先用 Node 内建 node:test/assert/fetch/http。'
       : '如需验证服务，请用临时进程完成后退出，避免长驻服务阻塞。',
   ].join('\n')
 }

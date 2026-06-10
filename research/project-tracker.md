@@ -20,6 +20,20 @@
 
 ## P0 任务
 
+### standard-permission-approval-card
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0 |
+| **绑定 FR-ID** | FR-PERM-001, FR-ACTION-001, FR-CHAT-001, FR-ORCH-001, FR-ARTIFACT-001 |
+| **对应计划** | Trellis task `standard-permission-approval-card`；`.trellis/spec/cross-layer/runtime-gateway-permission-wait.md`；`.trellis/spec/cross-layer/real-flow-product-delivery.md`；`.trellis/spec/cross-layer/real-flow-queue-consistency.md` |
+| **当前状态** | ✅ completed / 验证通过（2026-06-10）：非完全权限会先生成可交互权限卡；allow 从原 action 续跑并产生 side-effect；reject 不执行副作用；full-control 保留自动通过审计卡并完成产物助手收口。 |
+| **目标** | 修复标准/非完全权限默认失败或无卡可点的问题，并把权限卡、自动审计卡、产物助手结果卡、Git diff、web preview、publish status 纳入同一真实流程验收。 |
+| **验收方式** | Focused API/runtime/unit tests + type-check + lint + `git diff --check` + fresh strict product delivery gate + fresh manual permission allow/reject gate。 |
+| **测试证据** | `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/orchestrator/action-dispatcher.test.ts __tests__/runtime/executor.test.ts __tests__/orchestrator.test.ts` PASS（116/116）；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/web lint` PASS；`git diff --check` PASS；fresh strict `STRICT-SPD-1781059838901-0389f6` PASS（78/0/0），artifact `8447bf46-fe0c-40fe-9fb8-a199cb52b937`；fresh permission `PERMISSION-BRANCH-1781060166341-77f969` PASS（38/0/0），allow action `85d18da5-40b0-481b-b714-291e1bdc179f`，reject action `6e2a3efd-fabe-4bf6-a968-2a63e798c6d5`；report `research/execution-reports/standard-permission-approval-card-2026-06-10.md`。 |
+| **阻塞问题** | 无。 |
+| **下一步动作** | 已完成；后续改动继续复跑 fresh strict product delivery 和 fresh permission branch gates。 |
+
 ### ARTIFACT-ASSISTANT-CLOSURE-2026-06-10: 产物助手交付收口流程
 
 | 字段 | 内容 |
@@ -27,12 +41,12 @@
 | **优先级** | P0/P1 |
 | **绑定 FR-ID** | FR-ORCH-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-DOCS-201, FR-PUBLISH-201 |
 | **对应计划** | 用户 2026-06-10 确认的产物助手方向；`research/contracts/ARTIFACT-ASSISTANT-CLOSURE-2026-06-10.md`；`.trellis/spec/cross-layer/im-conversation-artifact-contract.md`；`.trellis/spec/cross-layer/real-flow-product-delivery.md` |
-| **当前状态** | ⚠️ implementation present / fresh UAT reopened（2026-06-10）：代码和文档层已落地内置 `产物助手` 收口能力，但后续未入账 fresh strict/manual runs 出现 P0 失败，因此不能继续按“全链路完成”记账。 |
+| **当前状态** | ✅ closed / fresh UAT pass（2026-06-10）：内置 `产物助手` 收口能力已通过最新 fresh strict product delivery gate；标准权限 allow/reject 分支也通过 fresh gate。 |
 | **目标** | 在前端、后端、文档、PPT 等角色完成后，由 `产物助手` 判断产物类型，主动创建主产物和辅助产物，在 IM 中生成 artifact/preview/publish 卡，并同步右侧 Artifacts；标准权限由用户启动/确认，完全权限可自动启动但必须留下审计卡。 |
 | **方案摘要** | 新增默认角色 `产物助手`；产品交付 DAG 在 worker 后、架构师汇总前追加 `产物助手收口`；结果卡作者归属产物助手；支持一个 `final_product_candidate` 和多个 `supporting_product_artifact`；服务型产物支持启动脚本/发布状态，Markdown/PPT/图片等辅助产物走预览/下载；右侧 Artifacts 移除聊天外“新建富文档 / 新建演示稿”入口。 |
-| **测试证据** | 历史 focused evidence：Commit `e142487 实现产物助手收口流程`；focused tests/type-check/lint/`git diff --check` PASS。当前 blocker evidence：`STRICT-SPD-1781034360339-3a63e1` FAIL（65/12，`finalArtifactId=null`，plan still running，生成项目 `npm test` 缺 `supertest`）；`PERMISSION-BRANCH-1781034038005-a684c9` FAIL（preflight 缺 real runtime executor / live runtime worker）；`PERMISSION-BRANCH-1781034095538-b05c35` FAIL（allow/reject 被 Agent 草稿路径截走，未进入目标权限审批链路）。 |
-| **阻塞问题** | 产物助手合同已补，但当前 fresh UAT 证据显示：服务型交付未稳定终态、产物 row/result card 未生成、标准权限分支测试 harness 和对话路由不稳定。PPT 转 PDF、ppt-master 角色化、完整部署平台仍按 P2/后续验收处理。 |
-| **下一步动作** | 先修复 strict product delivery 和 manual permission branch blockers，再重跑标准权限允许后续跑、完全权限自动启动、聊天内 Git/Diff/Iframe/产物卡、右侧 Artifacts 读回、刷新状态不丢和停止服务的 E2E/UAT。 |
+| **测试证据** | Latest strict run `STRICT-SPD-1781059838901-0389f6` PASS（78/0/0）：workspace `fbd73906-5d0e-4ca8-8a24-32ed49291577`，session `a6b39f39-72a5-4e04-9ac9-1b43ca7cda06`，plan `0065ec0f-120b-4b52-93d8-9c0bea1861de`，artifact `8447bf46-fe0c-40fe-9fb8-a199cb52b937`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-SPD-1781059838901-0389f6/`。Latest permission run `PERMISSION-BRANCH-1781060166341-77f969` PASS（38/0/0），evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/PERMISSION-BRANCH-1781060166341-77f969/`。Focused tests `pnpm --filter @agenthub/web test -- __tests__/api/chat.test.ts __tests__/orchestrator/action-dispatcher.test.ts __tests__/runtime/executor.test.ts __tests__/orchestrator.test.ts` PASS（116 tests）；`pnpm --filter @agenthub/web type-check` PASS。 |
+| **阻塞问题** | 本轮 P0 blocker 已关闭。PPT 转 PDF、ppt-master 角色化、完整发布平台仍按 P2/后续验收处理。 |
+| **下一步动作** | 已关闭。后续改动必须继续跑 fresh strict gate 和 manual permission branch gate，不能用历史 pass 替代。 |
 
 ### BYTEDANCE-P0-P1-REAL-STEP-UAT: Bytedance P0/P1 Real-Step UAT 当前验收
 
@@ -42,12 +56,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
 | **对应计划** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md` |
 | **合同路径** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md`；`.trellis/spec/cross-layer/real-flow-bytedance-uat.md` |
-| **当前状态** | ⚠️ reopened / latest fresh evidence failed（2026-06-10）：`BYTEDANCE-CURRENT-FINAL-1781025161` 与 `BYTEDANCE-PERMISSION-FINAL-1781025780` 保留为历史 pass，但后续更新的 fresh runs 已失败；按 fail-closed 规则，当前不能声明 Bytedance P0/P1 完成。 |
+| **当前状态** | ✅ fresh pass（2026-06-10）：latest full-control strict gate 与 manual allow/reject gate 均通过；历史失败 evidence 已由最新 fresh run 覆盖。 |
 | **目标** | 按 Bytedance P0/P1 当前验收口径，验证 AI 对话过程中的 Git diff、产物、iframe/web preview、发布状态卡、权限交互卡、用户允许后续跑、服务型产物启动命令和 Web/Mobile/Desktop readback。 |
 | **验收方式** | Fresh strict single-prompt product delivery gate + fresh manual permission branch gate + OpenCLI Web/Mobile readback + accepted Desktop/Electron Playwright fallback + focused API/runtime/UI tests + type-check/lint + `git diff --check`。 |
-| **测试证据** | Historical pass report: `research/execution-reports/bytedance-current-flow-fix-2026-06-10.md`；Full-control `BYTEDANCE-CURRENT-FINAL-1781025161` PASS（78/0/0）；Manual permission `BYTEDANCE-PERMISSION-FINAL-1781025780` PASS（38/0/0）。Current reopened evidence：`STRICT-SPD-1781034360339-3a63e1` FAIL（65/12，workspace `02c51200-599e-4355-8969-d8ee6bcf372b`，session `459b1e98-b2aa-4d7e-9934-6b8e85ba9bf3`，plan `82ac46de-3300-4cdd-b237-4fbfce917a18`，`finalArtifactId=null`）；`PERMISSION-BRANCH-1781034038005-a684c9` FAIL（preflight）；`PERMISSION-BRANCH-1781034095538-b05c35` FAIL（manual branch route）。 |
-| **阻塞问题** | P0 blocker reopened：full-control strict run 未完成产物交付闭环；manual permission branch 当前不能证明标准权限卡 allow/reject 续跑；E2E harness/runtime executor preflight 未稳定。Desktop/Electron fallback、最终 Demo 包、3 分钟素材、纯 P2 项仍按原边界处理。 |
-| **下一步动作** | 修复以上 blocker 后重跑 fresh full-control + manual allow/reject + Web/Mobile/Desktop readback；通过前不得使用历史 pass 宣称 Bytedance P0/P1 完成。 |
+| **测试证据** | Full-control strict run `STRICT-SPD-1781059838901-0389f6` PASS（78/0/0），workspace `fbd73906-5d0e-4ca8-8a24-32ed49291577`，session `a6b39f39-72a5-4e04-9ac9-1b43ca7cda06`，plan `0065ec0f-120b-4b52-93d8-9c0bea1861de`，artifact `8447bf46-fe0c-40fe-9fb8-a199cb52b937`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-SPD-1781059838901-0389f6/`。Manual permission run `PERMISSION-BRANCH-1781060166341-77f969` PASS（38/0/0），allow action `85d18da5-40b0-481b-b714-291e1bdc179f`，reject action `6e2a3efd-fabe-4bf6-a968-2a63e798c6d5`，evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/PERMISSION-BRANCH-1781060166341-77f969/`。 |
+| **阻塞问题** | 当前 P0 blocker 已关闭。Desktop/Electron fallback、最终 Demo 包、3 分钟素材、纯 P2 项仍按原边界处理。 |
+| **下一步动作** | 已通过当前 fresh gate；后续任何 P0/P1 completion claim 仍必须重新跑 fresh strict + manual permission gates。 |
 
 ### 06-07-fix-bytedance-real-step-uat-blockers: 修复 Bytedance 全真实逐步 UAT 阻断
 
@@ -57,12 +71,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-07-fix-bytedance-real-step-uat-blockers` |
 | **合同路径** | `research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
-| **当前状态** | historical completed / superseded by 2026-06-10 reopened evidence：本任务在 2026-06-08 的 fresh 验证曾通过；但后续 `STRICT-SPD-1781034360339-3a63e1` 和 `PERMISSION-BRANCH-*` 失败已重新打开 Bytedance P0/P1 gate。 |
+| **当前状态** | verified / latest fresh pass（2026-06-10）：此前 reopened blocker 已修复，`STRICT-SPD-1781059838901-0389f6` 与 `PERMISSION-BRANCH-1781060166341-77f969` 均通过。 |
 | **目标** | 用户只发送固定 prompt 时，full-control 权限下能自动跑到最终产物；manual allow 能从原权限卡继续并写入 workspace side-effect；manual reject 能停止 side-effect 并保留清晰等待下一次输入的用户可见状态。 |
 | **验收方式** | Fresh full-control strict gate + fresh manual permission branch gate + OpenCLI Web/Mobile readback + accepted Desktop/Electron fallback + focused API/store/runtime tests + type-check/lint/build + Trellis validate + `git diff --check`。 |
-| **测试证据** | Report: `research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md` and `research/execution-reports/remaining-p1-features-2026-06-05.md`；Latest full-control `REAL-TOOLS-UAT-1780892500-FULL` PASS（74 passed / 0 failed / 0 warned），workspace `d3cbf9e1-b2ce-48e9-ac40-6a96b3ec4bc6`，session `41ab5f3b-31fd-4c53-a1d1-4b4561b1db58`，plan `04bbfa1b-e408-4097-a3da-260e7e7e3bf8`，artifact `68bc13e6-9184-4ec3-be78-9c421a9904f3`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-TOOLS-UAT-1780892500-FULL/`；Latest manual permission `REAL-TOOLS-PERMISSION-UAT-1780892500` PASS（38 passed / 0 failed / 0 warned），allow action `20a8620d-230f-4825-9740-ff552df4a4f2`，reject action `4365a754-6857-4816-9de9-4cd23e70f622`，evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-TOOLS-PERMISSION-UAT-1780892500/`；focused chat regression PASS（17 tests）；此前 `REAL-STEP-UAT-1780840500-FULL` / `REAL-PERMISSION-UAT-1780841300` 仍保留为历史 pass 证据。 |
-| **风险/说明** | 历史通过结论保留为回归参考；不再代表当前 P0/P1 完成状态。最终 Demo 包、3 分钟素材、未启动纯 P2 继续按用户要求排除。 |
-| **下一步动作** | 以后续 reopened blocker 修复后的 fresh full-control + manual permission branch gates 为准。 |
+| **测试证据** | Latest strict run `STRICT-SPD-1781059838901-0389f6` PASS（78/0/0）：workspace `fbd73906-5d0e-4ca8-8a24-32ed49291577`，session `a6b39f39-72a5-4e04-9ac9-1b43ca7cda06`，plan `0065ec0f-120b-4b52-93d8-9c0bea1861de`，artifact `8447bf46-fe0c-40fe-9fb8-a199cb52b937`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-SPD-1781059838901-0389f6/`。Latest manual permission run `PERMISSION-BRANCH-1781060166341-77f969` PASS（38/0/0）：allow action `85d18da5-40b0-481b-b714-291e1bdc179f`，reject action `6e2a3efd-fabe-4bf6-a968-2a63e798c6d5`，evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/PERMISSION-BRANCH-1781060166341-77f969/`。Earlier failed markers `STRICT-SPD-1781034360339-3a63e1`、`PERMISSION-BRANCH-1781034038005-a684c9`、`PERMISSION-BRANCH-1781034095538-b05c35` 保留为审计对照。 |
+| **风险/说明** | 当前 P0 blocker 已关闭。最终 Demo 包、3 分钟素材、未启动纯 P2 继续按用户要求排除。 |
+| **下一步动作** | 收口前重跑 focused tests/type-check/lint/`git diff --check` 和 fresh gates；后续任何 P0/P1 完成声明都必须使用新的 fresh evidence。 |
 
 ### BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE: Bytedance P0/P1 全量最终完成门禁
 
@@ -72,12 +86,12 @@
 | **绑定 FR-ID** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-WEB-001, FR-MOB-001, FR-DESK-001, FR-ARTIFACT-001, FR-RESULT-001, FR-UI-001 |
 | **对应计划** | `.trellis/tasks/06-07-bytedance-p0-p1-final-completion-gate` |
 | **合同路径** | `research/contracts/BYTEDANCE-P0-P1-FINAL-COMPLETION-GATE.md` |
-| **当前状态** | historical pass / superseded by 2026-06-10 reopened evidence：`REAL-TOOLS-UAT-1780892500-FULL` 和 `REAL-TOOLS-PERMISSION-UAT-1780892500` 曾通过；但后续更新 fresh runs 失败，当前最终完成门禁已重新打开。 |
+| **当前状态** | ✅ latest fresh pass（2026-06-10）：`STRICT-SPD-1781059838901-0389f6` 与 `PERMISSION-BRANCH-1781060166341-77f969` 均通过。 |
 | **目标** | 只闭环 Bytedance P0/P1：IM 主链路、权限链路、工作台链路、产物推荐/确认和三端读回；最终 Demo 包、3 分钟素材、未开始纯 P2 继续排除。 |
 | **验收方式** | Latest standard is full real-step UAT: real Web entry + per-step UI/API/DB/runtime/action/artifact verification + Web/Mobile/Desktop readback. Fixed prompt：`做一个加减乘除的简单网站，使用sqlite存储历史记录`。 |
 | **测试证据** | Latest reports: `research/execution-reports/bytedance-p0-p1-real-step-uat-2026-06-07.md` and `research/execution-reports/remaining-p1-features-2026-06-05.md`；Full-control run `REAL-TOOLS-UAT-1780892500-FULL` PASS（74/0/0），workspace `d3cbf9e1-b2ce-48e9-ac40-6a96b3ec4bc6`，session `41ab5f3b-31fd-4c53-a1d1-4b4561b1db58`，plan `04bbfa1b-e408-4097-a3da-260e7e7e3bf8`，artifact `68bc13e6-9184-4ec3-be78-9c421a9904f3`，evidence dir `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/REAL-TOOLS-UAT-1780892500-FULL/`；Manual permission run `REAL-TOOLS-PERMISSION-UAT-1780892500` PASS（38/0/0），allow session `b44807dd-b465-4f2c-9a8f-50406e581b29` action `20a8620d-230f-4825-9740-ff552df4a4f2`，reject session `3512765a-7adc-4f87-afeb-a6c802c0aabb` action `4365a754-6857-4816-9de9-4cd23e70f622`，evidence dir `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/REAL-TOOLS-PERMISSION-UAT-1780892500/`。 |
-| **阻塞问题** | 当前 blocker 见 `BYTEDANCE-P0-P1-REAL-STEP-UAT` 和 `REG-20260610-001`：strict product delivery、manual permission branch 和 E2E harness 均需修复后重跑。Desktop/Electron fallback、最终 Demo 包、3 分钟素材、未开始纯 P2 仍排除。 |
-| **下一步动作** | 不再用本段历史 pass 宣称当前完成；修复 reopened blocker 后重跑 fresh full-control + manual allow/reject。 |
+| **阻塞问题** | 当前 P0 blocker 已关闭。Desktop/Electron fallback、最终 Demo 包、3 分钟素材、未开始纯 P2 仍排除。 |
+| **下一步动作** | 当前 gate 已通过；后续改动必须继续用 fresh full-control + manual allow/reject 复验。 |
 
 ### WORKBENCH-RESIZE-FILETREE-UX-2026-06-06: 右侧工作台拖动与文件树体验修复
 

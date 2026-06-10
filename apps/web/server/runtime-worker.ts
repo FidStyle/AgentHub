@@ -334,6 +334,18 @@ function observedActionCommandLabel(action: NativeCliObservedAction): string {
   return `${action.toolName} (${action.actionKind})`
 }
 
+function observedActionAsToolRequest(action: NativeCliObservedAction): NativeCliToolRequest {
+  return {
+    id: action.id,
+    toolName: action.toolName,
+    actionKind: action.actionKind,
+    cwd: action.cwd,
+    targetPaths: action.targetPaths,
+    commandPreview: action.commandPreview,
+    input: action.input,
+  }
+}
+
 async function persistObservedAutomaticAction(job: RuntimeJob, action: NativeCliObservedAction, nativeSessionId?: string | null): Promise<string | null> {
   if (!job.sessionId || !job.ownerId) return null
   if (!isAutomaticPermissionMode(job.permissionMode)) return null
@@ -794,6 +806,38 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
         throw new Error('Runtime 等待用户补充确认，未继续执行。')
       }
       if (chunk.observedAction) {
+        if (!isAutomaticPermissionMode(job.permissionMode) && chunk.observedAction.status === 'running') {
+          const observedTool = observedActionAsToolRequest(chunk.observedAction)
+          const toolCall = toolCallFromRequest(job, observedTool)
+          if (!toolCall || !job.workspaceRoot || !job.workspaceId) {
+            throw new Error('Runtime 权限请求缺少 workspace 上下文，已阻止执行。')
+          }
+          const permission = evaluateNativeCliToolPermission(toolCall, {
+            workspaceId: job.workspaceId,
+            workspaceRoot: job.workspaceRoot,
+          })
+          if (permission.code === 'OUTSIDE_WORKSPACE_ROOT') {
+            throw new Error('该操作试图访问 workspace 外路径，已阻止。')
+          }
+          if (permission.code !== 'APPROVAL_REQUIRED' || !permission.approval) {
+            throw new Error('Runtime 权限请求无法进入审批队列，已阻止执行。')
+          }
+          const { actionId } = await createPermissionAction(job, observedTool, toolCall, permission.approval.riskLevel, lastNativeSessionId)
+          await emit({
+            type: 'approval_requested',
+            actionId,
+            title: 'Runtime 工具需要授权',
+            description: toolRequestDescription(observedTool, job.workspaceRoot),
+            riskLevel: permission.approval.riskLevel,
+            endpointId: job.endpointId,
+            actionKind: toolCall.actionKind,
+            workspaceRoot: job.workspaceRoot,
+            cwd: toolCall.cwd,
+            targetPaths: toolCall.targetPaths ?? [],
+            commandPreview: toolCall.commandPreview,
+          })
+          throw new Error('Runtime 工具已进入权限审批，未执行该操作。')
+        }
         const actionId = await persistObservedAutomaticAction(job, chunk.observedAction, lastNativeSessionId)
         await emit({
           type: 'runtime_observed_action',
@@ -809,6 +853,15 @@ export async function processJob(job: RuntimeJob, executor: RuntimeExecutor): Pr
           permissionMode: job.permissionMode ?? null,
           autoApproved: isAutomaticPermissionMode(job.permissionMode) && chunk.observedAction.status !== 'running',
         })
+        if (chunk.observedAction.status === 'failed') {
+          const commandLabel = observedActionCommandLabel(chunk.observedAction)
+          const error = [
+            `Runtime 工具执行失败：${commandLabel}`,
+            typeof chunk.observedAction.exitCode === 'number' ? `退出码：${chunk.observedAction.exitCode}` : null,
+            chunk.observedAction.output ? chunk.observedAction.output.slice(-4000) : null,
+          ].filter(Boolean).join('\n')
+          throw new Error(error)
+        }
         continue
       }
       if (chunk.toolRequest) {

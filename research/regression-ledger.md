@@ -51,14 +51,14 @@
 | --- | --- |
 | **类型** | P0 blocker / runtime-permission-regression / acceptance-coverage-gap |
 | **优先级** | P0 |
-| **状态** | `open`（2026-06-10 reopened：历史 pass 存在，但后续 fresh manual permission runs 失败；必须修复并重跑后才能关闭） |
+| **状态** | `closed`（2026-06-10：fresh manual permission branch `PERMISSION-BRANCH-1781060166341-77f969` PASS，38 passed / 0 failed / 0 warned） |
 | **关联 FR/PRD** | FR-CHAT-001, FR-ORCH-001, FR-RUNTIME-001, FR-PERM-001, FR-ACTION-001, FR-UI-001, FR-ARTIFACT-001 |
 | **关联任务/合同** | `.trellis/tasks/06-09-standard-permission-approval-card`；`.trellis/spec/cross-layer/runtime-gateway-permission-wait.md`；`.trellis/spec/cross-layer/real-flow-acceptance.md` |
 | **影响功能面** | Web IM runtime 执行、权限模式、授权卡、计划节点等待/续跑、Redis/SSE 订阅、Bytedance single-prompt product delivery 完整验收 |
 | **发现方式** | 用户实测：标准权限下 Runtime 已连接但无授权卡，反复 `runtime_status=running` 后 `Runtime 输出空闲超时，已终止。`；完全权限下同一链路可继续输出。用户进一步明确：不只是标准权限，所有非完全权限都必须有询问/授权卡，并纳入完整流程验收。 |
-| **证据** | 原失败 SSE 包含 `runtime_status` 多次后 `runtime_failed: Runtime 输出空闲超时，已终止。`，聊天显示“运行时执行失败，未收到回复”；无 `message-permission-card`。修复后聚焦测试曾 PASS（88/88），历史 full-control/manual runs `BYTEDANCE-CURRENT-FINAL-1781025161` / `BYTEDANCE-PERMISSION-FINAL-1781025780` 也曾 PASS。当前重新打开原因：后续 fresh `PERMISSION-BRANCH-1781034038005-a684c9` FAIL，fatalError 为 `permission branch preflight failed: real runtime executor and live runtime worker are required`；`PERMISSION-BRANCH-1781034095538-b05c35` FAIL，allow/reject SSE 只生成 `agent_draft` result card，被对话式 Agent 草稿路径截走，未进入权限审批路径。 |
+| **证据** | 原失败 SSE 包含 `runtime_status` 多次后 `runtime_failed: Runtime 输出空闲超时，已终止。`，聊天显示“运行时执行失败，未收到回复”；无 `message-permission-card`。2026-06-10 修复后，fresh manual permission gate `PERMISSION-BRANCH-1781060166341-77f969` PASS（38/0/0），evidence `e2e/artifacts/opencli-uat/fresh-permission-branches-2026-06-07/PERMISSION-BRANCH-1781060166341-77f969/`。Allow branch：workspace `07ba42a8-5beb-406d-b3b5-a3dcf1bdf915`，session `020cc400-1845-48fb-8054-bae111e2955d`，action `85d18da5-40b0-481b-b714-291e1bdc179f`，plan node `f9e0de1d-6a0d-49aa-92c5-ab16f9edf12c`，原权限卡 pending -> running，批准后 continuation 写入 side-effect 文件。Reject branch：workspace `907bb74e-66c1-410f-9b05-1d8645f7717a`，session `f89e53d6-4aeb-419f-8950-bd1f8efeebe8`，action `6e2a3efd-fabe-4bf6-a968-2a63e798c6d5`，plan node `084812ed-da97-4000-85a0-7f288fc5ddaf`，原权限卡 pending -> rejected，无 side-effect 文件，plan node 保持 waiting，Web/Mobile 均读回。 |
 | **关闭条件** | Fresh UAT 证明：standard/sandbox/auto 模式触发工具请求时出现 `message-permission-card`，API/DB 读回 `actions.status=pending`、plan/attempt/mailbox/runtime waiting，SSE 无误导性 `runtime_failed`；允许后从同一节点续跑并写入副作用；拒绝后无副作用且状态可读回；full-control 仍可完成 canonical calculator+SQLite 产物并生成 artifact/result card；Web/Mobile/Desktop 读回一致。 |
-| **下一步** | 先修复 manual permission branch preflight/runtime worker 要求与“创建 Agent 草稿”误路由，再跑 fresh manual allow/reject gate，并追加 standard/sandbox/auto 三种非完全权限实跑证据；通过后更新 tracker/report 并关闭本项。 |
+| **下一步** | 已关闭。后续如果扩展 standard/sandbox/auto 的专门矩阵，必须复用同一 preapproval/permission-card 口径，不能把实现类 prompt 误路由到 Agent 草稿。 |
 
 ### REG-20260610-001 — 产物助手收口和 strict product delivery 最新 fresh gate 失败
 
@@ -66,14 +66,14 @@
 | --- | --- |
 | **类型** | P0 blocker / artifact-closure-regression / acceptance-evidence-conflict |
 | **优先级** | P0 |
-| **状态** | `open` |
+| **状态** | `closed`（2026-06-10：fresh strict product delivery `STRICT-SPD-1781059838901-0389f6` PASS，78 passed / 0 failed / 0 warned） |
 | **关联 FR/PRD** | FR-ORCH-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-WEB-001, FR-MOB-001, FR-DESK-001 |
 | **关联任务/合同** | `research/contracts/ARTIFACT-ASSISTANT-CLOSURE-2026-06-10.md`；`research/contracts/BYTEDANCE-P0-P1-REAL-STEP-UAT.md`；`.trellis/spec/cross-layer/real-flow-product-delivery.md` |
 | **影响功能面** | 产物助手收口、主产物 durable artifact row、IM result card、Git/Diff/Iframe/Web preview/publish status 卡、服务型产物启动命令、架构师汇总节点和 SSE 终态 |
 | **发现方式** | 用户要求更新当前方向文档时，Codex 只读复核工作区最新 fresh UAT 证据，发现历史 pass 之后又产生未入账失败 marker。 |
-| **证据** | `STRICT-SPD-1781034360339-3a63e1/summary.json`：`FAIL`，65 passed / 12 failed，workspace `02c51200-599e-4355-8969-d8ee6bcf372b`，session `459b1e98-b2aa-4d7e-9934-6b8e85ba9bf3`，plan `82ac46de-3300-4cdd-b237-4fbfce917a18`，`finalArtifactId=null`。`chat-timeout-db-snapshot.json` 显示 plan 仍 `running`，产物助手/架构师汇总未形成可验收终态；runtime action `/bin/zsh -lc 'npm test'` 失败，原因是生成项目测试引用 `supertest` 但依赖未安装；SSE 之后持续 `runtime_status=running` 直到 360000ms timeout。 |
+| **证据** | 原失败 `STRICT-SPD-1781034360339-3a63e1`：`FAIL`，65/12，`finalArtifactId=null`，plan still running，生成项目 `npm test` 缺 `supertest`。2026-06-10 修复后，fresh strict run `STRICT-SPD-1781059838901-0389f6` PASS（78/0/0），workspace `fbd73906-5d0e-4ca8-8a24-32ed49291577`，session `a6b39f39-72a5-4e04-9ac9-1b43ca7cda06`，plan `0065ec0f-120b-4b52-93d8-9c0bea1861de`，final artifact `8447bf46-fe0c-40fe-9fb8-a199cb52b937`，evidence `e2e/artifacts/opencli-uat/strict-single-prompt-product-delivery-2026-06-05/STRICT-SPD-1781059838901-0389f6/`。验证项包括：plan/nodes/runtime_sessions 全部 completed；full-control 自动权限审计卡 durable；IM result card 内联 `change_summary/diff/artifact/web_preview/publish_status/document_preview`；artifact metadata 包含 `sourcePath=public/index.html`、`startCommand=npm run start`、`packageScript=start`；生成项目 `npm install`、`node --test`、HTTP API、SQLite 持久化、Workbench 文件树/HTML 预览、Web/Mobile readback 和 Desktop fallback 均通过。 |
 | **关闭条件** | Fresh strict product delivery gate 重新通过：计划所有节点 completed；产物助手创建一个 `final_product_candidate` 和必要 `supporting_product_artifact`；IM result card 内联 `change_summary/diff/artifact/web_preview/publish_status`；生成项目测试或验收脚本不缺依赖；Web/Mobile/Desktop readback 一致；服务型产物可启动、打开、刷新状态不丢、停止。 |
-| **下一步** | 修复生成项目测试依赖/验收策略、runtime 失败后的 plan 终态传播、产物助手收口触发条件和 result card 写入；随后重跑 fresh strict product delivery gate。 |
+| **下一步** | 已关闭。继续保留 fresh strict gate 作为后续产物助手/Bytedance P0/P1 主链路门禁；PPT 转 PDF、ppt-master 深接入和完整发布平台仍按 P2/后续任务处理。 |
 
 ### REG-20260606-001 — Web 工作台前端没有完整呈现开发过程、Git、代码引用和可启动产物
 

@@ -145,6 +145,11 @@ function codexApprovalArgs(permissionMode?: string | null) {
   return ['-a', 'on-request']
 }
 
+function codexSandboxMode(permissionMode?: string | null) {
+  if (permissionMode === 'full_control' || permissionMode === 'dangerous_bypass') return 'workspace-write'
+  return 'read-only'
+}
+
 function claudePermissionArgs(permissionMode?: string | null) {
   if (permissionMode === 'full_control') return ['--permission-mode', 'bypassPermissions']
   if (permissionMode === 'dangerous_bypass') return ['--dangerously-skip-permissions']
@@ -162,7 +167,7 @@ export function cliArgs(runtimeType: CliRuntimeType, prompt: string, nativeSessi
       'exec',
       '--json',
       '-s',
-      'workspace-write',
+      codexSandboxMode(permissionMode),
       '--skip-git-repo-check',
       '--color',
       'never',

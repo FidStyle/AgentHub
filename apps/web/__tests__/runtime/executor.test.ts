@@ -132,7 +132,7 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       'exec',
       '--json',
       '-s',
-      'workspace-write',
+      'read-only',
       '--skip-git-repo-check',
       '--color',
       'never',
@@ -144,7 +144,7 @@ describe('CliRuntimeExecutor — executor_unavailable', () => {
       'exec',
       '--json',
       '-s',
-      'workspace-write',
+      'read-only',
       '--skip-git-repo-check',
       '--color',
       'never',
@@ -703,6 +703,63 @@ describe('processJob — FakeExecutor regression', () => {
     expect(String(failed!.event.error)).toContain('not found')
   })
 
+  it('fails immediately when an observed full-control command exits non-zero', async () => {
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          observedAction: {
+            id: 'cmd-failed',
+            toolName: 'command_execution',
+            actionKind: 'shell_command',
+            status: 'failed',
+            commandPreview: "npm test",
+            output: "Error: Cannot find module 'supertest'",
+            exitCode: 1,
+          },
+        }
+        yield { delta: 'this should not stream after failed command' }
+      },
+    }
+
+    const result = await processJob({
+      runtimeSessionId: 'runtime-observed-failed',
+      prompt: 'run failing test',
+      permissionMode: 'full_control',
+      workspaceRoot: '/workspace',
+      cwd: '/workspace',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      planNodeId: 'node-runtime-001',
+      attemptId: 'attempt-runtime-failed-observed',
+      mailboxItemId: 'mailbox-runtime-failed-observed',
+    }, executor)
+
+    expect(result).toBe('failed')
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_observed_action',
+          status: 'failed',
+          commandPreview: 'npm test',
+          autoApproved: true,
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_failed',
+          error: expect.stringContaining("Cannot find module 'supertest'"),
+        }),
+      }),
+    ]))
+    expect(published.some((p) => p.event.type === 'runtime_output' && p.event.delta === 'this should not stream after failed command')).toBe(false)
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'runtime_sessions', status: 'failed' }),
+      expect.objectContaining({ table: 'plan_node_attempts', status: 'failed', error: expect.stringContaining('Runtime 工具执行失败') }),
+      expect.objectContaining({ table: 'agent_mailbox_items', status: 'failed', error: expect.stringContaining('Runtime 工具执行失败') }),
+      expect.objectContaining({ table: 'plan_nodes', status: 'failed' }),
+    ]))
+  })
+
   it('fails and closes the executor when a runtime job exceeds the hard timeout', async () => {
     vi.useFakeTimers()
     process.env.RUNTIME_JOB_TIMEOUT_MS = '25'
@@ -863,6 +920,98 @@ describe('processJob — FakeExecutor regression', () => {
           error: 'Runtime 工具已进入权限审批，未执行该操作。',
         }),
       }),
+    ]))
+  })
+
+  it('turns non-full-control Codex observed command starts into pending approval before completion', async () => {
+    const workspaceRoot = '/Users/joytion/.agenthub/cloud-workspaces/joytion/test2-e427fab2'
+    const executor: RuntimeExecutor = {
+      async *execute() {
+        yield {
+          observedAction: {
+            id: 'cmd-write-observed',
+            toolName: 'command_execution',
+            actionKind: 'shell_command',
+            status: 'running',
+            cwd: workspaceRoot,
+            commandPreview: "printf 'hello' > agenthub-permission.txt",
+            input: { command: "printf 'hello' > agenthub-permission.txt" },
+          },
+        }
+        yield {
+          observedAction: {
+            id: 'cmd-write-observed',
+            toolName: 'command_execution',
+            actionKind: 'shell_command',
+            status: 'completed',
+            cwd: workspaceRoot,
+            commandPreview: "printf 'hello' > agenthub-permission.txt",
+            output: 'wrote file',
+            exitCode: 0,
+          },
+        }
+      },
+    }
+    const job: RuntimeJob = {
+      runtimeSessionId: 'runtime-observed-approval',
+      workspaceId: 'ws-001',
+      sessionId: 'session-001',
+      ownerId: 'user-001',
+      runtimeType: 'codex',
+      permissionMode: 'manual',
+      workspaceRoot,
+      cwd: workspaceRoot,
+      prompt: 'write file',
+      planNodeId: 'node-runtime-001',
+      attemptId: 'attempt-runtime-observed-approval',
+      mailboxItemId: 'mailbox-runtime-observed-approval',
+    }
+
+    const result = await processJob(job, executor)
+
+    expect(result).toBe('waiting')
+    expect(dbInserts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        row: expect.objectContaining({
+          owner_id: 'user-001',
+          action_type: 'shell_command',
+          command: "printf 'hello' > agenthub-permission.txt",
+          status: 'pending',
+          requires_approval: true,
+          result: expect.objectContaining({
+            source: 'runtime_permission_broker',
+            toolCallId: 'cmd-write-observed',
+            toolName: 'command_execution',
+            runtimeType: 'codex',
+            permissionMode: 'manual',
+          }),
+        }),
+      }),
+    ]))
+    expect(published).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'approval_requested',
+          actionId: 'action-runtime-approval',
+          actionKind: 'shell_command',
+          commandPreview: "printf 'hello' > agenthub-permission.txt",
+          workspaceRoot,
+        }),
+      }),
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: 'runtime_waiting',
+          waitingFor: 'approval',
+        }),
+      }),
+    ]))
+    expect(published.some((p) => p.event.type === 'runtime_observed_action' && p.event.status === 'completed')).toBe(false)
+    expect(dbUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'runtime_sessions', status: 'waiting' }),
+      expect.objectContaining({ table: 'plan_node_attempts', status: 'waiting', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({ table: 'agent_mailbox_items', status: 'waiting', error: 'Runtime 工具已进入权限审批，未执行该操作。' }),
+      expect.objectContaining({ table: 'plan_nodes', status: 'waiting', completed_at: null }),
     ]))
   })
 

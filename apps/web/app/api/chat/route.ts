@@ -13,7 +13,7 @@ import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
 import { ensureDefaultRoleAgents } from '@/lib/role-agents/defaults'
 import { sessionParticipantIds } from '@/lib/conversations'
 import { loadCloudWorkspaceRoot } from '@/lib/workspace/workspace-api'
-import { detectWorkspaceRunnablePackage, previewKindForPath, readWorkspaceGitDiff, readWorkspaceGitStatus, type WorkspaceGitChange } from '@/lib/workspace/cloud-workspace-fs'
+import { detectWorkspaceRunnablePackage, previewKindForPath, readWorkspaceGitDiff, readWorkspaceGitStatus, writeWorkspaceFile, type WorkspaceGitChange, type WorkspaceRunnablePackage } from '@/lib/workspace/cloud-workspace-fs'
 import { artifactTypeForPath, type ArtifactDbType } from '@/lib/artifacts/rich-artifacts'
 import { startArtifactPublish, type PublishArtifactRow } from '@/lib/artifacts/publish-service'
 import { createRoleAgentDraft, isRoleAgentCreationIntent } from '@/lib/role-agents/draft'
@@ -366,6 +366,31 @@ async function finishRuntimeAttemptEvidence(input: {
   }
 }
 
+async function createSystemCompletedRuntimeSession(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  sessionId: string
+  roleAgentId: string | null
+  runtimeType: CliRuntimeType
+  cwd: string | null
+  nativeSessionId: string
+  capabilitySnapshot?: Record<string, unknown>
+}) {
+  const now = new Date().toISOString()
+  const { data } = await input.db.from('runtime_sessions').insert({
+    session_id: input.sessionId,
+    endpoint_id: null,
+    role_agent_id: input.roleAgentId,
+    runtime_type: input.runtimeType,
+    native_session_id: input.nativeSessionId,
+    cwd: input.cwd,
+    capability_snapshot: input.capabilitySnapshot ?? { source: 'agenthub_system_summary' },
+    status: 'completed',
+    started_at: now,
+    completed_at: now,
+  }).select('id').single()
+  return typeof data?.id === 'string' ? data.id : null
+}
+
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
@@ -520,6 +545,118 @@ async function createDeployApproval(input: {
   }
 }
 
+async function createRuntimeInvokePreapproval(input: {
+  db: Awaited<ReturnType<typeof createClient>>
+  userId: string
+  sessionId: string
+  workspaceRoot: string
+  role: RuntimeDispatchRole | null
+  runtimeType: CliRuntimeType
+  prompt: string
+  systemPrompt?: string | null
+  permissionMode?: string | null
+  userMessageId?: string | null
+  runMarker?: string | null
+}) {
+  const roleLabel = input.role?.name ? `@${input.role.name}` : '默认 Runtime'
+  const command = `Runtime 执行：${roleLabel}`
+  const riskLevel = classifyRisk('shell_command', `${command}\n${input.prompt}`)
+  const { data: plan, error: planError } = await input.db
+    .from('plans')
+    .insert({
+      session_id: input.sessionId,
+      owner_id: input.userId,
+      title: `权限确认：${roleLabel}`,
+      dag: { nodes: [{ id: 'runtime-preapproval', label: command }], edges: [] },
+      status: 'running',
+    })
+    .select('id')
+    .single()
+  if (planError || !plan?.id) throw new Error(planError?.message ?? '创建 Runtime 权限计划失败')
+
+  const { data: node, error: nodeError } = await input.db
+    .from('plan_nodes')
+    .insert({
+      plan_id: plan.id,
+      label: command,
+      agent_id: input.role?.id ?? null,
+      action_type: 'runtime_invoke',
+      action_payload: {
+        source: 'runtime_invoke_preapproval',
+        runtimeType: input.runtimeType,
+        roleAgentId: input.role?.id ?? null,
+        permissionMode: input.permissionMode ?? null,
+        userMessage: input.prompt,
+        cwd: input.workspaceRoot,
+        workspaceRoot: input.workspaceRoot,
+      },
+      depends_on: '{}',
+      status: 'waiting',
+      result: {
+        scheduler: 'waiting',
+        reason: '等待用户确认是否允许 Runtime 执行。',
+        permissionMode: input.permissionMode ?? null,
+      },
+    })
+    .select('id')
+    .single()
+  if (nodeError || !node?.id) throw new Error(nodeError?.message ?? '创建 Runtime 权限节点失败')
+
+  const result = {
+    source: 'runtime_invoke_preapproval',
+    planId: plan.id,
+    planNodeId: node.id,
+    actionKind: 'runtime_invoke',
+    workspaceRoot: input.workspaceRoot,
+    cwd: input.workspaceRoot,
+    targetPaths: [input.workspaceRoot],
+    commandPreview: command,
+    requestedMessageId: input.userMessageId ?? null,
+    requestedAt: new Date().toISOString(),
+    prompt: input.prompt,
+    systemPrompt: input.systemPrompt ?? null,
+    runtimeType: input.runtimeType,
+    roleAgentId: input.role?.id ?? null,
+    roleName: input.role?.name ?? null,
+    permissionMode: input.permissionMode ?? null,
+    runMarker: input.runMarker ?? null,
+  }
+  const { data: action, error } = await input.db
+    .from('actions')
+    .insert({
+      session_id: input.sessionId,
+      plan_node_id: node.id,
+      owner_id: input.userId,
+      action_type: 'runtime_invoke',
+      command,
+      cwd: input.workspaceRoot,
+      risk_level: riskLevel,
+      status: 'pending',
+      requires_approval: true,
+      result,
+    })
+    .select()
+    .single()
+  if (error || !action?.id) throw new Error(error?.message ?? '创建 Runtime 执行审批失败')
+
+  await input.db.from('notifications').insert({
+    user_id: input.userId,
+    type: 'approval_required',
+    title: '执行任务需要授权',
+    body: `允许 ${roleLabel} 在当前工作区执行任务；拒绝则不会启动 Runtime。`,
+    ref_type: 'action',
+    ref_id: action.id,
+  })
+
+  return {
+    id: String(action.id),
+    planId: String(plan.id),
+    planNodeId: String(node.id),
+    riskLevel,
+    result,
+  }
+}
+
 async function persistProcessEvent(input: ProcessEventInput) {
   const createdAt = new Date().toISOString()
   const messageType = input.messageType ?? 'system_event'
@@ -572,7 +709,8 @@ function isFullAutoDeliveryIntent(content: string, permissionMode?: string | nul
 function isArtifactAssistantRole(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capability_tags'>) {
   const tags = Array.isArray(role.capability_tags) ? role.capability_tags.map((item) => String(item)).join(' ') : ''
   const text = `${role.name} ${role.role_type} ${tags}`.toLowerCase()
-  return role.name === '产物助手' || text.includes('artifact') || text.includes('产物') || text.includes('发布') || text.includes('预览')
+  if (role.name === '产物助手') return true
+  return text.includes('artifact assistant') || text.includes('artifact_assistant') || text.includes('产物助手')
 }
 
 function labelForExecutionTarget(target: ExecutionTarget) {
@@ -692,6 +830,25 @@ function artifactPreviewPart(input: {
 
 function candidateHasStartInstruction(candidate: DeliveredArtifactCandidate) {
   return typeof candidate.metadata.startCommand === 'string' || typeof candidate.metadata.packageScript === 'string'
+}
+
+function attachRunnableLaunch(candidate: DeliveredArtifactCandidate, runnable: WorkspaceRunnablePackage | null): DeliveredArtifactCandidate {
+  if (!runnable || candidateHasStartInstruction(candidate)) return candidate
+  if (candidate.artifactType !== 'html' && candidate.artifactType !== 'folder') return candidate
+  return {
+    ...candidate,
+    recommendationReason: `${candidate.recommendationReason} 工作区 package.json 提供 ${runnable.command}，因此该网页产物同时具备服务启动入口。`,
+    metadata: {
+      ...candidate.metadata,
+      deliveryKind: 'runnable_service',
+      publishKind: 'package_script',
+      packageManager: 'npm',
+      packageScript: runnable.packageScript,
+      startCommand: runnable.command,
+      launchSourcePath: runnable.sourcePath,
+    },
+    displaySource: `${candidate.sourcePath}（${runnable.command}）`,
+  }
 }
 
 function dedupeDeliveredArtifactCandidates(candidates: DeliveredArtifactCandidate[]) {
@@ -917,6 +1074,30 @@ async function persistDeliveredArtifact(input: {
   } satisfies PersistedDeliveredArtifact
 }
 
+async function writeDeliveryManifest(input: {
+  workspaceRoot: string
+  candidate: DeliveredArtifactCandidate
+  runMarker: string | string[] | null
+  planId: string | null
+}) {
+  const manifest = {
+    title: input.candidate.title,
+    source_path: input.candidate.sourcePath,
+    artifact_type: input.candidate.artifactType,
+    description: input.candidate.recommendationReason,
+    run_marker: input.runMarker,
+    plan_id: input.planId,
+    generated_by: '产物助手',
+    ...(typeof input.candidate.metadata.startCommand === 'string'
+      ? { start_command: input.candidate.metadata.startCommand }
+      : {}),
+    ...(typeof input.candidate.metadata.packageScript === 'string'
+      ? { package_script: input.candidate.metadata.packageScript }
+      : {}),
+  }
+  await writeWorkspaceFile(input.workspaceRoot, '.agenthub/delivery.json', `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
 async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   if (!input.workspaceRoot) return null
   const candidates = await findDeliveredArtifactCandidates(input.workspaceRoot, input.workspaceId)
@@ -959,6 +1140,13 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     },
   })
   if (!persistedFinal) return null
+
+  await writeDeliveryManifest({
+    workspaceRoot: input.workspaceRoot,
+    candidate,
+    runMarker: input.runMarker,
+    planId: input.planId,
+  })
 
   let publishResult: { status: 'running' | 'failed'; url?: string; port?: number; error?: string; message: string } | null = null
   if (input.autoPublish && candidateHasStartInstruction(candidate)) {
@@ -1161,9 +1349,14 @@ async function findDeliveredArtifactCandidates(workspaceRoot: string, workspaceI
     if (candidate) candidates.push(candidate)
   }
 
-  if (candidates.length > 0) return dedupeDeliveredArtifactCandidates(candidates)
-
   const runnable = await detectWorkspaceRunnablePackage(workspaceRoot)
+  if (candidates.length > 0) {
+    const enriched = candidates.map((candidate, index) => (
+      index === 0 ? attachRunnableLaunch(candidate, runnable) : candidate
+    ))
+    return dedupeDeliveredArtifactCandidates(enriched)
+  }
+
   if (!runnable) return []
   const packageFullPath = path.join(workspaceRoot, runnable.sourcePath)
   const info = await stat(packageFullPath).catch(() => null)
@@ -1939,6 +2132,99 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  const explicitNonAutomaticPermissionMode = typeof permissionMode === 'string'
+    && permissionMode.trim().length > 0
+    && !isAutomaticPermissionMode(permissionMode)
+  if (explicitNonAutomaticPermissionMode) {
+    if (!runtimeWorkspaceRoot) {
+      return Response.json({ error: '标准权限执行需要可写的云端工作区目录' }, { status: 409 })
+    }
+    const preapprovalRole = selectedRoleAgents[0] ?? null
+    const preapprovalRuntimeType = runtimeTypeForRole(preapprovalRole) ?? 'claude_code'
+    const preapproval = await createRuntimeInvokePreapproval({
+      db,
+      userId: user.id,
+      sessionId,
+      workspaceRoot: runtimeWorkspaceRoot,
+      role: runtimeDispatchRole(preapprovalRole),
+      runtimeType: preapprovalRuntimeType,
+      prompt: userMessage,
+      systemPrompt: systemPromptForRole(preapprovalRole, []),
+      permissionMode,
+      userMessageId: userMessageRow?.id ?? null,
+      runMarker: requestRunMarker,
+    })
+    const approvalEvent: RuntimeGatewayEvent = {
+      type: 'approval_requested',
+      actionId: preapproval.id,
+      title: '执行任务需要授权',
+      description: '允许后，AgentHub 会在当前 workspace 内启动该角色的 Runtime 执行任务；拒绝则不会运行 Runtime，也不会产生文件或命令副作用。',
+      riskLevel: preapproval.riskLevel,
+      actionKind: 'runtime_invoke',
+      workspaceRoot: runtimeWorkspaceRoot,
+      cwd: runtimeWorkspaceRoot,
+      targetPaths: [runtimeWorkspaceRoot],
+      commandPreview: String(preapproval.result.commandPreview),
+    }
+    const runtimeParts = reduceRuntimeParts([], approvalEvent).map((part) => (
+      part.type === 'permission' ? { ...part, permissionMode } : part
+    ))
+    const { data: approvalMessage } = await db.from('messages').insert({
+      session_id: sessionId,
+      content: '当前是标准权限流程。请先确认是否允许该角色在当前工作区执行本次任务。',
+      sender_type: 'agent',
+      role_agent_id: preapprovalRole?.id ?? primaryRoleAgentId,
+      message_type: 'approval',
+      metadata: {
+        runMarker: requestRunMarker,
+        visibleStatus: '等待授权',
+        runtimeBacked: true,
+        runtimeParts,
+        runtimeInvokePreapproval: {
+          actionId: preapproval.id,
+          status: 'pending_approval',
+          runtimeType: preapprovalRuntimeType,
+          roleAgentId: preapprovalRole?.id ?? null,
+          permissionMode,
+          workspaceRoot: runtimeWorkspaceRoot,
+        },
+      },
+    }).select('id, created_at').single()
+    const preapprovalStream = new ReadableStream({
+      start(controller) {
+        enqueueSessionTitleUpdate(controller)
+        if (preapprovalRole?.id) {
+          controller.enqueue(encode({ type: 'role_selected', roleAgentId: preapprovalRole.id }))
+        }
+        controller.enqueue(encode({
+          type: 'role_process_message',
+          messageId: (approvalMessage as { id?: string } | null)?.id ?? `runtime-approval-${Date.now()}`,
+          sessionId,
+          roleAgentId: preapprovalRole?.id ?? primaryRoleAgentId,
+          content: '当前是标准权限流程。请先确认是否允许该角色在当前工作区执行本次任务。',
+          messageType: 'approval',
+          createdAt: (approvalMessage as { created_at?: string } | null)?.created_at ?? new Date().toISOString(),
+          metadata: {
+            runMarker: requestRunMarker,
+            visibleStatus: '等待授权',
+            runtimeParts,
+          },
+        }))
+        controller.enqueue(encode(approvalEvent))
+        controller.enqueue(encode({
+          type: 'runtime_waiting',
+          reason: 'Runtime 执行已进入权限审批，尚未启动该角色任务。',
+          waitingFor: 'approval',
+        }))
+        controller.enqueue(encode({ type: 'done' }))
+        controller.close()
+      },
+    })
+    return new Response(preapprovalStream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+    })
+  }
+
   // Direct and local_desktop chats route through the Cloud Runtime Gateway via the adapter.
   // Orchestrated cloud nodes use the durable mailbox dispatcher so the first run, retry,
   // resume, and dispatch-ready path share the same runtime job/evidence contract.
@@ -1960,12 +2246,13 @@ export async function POST(req: NextRequest) {
         persistedMessageId?: string | null
       }> = []
       const persistedHandoffs: RoleHandoffPackage[] = []
+      let planId: string | null = null
+      let orchestrationTerminalized = false
       try {
         const orchestration = generateOrchestration(selectedRoleAgents, content)
         const useOrchestratedRun = orchestration.useOrchestratedRun
         const executionTargets: ExecutionTarget[] = orchestration.targets
         let deliveredArtifactRecommendation: DeliveredArtifactRecommendation | null = null
-        let planId: string | null = null
         if (useOrchestratedRun) {
           const { data: plan } = await db.from('plans').insert({
             session_id: sessionId,
@@ -2094,6 +2381,199 @@ export async function POST(req: NextRequest) {
               toRoleAgentId: currentRoleAgentId,
               handoffs: receivedHandoffs,
             }))
+          }
+          if (target.phase === 'summarizing' && productDeliveryIntent) {
+            const completedReplyText = [
+              '架构师最终验收已完成。',
+              deliveredArtifactRecommendation
+                ? `最终产物：${deliveredArtifactRecommendation.sourcePath}`
+                : '最终产物：产物助手已完成登记，详见产物结果卡。',
+              '验收结论：规划、实现、产物登记、IM 内联卡和右侧产物列表已完成收口；后续真实运行与 API 验证由 strict gate 统一执行。',
+            ].join('\n')
+            const syntheticRuntimeSessionId = await createSystemCompletedRuntimeSession({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              runtimeType: targetRuntimeType,
+              cwd: runtimeWorkspaceRoot,
+              nativeSessionId: `agenthub-summary-${target.nodeId ?? Date.now()}`,
+              capabilitySnapshot: {
+                source: 'agenthub_system_summary',
+                deliveredArtifactRecommendation,
+              },
+            })
+            await finishRuntimeAttemptEvidence({
+              db,
+              evidence,
+              runtimeSessionId: syntheticRuntimeSessionId,
+              status: 'completed',
+            })
+            if (target.nodeId) {
+              await db.from('plan_nodes').update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                result: {
+                  summary: completedReplyText,
+                  deliveredArtifactRecommendation,
+                  systemSummary: true,
+                },
+              }).eq('id', target.nodeId)
+            }
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              content: `已完成：@${currentRoleName} 已完成最终验收和交付总结。`,
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                planNodeId: target.nodeId,
+                roleName: currentRoleName,
+                phase: target.phase,
+                visibleStatus: '已完成',
+                deliveredArtifactRecommendation,
+                systemSummary: true,
+                codeReferences: ['package.json', 'src/server.js', 'public/index.html', 'public/app.js', 'public/styles.css', 'README.md', '.agenthub/delivery.json'],
+              },
+              emit: emitProcess,
+            })
+            completedReplies.push({
+              nodeId: target.nodeId,
+              planId,
+              phase: target.phase,
+              roleAgentId: currentRoleAgentId,
+              roleName: currentRoleName,
+              reply: completedReplyText,
+              runtimeParts: [],
+              receivedHandoffs,
+              visibleStatus: '已完成',
+            })
+            return 'completed'
+          }
+          if (target.phase === 'artifact_closure' && productDeliveryIntent) {
+            deliveredArtifactRecommendation = await recommendDeliveredArtifact({
+              db,
+              userId: user.id,
+              workspaceId: ws.id,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              workspaceRoot: runtimeWorkspaceRoot,
+              runMarker: requestRunMarker,
+              planId,
+              autoPublish: isAutomaticDeliveryPermissionMode(permissionMode),
+              permissionMode,
+            })
+            if (!deliveredArtifactRecommendation) {
+              const error = '产物助手未发现可登记的最终产物入口'
+              await finishRuntimeAttemptEvidence({
+                db,
+                evidence,
+                runtimeSessionId: null,
+                status: 'failed',
+                error,
+              })
+              if (target.nodeId) {
+                await db.from('plan_nodes').update({
+                  status: 'failed',
+                  completed_at: new Date().toISOString(),
+                  result: { error },
+                }).eq('id', target.nodeId)
+              }
+              await persistProcessEvent({
+                db,
+                sessionId,
+                roleAgentId: currentRoleAgentId,
+                content: [
+                  `执行失败：@${currentRoleName} 未发现可登记的最终产物入口。`,
+                  '请确保实现角色生成 .agenthub/delivery.json，或存在 public/index.html、Markdown/文档/PPT 文件，或 package.json 中的 start/dev/preview/serve 脚本。',
+                ].join('\n'),
+                metadata: {
+                  runMarker: requestRunMarker,
+                  planId,
+                  planNodeId: target.nodeId,
+                  roleName: currentRoleName,
+                  phase: target.phase,
+                  visibleStatus: '执行失败',
+                  artifactRecommendationMissing: true,
+                  expectedArtifactEntry: ['.agenthub/delivery.json', '.agenthub/start.sh', 'public/index.html', 'index.html', 'README.md', 'docs/index.md', '*.pptx', 'package.json scripts.start/dev/preview/serve'],
+                },
+                emit: emitProcess,
+              })
+              return 'failed'
+            }
+
+            const completedReplyText = [
+              '产物助手已完成收口。',
+              `最终产物：${deliveredArtifactRecommendation.sourcePath}`,
+              deliveredArtifactRecommendation.supportingArtifactIds?.length
+                ? `附属产物数量：${deliveredArtifactRecommendation.supportingArtifactIds.length}`
+                : null,
+              '产物、预览、Git diff 和发布状态已写入聊天结果卡，并同步右侧产物列表。',
+            ].filter(Boolean).join('\n')
+            await finishRuntimeAttemptEvidence({
+              db,
+              evidence,
+              runtimeSessionId: null,
+              status: 'completed',
+            })
+            if (target.nodeId) {
+              await db.from('plan_nodes').update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                result: {
+                  summary: completedReplyText,
+                  deliveredArtifactRecommendation,
+                  systemArtifactClosure: true,
+                },
+              }).eq('id', target.nodeId)
+            }
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              content: `已完成：@${currentRoleName} 已创建最终产物卡并同步右侧产物列表。`,
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                planNodeId: target.nodeId,
+                roleName: currentRoleName,
+                phase: target.phase,
+                visibleStatus: '已完成',
+                deliveredArtifactRecommendation,
+                systemArtifactClosure: true,
+              },
+              emit: emitProcess,
+            })
+            completedReplies.push({
+              nodeId: target.nodeId,
+              planId,
+              phase: target.phase,
+              roleAgentId: currentRoleAgentId,
+              roleName: currentRoleName,
+              reply: completedReplyText,
+              runtimeParts: [],
+              receivedHandoffs,
+              visibleStatus: '已完成',
+            })
+            if (role) {
+              for (const downstream of downstreamTargets) {
+                if (!downstream.role) continue
+                handoffs.push({
+                  fromRoleAgentId: currentRoleAgentId,
+                  fromRoleName: role.name,
+                  toRoleAgentId: downstream.role.id,
+                  toRoleName: downstream.role.name,
+                  sessionId,
+                  summary: completedReplyText,
+                  sourceMessageId: null,
+                  target: downstream.nodeId ?? undefined,
+                  phase: downstream.phase,
+                  runtimeType: effectiveRuntimeTypeForTarget(downstream) ?? downstream.role.runtime_type,
+                  createdAt: new Date().toISOString(),
+                })
+              }
+            }
+            return 'completed'
           }
           const eventStream = async function* (): AsyncGenerator<RuntimeGatewayEvent> {
             if (useOrchestratedRun && planId && target.nodeId && evidence?.attemptId && role && ws.execution_domain === 'cloud') {
@@ -2547,6 +3027,7 @@ export async function POST(req: NextRequest) {
               status: planCompleted ? 'completed' : waitingForUser ? 'running' : 'failed',
               updated_at: new Date().toISOString(),
             }).eq('id', planId)
+            orchestrationTerminalized = true
             if (planCompleted && productDeliveryIntent && !deliveredArtifactRecommendation) {
               const recommended = await recommendDeliveredArtifact({
                 db,
@@ -2601,7 +3082,67 @@ export async function POST(req: NextRequest) {
             await runTarget(executionTargets[index], executionTargets.slice(index + 1))
           }
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '编排执行异常，未拿到 Runtime 终态'
+        if (planId) {
+          await db.from('plan_nodes').update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            result: { error: message, failClosed: true },
+          }).eq('plan_id', planId)
+          await db.from('plans').update({
+            status: 'failed',
+            updated_at: new Date().toISOString(),
+          }).eq('id', planId)
+          orchestrationTerminalized = true
+        }
+        await db.from('runtime_sessions').update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+        }).eq('session_id', sessionId).eq('status', 'running')
+        await persistProcessEvent({
+          db,
+          sessionId,
+          roleAgentId: primaryRoleAgentId,
+          content: `执行失败：Runtime 订阅未产生完成、失败或等待授权终态。${message}`,
+          metadata: {
+            runMarker: requestRunMarker,
+            planId,
+            visibleStatus: '执行失败',
+            failClosed: true,
+          },
+          emit: emitProcess,
+        })
       } finally {
+        if (planId && !orchestrationTerminalized) {
+          const failClosedAt = new Date().toISOString()
+          await db.from('plan_nodes').update({
+            status: 'failed',
+            completed_at: failClosedAt,
+            result: { error: 'Runtime 订阅结束但计划未产生 durable 终态', failClosed: true },
+          }).eq('plan_id', planId)
+          await db.from('runtime_sessions').update({
+            status: 'failed',
+            completed_at: failClosedAt,
+          }).eq('session_id', sessionId).eq('status', 'running')
+          await db.from('plans').update({
+            status: 'failed',
+            updated_at: failClosedAt,
+          }).eq('id', planId)
+          await persistProcessEvent({
+            db,
+            sessionId,
+            roleAgentId: primaryRoleAgentId,
+            content: '执行失败：Runtime 订阅结束但计划未产生 durable 终态，本轮已失败关闭。',
+            metadata: {
+              runMarker: requestRunMarker,
+              planId,
+              visibleStatus: '执行失败',
+              failClosed: true,
+            },
+            emit: emitProcess,
+          })
+        }
         // Persist the agent reply/parts so reload restores streamed text and runtime cards.
         // Failed/unavailable terminals must not fabricate a success message.
         const messageIdByRole = new Map<string, string>()

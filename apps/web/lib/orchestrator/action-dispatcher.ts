@@ -86,6 +86,7 @@ function stringArrayValue(value: unknown): string[] {
 }
 
 function requiredToolForAction(actionType: string): RoleAgentToolId | null {
+  if (actionType === 'runtime_invoke') return null
   if (actionType === 'deploy') return 'publish_service'
   if (actionType === 'apply_diff') return 'diff_apply'
   if (actionType.startsWith('git_')) return 'git_cli'
@@ -754,10 +755,16 @@ export async function dispatchApprovedAction(
 
   const broker = runtimePermissionBrokerResult(action)
   const brokerRuntimeType = stringValue(broker?.runtimeType)
+  const result = objectValue(action.result)
+  const runtimeInvoke = result?.source === 'runtime_invoke_preapproval' ? result : null
+  const runtimeInvokeRuntimeType =
+    runtimeInvoke?.runtimeType === 'codex' || runtimeInvoke?.runtimeType === 'claude_code'
+      ? runtimeInvoke.runtimeType
+      : null
   const runtimeType = (brokerRuntimeType === 'codex' || brokerRuntimeType === 'claude_code')
     ? brokerRuntimeType
-    : action.runtime_type ?? 'claude_code'
-  const roleAgentId = stringValue(broker?.roleAgentId) ?? action.role_agent_id ?? undefined
+    : runtimeInvokeRuntimeType ?? action.runtime_type ?? 'claude_code'
+  const roleAgentId = stringValue(broker?.roleAgentId) ?? stringValue(runtimeInvoke?.roleAgentId) ?? action.role_agent_id ?? undefined
   const nativeToolPrompt = broker ? buildApprovedNativeToolPrompt(action, broker) : null
   if (broker && !nativeToolPrompt) {
     return recordDispatchFailure(db, action, 'unavailable', 'Runtime 原生工具审批缺少可执行元数据，已阻止。')
@@ -809,11 +816,12 @@ export async function dispatchApprovedAction(
     workspaceRoot,
     endpointId: endpoint.id ?? undefined,
     runtimeType,
-    permissionMode: stringValue(broker?.permissionMode),
+    permissionMode: broker ? stringValue(broker.permissionMode) : runtimeInvoke ? 'full_control' : null,
     roleAgentId,
     nativeSessionId: stringValue(broker?.nativeSessionId) ?? runtimeSession.nativeSessionId ?? null,
     cwd: runtimeSession.cwd,
-    prompt: approvedNativeToolPrompt ?? nativeToolPrompt ?? buildActionPrompt(action),
+    prompt: approvedNativeToolPrompt ?? nativeToolPrompt ?? stringValue(runtimeInvoke?.prompt) ?? buildActionPrompt(action),
+    systemPrompt: stringValue(runtimeInvoke?.systemPrompt) ?? undefined,
     actionId: action.id,
     actionResult: queuedActionResult,
     approvedNativeTool,

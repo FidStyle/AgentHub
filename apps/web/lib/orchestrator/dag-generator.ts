@@ -50,7 +50,8 @@ function isBackendRole(role: OrchestratedRole) {
 
 function isArtifactAssistantRole(role: OrchestratedRole) {
   const text = roleText(role)
-  return role.name === '产物助手' || text.includes('artifact') || text.includes('产物') || text.includes('发布') || text.includes('预览')
+  if (role.name === '产物助手') return true
+  return text.includes('artifact assistant') || text.includes('artifact_assistant') || text.includes('产物助手')
 }
 
 function isProductDeliveryIntent(task: string) {

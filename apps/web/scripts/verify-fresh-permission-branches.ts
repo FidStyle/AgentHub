@@ -217,13 +217,14 @@ async function createBranchContext(kind: BranchKind, marker: string) {
   const architect = roles.find((role) => role.is_orchestrator || role.name === '架构师')
   const backend = roles.find((role) => role.name === '后端工程师') ?? roles.find((role) => !role.is_orchestrator)
   if (!architect || !backend) throw new Error(`${kind} branch missing architect/backend roles: ${JSON.stringify(roles)}`)
+  const permissionRuntimeType = process.env.PERMISSION_BRANCH_RUNTIME_TYPE === 'claude_code' ? 'claude_code' : 'codex'
   for (const role of [architect, backend]) {
     const patched = await apiFetch(`/api/role-agents/${role.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ runtime_type: 'claude_code' }),
+      body: JSON.stringify({ runtime_type: permissionRuntimeType }),
     })
     if (!patched.ok) throw new Error(`${kind} PATCH role runtime failed (${patched.status}): ${await patched.text()}`)
-    role.runtime_type = 'claude_code'
+    role.runtime_type = permissionRuntimeType
   }
   const session = await jsonOrThrow<{ id: string }>(await apiFetch('/api/sessions', {
     method: 'POST',

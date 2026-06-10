@@ -49,10 +49,18 @@ export function createRoleAgentDraft(workspaceId: string, prompt: string): RoleA
   }
 }
 
+function isExistingRoleExecutionIntent(text: string) {
+  return /(分配|指派|派发|交给|让|请由|请让|调用|执行|实现|开发|修复|验证|验收).{0,40}(架构师|前端工程师|后端工程师|文档工程师|测试工程师|产物助手|演示稿工程师)/i.test(text) ||
+    /(架构师|前端工程师|后端工程师|文档工程师|测试工程师|产物助手|演示稿工程师).{0,40}(分配|指派|派发|执行|实现|开发|修复|验证|验收|创建文件|写入|使用真实文件写入工具)/i.test(text) ||
+    /(权限|approval|approve|reject|allow|拒绝|允许).{0,40}(路径|验收|验证|工具授权|权限控制)/i.test(text)
+}
+
 export function isRoleAgentCreationIntent(content: string, selectedRoleNames: string[] = []) {
   const text = content.trim()
   if (!text) return false
   if (selectedRoleNames.some((name) => name === 'Agent 创建助手')) return true
+  if (selectedRoleNames.some((name) => name && name !== 'Agent 创建助手') && isExistingRoleExecutionIntent(text)) return false
+  if (isExistingRoleExecutionIntent(text) && !/(新(的|建)|自定义|创建一个|创建一位|新增|添加).{0,12}(Agent|智能体|角色)/i.test(text)) return false
   return /(创建|新建|生成|配置|添加).{0,18}(Agent|智能体|角色|工程师|助手)/i.test(text) ||
     /(Agent|智能体|角色|工程师|助手).{0,18}(创建|新建|生成|配置|添加)/i.test(text)
 }

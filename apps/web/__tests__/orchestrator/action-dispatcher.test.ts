@@ -629,6 +629,63 @@ describe('dispatchApprovedAction', () => {
     }))
   })
 
+  it('queues runtime invoke preapproval with the original prompt after the user allows it', async () => {
+    const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
+    const { db, writes } = dispatchDb()
+
+    const result = await dispatchApprovedAction(db as never, {
+      id: 'action-runtime-preapproval',
+      session_id: 'session-001',
+      owner_id: 'user-001',
+      action_type: 'runtime_invoke',
+      command: 'Runtime 执行：@后端工程师',
+      cwd: workspaceRoot,
+      result: {
+        source: 'runtime_invoke_preapproval',
+        actionKind: 'runtime_invoke',
+        workspaceRoot,
+        cwd: workspaceRoot,
+        commandPreview: 'Runtime 执行：@后端工程师',
+        prompt: '请创建 agenthub-permission-allow.txt',
+        systemPrompt: '当前回复角色：@后端工程师',
+        runtimeType: 'codex',
+        roleAgentId: 'agent-be',
+        roleName: '后端工程师',
+        permissionMode: 'manual',
+      },
+    })
+
+    expect(result).toEqual({ status: 'queued', runtimeSessionId: 'runtime-001' })
+    expect(createSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      roleAgentId: 'agent-be',
+      runtimeType: 'codex',
+      cwd: workspaceRoot,
+    }))
+    expect(enqueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      actionId: 'action-runtime-preapproval',
+      runtimeType: 'codex',
+      roleAgentId: 'agent-be',
+      cwd: workspaceRoot,
+      prompt: '请创建 agenthub-permission-allow.txt',
+      systemPrompt: '当前回复角色：@后端工程师',
+      permissionMode: 'full_control',
+    }))
+    expect(writes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'actions',
+        id: 'action-runtime-preapproval',
+        values: expect.objectContaining({
+          status: 'running',
+          result: expect.objectContaining({
+            source: 'runtime_invoke_preapproval',
+            dispatch: 'queued',
+            runtimeSessionId: 'runtime-001',
+          }),
+        }),
+      }),
+    ]))
+  })
+
   it('executes brokered Claude Glob approvals as workspace-bound read enumeration', async () => {
     const { dispatchApprovedAction } = await import('@/lib/orchestrator/action-dispatcher')
     const { db } = dispatchDb()

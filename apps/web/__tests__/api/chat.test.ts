@@ -218,6 +218,62 @@ function chainCapturingInsertsWithRoles(roleAgents?: unknown[], messages?: unkno
   })
 }
 
+function chainCapturingRuntimePreapproval(roleAgents?: unknown[]) {
+  const base = createPostgresChain(undefined, undefined, undefined, undefined, roleAgents)
+  return vi.fn(() => {
+    const client = base()
+    const origFrom = client.from
+    client.from = vi.fn((table: string) => {
+      const t = origFrom(table)
+      if (table === 'messages') {
+        const origInsert = t.insert
+        t.insert = (vals: Record<string, unknown>) => {
+          insertedMessages.push(vals)
+          return origInsert(vals)
+        }
+      }
+      if (table === 'plans') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: 'plan-runtime-preapproval-001', ...vals }
+            insertedPlans.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+        }
+      }
+      if (table === 'plan_nodes') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: 'node-runtime-preapproval-001', ...vals }
+            insertedPlanNodes.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+        }
+      }
+      if (table === 'actions') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: 'action-runtime-preapproval-001', ...vals }
+            insertedActions.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+        }
+      }
+      if (table === 'notifications') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: 'notification-runtime-preapproval-001', ...vals }
+            insertedNotifications.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+        }
+      }
+      return t
+    })
+    return client
+  })
+}
+
 function chainCapturingDeployApproval(roleAgents?: unknown[]) {
   const base = createPostgresChain(undefined, undefined, undefined, undefined, roleAgents)
   return vi.fn(() => {
@@ -374,6 +430,7 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(arg.systemPrompt).toContain('Do not infer stack, package manager, AGENTS.md, Trellis, or monorepo context from the AgentHub host repository.')
     expect(arg.systemPrompt).toContain('不要调用 AskUserQuestion 或停下来询问可选项')
     expect(arg.systemPrompt).toContain('Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS')
+    expect(arg.systemPrompt).toContain('不要导入未在 package.json 声明的 supertest')
     expect(arg.systemPrompt).toContain('node src/server.js')
     expect(arg.systemPrompt).toContain('直接启动 HTTP 服务')
     expect(arg.systemPrompt).toContain('不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent')
@@ -472,6 +529,117 @@ describe('POST /api/chat — role-chat-core', () => {
         runtime_type: 'codex',
         enabled_tool_ids: expect.arrayContaining(['file_read', 'file_write', 'artifact_store']),
         capability_tags: expect.arrayContaining(['自建Agent', '文档']),
+      }),
+    })
+  })
+
+  it('does not route implementation permission prompts with existing role names to agent draft creation', async () => {
+    setupMockClient(chainCapturingRuntimePreapproval([
+      {
+        id: 'agent-backend',
+        workspace_id: 'ws-001',
+        name: '后端工程师',
+        role_type: 'engineer',
+        system_prompt: '负责后端实现',
+        capability_tags: ['后端', '数据库'],
+        runtime_type: 'codex',
+        is_orchestrator: false,
+        enabled_tool_ids: ['file_read', 'file_write'],
+      },
+    ]))
+
+    const { status, text } = await callChat({
+      sessionId: 'session-001',
+      content: [
+        'P1 权限允许路径验证 PERMISSION-BRANCH-UNIT-ALLOW',
+        '请由架构师分配后端工程师，后端工程师必须使用真实文件写入工具，在当前工作区创建文件 agenthub-permission-allow.txt，内容必须是：ALLOW PERMISSION-BRANCH-UNIT-ALLOW',
+        '这是手动权限控制验收：不要请求额外信息；遇到 Runtime 工具授权时等待用户处理。',
+      ].join('\n'),
+      roleAgentIds: ['agent-backend'],
+      permissionMode: 'manual',
+      runMarker: 'PERMISSION-BRANCH-UNIT-ALLOW',
+    })
+
+    expect(status).toBe(200)
+    expect(text).toContain('"type":"approval_requested"')
+    expect(text).toContain('"type":"runtime_waiting"')
+    expect(text).not.toContain('"type":"agent_draft"')
+    expect(invokeSpy).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(insertedPlans).toEqual([
+      expect.objectContaining({
+        id: 'plan-runtime-preapproval-001',
+        session_id: 'session-001',
+        owner_id: 'user-001',
+        title: '权限确认：@后端工程师',
+        status: 'running',
+      }),
+    ])
+    expect(insertedPlanNodes).toEqual([
+      expect.objectContaining({
+        id: 'node-runtime-preapproval-001',
+        plan_id: 'plan-runtime-preapproval-001',
+        label: 'Runtime 执行：@后端工程师',
+        agent_id: 'agent-backend',
+        action_type: 'runtime_invoke',
+        status: 'waiting',
+        result: expect.objectContaining({
+          scheduler: 'waiting',
+          permissionMode: 'manual',
+        }),
+      }),
+    ])
+    expect(insertedActions).toEqual([
+      expect.objectContaining({
+        id: 'action-runtime-preapproval-001',
+        plan_node_id: 'node-runtime-preapproval-001',
+        action_type: 'runtime_invoke',
+        command: 'Runtime 执行：@后端工程师',
+        cwd: mockWorkspaceRoot,
+        status: 'pending',
+        requires_approval: true,
+        result: expect.objectContaining({
+          source: 'runtime_invoke_preapproval',
+          planId: 'plan-runtime-preapproval-001',
+          planNodeId: 'node-runtime-preapproval-001',
+          actionKind: 'runtime_invoke',
+          workspaceRoot: mockWorkspaceRoot,
+          cwd: mockWorkspaceRoot,
+          runtimeType: 'codex',
+          roleAgentId: 'agent-backend',
+          roleName: '后端工程师',
+          permissionMode: 'manual',
+          runMarker: 'PERMISSION-BRANCH-UNIT-ALLOW',
+          prompt: expect.stringContaining('agenthub-permission-allow.txt'),
+          systemPrompt: expect.stringContaining('当前回复角色：@后端工程师'),
+        }),
+      }),
+    ])
+    expect(insertedNotifications).toEqual([
+      expect.objectContaining({
+        type: 'approval_required',
+        title: '执行任务需要授权',
+        ref_type: 'action',
+        ref_id: 'action-runtime-preapproval-001',
+      }),
+    ])
+    const permissionMessage = insertedMessages.find((message) => (
+      (message.metadata as { runtimeParts?: Array<{ type?: string; actionId?: string }> } | null)?.runtimeParts?.some((part) => (
+        part.type === 'permission' && part.actionId === 'action-runtime-preapproval-001'
+      ))
+    ))
+    expect(permissionMessage).toMatchObject({
+      sender_type: 'agent',
+      role_agent_id: 'agent-backend',
+      metadata: expect.objectContaining({
+        visibleStatus: '等待授权',
+        runtimeInvokePreapproval: expect.objectContaining({
+          actionId: 'action-runtime-preapproval-001',
+          status: 'pending_approval',
+          runtimeType: 'codex',
+          roleAgentId: 'agent-backend',
+          permissionMode: 'manual',
+        }),
       }),
     })
   })
@@ -718,6 +886,11 @@ describe('POST /api/chat — role-chat-core', () => {
           }
           return {
             select: () => runtimeChain,
+            insert: (vals: Record<string, unknown>) => ({
+              select: () => ({
+                single: () => ({ data: { id: 'runtime-summary', ...vals }, error: null }),
+              }),
+            }),
           }
         }
         if (table === 'actions') {
@@ -802,6 +975,7 @@ describe('POST /api/chat — role-chat-core', () => {
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('Do not infer stack, package manager, AGENTS.md, Trellis, or monorepo context from the AgentHub host repository.')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('不要调用 AskUserQuestion 或停下来询问可选项')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('Node.js + Express + better-sqlite3 + 原生 HTML/CSS/JS')
+    expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('不要导入未在 package.json 声明的 supertest')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('node src/server.js')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('直接启动 HTTP 服务')
     expect(String(firstMockArg(enqueueMock.mock.calls[1]).systemPrompt)).toContain('不要调用 Claude 内部编排工具 TaskCreate、TaskUpdate、TodoWrite 或 Agent')
@@ -938,6 +1112,11 @@ describe('POST /api/chat — role-chat-core', () => {
           }
           return {
             select: () => runtimeChain,
+            insert: (vals: Record<string, unknown>) => ({
+              select: () => ({
+                single: () => ({ data: { id: 'runtime-summary', ...vals }, error: null }),
+              }),
+            }),
           }
         }
         if (table === 'actions') {
@@ -1014,17 +1193,23 @@ describe('POST /api/chat — role-chat-core', () => {
     expect((summarizerNode?.depends_on as string)).toContain(String(artifactNode?.id))
     expect(insertedAttempts).toHaveLength(5)
     expect(insertedAttempts.every((attempt) => attempt.status === 'completed')).toBe(true)
-    expect(insertedAttempts.every((attempt) => attempt.runtime_session_id === 'runtime-latest')).toBe(true)
+    expect(insertedAttempts.map((attempt) => attempt.runtime_session_id)).toEqual([
+      'runtime-latest',
+      'runtime-latest',
+      'runtime-latest',
+      null,
+      'runtime-summary',
+    ])
     expect(insertedMailboxItems.map((mailbox) => mailbox.to_role_agent_id)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-artifact', 'agent-orch'])
     expect(insertedMailboxItems.map((mailbox) => mailbox.runtime_type)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
     expect(createSessionMock.mock.calls.every((call) => call[0].cwd === mockWorkspaceRoot)).toBe(true)
-    expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-be', 'agent-fe', 'agent-artifact', 'agent-orch'])
-    expect(createSessionMock.mock.calls.map((call) => call[0].runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
+    expect(createSessionMock.mock.calls.map((call) => call[0].roleAgentId)).toEqual(['agent-orch', 'agent-be', 'agent-fe'])
+    expect(createSessionMock.mock.calls.map((call) => call[0].runtimeType)).toEqual(['codex', 'codex', 'codex'])
     expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).cwd === mockWorkspaceRoot)).toBe(true)
     expect(enqueueMock.mock.calls.every((call) => firstMockArg(call).suppressPlanProgress === true)).toBe(true)
-    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
-    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3', 'attempt-4', 'attempt-5'])
-    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3', 'mailbox-4', 'mailbox-5'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).runtimeType)).toEqual(['codex', 'codex', 'codex'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).attemptId)).toEqual(['attempt-1', 'attempt-2', 'attempt-3'])
+    expect(enqueueMock.mock.calls.map((call) => firstMockArg(call).mailboxItemId)).toEqual(['mailbox-1', 'mailbox-2', 'mailbox-3'])
     expect(insertedPlanNodes.map((node) => (node.action_payload as Record<string, unknown>).runtimeType)).toEqual(['codex', 'codex', 'codex', 'codex', 'codex'])
     expect(insertedMessages[0].metadata).toMatchObject({
       mentions: ['agent-orch', 'agent-be', 'agent-fe', 'agent-artifact'],
@@ -1074,8 +1259,12 @@ describe('POST /api/chat — role-chat-core', () => {
       'diff',
       'artifact',
       'web_preview',
+      'publish_status',
     ]))
-    expect(partTypesFromMessage(artifactResultMessage)).not.toContain('publish_status')
+    const publishParts = partsFromMessage(artifactResultMessage).filter((part) => part.type === 'publish_status')
+    expect(publishParts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'running' }),
+    ]))
     const diffParts = partsFromMessage(artifactResultMessage).filter((part) => part.type === 'diff')
     expect(diffParts).toEqual(expect.arrayContaining([
       expect.objectContaining({ applicable: true }),
