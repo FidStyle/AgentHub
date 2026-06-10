@@ -20,6 +20,20 @@
 
 ## P0 任务
 
+### ARTIFACT-ASSISTANT-CLOSURE-2026-06-10: 产物助手交付收口流程
+
+| 字段 | 内容 |
+|------|------|
+| **优先级** | P0/P1 |
+| **绑定 FR-ID** | FR-ORCH-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-DOCS-201, FR-PUBLISH-201 |
+| **对应计划** | 用户 2026-06-10 确认的产物助手方向；`.trellis/spec/cross-layer/im-conversation-artifact-contract.md`；`.trellis/spec/cross-layer/real-flow-product-delivery.md` |
+| **当前状态** | ✅ focused implementation passed（2026-06-10）：已在代码层落地内置 `产物助手` 作为产品交付收口角色，并同步更新 PRD、产品设计、技术设计、模块文档和决策记录。 |
+| **目标** | 在前端、后端、文档、PPT 等角色完成后，由 `产物助手` 判断产物类型，主动创建主产物和辅助产物，在 IM 中生成 artifact/preview/publish 卡，并同步右侧 Artifacts；标准权限由用户启动/确认，完全权限可自动启动但必须留下审计卡。 |
+| **方案摘要** | 新增默认角色 `产物助手`；产品交付 DAG 在 worker 后、架构师汇总前追加 `产物助手收口`；结果卡作者归属产物助手；支持一个 `final_product_candidate` 和多个 `supporting_product_artifact`；服务型产物支持启动脚本/发布状态，Markdown/PPT/图片等辅助产物走预览/下载；右侧 Artifacts 移除聊天外“新建富文档 / 新建演示稿”入口。 |
+| **测试证据** | Commit `e142487 实现产物助手收口流程`；`pnpm --filter @agenthub/web test -- api/chat.test.ts message-markdown.test.ts orchestrator.test.ts` PASS；`pnpm --filter @agenthub/web type-check` PASS；`pnpm --filter @agenthub/shared type-check` PASS；`pnpm --filter @agenthub/web lint` PASS；`git diff --check` PASS。 |
+| **阻塞问题** | 本条 focused tests 通过，但没有在本轮重新跑 fresh full-control + manual allow/reject + Web/Mobile/Desktop 全真实 UAT；因此不能替代 `BYTEDANCE-P0-P1-REAL-STEP-UAT` 的 fresh gate。PPT 转 PDF、ppt-master 角色化、完整部署平台仍按 P2/后续验收处理。 |
+| **下一步动作** | 后续任何“产物助手全链路完成”声明必须重跑标准权限允许后续跑、完全权限自动启动、聊天内 Git/Diff/Iframe/产物卡、右侧 Artifacts 读回、刷新状态不丢和停止服务的 E2E/UAT。 |
+
 ### BYTEDANCE-P0-P1-REAL-STEP-UAT: Bytedance P0/P1 Real-Step UAT 当前验收
 
 | 字段 | 内容 |

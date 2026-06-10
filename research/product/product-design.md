@@ -66,7 +66,15 @@ Diff 是展示材料，不是独立授权类型。需要用户确认的是 Orche
 
 对应需求：`FR-PERM-001`, `FR-NOTIFY-001`, `FR-RESULT-001`。
 
-### 2.5 三端按场景分工
+### 2.5 产物创建和收口聊天优先
+
+用户不需要在右侧面板手工选择“哪个文件算产物”。产品交付链路应由 Orchestrator 分派执行角色，再由内置 `产物助手` 在聊天流中完成收口：判断产物类型、创建主产物和辅助产物、生成预览/发布卡，并同步右侧 Artifacts 列表。
+
+右侧 Artifacts 是读取、预览、启动、停止、下载和回链产物的工作面，不是绕过聊天和角色链路的新建中心。文档、PPT、网页或服务都应先通过正常对话和角色执行产生，再由产物助手登记。
+
+对应需求：`FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-ORCH-001`, `FR-ACTION-001`。
+
+### 2.6 三端按场景分工
 
 Web 提供完整信息密度；Desktop 提供可持续操作的本地主界面，包含本地连接、Runtime 检测、Agent 配置中心、本地策略、本地 Agent 运行态和轻量会话；Mobile 只保留轻量消息、远程监督授权、进度和产物预览。Desktop 不复制完整 Web 三栏工作台，也不提供二次确认中心。Mobile 不提供本地 Runtime 接入，也不做复杂代码编辑。
 
@@ -183,7 +191,7 @@ User
 | --- | --- | --- |
 | Context | 已 pin 消息、handoff 上下文包、相关文件、当前 Session 参与 Role Agent | `FR-CTX-001`, `FR-AGENT-001`, `FR-RUNTIME-001` |
 | Changes | 编排计划、授权动作、运行结果、Git diff、文件变更、测试/构建输出摘要 | `FR-PERM-001`, `FR-RESULT-001`, `FR-ACTION-001` |
-| Artifacts | 文件引用、图片、代码块、可复用产物和预览链接 | `FR-ARTIFACT-001`, `FR-RESULT-001` |
+| Artifacts | 从 durable Artifact API 读取的主产物、辅助产物、文件引用、图片、代码块、预览链接和发布状态 | `FR-ARTIFACT-001`, `FR-RESULT-001` |
 
 状态：
 
@@ -192,6 +200,8 @@ User
 - `preview-unavailable`: 无预览或 Action 未启动。
 - `permission-required`: 需要授权 Action 才能生成预览或继续执行。
 - `desktop-offline`: 本地预览依赖 Desktop Connector，但 Connector 不在线。
+
+Artifacts Tab 不提供“新建富文档”或“新建演示稿”按钮。创建文档、PPT、网页、服务或混合产物的入口仍然是聊天流和角色链路；右侧只负责展示、预览、启动/停止、下载、定位来源消息和回到上下文。
 
 对应需求：`FR-WEB-001`, `FR-CTX-001`, `FR-ACTION-001`。
 
@@ -416,7 +426,8 @@ Mobile 必须隐藏或降级以下复杂操作：
 8. Orchestrator 为 ready 节点构造 Context Package 并分派给 Role Agent；同一并行组内无冲突节点可以同时执行。
 9. Role Agent 执行并回传节点状态。
 10. Orchestrator 在节点完成后重新计算 ready、waiting、blocked、failed。
-11. Orchestrator 汇总结果并给出下一步建议。
+11. 对产品交付类任务，系统在实现角色完成后插入 `产物助手收口` 节点。产物助手判断任务属于网页/服务启动脚本、Markdown 文档、PPT、图片或混合产物，创建一个主产物和若干辅助产物，并在 IM 中生成预览/发布卡。
+12. Orchestrator 或架构师基于产物助手的收口结果做最终汇总，并给出下一步建议。
 
 计划卡 P0 展示规则：
 
@@ -424,6 +435,7 @@ Mobile 必须隐藏或降级以下复杂操作：
 - 每个节点展示 Role Agent、目标、依赖、状态、预期产物和风险等级。
 - 并行节点用同一分组或「可并行」标识展示。
 - 节点失败时展示受影响的等待节点，并提供重试、跳过、调整计划、停止。
+- 产品交付类计划展示 `产物助手收口`，但把它标识为交付收口节点，而不是普通实现角色。
 - 用户要求修改计划时，系统生成新的 plan version，并重新进入确认。
 
 自动推进规则：
@@ -605,6 +617,10 @@ P0 不提供：
 - 网页预览。
 - Diff。
 - Action 状态。
+- 文档预览。
+- 演示稿预览。
+- 发布/运行状态。
+- 主产物候选和辅助产物。
 
 统一操作：
 
@@ -612,6 +628,9 @@ P0 不提供：
 - 复制。
 - Pin。
 - Handoff 给 Role Agent。
+- 打开预览或全屏预览。
+- 下载文件。
+- 服务型主产物可启动、打开 URL、停止并查看失败原因。
 
 代码块要求：
 
@@ -624,6 +643,14 @@ Diff 要求：
 - 作为展示材料出现。
 - 支持展开查看。
 - 不单独触发授权。
+
+产物助手交付卡要求：
+
+- 由 `产物助手` 作为消息作者或结果角色展示，不由架构师代写产物列表。
+- 只显示一个主启动/发布入口；混合输出中的 Markdown、PPT、图片和静态文件显示为辅助产物。
+- 标准权限下，启动服务或执行发布命令必须等待用户点击并通过权限卡确认。
+- 完全权限下，服务型主产物可以自动启动，但聊天流仍显示自动通过的权限审计和 `running` / `failed` 发布状态。
+- 右侧 Artifacts 列表读取同一批 durable artifact rows，不能用本地按钮另建不在聊天记录里的产物。
 
 对应需求：`FR-ARTIFACT-001`, `FR-PERM-001`。
 
@@ -749,12 +776,12 @@ Diff 要求：
 
 | 产品问题 | 技术设计结论 | 主章节 |
 | --- | --- | --- |
-| Desktop Connector 使用 Electron 还是 Tauri | P0 使用 Electron；Tauri 作为 P2 评估项 | `technical-design.md` 第 2、15.2 章 |
-| Mobile P0 是响应式 Web/PWA 还是独立移动壳 | P0 使用响应式 Web/PWA；Android App 预留 Capacitor | `technical-design.md` 第 2、15.3 章 |
-| Claude Code/Codex 如何保持原生会话连续 | Desktop Connector 调 CLI 子进程，记录 native session ID，优先 resume/continue | `technical-design.md` 第 10、12 章 |
-| Cloud Workspace 与 Local Desktop Workspace 如何隔离 | Workspace 创建后执行域不可变，Runtime/Action 必须匹配执行域 | `technical-design.md` 第 5 章 |
-| Action/CLI Adapter 如何请求、确认和回传 | 使用统一 `ActionRequest`、权限矩阵和 Runtime/Action 事件 | `technical-design.md` 第 13、16 章 |
-| 授权动作通过什么通道同步 | 数据库为真相源，database-backed realtime 同步状态；Desktop 执行请求走 DeviceChannel | `technical-design.md` 第 8、9、13 章 |
-| 三端代码如何共享 | `packages/shared` 承载领域模型、协议和状态机；不承诺 Web UI 组件迁移到 React Native | `technical-design.md` 第 3、15 章 |
+| Desktop Connector 使用 Electron 还是 Tauri | P0 使用 Electron；Tauri 作为 P2 评估项 | `research/architecture/technical-design.md` 第 2、15.2 章 |
+| Mobile P0 是响应式 Web/PWA 还是独立移动壳 | P0 使用响应式 Web/PWA；Android App 预留 Capacitor | `research/architecture/technical-design.md` 第 2、15.3 章 |
+| Claude Code/Codex 如何保持原生会话连续 | Desktop Connector 调 CLI 子进程，记录 native session ID，优先 resume/continue | `research/architecture/technical-design.md` 第 10、12 章 |
+| Cloud Workspace 与 Local Desktop Workspace 如何隔离 | Workspace 创建后执行域不可变，Runtime/Action 必须匹配执行域 | `research/architecture/technical-design.md` 第 5 章 |
+| Action/CLI Adapter 如何请求、确认和回传 | 使用统一 `ActionRequest`、权限矩阵和 Runtime/Action 事件 | `research/architecture/technical-design.md` 第 13、16 章 |
+| 授权动作通过什么通道同步 | 数据库为真相源，database-backed realtime 同步状态；Desktop 执行请求走 DeviceChannel | `research/architecture/technical-design.md` 第 8、9、13 章 |
+| 三端代码如何共享 | `packages/shared` 承载领域模型、协议和状态机；不承诺 Web UI 组件迁移到 React Native | `research/architecture/technical-design.md` 第 3、15 章 |
 
 对应需求：`FR-DEVICE-001`, `FR-RUNTIME-001`, `FR-ACTION-001`, `FR-NOTIFY-001`。

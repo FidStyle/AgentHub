@@ -11,7 +11,7 @@
 | [../bytedance_init_prd.md](../bytedance_init_prd.md) | **最高产品事实源** — Bytedance 原始 PRD，PRD/产品/技术文档冲突时优先 |
 | [../bytedance_init_video_txt.txt](../bytedance_init_video_txt.txt) | **辅助产品事实源** — Bytedance 讲解转写，用于解释阶段、三端职责和 IM/Agent/Artifact 语义 |
 | [prd.md](./prd.md) | 派生 PRD 和 FR-ID 注册表，不是根事实源 |
-| [product-design.md](./product-design.md) | 产品设计：页面、用户流、组件状态 |
+| [product/product-design.md](./product/product-design.md) | 产品设计：页面、用户流、组件状态 |
 | [prd-amendments/](./prd-amendments/) | PRD 增补修订；Bytedance 对齐类修订可直接更新 master PRD 和下游设计文档 |
 | [prd-amendments/2026-05-31-three-surface-workbench-permission-model.md](./prd-amendments/2026-05-31-three-surface-workbench-permission-model.md) | 三端会话工作台、权限模式、Desktop Host、Mobile 远程监督和参考组件迁移修订 |
 | [prd-amendments/2026-06-02-complete-multi-agent-orchestration.md](./prd-amendments/2026-06-02-complete-multi-agent-orchestration.md) | 完整多 Agent 编排与交接修订：Orchestrator DAG、mailbox/handoff、角色 runtime 绑定和三端状态 |
@@ -32,10 +32,10 @@
 
 | 文档 | 说明 |
 |------|------|
-| [technical-design.md](./technical-design.md) | 技术路线、架构、数据模型、协议 |
-| [ui-design-system.md](./ui-design-system.md) | 三端 UI 设计系统、组件契约、视觉 E2E 门禁 |
-| [desktop-p0-ui-ux-contract.md](./desktop-p0-ui-ux-contract.md) | Desktop P0 UI/UX 契约 |
-| [automation-reference-comparison.md](./automation-reference-comparison.md) | 自动化执行参考比较 |
+| [architecture/technical-design.md](./architecture/technical-design.md) | 技术路线、架构、数据模型、协议 |
+| [product/ui-design-system.md](./product/ui-design-system.md) | 三端 UI 设计系统、组件契约、视觉 E2E 门禁 |
+| [product/desktop-p0-ui-ux-contract.md](./product/desktop-p0-ui-ux-contract.md) | Desktop P0 UI/UX 契约 |
+| [architecture/automation-reference-comparison.md](./architecture/automation-reference-comparison.md) | 自动化执行参考比较 |
 
 ## 模块调研
 

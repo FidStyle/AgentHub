@@ -39,11 +39,11 @@ interface ActionRequest {
 }
 ```
 
-P0 重点：
+P0/P1 当前重点：
 
 - `preview`: 启动 dev server 或返回 preview URL。
 - `test/build/shell`: 作为受控命令执行。
-- `deploy`: 只作为卡片和未来扩展，不做完整部署平台。
+- `deploy`: 当前用于服务型产物的启动、停止、URL、端口、失败原因和状态回写；不等同完整平台发布。
 
 对应需求：`FR-ACTION-001`, `FR-PERM-001`。
 
@@ -62,6 +62,13 @@ P0 重点：
 | 超长任务或高成本任务 | high | 必须确认 |
 
 注意：Git diff 展示不是审批类型。审批对象是 Action、计划、下一步或权限升级。
+
+服务型产物启动属于 Action/CLI Adapter 管理范围：
+
+- 标准、sandbox、auto 等非完全权限下，用户从聊天产物卡或右侧 Artifacts 点击启动，系统再按权限模型确认。
+- `full_control` / `dangerous_bypass` 可由产物助手自动启动，但仍写入自动通过审计卡和 `publish_status`。
+- 启动命令来源优先级为 `.agenthub/delivery.json` + `.agenthub/start.sh`，其次是 Artifact metadata 中的 `startCommand` / package script。
+- Markdown、PPT、图片等渲染型产物不走启动命令，除非 manifest 明确声明它同时也是服务入口。
 
 对应需求：`FR-PERM-001`, `FR-NOTIFY-001`。
 
@@ -88,6 +95,7 @@ P0 推荐：
 - 所有状态进入 Action 状态卡。
 - 执行输出摘要进入 Task Result Card。
 - Preview URL 作为 Artifact 或 Result 字段展示。
+- 产物助手创建的主服务产物可以通过同一 Action 模型启动、停止和刷新状态；辅助产物只提供预览/下载。
 
 ---
 
@@ -103,15 +111,15 @@ P0 推荐：
 
 ---
 
-## 7. 待用户确认
+## 7. 已确认口径
 
-**推荐确认项：**
+**历史选项：**
 
 A. P0 只实现 preview/test/build/shell 的 Action 模型，deploy 仅保留状态卡兼容。  
 B. P0 加入真实静态站部署。  
 C. P0 只做 preview，不做 test/build/shell。
 
-我的建议是 **A**。它能覆盖 Demo 和未来部署兼容层，不把 P0 做重。
+当前用户已确认的落地口径是：保留完整部署平台为 P2，但服务型产物必须可通过产物卡启动、打开、停止并持久化运行状态；产物助手负责把启动命令纳入交付收口。
 
 ---
 

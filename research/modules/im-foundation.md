@@ -64,7 +64,10 @@ type ArtifactKind =
   | 'file_ref'
   | 'web_preview'
   | 'diff'
-  | 'action_status';
+  | 'action_status'
+  | 'document_preview'
+  | 'presentation_preview'
+  | 'publish_status';
 ```
 
 核心原则：
@@ -73,6 +76,9 @@ type ArtifactKind =
 - Diff 是 Artifact，不是审批对象。
 - 执行输出只有在 Runtime/Action 真执行命令、测试、构建、预览、部署时进入 Task Result Card。
 - AI 对话仍是普通消息，不复制成日志。
+- 产品交付类结果由内置 `产物助手` 收口：创建一个主 `final_product_candidate`，并可创建多个 `supporting_product_artifact`。聊天内联卡和右侧 Artifacts 面板必须读取同一批 durable records。
+- 富消息卡片使用 `RuntimeMessagePart` 类型判别，不通过解析自然语言判断是否是 Diff、网页预览、文档、PPT 或发布状态。
+- 右侧 Artifacts 面板是读取/操作面，不提供绕过聊天流的新建富文档或新建演示稿入口。
 
 对应需求：`FR-ARTIFACT-001`, `FR-RESULT-001`, `FR-PERM-001`。
 
@@ -87,6 +93,8 @@ P0 推荐：
 - 流式：先实现事件分片写入或消息内容增量更新；Web/Mobile 订阅更新。
 - 富消息渲染：前端统一 `MessageRenderer`，按 `MessageKind` 和 `ArtifactKind` 分派组件。
 - Markdown：使用成熟 Markdown 渲染库，代码高亮和复制封装成基础组件。
+- 服务型主产物：展示启动、打开、停止、URL、端口、失败原因和刷新读回状态；非完全权限由用户触发启动，完全权限可自动启动但必须显示审计记录。
+- 文档/PPT/图片等辅助产物：展示预览、全屏、下载和 source message/run 回链，不展示发布按钮，除非 manifest 明确声明启动命令。
 
 ---
 

@@ -4,6 +4,48 @@
 
 ---
 
+## DEC-009: 产物助手作为产品交付收口角色
+
+| 字段 | 内容 |
+|------|------|
+| **日期** | 2026-06-10 |
+| **决策者** | joytion |
+| **状态** | ✅ 已确认 |
+| **FR-ID** | FR-ORCH-001, FR-ARTIFACT-001, FR-RESULT-001, FR-ACTION-001, FR-PERM-001, FR-DOCS-201, FR-PUBLISH-201 |
+
+### 背景
+
+用户明确要求：在架构师分配给前端、后端、文档、PPT 等角色之后，最终链条中需要一个类似架构师的收口角色。该角色负责判断任务产物类型、主动创建产物、生成 IM 预览卡、处理标准/完全权限下的启动逻辑，并同步右侧产物列表。右侧产物列表不应继续作为独立“新建产物”中心。
+
+### 决策
+
+AgentHub 采用内置 `产物助手` 作为产品交付收口 Role Agent：
+
+- 产品交付 DAG 结构为：架构师规划 -> 实现/内容角色 -> `产物助手收口` -> 架构师汇总。
+- `产物助手` 判断主产物类型：服务启动脚本、静态网页、Markdown 文档、PPT、图片或混合产物。
+- 每次交付只有一个主 `final_product_candidate`，用于启动、打开或发布；同轮生成的 Markdown、PPT、图片和其他静态文件登记为 `supporting_product_artifact`。
+- `产物助手` 在 IM 中生成 artifact、web preview、document preview、presentation preview 和 publish status 卡，并同步右侧 Artifacts durable rows。
+- 标准、sandbox、auto 等非完全权限下，服务启动/发布由用户点击并走权限卡确认。
+- `full_control` / `dangerous_bypass` 下，服务型主产物可以自动启动，但必须留下自动通过审计卡和运行/失败状态卡。
+- 右侧 Artifacts 面板是读取和操作面，不提供绕过聊天流的“新建富文档”或“新建演示稿”按钮。
+
+### 职责边界
+
+- PPT 内容生成属于演示稿工程师、PPT 助手或 `ppt_master` 专属角色。
+- `产物助手` 不默认生成 PPT 内容；它负责注册、预览转换、下载、发布控制和 IM 卡片。
+- 架构师负责规划、验收和最终说明；产物助手负责交付物判型和产物记录闭环。
+- 完整静态站、容器、小程序、飞书等发布渠道仍是 P2/后续能力；服务型产物的启动/停止/URL/状态读回是当前交付收口能力。
+
+### 影响
+
+- `apps/web/config/role-agents/defaults.json` 必须包含内置 `产物助手`。
+- Orchestrator DAG 生成器必须在产品交付任务中插入 `产物助手收口`。
+- `/api/chat` 的产品交付结果卡应归属产物助手，并写入 durable artifact rows 和 typed runtime parts。
+- 右侧 Artifacts 只展示 durable artifact records，不再保留聊天外富文档/演示稿创建入口。
+- PRD、产品设计、技术设计、IM/Orchestrator/Action 模块文档必须使用同一口径。
+
+---
+
 ## DEC-008: Bytedance 原始 PRD 作为最高产品事实源
 
 | 字段 | 内容 |
