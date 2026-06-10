@@ -91,6 +91,7 @@ type ArtifactRecommendationInput = {
   planId: string | null
   autoPublish: boolean
   permissionMode?: string | null
+  userOriginalPrompt?: string | null
 }
 
 type DeliveredArtifactCandidate = {
@@ -873,6 +874,65 @@ function isSupportingArtifactCandidate(candidate: DeliveredArtifactCandidate) {
     || candidate.artifactType === 'html'
 }
 
+// Identifies the workspace-initialization placeholder README that
+// `ensureCloudWorkspaceProject` writes (`# {workspaceName}\n\nAgentHub cloud workspace project.\n`).
+// Real user-authored Markdown — even short notes — must NOT be filtered, so the
+// match is intentionally narrow: only a lone H1 title optionally followed by the
+// exact boilerplate sentence, with no other substantive content.
+function isWorkspaceTemplateReadme(candidate: DeliveredArtifactCandidate) {
+  if (!/(^|\/)readme\.md$/i.test(candidate.sourcePath)) return false
+  if (candidate.artifactType !== 'document' && candidate.artifactType !== 'markdown') return false
+  if (typeof candidate.content !== 'string') return false
+  const lines = candidate.content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length === 0) return true
+  // Must start with a single H1 title line.
+  if (!/^#\s+\S/.test(lines[0])) return false
+  // Only the boilerplate sentence is allowed beyond the title.
+  const rest = lines.slice(1)
+  if (rest.length === 0) return true
+  return rest.every((line) => line === 'AgentHub cloud workspace project.')
+}
+
+// Picks the single primary `final_product_candidate` from the discovered candidate
+// list while honoring the user's original delivery intent. Returns the chosen
+// primary plus the remaining candidates (which become supporting artifacts).
+// Contract: exactly one primary launch/publish entry (real-flow-product-delivery.md
+// line 20/39). A runnable/HTML launch entry stays primary when present; otherwise
+// the candidate matching the user's stated product type (e.g. "PPT" -> .pptx) wins.
+function selectPrimaryDeliveredCandidate(
+  candidates: DeliveredArtifactCandidate[],
+  userOriginalPrompt: string | null | undefined,
+): { primary: DeliveredArtifactCandidate | null; rest: DeliveredArtifactCandidate[] } {
+  if (candidates.length === 0) return { primary: null, rest: [] }
+  const prompt = (userOriginalPrompt ?? '').toLowerCase()
+  const wantsPresentation = /\bppt\b|pptx|presentation|演示|幻灯|slides?/i.test(prompt)
+  const wantsDocument = /\bdocx?\b|文档|word|报告|说明书/i.test(prompt)
+
+  const score = (candidate: DeliveredArtifactCandidate) => {
+    // Launch/publish entries are always the canonical primary when they exist.
+    if (candidateHasStartInstruction(candidate)) return 100
+    if (candidate.artifactType === 'html' || candidate.artifactType === 'folder') return 90
+    // Match the user's explicitly requested product type.
+    if (wantsPresentation && candidate.artifactType === 'presentation') return 80
+    if (wantsDocument && (candidate.artifactType === 'document' || candidate.artifactType === 'markdown')) return 78
+    // Real deliverables outrank leftover docs even without an explicit request.
+    if (candidate.artifactType === 'presentation') return 60
+    if (candidate.artifactType === 'document' || candidate.artifactType === 'markdown') return 50
+    if (candidate.artifactType === 'image') return 40
+    return 10
+  }
+
+  const ordered = candidates
+    .map((candidate, index) => ({ candidate, index, weight: score(candidate) }))
+    .sort((a, b) => b.weight - a.weight || a.index - b.index)
+  const primary = ordered[0]?.candidate ?? null
+  const rest = ordered.slice(1).map((entry) => entry.candidate)
+  return { primary, rest }
+}
+
 function publishStatusPart(input: {
   artifactId: string
   candidate: DeliveredArtifactCandidate
@@ -1103,9 +1163,15 @@ async function writeDeliveryManifest(input: {
 
 async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   if (!input.workspaceRoot) return null
-  const candidates = await findDeliveredArtifactCandidates(input.workspaceRoot, input.workspaceId)
-  const candidate = candidates[0] ?? null
-  if (!candidate) return null
+  const allCandidates = await findDeliveredArtifactCandidates(input.workspaceRoot, input.workspaceId)
+  const { primary, rest } = selectPrimaryDeliveredCandidate(allCandidates, input.userOriginalPrompt)
+  if (!primary) return null
+  // Attach a runnable launch entry to the chosen primary (static HTML/folder
+  // products that also expose a package start script), mirroring the previous
+  // index-0 enrichment but anchored to the intent-selected primary.
+  const runnable = await detectWorkspaceRunnablePackage(input.workspaceRoot)
+  const candidate = attachRunnableLaunch(primary, runnable)
+  const supportingCandidates = rest
 
   const now = new Date().toISOString()
   const recommendation = {
@@ -1201,7 +1267,7 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
     publish: publishResult,
   })
   const supportingArtifacts: PersistedDeliveredArtifact[] = []
-  for (const supportingCandidate of candidates.slice(1).filter(isSupportingArtifactCandidate).slice(0, 8)) {
+  for (const supportingCandidate of supportingCandidates.filter(isSupportingArtifactCandidate).slice(0, 8)) {
     const persisted = await persistDeliveredArtifact({
       db: input.db,
       userId: input.userId,
@@ -1377,10 +1443,12 @@ async function findDeliveredArtifactCandidates(workspaceRoot: string, workspaceI
     if (candidate) candidates.push(candidate)
   }
 
-  const discoveredPresentationPaths = (await walkWorkspaceFiles(workspaceRoot, {
+  const walkedFiles = await walkWorkspaceFiles(workspaceRoot, {
     maxFiles: 500,
     maxDepth: 4,
-  }))
+  })
+
+  const discoveredPresentationPaths = walkedFiles
     .filter((sourcePath) => /\.(pptx?|odp)$/i.test(sourcePath))
     .sort((a, b) => {
       const score = (value: string) => (
@@ -1395,12 +1463,22 @@ async function findDeliveredArtifactCandidates(workspaceRoot: string, workspaceI
     if (candidate) candidates.push(candidate)
   }
 
+  // Discover real document deliverables (.docx/.doc) the same way as presentations
+  // so multi-product runs register them as supporting artifacts instead of dropping them.
+  const discoveredDocumentPaths = walkedFiles
+    .filter((sourcePath) => /\.(docx?)$/i.test(sourcePath))
+    .sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))
+  for (const sourcePath of discoveredDocumentPaths) {
+    const candidate = await workspaceFileCandidate({ workspaceRoot, workspaceId, sourcePath })
+    if (candidate) candidates.push(candidate)
+  }
+
   const runnable = await detectWorkspaceRunnablePackage(workspaceRoot)
-  if (candidates.length > 0) {
-    const enriched = candidates.map((candidate, index) => (
-      index === 0 ? attachRunnableLaunch(candidate, runnable) : candidate
-    ))
-    return dedupeDeliveredArtifactCandidates(enriched)
+  // Drop the workspace-initialization placeholder README so a 47-byte template
+  // shell can never be recommended as a product. Real user-authored Markdown is preserved.
+  const meaningfulCandidates = candidates.filter((candidate) => !isWorkspaceTemplateReadme(candidate))
+  if (meaningfulCandidates.length > 0) {
+    return dedupeDeliveredArtifactCandidates(meaningfulCandidates)
   }
 
   if (!runnable) return []
@@ -2515,6 +2593,7 @@ export async function POST(req: NextRequest) {
               planId,
               autoPublish: isAutomaticDeliveryPermissionMode(permissionMode),
               permissionMode,
+              userOriginalPrompt: userMessage,
             })
             if (!deliveredArtifactRecommendation) {
               const error = '产物助手未发现可登记的最终产物入口'
@@ -2881,6 +2960,7 @@ export async function POST(req: NextRequest) {
                 planId,
                 autoPublish: isAutomaticDeliveryPermissionMode(permissionMode),
                 permissionMode,
+                userOriginalPrompt: userMessage,
               })
               if (deliveredArtifactRecommendation) {
                 await persistProcessEvent({
@@ -3135,6 +3215,7 @@ export async function POST(req: NextRequest) {
                 planId,
                 autoPublish: isAutomaticDeliveryPermissionMode(permissionMode),
                 permissionMode,
+                userOriginalPrompt: userMessage,
               })
               if (!recommended) {
                 await persistProcessEvent({

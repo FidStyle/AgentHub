@@ -184,6 +184,168 @@ async function callChat(body: unknown): Promise<{ status: number; text: string }
   return { status: res.status, text: await res.text() }
 }
 
+// Shared strict-delivery Postgres mock used by the full-control product-delivery
+// artifact-closure tests (mirrors AT-002c's inline client wiring).
+function setupStrictDeliveryClient() {
+  const base = createPostgresChain(undefined, undefined, undefined, undefined, [
+    {
+      id: 'agent-orch',
+      workspace_id: 'ws-001',
+      name: '架构师',
+      role_type: 'orchestrator',
+      system_prompt: '负责协调',
+      capability_tags: ['规划'],
+      runtime_type: 'claude_code',
+      is_orchestrator: true,
+    },
+    {
+      id: 'agent-fe',
+      workspace_id: 'ws-001',
+      name: '前端工程师',
+      role_type: 'engineer',
+      system_prompt: '负责前端',
+      capability_tags: ['前端'],
+      runtime_type: 'claude_code',
+      is_orchestrator: false,
+    },
+    {
+      id: 'agent-be',
+      workspace_id: 'ws-001',
+      name: '后端工程师',
+      role_type: 'engineer',
+      system_prompt: '负责后端',
+      capability_tags: ['后端', '数据库'],
+      runtime_type: 'codex',
+      is_orchestrator: false,
+    },
+    artifactAssistantRoleFixture(),
+  ])
+  setupMockClient(vi.fn(() => {
+    const client = base()
+    const origFrom = client.from
+    client.from = vi.fn((table: string) => {
+      if (table === 'plans') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            insertedPlans.push(vals)
+            return { select: () => ({ single: () => ({ data: { id: 'plan-001', ...vals }, error: null }) }) }
+          },
+          update: () => ({ eq: () => ({ data: null, error: null }) }),
+        }
+      }
+      if (table === 'plan_nodes') {
+        return {
+          insert: (vals: Record<string, unknown> | Record<string, unknown>[]) => {
+            insertedPlanNodes.push(...(Array.isArray(vals) ? vals : [vals]))
+            return { data: null, error: null }
+          },
+          update: () => ({ eq: () => ({ data: null, error: null }) }),
+        }
+      }
+      if (table === 'plan_node_attempts') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: `attempt-${insertedAttempts.length + 1}`, ...vals }
+            insertedAttempts.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+          update: (vals: Record<string, unknown>) => ({
+            eq: (_field: string, id: string) => {
+              const row = insertedAttempts.find((attempt) => attempt.id === id)
+              if (row) Object.assign(row, vals)
+              return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+            },
+          }),
+        }
+      }
+      if (table === 'agent_mailbox_items') {
+        return {
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: `mailbox-${insertedMailboxItems.length + 1}`, ...vals }
+            insertedMailboxItems.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+          update: (vals: Record<string, unknown>) => ({
+            eq: (_field: string, id: string) => {
+              const row = insertedMailboxItems.find((mailbox) => mailbox.id === id)
+              if (row) Object.assign(row, vals)
+              return { data: row ?? null, error: row ? null : { message: 'Not found' } }
+            },
+          }),
+        }
+      }
+      if (table === 'runtime_sessions') {
+        const runtimeRows = [{ id: 'runtime-latest', native_session_id: 'native-latest' }]
+        const runtimeChain = {
+          eq: () => runtimeChain,
+          is: () => runtimeChain,
+          order: () => ({ limit: () => ({ data: runtimeRows, error: null }) }),
+        }
+        return {
+          select: () => runtimeChain,
+          insert: (vals: Record<string, unknown>) => ({
+            select: () => ({
+              single: () => ({ data: { id: 'runtime-summary', ...vals }, error: null }),
+            }),
+          }),
+        }
+      }
+      if (table === 'actions') {
+        const actionChain = {
+          eq: (_field: string, planNodeId: string) => ({
+            order: () => ({
+              data: [
+                ...insertedActions.filter((action) => action.plan_node_id === planNodeId),
+                ...strictDeliveryActionEvidenceForNode(planNodeId),
+              ],
+              error: null,
+            }),
+          }),
+        }
+        return { select: () => actionChain }
+      }
+      if (table === 'artifacts') {
+        return {
+          select: () => {
+            const chain = {
+              eq: (_field: string, _value: string) => chain,
+              limit: () => ({ data: [], error: null }),
+            }
+            return chain
+          },
+          insert: (vals: Record<string, unknown>) => {
+            const row = { id: `artifact-${insertedArtifacts.length + 1}`, ...vals }
+            insertedArtifacts.push(row)
+            return { select: () => ({ single: () => ({ data: row, error: null }) }) }
+          },
+        }
+      }
+      const t = origFrom(table)
+      if (table === 'messages') {
+        const origInsert = t.insert
+        t.insert = (vals: Record<string, unknown>) => {
+          insertedMessages.push(vals)
+          return origInsert(vals)
+        }
+      }
+      return t
+    })
+    return client
+  }))
+}
+
+function finalArtifactRow() {
+  return insertedArtifacts.find((artifact) => (
+    (artifact.metadata as Record<string, unknown> | null)?.kind === 'final_product_candidate'
+  ))
+}
+
+function supportingArtifactRows() {
+  return insertedArtifacts.filter((artifact) => (
+    (artifact.metadata as Record<string, unknown> | null)?.kind === 'supporting_product_artifact'
+  ))
+}
+
 function chainCapturingInserts() {
   return chainCapturingInsertsWithRoles()
 }
@@ -357,6 +519,9 @@ describe('POST /api/chat — role-chat-core', () => {
     await rm(path.join(mockWorkspaceRoot, 'summary.md'), { force: true })
     await rm(path.join(mockWorkspaceRoot, 'slides.pptx'), { force: true })
     await rm(path.join(mockWorkspaceRoot, 'presentation.pptx'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, '字节跳动公司介绍.pptx'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, '产品介绍.docx'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, '使用说明.md'), { force: true })
   })
 
   it('renames the default new chat from the first user message and streams the title update', async () => {
@@ -1337,6 +1502,94 @@ describe('POST /api/chat — role-chat-core', () => {
     })
     expect(JSON.stringify((artifactClosureMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('public/index.html')
     expect(JSON.stringify((artifactClosureMessage?.metadata as { handoffsReceived?: unknown[] } | null)?.handoffsReceived ?? [])).toContain('src/server.js')
+  })
+
+  it('AT-002d [critical]: picks the real .pptx over the workspace template README at closure', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    setupStrictDeliveryClient()
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    // 工作区初始化模板空壳 README（占位，未被本次任务改写）
+    await writeWorkspaceFixture('README.md', '# 测试666\n\nAgentHub cloud workspace project.\n')
+    // 本次真实生成的 PPT 产物
+    await writeWorkspaceFixture('字节跳动公司介绍.pptx', 'fake pptx bytes for bytedance deck\n')
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '生成字节跳动介绍ppt',
+      permissionMode: 'full_control',
+      runMarker: 'STRICT-SPD-PPTX',
+    })
+
+    expect(status).toBe(200)
+    const finalArtifact = finalArtifactRow()
+    expect(finalArtifact?.source_path).toBe('字节跳动公司介绍.pptx')
+    expect(finalArtifact?.artifact_type).toBe('presentation')
+    // 模板空壳 README 既不是 final 也不应作为 supporting 被登记
+    expect(insertedArtifacts.some((artifact) => artifact.source_path === 'README.md')).toBe(false)
+  })
+
+  it('AT-002e [critical]: PPT request keeps one primary final and registers .docx as supporting', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    setupStrictDeliveryClient()
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    await writeWorkspaceFixture('README.md', '# 演示项目\n\nAgentHub cloud workspace project.\n')
+    await writeWorkspaceFixture('字节跳动公司介绍.pptx', 'fake pptx bytes for bytedance deck\n')
+    await writeWorkspaceFixture('产品介绍.docx', 'fake docx bytes for product doc\n')
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '生成字节跳动介绍PPT，同时附一份产品文档',
+      permissionMode: 'full_control',
+      runMarker: 'STRICT-SPD-MULTI',
+    })
+
+    expect(status).toBe(200)
+    // 用户诉求含 PPT -> .pptx 为唯一 primary final
+    const primaries = insertedArtifacts.filter((artifact) => (
+      (artifact.metadata as Record<string, unknown> | null)?.kind === 'final_product_candidate'
+    ))
+    expect(primaries).toHaveLength(1)
+    expect(primaries[0]?.source_path).toBe('字节跳动公司介绍.pptx')
+    // .docx 真实产物登记为 supporting，不产生第二个 primary、不漏登记
+    const supporting = supportingArtifactRows()
+    expect(supporting.map((artifact) => artifact.source_path)).toContain('产品介绍.docx')
+    // 模板空壳 README 不混入任何一类
+    expect(insertedArtifacts.some((artifact) => artifact.source_path === 'README.md')).toBe(false)
+  })
+
+  it('AT-002f [high]: a genuine user-authored small Markdown is still selectable as final', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    setupStrictDeliveryClient()
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    // 用户真实写的小 MD（非模板占位），必须不被空壳过滤误杀
+    await writeWorkspaceFixture('README.md', '# 使用说明\n\n运行 `npm start` 后访问首页即可使用。\n')
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '生成一份使用说明文档',
+      permissionMode: 'full_control',
+      runMarker: 'STRICT-SPD-MD',
+    })
+
+    expect(status).toBe(200)
+    const finalArtifact = finalArtifactRow()
+    expect(finalArtifact?.source_path).toBe('README.md')
+    expect(finalArtifact?.artifact_type).toBe('document')
   })
 
   it('recommends a runnable service artifact when no static html entry exists', async () => {

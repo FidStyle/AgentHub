@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/cross-layer/real-flow-product-delivery.md", "reason": "收口的权威契约：primary final 唯一（line 20/39）、supporting 可多个含 PPT/文档、delivery.json 为主来源、禁止多个 primary launch artifact——本次修复必须遵守"}
+{"file": ".trellis/spec/cross-layer/im-conversation-artifact-contract.md", "reason": "IM 会话内产物卡/预览的契约，约束 final/supporting 在中央 IM transcript 与右侧产物列表的呈现一致性"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量门槛——根因修复、测试不得 skip、type-check/lint 全绿"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "chat/route 与 action-dispatcher 两条收口路径并存，参照跨层思维避免只改一条导致再次发散"}

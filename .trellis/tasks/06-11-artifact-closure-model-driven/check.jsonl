@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/cross-layer/real-flow-product-delivery.md", "reason": "验收口径：primary final 唯一、supporting 全登记、delivery.json/artifacts/右侧列表一致；Validation 矩阵 line 39/41 是 fail 判据"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "验收质量门槛——测试不得 skip、根因修复、type-check/lint 全绿"}
+{"file": "research/execution-reports/strict-single-prompt-product-delivery-gate-2026-06-05.md", "reason": "复用 strict 单 prompt 产物交付门禁的验证命令与取证口径，作为本次端到端复跑的验证参照"}
