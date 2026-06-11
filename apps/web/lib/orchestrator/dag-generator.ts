@@ -54,15 +54,6 @@ function isArtifactAssistantRole(role: OrchestratedRole) {
   return text.includes('artifact assistant') || text.includes('artifact_assistant') || text.includes('产物助手')
 }
 
-function isProductDeliveryIntent(task: string) {
-  const explicitDelivery = /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(task)
-  const canonicalProductPrompt = /sqlite|SQLite|历史记录/.test(task)
-    && /(网站|网页|页面|应用|服务)/.test(task)
-    && /(加减乘除|计算器|生成姓名|姓名生成|姓名)/.test(task)
-  const generatedProductPrompt = /(生成|做一个|创建|实现|开发).*(网页|网站|应用|服务|文档|markdown|Markdown|PPT|ppt|演示稿)/.test(task)
-  return explicitDelivery || canonicalProductPrompt || generatedProductPrompt
-}
-
 function frontendDependsOnBackend(task: string) {
   const text = task.toLowerCase()
   return [
@@ -92,6 +83,7 @@ function labelForTarget(target: OrchestratedTarget<OrchestratedRole>) {
 export function generateOrchestration<T extends OrchestratedRole>(
   selectedRoles: T[],
   task: string,
+  productDeliveryIntent: boolean,
 ): GeneratedOrchestration<T> {
   const orchestrator = selectedRoles.find((role) => role.is_orchestrator)
   const useOrchestratedRun = Boolean(orchestrator && selectedRoles.length > 1)
@@ -107,8 +99,7 @@ export function generateOrchestration<T extends OrchestratedRole>(
   }
 
   const planner: OrchestratedTarget<T> = { nodeId: randomUUID(), role: orchestrator, phase: 'planning', dependsOn: [] }
-  const productDelivery = isProductDeliveryIntent(task)
-  const artifactAssistant = productDelivery
+  const artifactAssistant = productDeliveryIntent
     ? selectedRoles.find((role) => role.id !== orchestrator.id && isArtifactAssistantRole(role))
     : null
   const workers: Array<OrchestratedTarget<T>> = selectedRoles

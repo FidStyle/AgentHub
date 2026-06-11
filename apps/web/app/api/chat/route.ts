@@ -7,6 +7,7 @@ import { HostedRuntimeAdapter } from '@/lib/runtime/hosted-adapter'
 import { getConnectionByUserId } from '@/server/device-connections'
 import { buildAttachmentPrompt, loadSessionAttachments, parseArtifacts } from '@/lib/chat/attachments-artifacts'
 import { generateOrchestration } from '@/lib/orchestrator/dag-generator'
+import { classifyProductDeliveryIntent } from '@/lib/orchestrator/intent-classifier'
 import { dispatchPreparedRuntimeInvokeNode } from '@/lib/orchestrator/action-dispatcher'
 import { classifyRisk } from '@/lib/orchestrator/permission-engine'
 import { subscribeEvents, type RuntimeJob } from '@/lib/runtime/redis-client'
@@ -432,6 +433,30 @@ async function existingWorkspaceFiles(workspaceRoot: string | null, files: strin
   return found
 }
 
+// A product-delivery worker only truly finished if it actually did something:
+// at least one completed write_file/shell_command action on this node. Guards against
+// a Codex "phantom completion" where the model emits one acknowledgement line ("好的,
+// 明确需求了…") and closes the stream with `runtime_completed` before writing any file,
+// which used to mark the node completed and let artifact closure run against an empty
+// workspace. Returns false only when the node has zero substantive actions.
+async function workerProducedSubstance(
+  db: Awaited<ReturnType<typeof createClient>>,
+  planNodeId: string | null,
+): Promise<boolean> {
+  if (!planNodeId) return true
+  const { data } = await db
+    .from('actions')
+    .select('action_type, status')
+    .eq('plan_node_id', planNodeId)
+    .order('created_at', { ascending: true })
+  const actions = Array.isArray(data) ? data as Array<{ action_type?: string; status?: string }> : []
+  return actions.some((action) => (
+    action.status === 'completed'
+    && (action.action_type === 'write_file' || action.action_type === 'shell_command')
+  ))
+}
+
+
 async function buildCompletedRoleEvidenceSummary(input: {
   db: Awaited<ReturnType<typeof createClient>>
   planNodeId: string | null
@@ -697,17 +722,8 @@ function isAutomaticDeliveryPermissionMode(permissionMode?: string | null) {
   return permissionMode === 'full_control' || permissionMode === 'dangerous_bypass'
 }
 
-function isProductDeliveryIntent(content: string) {
-  const explicitDelivery = /(全自动|完整权限|完全控制|自动完成|直到交付|交付产物)/.test(content)
-  const canonicalProductPrompt = /sqlite|SQLite|历史记录/.test(content)
-    && /(网站|网页|页面|应用|服务)/.test(content)
-    && /(加减乘除|计算器|生成姓名|姓名生成|姓名)/.test(content)
-  const generatedProductPrompt = /(生成|做一个|创建|实现|开发).*(网页|网站|应用|服务|文档|markdown|Markdown|PPT|ppt|演示稿)/.test(content)
-  return explicitDelivery || canonicalProductPrompt || generatedProductPrompt
-}
-
-function isFullAutoDeliveryIntent(content: string, permissionMode?: string | null) {
-  return isAutomaticDeliveryPermissionMode(permissionMode) && isProductDeliveryIntent(content)
+function isFullAutoDeliveryIntent(productDeliveryIntent: boolean, permissionMode?: string | null) {
+  return isAutomaticDeliveryPermissionMode(permissionMode) && productDeliveryIntent
 }
 
 function isArtifactAssistantRole(role: Pick<SelectedRoleAgent, 'name' | 'role_type' | 'capability_tags'>) {
@@ -1427,6 +1443,30 @@ async function workspaceFileCandidate(input: {
   }
 }
 
+// Directories that never hold deliverable artifacts but can hold thousands of files
+// (e.g. a Python `.venv` with 1000+ files). Skipping them keeps the bounded walk from
+// exhausting its maxFiles budget on tooling/dependency trees before reaching the real
+// product files at the workspace root.
+const WORKSPACE_SCAN_SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  '.next',
+  'dist',
+  'build',
+  '.venv',
+  'venv',
+  'env',
+  '__pycache__',
+  '.tox',
+  '.mypy_cache',
+  '.pytest_cache',
+  '.ruff_cache',
+  '.idea',
+  '.vscode',
+  'coverage',
+  '.cache',
+])
+
 async function walkWorkspaceFiles(
   workspaceRoot: string,
   options: { maxFiles: number; maxDepth: number },
@@ -1438,7 +1478,7 @@ async function walkWorkspaceFiles(
   const entries = await readdir(current, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
     if (collected.length >= options.maxFiles) break
-    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.next' || entry.name === 'dist' || entry.name === 'build') continue
+    if (WORKSPACE_SCAN_SKIP_DIRS.has(entry.name)) continue
     const fullPath = path.join(current, entry.name)
     if (entry.isDirectory()) {
       await walkWorkspaceFiles(workspaceRoot, options, fullPath, depth + 1, collected)
@@ -1469,25 +1509,31 @@ async function findDeliveredArtifactCandidates(workspaceRoot: string, workspaceI
     if (candidate) candidates.push(candidate)
   }
 
-  const renderableCandidates = [
-    'README.md',
-    'readme.md',
-    'docs/README.md',
-    'docs/index.md',
-    'document.md',
-    'summary.md',
-    'slides.pptx',
-    'presentation.pptx',
-  ]
-  for (const sourcePath of renderableCandidates) {
-    const candidate = await workspaceFileCandidate({ workspaceRoot, workspaceId, sourcePath })
-    if (candidate) candidates.push(candidate)
-  }
-
   const walkedFiles = await walkWorkspaceFiles(workspaceRoot, {
     maxFiles: 500,
     maxDepth: 4,
   })
+
+  // Discover Markdown deliverables across the whole workspace (any filename), mirroring
+  // the presentation/document scans below. The previous hard-coded whitelist
+  // (README.md/docs/index.md/...) silently dropped custom-named docs like
+  // `docs/byteDance-intro.md`. Ranking prefers shallow paths and README/docs entries so
+  // the canonical document still wins when several exist.
+  const discoveredMarkdownPaths = walkedFiles
+    .filter((sourcePath) => /\.(md|markdown)$/i.test(sourcePath))
+    .sort((a, b) => {
+      const score = (value: string) => {
+        const lower = value.toLowerCase()
+        if (lower === 'readme.md' || lower === 'docs/readme.md' || lower === 'docs/index.md') return 0
+        if (lower.startsWith('docs/')) return 1
+        return value.split('/').length + 1
+      }
+      return score(a) - score(b) || a.localeCompare(b)
+    })
+  for (const sourcePath of discoveredMarkdownPaths) {
+    const candidate = await workspaceFileCandidate({ workspaceRoot, workspaceId, sourcePath })
+    if (candidate) candidates.push(candidate)
+  }
 
   const discoveredPresentationPaths = walkedFiles
     .filter((sourcePath) => /\.(pptx?|odp)$/i.test(sourcePath))
@@ -1895,7 +1941,7 @@ export async function POST(req: NextRequest) {
     }
     if (expandedRoles.length > selectedRoleAgents.length) selectedRoleAgents = expandedRoles
   }
-  const productDeliveryIntent = isProductDeliveryIntent(content)
+  const productDeliveryIntent = await classifyProductDeliveryIntent(content)
   const artifactAssistantRole = allWorkspaceRoles.find(isArtifactAssistantRole) ?? null
   const canAppendArtifactAssistant = productDeliveryIntent
     && artifactAssistantRole
@@ -1914,7 +1960,7 @@ export async function POST(req: NextRequest) {
   }
   const effectiveRuntimeTypeForTarget = (target: ExecutionTarget): CliRuntimeType | undefined => {
     if (!target.role) return undefined
-    if (isFullAutoDeliveryIntent(content, permissionMode)) {
+    if (isFullAutoDeliveryIntent(productDeliveryIntent, permissionMode)) {
       return 'codex'
     }
     return target.role.runtime_type
@@ -1990,7 +2036,7 @@ export async function POST(req: NextRequest) {
     ].filter(Boolean).join('\n\n')
   }
   const phaseBoundaryPrompt = (phase: ExecutionTarget['phase'], role: (typeof selectedRoleAgents)[number] | null) => {
-    const fullAutoDelivery = isFullAutoDeliveryIntent(content, permissionMode)
+    const fullAutoDelivery = isFullAutoDeliveryIntent(productDeliveryIntent, permissionMode)
     if (phase === 'planning') {
       return planningPhaseBoundaryPrompt()
     }
@@ -2052,7 +2098,7 @@ export async function POST(req: NextRequest) {
     metadata.unifiedRegressionRunId = requestRunMarker
     metadata.uatRunId = requestRunMarker
   }
-  if (isFullAutoDeliveryIntent(content, permissionMode)) {
+  if (isFullAutoDeliveryIntent(productDeliveryIntent, permissionMode)) {
     metadata.deliveryIntent = {
       mode: 'full_auto',
       artifactConfirmationAllowed: true,
@@ -2420,7 +2466,7 @@ export async function POST(req: NextRequest) {
       let planId: string | null = null
       let orchestrationTerminalized = false
       try {
-        const orchestration = generateOrchestration(selectedRoleAgents, content)
+        const orchestration = generateOrchestration(selectedRoleAgents, content, productDeliveryIntent)
         const useOrchestratedRun = orchestration.useOrchestratedRun
         const executionTargets: ExecutionTarget[] = orchestration.targets
         let deliveredArtifactRecommendation: DeliveredArtifactRecommendation | null = null
@@ -2910,6 +2956,52 @@ export async function POST(req: NextRequest) {
             runtimeType: targetRuntimeType,
           })
           const hasWaitingPart = runtimeParts.some(isPendingRuntimeBoundaryPart)
+          // Reject phantom completions: in a product-delivery run a worker that claims
+          // `runtime_completed` without any substantive action produced nothing, so we must
+          // not let artifact closure run against an empty workspace. Demote to a failure the
+          // user can retry/resume instead of cascading a false "completed".
+          const phantomWorkerCompletion = completed
+            && target.phase === 'worker'
+            && productDeliveryIntent
+            && !waitingReason
+            && !(await workerProducedSubstance(db, target.nodeId))
+          if (phantomWorkerCompletion) {
+            const error = 'Runtime 声称完成但未产生任何文件或命令产出，节点视为未完成。'
+            await finishRuntimeAttemptEvidence({
+              db,
+              evidence,
+              runtimeSessionId: latestRuntimeSession?.id,
+              status: 'failed',
+              error,
+            })
+            if (target.nodeId) {
+              await db.from('plan_nodes').update({
+                status: 'failed',
+                completed_at: new Date().toISOString(),
+                result: { error, runtimeParts },
+              }).eq('id', target.nodeId)
+            }
+            await persistProcessEvent({
+              db,
+              sessionId,
+              roleAgentId: currentRoleAgentId,
+              content: [
+                `执行失败：@${currentRoleName} 声称完成但未产生任何文件或命令产出。`,
+                '请点击「重试」或「恢复」让该角色继续实际生成产物文件，再进入产物收口。',
+              ].join('\n'),
+              metadata: {
+                runMarker: requestRunMarker,
+                planId,
+                planNodeId: target.nodeId,
+                roleName: currentRoleName,
+                phase: target.phase,
+                visibleStatus: '执行失败',
+                phantomCompletion: true,
+              },
+              emit: emitProcess,
+            })
+            return 'failed'
+          }
           if (completed && (reply || runtimeParts.length > 0)) {
             const evidenceSummary = await buildCompletedRoleEvidenceSummary({
               db,

@@ -165,7 +165,7 @@ describe('DAG Generator', () => {
   ]
 
   it('generates planner, parallel workers, and summarizer fan-in for general collaboration tasks', () => {
-    const result = generateOrchestration(roles, '请前后端一起完成页面和服务')
+    const result = generateOrchestration(roles, '请前后端一起完成页面和服务', false)
 
     expect(result.useOrchestratedRun).toBe(true)
     expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '前端工程师执行', '后端工程师执行', '产物助手执行', '架构师汇总'])
@@ -186,7 +186,7 @@ describe('DAG Generator', () => {
   })
 
   it('adds artifact assistant closure after workers for product delivery tasks', () => {
-    const result = generateOrchestration(roles, '做一个加减乘除的简单网站，使用 sqlite 存储历史记录')
+    const result = generateOrchestration(roles, '做一个加减乘除的简单网站，使用 sqlite 存储历史记录', true)
 
     expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '前端工程师执行', '后端工程师执行', '产物助手收口', '架构师汇总'])
     const frontend = result.planNodes.find((node) => node.label === '前端工程师执行')
@@ -203,7 +203,7 @@ describe('DAG Generator', () => {
       roles[0]!,
       { id: 'agent-ppt', name: '演示稿工程师', role_type: 'engineer', capability_tags: ['演示稿', 'PPT'], is_orchestrator: false },
       roles[3]!,
-    ], '生成一份项目汇报 PPT，并提供预览')
+    ], '生成一份项目汇报 PPT，并提供预览', true)
 
     expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '演示稿工程师执行', '产物助手收口', '架构师汇总'])
     const presentation = result.planNodes.find((node) => node.label === '演示稿工程师执行')
@@ -219,14 +219,14 @@ describe('DAG Generator', () => {
       roles[0]!,
       { id: 'agent-ppt', name: '演示稿工程师', role_type: 'engineer', capability_tags: ['演示稿', 'PPT', '文档'], is_orchestrator: false },
       roles[3]!,
-    ], '帮我生成一个文档和一个PPT。内容简单介绍一下字节跳动')
+    ], '帮我生成一个文档和一个PPT。内容简单介绍一下字节跳动', true)
 
     expect(result.planNodes.map((node) => node.label)).toEqual(['架构师规划', '演示稿工程师执行', '产物助手收口', '架构师汇总'])
     expect(result.planNodes.some((node) => node.label === '后端工程师执行')).toBe(false)
   })
 
   it('serializes frontend after backend when the task requires API or database contract first', () => {
-    const result = generateOrchestration(roles, '先定义后端接口和数据库 schema，再让前端调用后端 API')
+    const result = generateOrchestration(roles, '先定义后端接口和数据库 schema，再让前端调用后端 API', false)
 
     const frontend = result.planNodes.find((node) => node.label === '前端工程师执行')
     const backend = result.planNodes.find((node) => node.label === '后端工程师执行')

@@ -138,8 +138,37 @@ function strictDeliveryActionEvidenceForNode(planNodeId: string) {
       },
     ]
   }
+  // Worker roles that produce documents/presentations (演示稿/文档工程师, etc.) leave at
+  // least one completed write_file action in real runs. Reflect that so the phantom-
+  // completion guard (workerProducedSubstance) treats them as genuine producers.
+  if (label.includes('执行') && !label.includes('架构师') && !label.includes('收口') && !label.includes('汇总')) {
+    return [
+      {
+        plan_node_id: planNodeId,
+        action_type: 'write_file',
+        status: 'completed',
+        result: {
+          input: {
+            changed_paths: [`${mockWorkspaceRoot}/output.txt`],
+          },
+        },
+      },
+    ]
+  }
   return []
 }
+
+// The product-delivery intent classifier shells out to the `claude` CLI in production.
+// In tests we must NOT spawn a real process (it hangs to the 20s CLI timeout). Pin it to
+// the deterministic keyword heuristic, which is the same fallback the runtime uses when
+// the CLI is unavailable.
+vi.mock('@/lib/orchestrator/intent-classifier', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/orchestrator/intent-classifier')>('@/lib/orchestrator/intent-classifier')
+  return {
+    ...actual,
+    classifyProductDeliveryIntent: async (content: string) => actual.productDeliveryIntentHeuristic(content),
+  }
+})
 
 vi.mock('@/lib/runtime/hosted-adapter', () => ({
   HostedRuntimeAdapter: class {
@@ -520,8 +549,10 @@ describe('POST /api/chat — role-chat-core', () => {
     await rm(path.join(mockWorkspaceRoot, 'slides.pptx'), { force: true })
     await rm(path.join(mockWorkspaceRoot, 'presentation.pptx'), { force: true })
     await rm(path.join(mockWorkspaceRoot, '字节跳动公司介绍.pptx'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, '字节跳动介绍.pptx'), { force: true })
     await rm(path.join(mockWorkspaceRoot, '产品介绍.docx'), { force: true })
     await rm(path.join(mockWorkspaceRoot, '使用说明.md'), { force: true })
+    await rm(path.join(mockWorkspaceRoot, '.venv'), { recursive: true, force: true })
   })
 
   it('renames the default new chat from the first user message and streams the title update', async () => {
@@ -1590,6 +1621,63 @@ describe('POST /api/chat — role-chat-core', () => {
     const finalArtifact = finalArtifactRow()
     expect(finalArtifact?.source_path).toBe('README.md')
     expect(finalArtifact?.artifact_type).toBe('document')
+  })
+
+  it('AT-002g [high]: a custom-named Markdown under docs/ is discovered at closure (not just the whitelist)', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    setupStrictDeliveryClient()
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    // 自定义命名、不在旧白名单（README/docs/index.md/...）中的真实文档产物。
+    // 旧逻辑只查白名单 -> 漏登记；通用扫描后必须能发现并登记为最终产物。
+    await writeWorkspaceFixture('docs/byteDance-intro.md', '# 字节跳动介绍\n\n这是一份公司介绍文档，包含业务与文化等多段内容。\n'.repeat(3))
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '生成一份字节跳动介绍文档',
+      permissionMode: 'full_control',
+      runMarker: 'STRICT-SPD-CUSTOM-MD',
+    })
+
+    expect(status).toBe(200)
+    const finalArtifact = finalArtifactRow()
+    expect(finalArtifact?.source_path).toBe('docs/byteDance-intro.md')
+    expect(finalArtifact?.artifact_type).toBe('document')
+  })
+
+  it('AT-002h [high]: a real product is found even when a large .venv would overflow the scan budget', async () => {
+    setAdapterEvents([
+      { type: 'runtime_output', delta: 'done' },
+      { type: 'runtime_completed' },
+    ])
+    setupStrictDeliveryClient()
+    await initGitWorkspace({
+      'package.json': JSON.stringify({ scripts: { test: 'echo baseline' } }, null, 2),
+    })
+    // 真实产物在根目录
+    await writeWorkspaceFixture('字节跳动介绍.pptx', 'fake pptx bytes for bytedance deck\n')
+    // 模拟 Codex 生成 Python 产物时创建的 .venv（上千文件），不得撑爆扫描上限把产物挤掉
+    for (let i = 0; i < 600; i += 1) {
+      await writeWorkspaceFixture(`.venv/lib/python3.12/site-packages/pkg${i}.py`, `# stub ${i}\n`)
+    }
+
+    const { status } = await callChat({
+      sessionId: 'session-001',
+      content: '生成字节跳动介绍PPT',
+      permissionMode: 'full_control',
+      runMarker: 'STRICT-SPD-VENV',
+    })
+
+    expect(status).toBe(200)
+    const finalArtifact = finalArtifactRow()
+    expect(finalArtifact?.source_path).toBe('字节跳动介绍.pptx')
+    expect(finalArtifact?.artifact_type).toBe('presentation')
+    // .venv 内的 .py 不得被登记为任何产物
+    expect(insertedArtifacts.some((artifact) => String(artifact.source_path ?? '').startsWith('.venv/'))).toBe(false)
   })
 
   it('recommends a runnable service artifact when no static html entry exists', async () => {
