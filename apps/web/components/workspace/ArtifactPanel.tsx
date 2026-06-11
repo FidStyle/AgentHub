@@ -4,7 +4,7 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Badge, Button, StateCard } from '@agenthub/ui'
+import { Badge, Button, StateCard, buttonVariants } from '@agenthub/ui'
 import { Bot, Boxes, Check, ChevronDown, ChevronRight, Clock, Download, FileCode2, FileText, FolderTree, GitBranch, History, Maximize2, Minimize2, PackagePlus, Pencil, Plus, Presentation, Rocket, Route, RotateCcw, Save, SendHorizontal, ShieldCheck, Square, Trash2, Upload, X } from 'lucide-react'
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel'
 import { useSessionStore } from '@/store/session-store'
@@ -1347,6 +1347,15 @@ function FileTreeTab({ wideMode, onRequestWide }: { wideMode: boolean; onRequest
               <Upload className="mr-1 h-3.5 w-3.5" />
               上传
             </Button>
+            <a
+              href={`/api/workspaces/${activeWorkspaceId}/files/download-all`}
+              download
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              data-testid="workspace-download-all-btn"
+            >
+              <Download className="mr-1 h-3.5 w-3.5" />
+              下载工作区
+            </a>
             <Button size="sm" variant="ghost" onClick={() => onRequestWide(!wideMode)} data-testid="workspace-file-wide-toggle" aria-label={wideMode ? '收起文件工作台' : '展开文件工作台'}>
               {wideMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </Button>

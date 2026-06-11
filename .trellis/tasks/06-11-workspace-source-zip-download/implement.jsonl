@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "工作区文件读写/路径安全契约——约束 zip 打包遍历、resolveWorkspacePath 防越界、.gitignore 生成落盘"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量门槛——根因实现、测试不得 skip、type-check 全绿、鉴权校验完整"}

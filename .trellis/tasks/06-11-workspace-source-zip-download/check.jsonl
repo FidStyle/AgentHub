@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/runtime-workspace-contract.md", "reason": "验收路径安全与工作区文件边界——打包不越界、不泄漏工作区外文件、鉴权按 owner"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "验收质量门槛——测试不得 skip、根因实现、type-check 全绿"}

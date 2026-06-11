@@ -5,6 +5,8 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createWorkspaceFolderZip,
+  createWorkspaceZip,
+  ensureWorkspaceGitignore,
   applyWorkspaceSelectionPatch,
   cloudWorkspaceDir,
   cloudWorkspaceRoot,
@@ -463,5 +465,101 @@ describe('workspace file preview and artifact bundle helpers', () => {
       message: 'initial history',
     }))
     expect(commits[0]?.shortHash).toHaveLength(7)
+  })
+})
+
+function zipEntryNames(zip: Buffer): string[] {
+  const names: string[] = []
+  let offset = 0
+  while (offset + 4 <= zip.length && zip.readUInt32LE(offset) === 0x04034b50) {
+    const compressedSize = zip.readUInt32LE(offset + 18)
+    const nameLength = zip.readUInt16LE(offset + 26)
+    const extraLength = zip.readUInt16LE(offset + 28)
+    const nameStart = offset + 30
+    names.push(zip.subarray(nameStart, nameStart + nameLength).toString('utf8'))
+    offset = nameStart + nameLength + extraLength + compressedSize
+  }
+  return names
+}
+
+describe('createWorkspaceZip', () => {
+  it('packs the whole workspace and excludes .gitignored paths via git ls-files', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await runGit(root, ['config', 'user.email', 'agenthub@example.com'])
+    await runGit(root, ['config', 'user.name', 'AgentHub Test'])
+    await writeFile(path.join(root, '.gitignore'), 'node_modules/\n')
+    await writeFile(path.join(root, 'index.html'), '<h1>source</h1>')
+    await mkdir(path.join(root, 'node_modules'), { recursive: true })
+    await writeFile(path.join(root, 'node_modules', 'big.js'), 'x'.repeat(1024))
+
+    const zip = await createWorkspaceZip(root)
+    expect(zip.subarray(0, 4).toString('hex')).toBe('504b0304')
+    const names = zipEntryNames(zip)
+    expect(names).toContain('index.html')
+    expect(names).toContain('.gitignore')
+    expect(names.some((name) => name.startsWith('node_modules/'))).toBe(false)
+  })
+
+  it('packs files with spaces and non-ASCII names using NUL-delimited ls-files', async () => {
+    const root = await makeWorkspace()
+    await runGit(root, ['init'])
+    await runGit(root, ['config', 'user.email', 'agenthub@example.com'])
+    await runGit(root, ['config', 'user.name', 'AgentHub Test'])
+    await writeFile(path.join(root, '产品 文档.md'), '# 中文文件')
+    await writeFile(path.join(root, 'plain file.txt'), 'spaced')
+
+    const zip = await createWorkspaceZip(root)
+    const names = zipEntryNames(zip)
+    expect(names).toContain('产品 文档.md')
+    expect(names).toContain('plain file.txt')
+  })
+
+  it('falls back to IGNORED traversal when git is unavailable (no repo)', async () => {
+    const root = await makeWorkspace()
+    // No git init -> git ls-files fails -> fallback traversal.
+    await writeFile(path.join(root, 'app.js'), 'console.log("hi")')
+    await mkdir(path.join(root, 'node_modules'), { recursive: true })
+    await writeFile(path.join(root, 'node_modules', 'dep.js'), 'ignored')
+
+    const zip = await createWorkspaceZip(root)
+    expect(zip.subarray(0, 4).toString('hex')).toBe('504b0304')
+    const names = zipEntryNames(zip)
+    expect(names).toContain('app.js')
+    expect(names.some((name) => name.startsWith('node_modules/'))).toBe(false)
+    expect(names.some((name) => name.startsWith('.git/'))).toBe(false)
+  })
+})
+
+describe('ensureWorkspaceGitignore', () => {
+  it('generates a default .gitignore when package.json exists and none is present', async () => {
+    const root = await makeWorkspace()
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'demo' }))
+
+    const result = await ensureWorkspaceGitignore(root)
+    expect(result.created).toBe(true)
+    expect(result.rules).toContain('node_modules/')
+    const written = await readCloudWorkspacePreview(root, '.gitignore')
+    expect(written.content).toContain('node_modules/')
+  })
+
+  it('does not overwrite an existing .gitignore', async () => {
+    const root = await makeWorkspace()
+    await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'demo' }))
+    await writeFile(path.join(root, '.gitignore'), '# custom rules\nfoo/\n')
+
+    const result = await ensureWorkspaceGitignore(root)
+    expect(result.created).toBe(false)
+    const written = await readCloudWorkspacePreview(root, '.gitignore')
+    expect(written.content).toBe('# custom rules\nfoo/\n')
+  })
+
+  it('does not generate a .gitignore for a static workspace without project markers', async () => {
+    const root = await makeWorkspace()
+    await writeFile(path.join(root, 'index.html'), '<h1>static</h1>')
+
+    const result = await ensureWorkspaceGitignore(root)
+    expect(result.created).toBe(false)
+    await expect(readCloudWorkspacePreview(root, '.gitignore')).rejects.toThrow()
   })
 })

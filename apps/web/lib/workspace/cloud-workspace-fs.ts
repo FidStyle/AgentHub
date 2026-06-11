@@ -377,15 +377,15 @@ function u32(value: number) {
   return buffer
 }
 
-export async function createWorkspaceFolderZip(rootDir: string, relativePath: string) {
-  const manifest = await buildWorkspaceFolderManifest(rootDir, relativePath)
+async function packFilesToZip(rootDir: string, relativePaths: string[]) {
   const locals: Buffer[] = []
   const centrals: Buffer[] = []
   let offset = 0
-  for (const file of manifest.files) {
-    const { fullPath } = resolveWorkspacePath(rootDir, file.path)
+  for (const relPath of relativePaths) {
+    // git ls-files / manifest output is untrusted: validate every entry stays inside the workspace.
+    const { fullPath, relativePath } = resolveWorkspacePath(rootDir, relPath)
     const data = await readFile(fullPath)
-    const name = Buffer.from(file.path, 'utf8')
+    const name = Buffer.from(relativePath, 'utf8')
     const crc = crc32(data)
     const local = Buffer.concat([
       u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
@@ -408,6 +408,11 @@ export async function createWorkspaceFolderZip(rootDir: string, relativePath: st
   return Buffer.concat([...locals, centralDir, end])
 }
 
+export async function createWorkspaceFolderZip(rootDir: string, relativePath: string) {
+  const manifest = await buildWorkspaceFolderManifest(rootDir, relativePath)
+  return packFilesToZip(rootDir, manifest.files.map((file) => file.path))
+}
+
 async function runGit(rootDir: string, args: string[]) {
   return await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
     const child = spawn('git', args, { cwd: rootDir, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -422,6 +427,91 @@ async function runGit(rootDir: string, args: string[]) {
       stderr: Buffer.concat(stderr).toString('utf8'),
     }))
   })
+}
+
+const DEFAULT_GITIGNORE_RULES = [
+  'node_modules/',
+  'dist/',
+  'build/',
+  '.next/',
+  'out/',
+  'coverage/',
+  '*.log',
+  '.env',
+  '.env.*',
+  '.DS_Store',
+]
+
+const BACKEND_PROJECT_MARKERS = ['requirements.txt', 'pyproject.toml', 'pom.xml', 'go.mod', 'Cargo.toml', 'Gemfile']
+
+/**
+ * Generate a default `.gitignore` at the workspace root when the project looks
+ * like a front/back-end project but has none. Respects any existing file.
+ * Returns whether a file was written plus the rules that were applied.
+ */
+export async function ensureWorkspaceGitignore(rootDir: string): Promise<{ created: boolean; rules: string[] }> {
+  const { fullPath: gitignorePath } = resolveWorkspacePath(rootDir, '.gitignore')
+  const existing = await stat(gitignorePath).catch(() => null)
+  if (existing?.isFile()) return { created: false, rules: [] }
+
+  const hasProjectMarker =
+    (await stat(resolveWorkspacePath(rootDir, 'package.json').fullPath).then((info) => info.isFile()).catch(() => false)) ||
+    (await Promise.all(
+      BACKEND_PROJECT_MARKERS.map((marker) =>
+        stat(resolveWorkspacePath(rootDir, marker).fullPath).then((info) => info.isFile()).catch(() => false),
+      ),
+    ).then((results) => results.some(Boolean)))
+
+  if (!hasProjectMarker) return { created: false, rules: [] }
+
+  await writeFile(gitignorePath, `${DEFAULT_GITIGNORE_RULES.join('\n')}\n`, 'utf8')
+  return { created: true, rules: [...DEFAULT_GITIGNORE_RULES] }
+}
+
+async function listWorkspaceFilesFallback(rootDir: string): Promise<string[]> {
+  const files: string[] = []
+  async function walk(dir: string, prefix: string) {
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (IGNORED.has(entry.name)) continue
+      const entryFull = path.join(dir, entry.name)
+      const entryRel = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (entry.isDirectory()) {
+        await walk(entryFull, entryRel)
+      } else if (entry.isFile()) {
+        files.push(entryRel)
+      } else {
+        const info = await stat(entryFull).catch(() => null)
+        if (info?.isFile()) files.push(entryRel)
+      }
+    }
+  }
+  await walk(rootDir, '')
+  return files.sort((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Pack the entire workspace into a store-mode ZIP buffer, excluding files per
+ * the workspace `.gitignore` via `git ls-files`. Falls back to a hardcoded
+ * IGNORED traversal (excluding `.git/`) when git is unavailable so the feature
+ * never fully breaks. Every path is validated through `resolveWorkspacePath`.
+ */
+export async function createWorkspaceZip(rootDir: string): Promise<Buffer> {
+  let files: string[] | null = null
+  const result = await runGit(rootDir, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+  if (result.code === 0) {
+    files = result.stdout
+      .split('\0')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0 && !entry.startsWith('.git/') && entry !== '.git')
+  } else {
+    // Fallback: git unavailable or ls-files failed; traverse with hardcoded IGNORED (excludes .git/).
+    console.warn(`[createWorkspaceZip] git ls-files failed (code=${result.code}); falling back to IGNORED traversal: ${result.stderr.trim()}`)
+  }
+  if (!files) files = await listWorkspaceFilesFallback(rootDir)
+  // Deduplicate (ls-files can list the same path under cached + others edge cases) and keep deterministic order.
+  const unique = Array.from(new Set(files)).sort((a, b) => a.localeCompare(b))
+  return packFilesToZip(rootDir, unique)
 }
 
 function porcelainStatusLabel(status: string) {

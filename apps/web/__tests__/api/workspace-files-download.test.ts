@@ -46,3 +46,53 @@ describe('/api/workspaces/[id]/files/download', () => {
     expect(disposition).toContain("filename*=UTF-8''%E5%AD%97%E8%8A%82%E8%B7%B3%E5%8A%A8%E7%AE%80%E4%BB%8B.pdf")
   })
 })
+
+describe('/api/workspaces/[id]/files/download-all', () => {
+  beforeEach(() => {
+    resetMockClient()
+    resetMockAuth()
+    setupMockAuth()
+  })
+
+  afterEach(async () => {
+    await Promise.all(tmpDirs.map((dir) => rm(dir, { recursive: true, force: true })))
+    tmpDirs = []
+  })
+
+  it('returns a zip of the whole workspace with an attachment Content-Disposition', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'agenthub-workspace-download-all-'))
+    tmpDirs.push(root)
+    await writeFile(path.join(root, 'index.html'), '<h1>source</h1>')
+    setupMockClient(createPostgresChain(undefined, [{ ...mockWorkspace, name: '测试工作区', cloud_project_dir: root }]))
+
+    const { GET } = await import('@/app/api/workspaces/[id]/files/download-all/route')
+    const request = new Request(new URL('/api/workspaces/ws-001/files/download-all', 'http://localhost'))
+    const response = await GET(request, { params: Promise.resolve({ id: 'ws-001' }) })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('application/zip')
+    const disposition = response.headers.get('Content-Disposition')
+    expect(disposition).toContain('attachment;')
+    expect(disposition).toContain('.zip')
+    const body = Buffer.from(await response.arrayBuffer())
+    expect(body.subarray(0, 4).toString('hex')).toBe('504b0304')
+    expect(body.includes(Buffer.from('index.html'))).toBe(true)
+  })
+
+  it('rejects unauthenticated requests with 401', async () => {
+    setupMockAuth(null)
+    const { GET } = await import('@/app/api/workspaces/[id]/files/download-all/route')
+    const request = new Request(new URL('/api/workspaces/ws-001/files/download-all', 'http://localhost'))
+    const response = await GET(request, { params: Promise.resolve({ id: 'ws-001' }) })
+    expect(response.status).toBe(401)
+  })
+
+  it('rejects non-owner access with 404 (workspace not found for owner)', async () => {
+    // No workspace rows returned for this owner -> loadOwnedWorkspace fails.
+    setupMockClient(createPostgresChain(undefined, []))
+    const { GET } = await import('@/app/api/workspaces/[id]/files/download-all/route')
+    const request = new Request(new URL('/api/workspaces/ws-001/files/download-all', 'http://localhost'))
+    const response = await GET(request, { params: Promise.resolve({ id: 'ws-001' }) })
+    expect(response.status).toBe(404)
+  })
+})
