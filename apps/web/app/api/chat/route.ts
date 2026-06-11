@@ -1204,11 +1204,14 @@ async function recommendDeliveredArtifact(input: ArtifactRecommendationInput) {
   const allCandidates = await findDeliveredArtifactCandidates(input.workspaceRoot, input.workspaceId)
   const { primary, rest } = selectPrimaryDeliveredCandidate(allCandidates, input.userOriginalPrompt)
   if (!primary) return null
-  // Attach a runnable launch entry to the chosen primary (static HTML/folder
-  // products that also expose a package start script), mirroring the previous
-  // index-0 enrichment but anchored to the intent-selected primary.
-  const runnable = await detectWorkspaceRunnablePackage(input.workspaceRoot)
-  const candidate = await attachGeneratedWebLaunch(input.workspaceRoot, attachRunnableLaunch(primary, runnable))
+  // Web products (HTML/folder) must launch via the `.agenthub/start.sh` script so the
+  // displayed start command always points inside `.agenthub`. attachGeneratedWebLaunch
+  // handles both dynamic (npm script) and static (http-server) cases, so it runs first
+  // and takes precedence over the bare `npm run <script>` command from attachRunnableLaunch.
+  // Non-web products still get the runnable launch enrichment.
+  const candidate = isWebProductCandidate(primary)
+    ? await attachGeneratedWebLaunch(input.workspaceRoot, primary)
+    : attachRunnableLaunch(primary, await detectWorkspaceRunnablePackage(input.workspaceRoot))
   const supportingCandidates = rest
 
   const now = new Date().toISOString()

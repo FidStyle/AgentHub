@@ -63,18 +63,79 @@ async function freePort() {
   return port
 }
 
-async function waitForHttp(url: string, timeoutMs = 90_000) {
+async function probeHttp(port: number) {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}`)
+    return response.ok || response.status < 500
+  } catch {
+    return false
+  }
+}
+
+// Many Node/Express apps ignore the injected PORT env and listen on a hard-coded port,
+// so the publish process may serve on a port we never picked. Walk the spawned process
+// tree and list every TCP port it is LISTENing on, so we can discover the real port
+// instead of assuming the app honored our requested one.
+async function listeningPortsForPid(rootPid: number): Promise<number[]> {
+  const pids = await processTreePids(rootPid)
+  if (pids.length === 0) return []
+  return new Promise((resolve) => {
+    const lsof = spawn('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-a', '-p', pids.join(',')], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    let out = ''
+    lsof.stdout.on('data', (chunk) => { out += chunk.toString() })
+    lsof.on('error', () => resolve([]))
+    lsof.on('close', () => {
+      const ports = new Set<number>()
+      for (const line of out.split('\n')) {
+        const match = line.match(/:(\d+)\s+\(LISTEN\)/)
+        if (match) ports.add(Number(match[1]))
+      }
+      resolve([...ports])
+    })
+  })
+}
+
+async function processTreePids(rootPid: number): Promise<number[]> {
+  return new Promise((resolve) => {
+    const ps = spawn('ps', ['-Ao', 'pid=,ppid='], { stdio: ['ignore', 'pipe', 'ignore'] })
+    let out = ''
+    ps.stdout.on('data', (chunk) => { out += chunk.toString() })
+    ps.on('error', () => resolve([rootPid]))
+    ps.on('close', () => {
+      const children = new Map<number, number[]>()
+      for (const line of out.split('\n')) {
+        const [pid, ppid] = line.trim().split(/\s+/).map(Number)
+        if (!pid || Number.isNaN(ppid)) continue
+        const list = children.get(ppid) ?? []
+        list.push(pid)
+        children.set(ppid, list)
+      }
+      const collected: number[] = []
+      const stack = [rootPid]
+      while (stack.length) {
+        const pid = stack.pop()!
+        collected.push(pid)
+        for (const child of children.get(pid) ?? []) stack.push(child)
+      }
+      resolve(collected)
+    })
+  })
+}
+
+// Wait until the publish process is reachable over HTTP. Prefer the requested port,
+// but discover the actual LISTEN port from the process tree when the app ignored it.
+async function waitForPublishPort(rootPid: number, requestedPort: number, timeoutMs = 90_000) {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
-    try {
-      const response = await fetch(url)
-      if (response.ok || response.status < 500) return true
-    } catch {
-      // service may still be starting
+    if (await probeHttp(requestedPort)) return requestedPort
+    for (const port of await listeningPortsForPid(rootPid)) {
+      if (port !== requestedPort && await probeHttp(port)) return port
     }
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
-  return false
+  return null
 }
 
 export function packageScriptFromMetadata(metadata: Record<string, unknown> | null | undefined) {
@@ -184,23 +245,22 @@ export async function startArtifactPublish(input: {
 
   const workspaceRoot = path.resolve(input.workspaceRoot)
   const launch = await createWorkspaceArtifactLaunchScript(workspaceRoot, input.row.id, launchSource)
-  const port = await freePort()
+  const requestedPort = await freePort()
   const scriptFullPath = path.resolve(workspaceRoot, launch.scriptPath)
   if (!scriptFullPath.startsWith(`${workspaceRoot}${path.sep}`)) {
     throw new Error('启动脚本路径超出工作区范围')
   }
   const child = spawn('bash', [scriptFullPath], {
     cwd: workspaceRoot,
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, PORT: String(requestedPort) },
     stdio: ['ignore', 'ignore', 'ignore'],
   })
-  const url = `http://127.0.0.1:${port}`
   const startedAt = new Date().toISOString()
   publishRegistry.set(input.row.id, {
     artifactId: input.row.id,
     pid: child.pid ?? 0,
-    port,
-    url,
+    port: requestedPort,
+    url: `http://127.0.0.1:${requestedPort}`,
     process: child,
     startedAt,
   })
@@ -209,8 +269,8 @@ export async function startArtifactPublish(input: {
     if (currentRecord?.process === child) publishRegistry.delete(input.row.id)
   })
 
-  const ready = await waitForHttp(url)
-  if (!ready) {
+  const port = await waitForPublishPort(child.pid ?? 0, requestedPort)
+  if (!port) {
     child.kill('SIGTERM')
     publishRegistry.delete(input.row.id)
     const failedAt = new Date().toISOString()
@@ -220,7 +280,7 @@ export async function startArtifactPublish(input: {
         publishStatus: 'failed',
         publishUrl: null,
         publishPid: null,
-        publishPort: port,
+        publishPort: requestedPort,
         publishError: '发布服务启动超时，已终止临时进程。',
         publishFailedAt: failedAt,
       },
@@ -231,7 +291,7 @@ export async function startArtifactPublish(input: {
         db: input.db,
         row: input.row,
         status: 'failed',
-        port,
+        port: requestedPort,
         error: '发布服务启动超时',
         message: '发布服务启动超时，已终止临时进程。',
       })
@@ -239,6 +299,11 @@ export async function startArtifactPublish(input: {
     throw new Error('发布服务启动超时')
   }
 
+  const url = `http://127.0.0.1:${port}`
+  const existing = publishRegistry.get(input.row.id)
+  if (existing?.process === child) {
+    publishRegistry.set(input.row.id, { ...existing, port, url })
+  }
   const metadata = {
     ...(input.row.metadata && typeof input.row.metadata === 'object' ? input.row.metadata : {}),
     startScriptPath: launch.scriptPath,

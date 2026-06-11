@@ -258,15 +258,32 @@ function sortGitChangeTree(nodes: GitChangeTreeNode[]): GitChangeTreeNode[] {
 function PreviewBlock({
   preview,
   downloadUrl,
+  publishUrl,
 }: {
   preview: Pick<FilePreview, 'previewKind' | 'content' | 'mime' | 'path' | 'name' | 'truncated'>
   downloadUrl?: string | null
+  publishUrl?: string | null
 }) {
   if (preview.previewKind === 'html' && preview.content) {
+    // When the product is published and running, point the preview at the real serving
+    // URL so linked assets (/styles.css, /app.js) resolve against the live server. A bare
+    // srcDoc has no base URL, so absolute-path assets 404 and scripts would need a sandbox
+    // opt-in. allow-scripts + allow-same-origin lets the live page behave normally.
+    if (publishUrl) {
+      return (
+        <FullscreenIframe
+          testId="workspace-html-preview"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          title={preview.name}
+          src={publishUrl}
+          className="h-72"
+        />
+      )
+    }
     return (
       <FullscreenIframe
         testId="workspace-html-preview"
-        sandbox=""
+        sandbox="allow-scripts"
         title={preview.name}
         srcDoc={preview.content}
         className="h-72"
@@ -2333,7 +2350,7 @@ function ArtifactCard({ artifact, onChanged }: { artifact: ArtifactRow; onChange
       ) : (
         sourceBackedOfficeArtifact
           ? <OfficeArtifactPreview artifact={artifact} downloadUrl={downloadUrl} />
-          : <PreviewBlock preview={preview} downloadUrl={downloadUrl} />
+          : <PreviewBlock preview={preview} downloadUrl={downloadUrl} publishUrl={publishState === 'running' ? publishUrl : null} />
       )}
       <div className="flex flex-wrap gap-2 rounded-md border border-border bg-muted/30 p-2">
         <Button size="sm" variant="outline" onClick={quoteArtifactToComposer} data-testid="artifact-quote-to-composer">
